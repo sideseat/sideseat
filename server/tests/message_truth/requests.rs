@@ -134,6 +134,7 @@ pub(super) fn as_fact(
         require: requirement(matcher),
         call: None,
         fixtures: None,
+        seal: None,
     })
 }
 
@@ -170,10 +171,22 @@ fn rewritten(id: &Value, rewrites: &BTreeMap<String, String>) -> Value {
     }
 }
 
+/// The withheld reasoning facts a fixture's telemetry carries no signature for (`signature_not_exported`):
+/// a request part re-sending one is shown unsigned, as the fact is.
+fn unsigned(truth: &Truth) -> BTreeSet<&str> {
+    truth
+        .facts
+        .iter()
+        .filter(|f| f.kind == "reasoning" && f.value.get("signed") == Some(&Value::Bool(false)))
+        .map(|f| f.id.as_str())
+        .collect()
+}
+
 fn expected(
     call: &str,
     request: &CallRequest,
     rewrites: &BTreeMap<String, String>,
+    unsigned: &BTreeSet<&str>,
 ) -> Vec<Expected> {
     let mut out = Vec::new();
     for (p, occurrence) in request.system.iter().enumerate() {
@@ -194,7 +207,14 @@ fn expected(
         for (p, occurrence) in message.parts.iter().enumerate() {
             let role = shown_role(&message.role, &occurrence.part);
             let label = format!("{call}:m{m}.{p}");
-            if let Some(fact) = as_fact(&label, role, &occurrence.part, rewrites) {
+            if let Some(mut fact) = as_fact(&label, role, &occurrence.part, rewrites) {
+                if occurrence
+                    .replay_of
+                    .as_deref()
+                    .is_some_and(|f| unsigned.contains(f))
+                {
+                    fact.value["signed"] = Value::Bool(false);
+                }
                 out.push(Expected {
                     label,
                     role,
@@ -398,7 +418,12 @@ pub(super) fn sequenced_inputs(
             .iter()
             .map(|&i| &recon.views[view].blocks[i])
             .collect();
-        let wanted = expected(call, request, &rewrites(request, recon, &blocks, &issued));
+        let wanted = expected(
+            call,
+            request,
+            &rewrites(request, recon, &blocks, &issued),
+            &unsigned(truth),
+        );
         let pairs = assignment(&wanted, &blocks);
         let shown: Vec<usize> = pairs
             .iter()
@@ -728,7 +753,7 @@ pub(super) fn check_requests(
     // shows it. Which span should show it is the assignment's business, below.
     let everywhere: Vec<&Block> = recon.views.iter().flat_map(|v| v.blocks.iter()).collect();
     for (call, request) in &recorded.calls {
-        for item in expected(call, request, &BTreeMap::new())
+        for item in expected(call, request, &BTreeMap::new(), &unsigned(truth))
             .iter()
             // Content of its own only: a rendering of facts the conversation has is explained by those
             // facts and the framework's declared restatements, which must still be used.
@@ -755,7 +780,12 @@ pub(super) fn check_requests(
             continue;
         };
         let blocks: Vec<&Block> = view.blocks.iter().filter(|b| !b.output).collect();
-        let wanted = expected(call, request, &rewrites(request, recon, &blocks, &issued));
+        let wanted = expected(
+            call,
+            request,
+            &rewrites(request, recon, &blocks, &issued),
+            &unsigned(truth),
+        );
         let pairs = assignment(&wanted, &blocks);
         let mut assigned_expected: Vec<bool> = (0..wanted.len())
             .map(|i| pairs.iter().any(|&(e, _)| e == i))

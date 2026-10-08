@@ -231,8 +231,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-003"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-003",
+   "seal": "2608174b49a4d51286235ba31841dccd04a6f51dc8af81baae851435a6d3814c"
   },
   {
    "id": "fact-006",
@@ -327,12 +338,6 @@
    "fact": "routing",
    "reason": "multi_agent_routing",
    "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-005"
   }
  ],
  "requests": {

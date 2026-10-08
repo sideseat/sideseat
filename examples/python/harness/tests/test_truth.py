@@ -133,11 +133,32 @@ def test_an_unknown_tool_has_no_result_but_a_gap() -> None:
     }
 
 
-def test_reasoning_without_visible_text_is_not_required() -> None:
+def test_withheld_reasoning_is_owed_by_its_signed_mark() -> None:
     builder = derive.assemble(
         "p",
         "chat",
         [model_call(wire.reasoning_part("", signed=True), wire.text_part("Hi."))],
+    )
+    reasoning = facts_by_kind(builder, "reasoning")[0]
+    assert reasoning["require"]["match"] == "signed"
+    assert reasoning["value"] == {"text": "", "signed": True, "redacted": False}
+    assert not any(gap.get("subject") == reasoning["id"] for gap in builder.gaps)
+    # The signature's digest rides beside the value, as the identity the rubric searches for.
+    sealed = derive.assemble(
+        "p",
+        "chat",
+        [model_call(wire.reasoning_part("", signature="sig-1"), wire.text_part("Hi."))],
+    )
+    fact = facts_by_kind(sealed, "reasoning")[0]
+    assert fact["seal"] == wire.reasoning_part("", signature="sig-1")["seal"]
+    assert fact["value"] == reasoning["value"]
+
+
+def test_encrypted_reasoning_with_no_text_at_all_is_not_required() -> None:
+    builder = derive.assemble(
+        "p",
+        "chat",
+        [model_call(wire.reasoning_part(None, signed=True), wire.text_part("Hi."))],
     )
     reasoning = facts_by_kind(builder, "reasoning")[0]
     assert reasoning["require"] is None
@@ -277,6 +298,117 @@ def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() ->
             [model_call(wire.text_part("x"))],
             options=derive.Options(
                 framework=derive.Framework.of({"unexported": {"attachments": "x"}})
+            ),
+        )
+
+
+def test_unexported_withheld_reasoning_is_withdrawn_with_a_gap_the_rubric_proves() -> (
+    None
+):
+    """`withheld_reasoning` withdraws the signed reasoning with no text a producer's telemetry drops, with a
+    `not_exported` gap the rubric proves; visible reasoning stays asserted."""
+    framework = derive.Framework.of(
+        {"unexported": {"withheld_reasoning": "drops reasoning it cannot show"}}
+    )
+    builder = derive.assemble(
+        "p",
+        "chat",
+        [
+            model_call(
+                wire.reasoning_part("Weigh it.", signed=True),
+                wire.reasoning_part("", signed=True),
+                wire.text_part("Hi."),
+            )
+        ],
+        options=derive.Options(framework=framework),
+    )
+    visible, withheld = facts_by_kind(builder, "reasoning")
+    assert visible["require"]["match"] == "exact"
+    assert withheld["require"] is None
+    assert [
+        (g["fact"], g["reason"], g["subject"])
+        for g in builder.gaps
+        if g["reason"] == "not_exported"
+    ] == [("reasoning", "not_exported", withheld["id"])]
+
+
+def test_an_unexported_reasoning_signature_keeps_the_step_asserted() -> None:
+    """`reasoning_signature` asserts withheld reasoning without its signature, with a
+    `signature_not_exported` gap the rubric proves; the step itself stays owed."""
+    framework = derive.Framework.of(
+        {"unexported": {"reasoning_signature": "drops the signature"}}
+    )
+    builder = derive.assemble(
+        "p",
+        "chat",
+        [model_call(wire.reasoning_part("", signed=True), wire.text_part("Hi."))],
+        options=derive.Options(framework=framework),
+    )
+    (withheld,) = facts_by_kind(builder, "reasoning")
+    assert withheld["require"]["match"] == "signed"
+    assert [
+        (g["fact"], g["reason"], g["subject"])
+        for g in builder.gaps
+        if g["reason"] == "signature_not_exported"
+    ] == [("reasoning", "signature_not_exported", withheld["id"])]
+
+
+def test_pending_withheld_reasoning_and_an_output_off_its_span_are_declared() -> None:
+    """`pending` withdraws withheld reasoning with its reason and no proof; `reasoning_output` keeps it
+    owed by the conversation views, with an `output_not_exported` gap the rubric proves on its span."""
+    calls = [model_call(wire.reasoning_part("", signed=True), wire.text_part("Hi."))]
+    pending = derive.assemble(
+        "p",
+        "chat",
+        calls,
+        options=derive.Options(
+            framework=derive.Framework.of(
+                {"pending": {"withheld_reasoning": "waits on an operator"}}
+            )
+        ),
+    )
+    (withheld,) = facts_by_kind(pending, "reasoning")
+    assert withheld["require"] is None
+    assert [
+        (g["reason"], g["detail"])
+        for g in pending.gaps
+        if g.get("subject") == withheld["id"]
+    ] == [("reasoning_text_omitted", "waits on an operator")]
+    # Only a call a later one follows: nothing re-sends the last call's reasoning.
+    off_span = derive.assemble(
+        "p",
+        "multi_turn",
+        [
+            model_call(wire.reasoning_part("", signed=True), wire.text_part("Hi.")),
+            model_call(wire.text_part("Paris.")),
+            model_call(wire.reasoning_part("", signed=True), wire.text_part("Bye.")),
+        ],
+        options=derive.Options(
+            framework=derive.Framework.of(
+                {"unexported": {"reasoning_output": "re-sent only"}}
+            )
+        ),
+    )
+    first, last = facts_by_kind(off_span, "reasoning")
+    assert first["require"]["match"] == "signed" and last["require"] is None
+    reasons = {
+        fact["id"]: [
+            g["reason"] for g in off_span.gaps if g.get("subject") == fact["id"]
+        ]
+        for fact in (first, last)
+    }
+    # The last call's is re-sent by no request: exported nowhere, which the rubric proves by its seal.
+    assert reasons == {
+        first["id"]: ["output_not_exported"],
+        last["id"]: ["not_exported"],
+    }
+    with pytest.raises(ValueError, match="unknown pending content"):
+        derive.assemble(
+            "p",
+            "chat",
+            calls,
+            options=derive.Options(
+                framework=derive.Framework.of({"pending": {"media": "x"}})
             ),
         )
 

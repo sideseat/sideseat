@@ -6,12 +6,13 @@
   "session_count": 1,
   "span_views": {
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -55,6 +56,15 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "The image shows a sunlit park with a curved tarmac path winding past a low stone retaining wall and grassy lawns, with evergreen and bare winter trees and brick apartment buildings under a clear blue sky. The document is a five-page, nearly…[351 chars]",
@@ -72,11 +82,12 @@
       "messages": []
     },
     "trace-1/invoke_agent assistant/span-2": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "user",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -111,6 +122,15 @@
         },
         {
           "index": 3,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "The image shows a sunlit park with a curved tarmac path winding past a low stone retaining wall and grassy lawns, with evergreen and bare winter trees and brick apartment buildings under a clear blue sky. The document is a five-page, nearly…[351 chars]",
@@ -123,12 +143,13 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -172,6 +193,15 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "The image shows a sunlit park with a curved tarmac path winding past a low stone retaining wall and grassy lawns, with evergreen and bare winter trees and brick apartment buildings under a clear blue sky. The document is a five-page, nearly…[351 chars]",
@@ -184,12 +214,13 @@
   },
   "session_views": {
     "agentscope-files": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -234,6 +265,15 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "text",
           "content": "The image shows a sunlit park with a curved tarmac path winding past a low stone retaining wall and grassy lawns, with evergreen and bare winter trees and brick apartment buildings under a clear blue sky. The document is a five-page, nearly…[351 chars]",
           "content_digest": "613be46c61406d0f",
@@ -244,8 +284,9 @@
     }
   },
   "feed_view": {
-    "message_count": 5,
+    "message_count": 6,
     "role_sequence": [
+      "assistant",
       "assistant",
       "system",
       "user",
@@ -258,6 +299,15 @@
       {
         "index": 0,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "34ae679dfabe86d4",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
         "entry_type": "text",
         "content": "The image shows a sunlit park with a curved tarmac path winding past a low stone retaining wall and grassy lawns, with evergreen and bare winter trees and brick apartment buildings under a clear blue sky. The document is a five-page, nearly…[351 chars]",
         "content_digest": "613be46c61406d0f",
@@ -265,7 +315,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -274,7 +324,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Describe the image in one sentence, then summarise the document in one sentence.",
@@ -283,7 +333,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "image",
         "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
@@ -292,7 +342,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "user",
         "entry_type": "document",
         "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",

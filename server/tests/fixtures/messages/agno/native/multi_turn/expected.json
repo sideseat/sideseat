@@ -123,10 +123,11 @@
       ]
     },
     "trace-1/AwsBedrockAnthropicClaude.invoke/span-5": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant"
@@ -153,13 +154,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd recommend **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to most major sights. If you'd like, I can check the weather for your weekend or …[259 chars]",
           "content_digest": "4e81cd61df589e7c",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -167,7 +176,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a Portuguese dish of shredded salt cod scrambled with eggs, thin fried potatoes, and olives. It's a Lisbon classic, and you'll find it in many of Alfama's tascas (small local restaurants).",
@@ -177,10 +186,11 @@
       ]
     },
     "trace-1/AwsBedrockAnthropicClaude.invoke/span-7": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -209,13 +219,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd recommend **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to most major sights. If you'd like, I can check the weather for your weekend or …[259 chars]",
           "content_digest": "4e81cd61df589e7c",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -223,7 +241,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a Portuguese dish of shredded salt cod scrambled with eggs, thin fried potatoes, and olives. It's a Lisbon classic, and you'll find it in many of Alfama's tascas (small local restaurants).",
@@ -231,7 +249,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -239,7 +257,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama, Lisbon's historic, walkable neighbourhood, and try bacalhau à Brás, a classic dish of salt cod scrambled with eggs, potatoes, and olives.",
@@ -258,10 +276,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -290,13 +309,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd recommend **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to most major sights. If you'd like, I can check the weather for your weekend or …[259 chars]",
           "content_digest": "4e81cd61df589e7c",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -304,7 +331,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a Portuguese dish of shredded salt cod scrambled with eggs, thin fried potatoes, and olives. It's a Lisbon classic, and you'll find it in many of Alfama's tascas (small local restaurants).",
@@ -312,7 +339,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -320,7 +347,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama, Lisbon's historic, walkable neighbourhood, and try bacalhau à Brás, a classic dish of salt cod scrambled with eggs, potatoes, and olives.",
@@ -332,10 +359,11 @@
   },
   "session_views": {
     "agno-multi_turn": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -364,13 +392,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd recommend **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to most major sights. If you'd like, I can check the weather for your weekend or …[259 chars]",
           "content_digest": "4e81cd61df589e7c",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -378,7 +414,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a Portuguese dish of shredded salt cod scrambled with eggs, thin fried potatoes, and olives. It's a Lisbon classic, and you'll find it in many of Alfama's tascas (small local restaurants).",
@@ -386,7 +422,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -394,7 +430,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama, Lisbon's historic, walkable neighbourhood, and try bacalhau à Brás, a classic dish of salt cod scrambled with eggs, potatoes, and olives.",
@@ -405,13 +441,14 @@
     }
   },
   "feed_view": {
-    "message_count": 7,
+    "message_count": 8,
     "role_sequence": [
       "assistant",
       "user",
       "assistant",
       "user",
       "system",
+      "assistant",
       "assistant",
       "user"
     ],
@@ -461,13 +498,21 @@
       {
         "index": 5,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I'd recommend **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to most major sights. If you'd like, I can check the weather for your weekend or …[259 chars]",
         "content_digest": "4e81cd61df589e7c",
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",

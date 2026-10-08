@@ -24,6 +24,10 @@ integrations = ["smolagents"]
 action_results = { final_answer = ["answer"] }
 text_answer_action = { tool = "final_answer", argument = "answer" }
 
+[tool.sideseat-example.truth.pending.withheld_reasoning]
+reason = "pending a prepend form of the member-parse overlay: the reasoning and its signature are only in output.value.raw's LiteLLM repr, and an overlay can only replace the flattened content, which holds the answer"
+scenarios = ["error", "reasoning"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

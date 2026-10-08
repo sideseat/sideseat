@@ -43,10 +43,11 @@
       ]
     },
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-5": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant"
@@ -73,13 +74,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
           "content_digest": "e80e3f0eca516549",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -87,7 +96,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, the creamy egg custard tarts with a flaky, caramelized crust. For the classic experience, go to Pastéis de Belém, or grab a fresh one from a local bakery in Alfama and sprinkle it with cinnamon.",
@@ -98,10 +107,11 @@
       ]
     },
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-8": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -130,13 +140,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
           "content_digest": "e80e3f0eca516549",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -144,7 +162,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, the creamy egg custard tarts with a flaky, caramelized crust. For the classic experience, go to Pastéis de Belém, or grab a fresh one from a local bakery in Alfama and sprinkle it with cinnamon.",
@@ -152,7 +170,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -160,7 +178,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and viewpoints, and be sure to try pastéis de nata, the classic custard tarts.",
@@ -208,10 +226,11 @@
       ]
     },
     "trace-1/invoke_agent global.anthropic.claude-sonnet-5-5/span-6": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant"
@@ -238,13 +257,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
           "content_digest": "e80e3f0eca516549",
           "observation_type": "agent"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -252,7 +279,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, the creamy egg custard tarts with a flaky, caramelized crust. For the classic experience, go to Pastéis de Belém, or grab a fresh one from a local bakery in Alfama and sprinkle it with cinnamon.",
@@ -263,10 +290,11 @@
       ]
     },
     "trace-1/invoke_agent global.anthropic.claude-sonnet-5-5/span-9": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -295,13 +323,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
           "content_digest": "e80e3f0eca516549",
           "observation_type": "agent"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -309,7 +345,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, the creamy egg custard tarts with a flaky, caramelized crust. For the classic experience, go to Pastéis de Belém, or grab a fresh one from a local bakery in Alfama and sprinkle it with cinnamon.",
@@ -317,7 +353,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -325,7 +361,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and viewpoints, and be sure to try pastéis de nata, the classic custard tarts.",
@@ -366,10 +402,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -398,6 +435,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
           "content_digest": "e80e3f0eca516549",
@@ -405,7 +450,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -413,7 +458,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, the creamy egg custard tarts with a flaky, caramelized crust. For the classic experience, go to Pastéis de Belém, or grab a fresh one from a local bakery in Alfama and sprinkle it with cinnamon.",
@@ -422,7 +467,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -430,7 +475,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and viewpoints, and be sure to try pastéis de nata, the classic custard tarts.",
@@ -443,10 +488,11 @@
   },
   "session_views": {
     "vercel-ai-js-multi_turn": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "user",
         "assistant",
@@ -475,6 +521,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
           "content_digest": "e80e3f0eca516549",
@@ -482,7 +536,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -490,7 +544,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, the creamy egg custard tarts with a flaky, caramelized crust. For the classic experience, go to Pastéis de Belém, or grab a fresh one from a local bakery in Alfama and sprinkle it with cinnamon.",
@@ -499,7 +553,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -507,7 +561,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and viewpoints, and be sure to try pastéis de nata, the classic custard tarts.",
@@ -519,12 +573,13 @@
     }
   },
   "feed_view": {
-    "message_count": 7,
+    "message_count": 8,
     "role_sequence": [
       "assistant",
       "user",
       "assistant",
       "user",
+      "assistant",
       "assistant",
       "system",
       "user"
@@ -569,6 +624,14 @@
       {
         "index": 4,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "34ae679dfabe86d4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to many major sights. If you'd rather have a flatter, more central base with easier tran…[282 chars]",
         "content_digest": "e80e3f0eca516549",
@@ -576,7 +639,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -584,7 +647,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",

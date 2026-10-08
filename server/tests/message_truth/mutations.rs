@@ -134,6 +134,21 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         Expect::Caught,
         |_, r| edit_resent_withheld_reasoning(r, |b| strip(b, "signed")),
     ),
+    (
+        "show a response's withheld reasoning as redacted",
+        Expect::Caught,
+        |t, r| {
+            edit_fact(t, r, withheld_reasoning, |b| {
+                b.kind = "redacted_thinking".into();
+                b.content = json!({"type": "redacted_thinking", "data": "signature"});
+            })
+        },
+    ),
+    (
+        "drop the signed mark from a response's withheld reasoning",
+        Expect::Caught,
+        |t, r| edit_fact(t, r, withheld_reasoning, |b| strip(b, "signed")),
+    ),
     ("swap two parts of a response", Expect::Caught, swap_parts),
     ("swap two calls", Expect::Caught, swap_calls),
     (

@@ -16,6 +16,10 @@ dependencies = [
 producer = "semantic-kernel"
 integrations = ["semantic-kernel"]
 
+[tool.sideseat-example.truth.unexported.withheld_reasoning]
+reason = "reasoning the model signed and withheld the text of: Semantic Kernel's telemetry exports no reasoning part for it, and no payload holds one"
+scenarios = ["multi_turn", "session"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

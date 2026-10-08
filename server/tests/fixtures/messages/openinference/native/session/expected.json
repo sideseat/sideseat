@@ -76,10 +76,11 @@
       ]
     },
     "trace-2/bedrock.converse/span-3": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -103,6 +104,14 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a rowboat lake, the glass Crystal Palace, and shaded, tree-lined paths. It's free to enter and a short walk from the Prado Museum. I can check t…[293 chars]",
@@ -184,10 +193,11 @@
       ]
     },
     "trace-2": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -212,6 +222,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a rowboat lake, the glass Crystal Palace, and shaded, tree-lined paths. It's free to enter and a short walk from the Prado Museum. I can check t…[293 chars]",
           "content_digest": "741424f288fb62a0",
@@ -222,13 +240,14 @@
   },
   "session_views": {
     "openinference-session": {
-      "message_count": 6,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -277,6 +296,14 @@
         {
           "index": 5,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a rowboat lake, the glass Crystal Palace, and shaded, tree-lined paths. It's free to enter and a short walk from the Prado Museum. I can check t…[293 chars]",
           "content_digest": "741424f288fb62a0",
@@ -286,9 +313,10 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 7,
     "role_sequence": [
       "system",
+      "assistant",
       "assistant",
       "user",
       "system",
@@ -309,13 +337,21 @@
       {
         "index": 1,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a rowboat lake, the glass Crystal Palace, and shaded, tree-lined paths. It's free to enter and a short walk from the Prado Museum. I can check t…[293 chars]",
         "content_digest": "741424f288fb62a0",
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one park to visit in Madrid.",
@@ -323,7 +359,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -331,7 +367,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "assistant",
         "entry_type": "text",
         "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free admission is typically offered during the final t…[331 chars]",
@@ -339,7 +375,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one museum to visit in Madrid.",

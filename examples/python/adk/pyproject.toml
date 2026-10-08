@@ -19,6 +19,10 @@ integrations = ["google-adk"]
 reason = "why a response that called tools ended: ADK records every response's finish as `stop`, and no payload keeps the provider's `tool_use`"
 values = ["tool_use"]
 
+[tool.sideseat-example.truth.unexported.reasoning_signature]
+reason = "the signature of reasoning the model withheld the text of: ADK's telemetry exports the reasoning step as an empty thought part and drops its signature, which no payload holds"
+scenarios = ["session"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

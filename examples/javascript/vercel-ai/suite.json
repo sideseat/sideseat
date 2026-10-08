@@ -1,4 +1,20 @@
 {
   "producer": "vercel-ai-js",
-  "integrations": ["vercel-ai"]
+  "integrations": ["vercel-ai"],
+  "truth": {
+    "unexported": {
+      "withheld_reasoning": {
+        "reason": "reasoning the model signed and withheld the text of: the AI SDK's telemetry exports no reasoning part for it, and no payload holds one",
+        "scenarios": ["error", "multi_agent", "session"]
+      },
+      "reasoning_signature": {
+        "reason": "the signature of reasoning the model withheld the text of: the AI SDK's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
+        "scenarios": ["multi_turn"]
+      },
+      "reasoning_output": {
+        "reason": "reasoning the model signed and withheld the text of, on the call that produced it: the AI SDK's telemetry leaves it out of that call's output, and only the next request's history re-sends it",
+        "scenarios": ["multi_turn"]
+      }
+    }
+  }
 }

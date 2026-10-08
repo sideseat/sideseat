@@ -103,6 +103,16 @@ pub(in crate::sideml::feed) fn resolve(
         }
     }
 
+    // A part a later request's history is the first to show joins the response it was re-sent with.
+    let (bindings, donors) =
+        resent_part_bindings(evidence, &survivor_of, constraints.resent_part_binding);
+    for sequence in bindings {
+        for pair in sequence.windows(2) {
+            intra_edges.push((pair[0], pair[1]));
+            uf.union(pair[0], pair[1]);
+        }
+    }
+
     let unit_of: Vec<usize> = (0..n).map(|i| uf.find(i)).collect();
 
     // Priority per unit: the earliest time the *evidence* gives it. Time seeds the topological pop;
@@ -278,8 +288,9 @@ pub(in crate::sideml::feed) fn resolve(
     // payload position, which is what `message_index`/`entry_index` carry for a carrier's blocks.
     if constraints.carrier_sequence_edges {
         let mut by_carrier: HashMap<usize, Vec<(i32, i32, usize)>> = HashMap::new();
+        let own_outputs = own_outputs(evidence, &survivor_of);
         for (observation, seen) in evidence.iter().enumerate() {
-            if !seen.carrier_ordered {
+            if !seen.carrier_ordered || own_outputs.contains(&(observation, seen.span)) {
                 continue;
             }
             // Nor does it state a sequence: it is the *order* a re-listing gets wrong, so taking its
@@ -974,7 +985,10 @@ pub(in crate::sideml::feed) fn resolve(
             members = order_within_unit(&members, &unit_edges);
         }
         for i in members {
-            out.push(survivors[i].clone());
+            out.push(at_home(
+                &survivors[i],
+                donors.get(&i).map(|&d| &survivors[d]),
+            ));
         }
     }
     out

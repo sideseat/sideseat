@@ -148,8 +148,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-001"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-001",
+   "seal": "ac5847c8b7bad7b9aa6c3158feb995424428e03baeffb7c45626b14b51cb992c"
   },
   {
    "id": "fact-003",
@@ -246,8 +257,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-003"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-003",
+   "seal": "b30b6ff41bbc58de54165860edb3169e1c85102b7b9ede262294e42bd62c51e5"
   },
   {
    "id": "fact-008",
@@ -331,14 +353,14 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "signature_not_exported",
+   "detail": "the signature of reasoning the model withheld the text of: AgentScope's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
    "subject": "fact-002"
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "signature_not_exported",
+   "detail": "the signature of reasoning the model withheld the text of: AgentScope's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
    "subject": "fact-007"
   }
  ],

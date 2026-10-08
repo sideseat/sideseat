@@ -225,6 +225,11 @@ pub(super) struct Fact {
     /// scenario. `for_fixture` projects a document onto one fixture before anything is checked.
     #[serde(default)]
     pub fixtures: Option<Vec<String>>,
+    /// The SHA-256 of signed reasoning's signature, where the provider returned one: the identity an
+    /// absence proof searches the telemetry for, so one withheld turn is told from another although
+    /// neither has text. Outside `value`, because no view shows it.
+    #[serde(default)]
+    pub seal: Option<String>,
 }
 
 impl Fact {
@@ -306,9 +311,11 @@ impl Truth {
         }
     }
 
-    /// The truth as one fixture is checked against it: only the gaps that hold for it, and a tool call
+    /// The truth as one fixture is checked against it: only the gaps that hold for it, a tool call
     /// whose id that fixture's telemetry does not carry (`id_not_exported`) asserted without it - its
-    /// wire id kept aside as `wire_id`.
+    /// wire id kept aside as `wire_id` - withheld reasoning whose signature it does not carry
+    /// (`signature_not_exported`) asserted unsigned, and a response part its producing span does not carry
+    /// (`output_not_exported`) owed by the conversation views only.
     pub fn for_fixture(&self, fixture: &str) -> Truth {
         let mut truth = self.clone();
         // Facts only some fixtures' requests carry: the projection drops the rest, and everything that
@@ -339,6 +346,39 @@ impl Truth {
             if let Some(id) = fact.value.get("id").cloned() {
                 fact.value["wire_id"] = id;
                 fact.value["id"] = Value::Null;
+            }
+        }
+        let unsigned: BTreeSet<String> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "signature_not_exported")
+            .filter_map(|g| g.subject.clone())
+            .collect();
+        for fact in truth.facts.iter_mut().filter(|f| unsigned.contains(&f.id)) {
+            fact.value["signed"] = Value::Bool(false);
+        }
+        let unsigned_on_span: BTreeSet<String> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "span_signature_not_exported")
+            .filter_map(|g| g.subject.clone())
+            .collect();
+        for fact in truth
+            .facts
+            .iter_mut()
+            .filter(|f| unsigned_on_span.contains(&f.id))
+        {
+            fact.value[UNSIGNED_ON_SPAN] = Value::Bool(true);
+        }
+        let off_span: BTreeSet<String> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "output_not_exported")
+            .filter_map(|g| g.subject.clone())
+            .collect();
+        for fact in truth.facts.iter_mut().filter(|f| off_span.contains(&f.id)) {
+            if let Some(require) = &mut fact.require {
+                require.views.retain(|v| v != "span");
             }
         }
         let plain: BTreeSet<String> = truth
@@ -390,6 +430,10 @@ pub(super) struct GapEffects {
     pub needs_absence_proof: bool,
 }
 
+/// The member checking marks withheld reasoning with whose signature its producing span does not carry
+/// (`span_signature_not_exported`): that span's view owes it unsigned.
+pub(super) const UNSIGNED_ON_SPAN: &str = "unsigned_on_span";
+
 /// The call metadata a `metadata_not_exported` gap may name, as `call.<field>` assertions spell it.
 pub(super) const METADATA_FIELDS: &[&str] = &["model", "response_model", "response_id", "finish"];
 
@@ -402,9 +446,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         needs_absence_proof,
     };
     Some(match reason {
-        // Signed reasoning with no text, not yet owed in the conversation views: the request check owes it
-        // on the span sent it, and the withheld-reasoning batch (rubric track) owes it everywhere once each
-        // framework's absences are proven. An encrypted item with no text at all waits on SideML slice S1.
+        // Reasoning not yet owed, with the work it waits on named in the reason: an encrypted item with no
+        // text at all (SideML slice S1), or withheld reasoning only an operator not yet in the rule
+        // language can read (a suite's `pending`). Otherwise withheld reasoning is owed, by its signed mark.
         "reasoning_text_omitted" => effects(GapSubject::Fact, true, true, false),
         // The oracle cannot know the value; whatever the reconstruction shows there is unchecked.
         "answer_quotes_framework_rendering" => effects(GapSubject::Fact, true, true, false),
@@ -419,6 +463,14 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         "not_exported" => effects(GapSubject::Fact, true, false, true),
         // Only a tool call's wire id is missing: the call is still asserted, under whatever id it is shown.
         "id_not_exported" => effects(GapSubject::Fact, false, false, true),
+        // Only withheld reasoning's signature is missing: the step is still asserted, shown unsigned.
+        "signature_not_exported" => effects(GapSubject::Fact, false, false, true),
+        // Only withheld reasoning's signature is missing from the span that produced it - another carrier
+        // holds it: that span's view owes the step unsigned, the conversation views signed.
+        "span_signature_not_exported" => effects(GapSubject::Fact, false, false, true),
+        // A response's part is missing from the span that produced it - a later request re-sends it: only
+        // that span's view stops owing it; the conversation views still do.
+        "output_not_exported" => effects(GapSubject::Fact, false, false, true),
         // A model call's response is missing as a unit: its parts are asserted where the conversation
         // shows them, but no span records the call and the response's own grouping is unknown.
         "call_not_exported" => effects(GapSubject::Call, false, false, true),
@@ -779,6 +831,31 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         {
             bad(format!(
                 "gap id_not_exported on {} needs a tool call with its wire id",
+                fact.id
+            ));
+        }
+        // An unexported signature is withheld reasoning's; checking then asserts it unsigned.
+        if matches!(
+            gap.reason.as_str(),
+            "signature_not_exported" | "span_signature_not_exported"
+        ) && !(fact.kind == "reasoning"
+            && fact.require.as_ref().is_some_and(|r| r.matcher == "signed"))
+        {
+            bad(format!(
+                "gap {} on {} needs asserted withheld reasoning",
+                gap.reason, fact.id
+            ));
+        }
+        // An output unexported on its own span is a response's part, owed there until the gap says not.
+        if gap.reason == "output_not_exported"
+            && !(fact.call.is_some()
+                && fact
+                    .require
+                    .as_ref()
+                    .is_some_and(|r| r.views.iter().any(|v| v == "span")))
+        {
+            bad(format!(
+                "gap output_not_exported on {} needs a response part owed on its span",
                 fact.id
             ));
         }

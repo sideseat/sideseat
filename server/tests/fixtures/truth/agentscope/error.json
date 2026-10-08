@@ -168,8 +168,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-002"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-002",
+   "seal": "e8021f99cab6756a361fffb143296e150c3159e390b8fd1c933de2b84da69661"
   },
   {
    "id": "fact-005",
@@ -242,16 +253,16 @@
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   },
   {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-004"
-  },
-  {
    "fact": "finish",
    "reason": "metadata_not_exported",
    "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
    "subject": "call-001"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "signature_not_exported",
+   "detail": "the signature of reasoning the model withheld the text of: AgentScope's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
+   "subject": "fact-004"
   }
  ],
  "requests": {

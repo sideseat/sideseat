@@ -95,10 +95,11 @@
       "messages": []
     },
     "trace-2/chat global.anthropic.claude-sonnet-5-5/span-1": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -122,6 +123,14 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central, free to enter, and easy to reach from the Retiro or Atocha metro station…[242 chars]",
@@ -170,11 +179,31 @@
       "messages": []
     },
     "trace-2/node nodeCallLLM/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central, free to enter, and easy to reach from the Retiro or Atocha metro station…[242 chars]",
+          "content_digest": "9e482fd35b8eb87b",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-2/strategy single_run/span-6": {
       "message_count": 0,
@@ -222,10 +251,11 @@
       ]
     },
     "trace-2": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -250,6 +280,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central, free to enter, and easy to reach from the Retiro or Atocha metro station…[242 chars]",
           "content_digest": "9e482fd35b8eb87b",
@@ -260,13 +298,14 @@
   },
   "session_views": {
     "koog-session": {
-      "message_count": 6,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -315,6 +354,14 @@
         {
           "index": 5,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central, free to enter, and easy to reach from the Retiro or Atocha metro station…[242 chars]",
           "content_digest": "9e482fd35b8eb87b",
@@ -324,10 +371,11 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 7,
     "role_sequence": [
       "system",
       "user",
+      "assistant",
       "assistant",
       "user",
       "assistant",
@@ -355,13 +403,21 @@
       {
         "index": 2,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central, free to enter, and easy to reach from the Retiro or Atocha metro station…[242 chars]",
         "content_digest": "9e482fd35b8eb87b",
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one museum to visit in Madrid.",
@@ -369,7 +425,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "assistant",
         "entry_type": "text",
         "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours typically apply (check current times)…[302 chars]",
@@ -377,7 +433,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",

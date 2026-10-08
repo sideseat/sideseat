@@ -27,7 +27,7 @@
   "messages": [
     {
       "id": "agno.input_attachments",
-      "doc": "The attachments a turn carried. Agno's OpenInference instrumentation flattens a message's text into `llm.input_messages` and leaves its `images` and `files` out, while `input.value` holds Agno's own messages whole - the text, and beside it each attachment with its bytes. Only the attachments are read from it, each list as the content of a turn of the message's role, so the text keeps coming from the flattened family and nothing is read twice.",
+      "doc": "The attachments a turn carried. Agno's OpenInference instrumentation flattens a message's text into `llm.input_messages` and leaves its `images` and `files` out, while `input.value` holds Agno's own messages whole - the text, and beside it each attachment with its bytes. The attachments are read from it, each list as the content of a turn of the message's role, so the text keeps coming from the flattened family. A re-sent assistant turn's reasoning, which the family drops too, is read with the turn's text, which content identity makes one with the flattened copy.",
       "where": {
         "all": [
           {
@@ -70,6 +70,49 @@
           "wrap": {
             "role_from": "$.role",
             "content_from": "$.files"
+          }
+        },
+        {
+          "id": "signed_reasoning",
+          "doc": "An assistant turn re-sent with the reasoning before it. Agno reports a turn's answer without the model's reasoning and keeps that reasoning only in its own message: an empty `reasoning_content` beside the signature under `provider_data`, which a later request re-sends whole. The flattened family drops both, so the turn is read here, reasoning first: its text is the flattened answer again, which content identity makes one with it.",
+          "select": "$.messages[*]",
+          "where": {
+            "all": [
+              {
+                "path": "$.role",
+                "one_of": [
+                  "assistant"
+                ]
+              },
+              {
+                "path": "$.reasoning_content",
+                "kind": "string"
+              },
+              {
+                "path": "$.provider_data.signature",
+                "kind": "string"
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$.role",
+            "prepend_block": {
+              "from": "$.reasoning_content",
+              "where": {
+                "kind": "string"
+              },
+              "block": {
+                "type": "thinking",
+                "content_as": "text",
+                "attach": [
+                  {
+                    "from_value": "$.provider_data.signature",
+                    "as": "signature"
+                  }
+                ]
+              }
+            },
+            "content_from": "$.content"
           }
         }
       ],

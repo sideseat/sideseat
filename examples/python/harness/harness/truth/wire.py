@@ -14,6 +14,7 @@ drop.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
 from collections.abc import Iterable
@@ -109,10 +110,27 @@ def text_part(text: str) -> dict[str, Any]:
 
 
 def reasoning_part(
-    text: str | None, *, signed: bool = False, redacted: bool = False
+    text: str | None,
+    *,
+    signed: bool = False,
+    redacted: bool = False,
+    signature: str | None = None,
 ) -> dict[str, Any]:
-    """Reasoning the model emitted. ``text`` is ``None`` when only an opaque form was returned."""
-    return {"type": "reasoning", "text": text, "signed": signed, "redacted": redacted}
+    """Reasoning the model emitted. ``text`` is ``None`` when only an opaque form was returned.
+
+    A ``signature`` makes the part signed and gives it a ``seal``, the SHA-256 of the signature: the
+    identity the rubric searches the telemetry for, so one withheld turn is told from another although
+    both have no text. The signature itself never reaches a truth.
+    """
+    part: dict[str, Any] = {
+        "type": "reasoning",
+        "text": text,
+        "signed": signed or bool(signature),
+        "redacted": redacted,
+    }
+    if signature:
+        part["seal"] = hashlib.sha256(signature.encode()).hexdigest()
+    return part
 
 
 def tool_call_part(call_id: str | None, name: str, arguments: Any) -> dict[str, Any]:
@@ -258,7 +276,7 @@ def converse(value: dict[str, Any]) -> ModelCall:
             if "reasoningText" in reasoning:
                 text = reasoning["reasoningText"]
                 parts.append(
-                    reasoning_part(text.get("text"), signed=bool(text.get("signature")))
+                    reasoning_part(text.get("text"), signature=text.get("signature"))
                 )
             elif "redactedContent" in reasoning:
                 parts.append(reasoning_part(None, redacted=True))
@@ -287,7 +305,8 @@ class _Block:
     text: str = ""
     call_id: str | None = None
     name: str = ""
-    signed: bool = False
+    #: The reasoning's signature, as the stream delivered it.
+    signature: str = ""
     redacted: bool = False
     #: The block's initial ``input`` object, used when no argument delta follows it.
     initial: Any = None
@@ -297,7 +316,9 @@ class _Block:
             return text_part(self.text)
         if self.kind == "reasoning":
             text = self.text if self.text or not self.redacted else None
-            return reasoning_part(text, signed=self.signed, redacted=self.redacted)
+            return reasoning_part(
+                text, redacted=self.redacted, signature=self.signature or None
+            )
         arguments = self.text if self.text else (self.initial or {})
         return tool_call_part(self.call_id, self.name, arguments)
 
@@ -341,7 +362,7 @@ def converse_stream(frames: Iterable[Any]) -> ModelCall:
                 if "text" in reasoning:
                     block.text += reasoning["text"]
                 elif "signature" in reasoning:
-                    block.signed = True
+                    block.signature += reasoning["signature"] or ""
                 elif "redactedContent" in reasoning:
                     block.redacted = True
                 else:
@@ -386,7 +407,7 @@ def _anthropic_block(block: dict[str, Any]) -> dict[str, Any]:
     if kind == "text":
         return text_part(block["text"])
     if kind == "thinking":
-        return reasoning_part(block["thinking"], signed=bool(block.get("signature")))
+        return reasoning_part(block["thinking"], signature=block.get("signature"))
     if kind == "redacted_thinking":
         return reasoning_part(None, redacted=True)
     if kind == "tool_use":
@@ -452,7 +473,7 @@ def anthropic_stream(events: Iterable[dict[str, Any]]) -> ModelCall:
             elif dtype == "thinking_delta":
                 block.text += delta["thinking"]
             elif dtype == "signature_delta":
-                block.signed = block.signed or bool(delta["signature"])
+                block.signature += delta["signature"] or ""
             elif dtype == "citations_delta":
                 continue
             else:
@@ -479,7 +500,7 @@ def _block_of(block: dict[str, Any]) -> _Block:
         return _Block(
             "reasoning",
             text=block.get("thinking", ""),
-            signed=bool(block.get("signature")),
+            signature=block.get("signature") or "",
         )
     if kind == "redacted_thinking":
         return _Block("reasoning", redacted=True)
@@ -639,7 +660,7 @@ def _responses_item(item: dict[str, Any]) -> list[dict[str, Any]]:
         # Without visible text the item carries only encrypted reasoning: withheld from view, not
         # redacted by a safety system, so it is reported as signed with no text.
         text = responses_reasoning_text(item)
-        return [reasoning_part(text, signed=bool(item.get("encrypted_content")))]
+        return [reasoning_part(text, signature=item.get("encrypted_content"))]
     raise DecodeError(f"unknown Responses output item: {kind}")
 
 
@@ -788,14 +809,14 @@ def _gemini_part(parts: list[dict[str, Any]], part: dict[str, Any]) -> None:
     if not isinstance(part.get("text"), str):
         raise DecodeError(f"unknown Gemini part: {list(part)}")
     kind = "reasoning" if part.get("thought") else "text"
-    signed = bool(part.get("thoughtSignature") or part.get("thought_signature"))
+    signature = part.get("thoughtSignature") or part.get("thought_signature")
     if parts and parts[-1]["type"] == kind:
         parts[-1]["text"] += part["text"]
-        if kind == "reasoning":
-            parts[-1]["signed"] = parts[-1]["signed"] or signed
+        if kind == "reasoning" and signature and "seal" not in parts[-1]:
+            parts[-1].update(reasoning_part(parts[-1]["text"], signature=signature))
         return
     parts.append(
-        reasoning_part(part["text"], signed=signed)
+        reasoning_part(part["text"], signature=signature)
         if kind == "reasoning"
         else text_part(part["text"])
     )

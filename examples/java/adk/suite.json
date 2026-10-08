@@ -2,5 +2,13 @@
   "producer": "adk-java",
   "integrations": ["google-adk"],
   "service-name": "adk-java",
-  "default-model": "claude"
+  "default-model": "claude",
+  "truth": {
+    "unexported": {
+      "withheld_reasoning": {
+        "reason": "reasoning the model signed and withheld the text of: ADK for Java's telemetry exports no reasoning part for it, and no payload holds one",
+        "scenarios": ["structured_output", "tool_use"]
+      }
+    }
+  }
 }

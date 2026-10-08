@@ -39,13 +39,24 @@ pub(super) fn outputs<'a>(recon: &'a Recon, generation: &Generation) -> Vec<&'a 
 }
 
 fn shown_in(fact: &Fact, blocks: &[&Block]) -> bool {
-    blocks.iter().any(|b| shows(fact, b, None) != Shows::No)
+    blocks.iter().any(|b| shows_on_span(fact, b) != Shows::No)
 }
 
 fn shown_exactly(fact: &Fact, blocks: &[&Block]) -> bool {
     blocks
         .iter()
-        .any(|b| matches!(shows(fact, b, None), Shows::Yes | Shows::Assigned(_)))
+        .any(|b| matches!(shows_on_span(fact, b), Shows::Yes | Shows::Assigned(_)))
+}
+
+/// Whether a block of a generation's own output shows the fact as that span can: withheld reasoning whose
+/// signature the producing span does not carry is shown there unsigned.
+fn shows_on_span(fact: &Fact, block: &Block) -> Shows {
+    if fact.value.get(super::truth::UNSIGNED_ON_SPAN).is_some() {
+        let mut unsigned = fact.clone();
+        unsigned.value["signed"] = serde_json::Value::Bool(false);
+        return shows(&unsigned, block, None);
+    }
+    shows(fact, block, None)
 }
 
 pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>) -> Matching {

@@ -148,8 +148,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-001"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-001",
+   "seal": "6564a547cafcc4fd45cec0d0223df4dd986cb5eb2bc7e736ab02c5dbf0ca9c6d"
   },
   {
    "id": "fact-003",
@@ -247,7 +258,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-003"
+   "call": "call-003",
+   "seal": "c93b74c4f002149a39af23a4082fd6f319f4127610d388327b595c040bb5f9a9"
   },
   {
    "id": "fact-008",
@@ -330,14 +342,14 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "output_not_exported",
+   "detail": "reasoning the model signed and withheld the text of, on the call that produced it: Strands for TypeScript's telemetry leaves it out of that call's output, and only the next request's history re-sends it",
    "subject": "fact-002"
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of, on the call that produced it: Strands for TypeScript's telemetry leaves it out of that call's output, and only the next request's history re-sends it; the last turn's is re-sent by no request, so no payload holds it",
    "subject": "fact-007"
   }
  ],

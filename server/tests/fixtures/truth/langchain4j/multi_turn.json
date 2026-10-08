@@ -148,7 +148,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-001"
+   "call": "call-001",
+   "seal": "bbcd46be3b4973ce6a31c2e617a6ee382484fdd755e559300428e7e39745ffe5"
   },
   {
    "id": "fact-003",
@@ -204,7 +205,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-002"
+   "call": "call-002",
+   "seal": "31023e3c38948748cacb089eafc45d4d526723054129cf3465bc6e71c3dc3c9e"
   },
   {
    "id": "fact-006",
@@ -305,18 +307,6 @@
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   },
   {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-002"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-005"
-  },
-  {
    "fact": "model",
    "reason": "metadata_not_exported",
    "detail": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
@@ -333,6 +323,18 @@
    "reason": "metadata_not_exported",
    "detail": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
    "subject": "call-003"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: LangChain4j's telemetry exports no reasoning part for it, and no payload holds one",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: LangChain4j's telemetry exports no reasoning part for it, and no payload holds one",
+   "subject": "fact-005"
   }
  ]
 }

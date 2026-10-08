@@ -598,13 +598,10 @@ fn test_mistral_nested_thinking_array_concatenates() {
 }
 
 #[test]
-fn test_mistral_empty_thinking_array_is_dropped() {
-    // Mistral's `thinking` array shape is still recognised (the point of the fallback: it
-    // must not fall through to {"type":"unknown"}), but an empty one carries no text and no
-    // signature, so it is dropped rather than rendered as a blank reasoning bubble. This test
-    // previously asserted a thinking block with text "" survived; that turned out to be the
-    // same defect found on real agent-framework captures. See is_renderable_block in
-    // content.rs. Extraction from a NON-empty array is covered by
+fn test_mistral_empty_thinking_array_is_reasoning_with_no_text() {
+    // Mistral's `thinking` array shape is recognised (it must not fall through to
+    // {"type":"unknown"}), and an empty one is a reasoning step whose text is not there: thinking with
+    // no text, which the view names as such. Extraction from a NON-empty array is covered by
     // test_mistral_mixed_block_types_only_text_extracted.
     let input = json!({
         "role": "assistant",
@@ -614,9 +611,10 @@ fn test_mistral_empty_thinking_array_is_dropped() {
         }]
     });
     let output = normalize(&input);
+    assert_eq!(output.content.len(), 1, "{:?}", output.content);
     assert!(
-        output.content.is_empty(),
-        "an empty thinking block should not reach the feed, got {:?}",
+        matches!(&output.content[0], ContentBlock::Thinking { text, signature: None } if text.is_empty()),
+        "{:?}",
         output.content
     );
 }

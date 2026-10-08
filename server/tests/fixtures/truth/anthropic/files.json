@@ -137,8 +137,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-001"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-001",
+   "seal": "0f516bf37c940cdc2e1f52f673d97306c9d618e1191a19460a448db7aa127290"
   },
   {
    "id": "fact-005",
@@ -198,12 +209,6 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-004"
   }
  ],
  "requests": {

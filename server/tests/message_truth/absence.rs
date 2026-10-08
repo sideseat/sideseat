@@ -17,6 +17,7 @@
 //! the documentation from the truths themselves (`limitations_section`).
 
 pub(super) mod haystack;
+mod reasoning;
 #[cfg(test)]
 mod tests;
 
@@ -28,6 +29,7 @@ use serde_json::Value;
 use super::predicates::{json_eq, same_tool, semantic_eq};
 use super::truth::{self, Fact, Truth};
 use haystack::{Carrier, Haystack, MAX_DEPTH, collapse_whitespace};
+use reasoning::{is_withheld, prove_kind, prove_reasoning_part, prove_signature};
 
 /// Shorter texts occur by coincidence, so their absence proves nothing.
 const MIN_TEXT: usize = 12;
@@ -56,9 +58,7 @@ pub(super) fn prove(fact: &Fact, haystack: &Haystack) -> Proof {
         ));
     }
     match fact.kind.as_str() {
-        "reasoning" if fact.require.as_ref().is_some_and(|r| r.matcher == "signed") => {
-            prove_reasoning_part(haystack)
-        }
+        "reasoning" if is_withheld(fact) => prove_reasoning_part(fact.seal.as_deref(), haystack),
         "text" | "system" | "user_text" | "reasoning" => prove_text(fact.text(), haystack),
         "tool_call" => prove_tool_call(&fact.value, haystack),
         "tool_result" => prove_tool_result(&fact.value, haystack),
@@ -411,6 +411,15 @@ pub(super) enum Claim<'t> {
     /// That a fact's text is reasoning (`kind_not_exported`): the text is in the payloads, and nothing
     /// that holds it marks it as reasoning.
     Kind(&'t Fact),
+    /// Only withheld reasoning's signature (`signature_not_exported`): no payload holds it - its own, known
+    /// by the fact's seal, or without one any opaque signature or encrypted reasoning payload.
+    Signature(&'t Fact),
+    /// A response part on the span that produced it (`output_not_exported`): that span's carriers hold none
+    /// of it, though a later request may re-send it.
+    Output(&'t Fact),
+    /// Withheld reasoning's signature on the span that produced it (`span_signature_not_exported`): that
+    /// span's carriers hold no signature, though another carrier may.
+    SpanSignature(&'t Fact),
 }
 
 impl Claim<'_> {
@@ -420,6 +429,9 @@ impl Claim<'_> {
             Claim::Id(_) => "tool call id",
             Claim::Response(_) => "model response",
             Claim::Kind(_) => "reasoning, as such",
+            Claim::Signature(_) => "reasoning signature",
+            Claim::Output(_) => "response part, on the span that produced it",
+            Claim::SpanSignature(_) => "reasoning signature, on the span that produced it",
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
@@ -449,6 +461,9 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
             let claim = match gap.reason.as_str() {
                 "id_not_exported" => Claim::Id(fact(subject)?),
                 "kind_not_exported" => Claim::Kind(fact(subject)?),
+                "signature_not_exported" => Claim::Signature(fact(subject)?),
+                "output_not_exported" => Claim::Output(fact(subject)?),
+                "span_signature_not_exported" => Claim::SpanSignature(fact(subject)?),
                 "call_not_exported" => {
                     let call = truth.calls.iter().find(|c| c.id == subject)?;
                     Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
@@ -480,6 +495,10 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         Claim::Id(fact) => prove_id(fact, haystack),
         Claim::Metadata(field, values) => prove_metadata(field, values, haystack),
         Claim::Kind(fact) => prove_kind(fact, haystack),
+        Claim::Signature(fact) => prove_signature(fact.seal.as_deref(), haystack),
+        Claim::Output(_) | Claim::SpanSignature(_) => Proof::Unprovable(
+            "this absence is searched for on the span that produced the fact".to_string(),
+        ),
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
         // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
         // which only a copy of the response would. A response with any other part, or a call with no
@@ -574,88 +593,40 @@ fn prove_metadata(field: &str, values: &[String], haystack: &Haystack) -> Proof 
     Proof::Absent
 }
 
-/// Whether a member name or a `type` value names reasoning.
-fn names_reasoning(text: &str) -> bool {
-    let text = text.to_ascii_lowercase();
-    text.contains("reason") || text.contains("think") || text.contains("thought")
+/// A response part on the span that produced it: the fact searched for in that span's carriers alone - its
+/// attributes and events, and the log records it emitted - decoded as far as the search decodes.
+pub(super) fn prove_output(fact: &Fact, span: &str, haystack: &Haystack) -> Proof {
+    match own_carriers(span, haystack) {
+        Ok(own) => prove(fact, &own),
+        Err(refused) => refused,
+    }
 }
 
-/// Withheld reasoning has no text to search for, only its part: present where a payload holds one - a JSON
-/// object typed as reasoning, or one carrying an opaque signature (`signature`, `thoughtSignature`) - or a
-/// flattened attribute types a part as reasoning. Where no payload does, nothing tells a producer that
-/// dropped the part from one that never had it, so the absence is unprovable rather than proven.
-///
-/// A member merely named for reasoning is not a part: `thinking: {type: enabled, budget_tokens}` is a
-/// request's configuration. Nor is any signature: a tool's `(city: str)` is not an opaque token.
-fn prove_reasoning_part(haystack: &Haystack) -> Proof {
-    let opaque = |text: &str| {
-        text.len() >= 32
-            && text
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=' | b'-' | b'_'))
-    };
-    let part = |node: &Value| {
-        node.as_object().is_some_and(|map| {
-            map.iter().any(|(key, value)| {
-                (key == "type" && value.as_str().is_some_and(names_reasoning))
-                    || (key.to_ascii_lowercase().ends_with("signature")
-                        && value.as_str().is_some_and(opaque))
-            })
-        })
-    };
-    for carrier in &haystack.carriers {
-        if let Some(at) = find_node(carrier, part) {
-            return Proof::Present(format!("{at} holds a reasoning part"));
-        }
-        if let Some((at, _)) = carrier
-            .strings
+/// Withheld reasoning's signature on the span that produced it: not in that span's carriers.
+pub(super) fn prove_span_signature(fact: &Fact, span: &str, haystack: &Haystack) -> Proof {
+    match own_carriers(span, haystack) {
+        Ok(own) => prove_signature(fact.seal.as_deref(), &own),
+        Err(refused) => refused,
+    }
+}
+
+/// The carriers of one span, as a haystack of their own.
+fn own_carriers(span: &str, haystack: &Haystack) -> Result<Haystack, Proof> {
+    let own = Haystack {
+        carriers: haystack
+            .carriers
             .iter()
-            .find(|(at, kind)| at.ends_with(".type") && names_reasoning(kind))
-        {
-            return Proof::Present(format!("{at} types a part as reasoning"));
-        }
-    }
-    Proof::Unprovable("no payload carries a reasoning part".to_string())
-}
-
-/// Reasoning exported as text: the text is somewhere (else it is a missing fact, not a mislabelled one),
-/// and nothing holding it names reasoning: no JSON object that holds it has a reasoning member or `type`,
-/// and no attribute of a flattened family beside it is a reasoning `type`.
-fn prove_kind(fact: &Fact, haystack: &Haystack) -> Proof {
-    if let Some(at) = haystack.undecoded.first() {
-        return Proof::Unprovable(format!(
-            "{at} is encoded deeper than the search decodes ({MAX_DEPTH} layers)"
-        ));
-    }
-    let text = fact.text();
-    if !matches!(prove_text(text, haystack), Proof::Present(_)) {
-        return Proof::Unprovable(format!("{}'s text is not in the payloads at all", fact.id));
-    }
-    let needle = collapse_whitespace(text);
-    let marks = |node: &Value| {
-        node.as_object().is_some_and(|map| {
-            map.iter().any(|(key, value)| {
-                names_reasoning(key)
-                    || (key == "type" && value.as_str().is_some_and(names_reasoning))
-            })
-        })
+            .filter(|c| c.span.as_deref() == Some(span))
+            .cloned()
+            .collect(),
+        undecoded: haystack.undecoded.clone(),
     };
-    for carrier in &haystack.carriers {
-        if let Some(at) = find_node(carrier, |node| {
-            marks(node) && holds(node, &Value::String(text.to_string()))
-        }) {
-            return Proof::Present(format!("{at} marks the text as reasoning"));
-        }
-        for (at, value) in carrier.strings.iter().filter(|(_, v)| v.contains(&needle)) {
-            let base = at.rsplit_once('.').map_or(at.as_str(), |(base, _)| base);
-            if carrier.strings.iter().any(|(other, kind)| {
-                other.starts_with(base) && other.ends_with(".type") && names_reasoning(kind)
-            }) {
-                return Proof::Present(format!("{at} is typed as reasoning beside {value:?}"));
-            }
-        }
+    if own.carriers.is_empty() {
+        return Err(Proof::Unprovable(format!(
+            "no carrier belongs to span {span}"
+        )));
     }
-    Proof::Absent
+    Ok(own)
 }
 
 fn prove_id(fact: &Fact, haystack: &Haystack) -> Proof {
@@ -882,8 +853,38 @@ fn every_absence_gap_is_proven() {
             };
             searched += 1;
             let haystack = Haystack::of_fixture(paths);
+            // The span each call was recorded by, for an output proven absent from it: matched as the checks
+            // match it, by the call's output.
+            let on_span = gaps.iter().any(|(gap, claim)| {
+                gap.holds_for(fixture)
+                    && matches!(claim, Claim::Output(_) | Claim::SpanSignature(_))
+            });
+            let producing: BTreeMap<String, String> = if on_span {
+                let recon = super::recon::build(fixture, paths);
+                let checked = truth.for_fixture(fixture);
+                let matching = super::matching::match_calls(&checked, &recon, &mut Vec::new());
+                matching
+                    .span_of
+                    .iter()
+                    .map(|(call, &g)| (call.clone(), recon.generations[g].span.clone()))
+                    .collect()
+            } else {
+                BTreeMap::new()
+            };
             for (gap, claim) in gaps.iter().filter(|(gap, _)| gap.holds_for(fixture)) {
-                match prove_claim(claim, &haystack) {
+                let proof = match claim {
+                    Claim::Output(fact) | Claim::SpanSignature(fact) => {
+                        match fact.call.as_ref().and_then(|call| producing.get(call)) {
+                            Some(span) if matches!(claim, Claim::Output(_)) => {
+                                prove_output(fact, span, &haystack)
+                            }
+                            Some(span) => prove_span_signature(fact, span, &haystack),
+                            None => Proof::Unprovable("no span records its call".to_string()),
+                        }
+                    }
+                    _ => prove_claim(claim, &haystack),
+                };
+                match proof {
                     Proof::Absent => proven += 1,
                     refused => defects.push(format!(
                         "{key}: {} ({}) is declared {} but {fixture}: {refused:?}",

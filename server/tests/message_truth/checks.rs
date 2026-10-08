@@ -220,6 +220,13 @@ pub(super) fn check_placement(context: &Context<'_>, out: &mut Vec<Violation>) {
     for scope in scopes(context) {
         let assigned = assign(context, &scope);
         for (fact, shown) in report_assignment(context, &scope, &assigned, out) {
+            // Owed unsigned on its span and signed elsewhere: the two cannot be the same block.
+            let unsigned_on_span = context
+                .fact(&fact)
+                .is_some_and(|f| f.value.get(super::truth::UNSIGNED_ON_SPAN).is_some());
+            if scope.kind == ViewKind::Span && unsigned_on_span {
+                continue;
+            }
             digests.entry(fact).or_default().insert(scope.kind, shown);
         }
         check_reasoning_kind(&scope, out);
@@ -340,6 +347,12 @@ fn segment_run(fact: &Fact, scope: &Scope<'_>, at: usize) -> Option<usize> {
 }
 
 fn block_shows(fact: &Fact, scope: &Scope<'_>, at: usize, call_id: Option<&str>) -> Shows {
+    // Withheld reasoning whose signature its producing span does not carry is owed unsigned there.
+    if scope.kind == ViewKind::Span && fact.value.get(super::truth::UNSIGNED_ON_SPAN).is_some() {
+        let mut unsigned = fact.clone();
+        unsigned.value["signed"] = serde_json::Value::Bool(false);
+        return shows(&unsigned, scope.blocks[at].2, call_id);
+    }
     match shows(fact, scope.blocks[at].2, call_id) {
         Shows::No if segment_run(fact, scope, at).is_some() => Shows::Yes,
         other => other,

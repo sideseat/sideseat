@@ -87,10 +87,11 @@
       "messages": []
     },
     "trace-2/chat global.anthropic.claude-sonnet-5-5/span-3": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -115,6 +116,15 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are great for a stroll. It's also free to enter and close to the Prado Museum,…[284 chars]",
           "content_digest": "0e73933fbe4799fe",
@@ -124,10 +134,11 @@
       ]
     },
     "trace-2/invoke_agent agent/span-2": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -151,6 +162,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are great for a stroll. It's also free to enter and close to the Prado Museum,…[284 chars]",
@@ -207,10 +227,11 @@
       ]
     },
     "trace-2": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -235,6 +256,15 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are great for a stroll. It's also free to enter and close to the Prado Museum,…[284 chars]",
           "content_digest": "0e73933fbe4799fe",
@@ -246,13 +276,14 @@
   },
   "session_views": {
     "pydantic-ai-session": {
-      "message_count": 6,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -302,6 +333,15 @@
         {
           "index": 5,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are great for a stroll. It's also free to enter and close to the Prado Museum,…[284 chars]",
           "content_digest": "0e73933fbe4799fe",
@@ -312,8 +352,9 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 7,
     "role_sequence": [
+      "assistant",
       "assistant",
       "system",
       "user",
@@ -327,6 +368,15 @@
       {
         "index": 0,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "34ae679dfabe86d4",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are great for a stroll. It's also free to enter and close to the Prado Museum,…[284 chars]",
         "content_digest": "0e73933fbe4799fe",
@@ -334,7 +384,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -342,7 +392,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one park to visit in Madrid.",
@@ -350,7 +400,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "I'd recommend the **Museo del Prado**, one of the world's great art museums, with masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. It's in the heart of Madrid near Retiro Park, so you can easily pair it with a stroll afterward…[304 chars]",
@@ -359,7 +409,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -367,7 +417,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one museum to visit in Madrid.",

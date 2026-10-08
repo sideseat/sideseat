@@ -21,6 +21,10 @@ integrations = ["agent-framework"]
 # The Anthropic Bedrock client: Agent Framework's Converse client sends no images and no thinking settings.
 default-model = "claude"
 
+[tool.sideseat-example.truth.unexported.reasoning_signature]
+reason = "the signature of reasoning the model withheld the text of: Agent Framework's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds"
+scenarios = ["error", "multi_turn", "session", "structured_output"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

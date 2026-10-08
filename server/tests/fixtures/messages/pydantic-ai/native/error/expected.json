@@ -44,10 +44,11 @@
       ]
     },
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-5": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "tool"
       ],
@@ -73,6 +74,15 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CzsscVG4IqNNMjIeVSVSAb\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
           "content_digest": "74b433968a61c567",
@@ -81,7 +91,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline. Fix the errors and try again.",
@@ -92,12 +102,13 @@
       ]
     },
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-7": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -143,6 +154,15 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CzsscVG4IqNNMjIeVSVSAb\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
           "content_digest": "74b433968a61c567",
@@ -151,7 +171,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline. Fix the errors and try again.",
@@ -160,7 +180,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so there's nothing for me to fix on my side. Do you wan…[289 chars]",
@@ -236,12 +256,13 @@
       ]
     },
     "trace-1/invoke_agent agent/span-2": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -287,6 +308,15 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "ToolUse",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CzsscVG4IqNNMjIeVSVSAb\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
           "content_digest": "74b433968a61c567",
@@ -295,7 +325,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline. Fix the errors and try again.",
@@ -304,7 +334,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so there's nothing for me to fix on my side. Do you wan…[289 chars]",
@@ -317,12 +347,13 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -368,6 +399,15 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CzsscVG4IqNNMjIeVSVSAb\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
           "content_digest": "74b433968a61c567",
@@ -376,7 +416,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline. Fix the errors and try again.",
@@ -385,7 +425,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so there's nothing for me to fix on my side. Do you wan…[289 chars]",
@@ -398,12 +438,13 @@
   },
   "session_views": {
     "pydantic-ai-error": {
-      "message_count": 7,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -449,6 +490,15 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CzsscVG4IqNNMjIeVSVSAb\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
           "content_digest": "74b433968a61c567",
@@ -457,7 +507,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline. Fix the errors and try again.",
@@ -466,7 +516,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so there's nothing for me to fix on my side. Do you wan…[289 chars]",
@@ -478,10 +528,11 @@
     }
   },
   "feed_view": {
-    "message_count": 7,
+    "message_count": 8,
     "role_sequence": [
       "assistant",
       "tool",
+      "assistant",
       "assistant",
       "tool",
       "assistant",
@@ -512,6 +563,15 @@
       {
         "index": 2,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "34ae679dfabe86d4",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CzsscVG4IqNNMjIeVSVSAb\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
         "content_digest": "74b433968a61c567",
@@ -520,7 +580,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline. Fix the errors and try again.",
@@ -529,7 +589,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_XZdfVxVRUN7Fz82KUrGnTQ\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
@@ -539,7 +599,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -547,7 +607,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "Book me a flight from London to Oslo on 2026-11-14.",

@@ -71,12 +71,13 @@
       "messages": []
     },
     "trace-2/call_llm/span-4": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -116,6 +117,15 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. Highlights include the Crystal Palace, the boating lake, and the rose garden. It's near the Prado, so it pairs well with your museum visit.",
@@ -193,10 +203,11 @@
       ]
     },
     "trace-2": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -221,6 +232,15 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. Highlights include the Crystal Palace, the boating lake, and the rose garden. It's near the Prado, so it pairs well with your museum visit.",
           "content_digest": "28524e9c03499c3c",
@@ -232,13 +252,14 @@
   },
   "session_views": {
     "adk-session": {
-      "message_count": 6,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -288,6 +309,15 @@
         {
           "index": 5,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. Highlights include the Crystal Palace, the boating lake, and the rose garden. It's near the Prado, so it pairs well with your museum visit.",
           "content_digest": "28524e9c03499c3c",
@@ -298,8 +328,9 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 7,
     "role_sequence": [
+      "assistant",
       "assistant",
       "system",
       "user",
@@ -313,6 +344,15 @@
       {
         "index": 0,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "34ae679dfabe86d4",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. Highlights include the Crystal Palace, the boating lake, and the rose garden. It's near the Prado, so it pairs well with your museum visit.",
         "content_digest": "28524e9c03499c3c",
@@ -320,7 +360,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
@@ -328,7 +368,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one park to visit in Madrid.",
@@ -336,7 +376,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "I'd suggest the **Museo del Prado**, Madrid's premier art museum, with masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening admission hours to save on tickets. It's also an easy walk …[296 chars]",
@@ -345,7 +385,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
@@ -353,7 +393,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one museum to visit in Madrid.",

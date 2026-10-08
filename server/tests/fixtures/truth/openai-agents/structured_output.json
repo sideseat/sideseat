@@ -111,7 +111,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-001"
+   "call": "call-001",
+   "seal": "0dcc1b3b929b3c7712b19fb6e23825c5a27c22fe1e69c6c7bba29f9ccb738da9"
   },
   {
    "id": "fact-004",

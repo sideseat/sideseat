@@ -18,6 +18,10 @@ integrations = ["ag2"]
 [tool.sideseat-example.truth.unexported]
 media = "the attachments the user sent: AG2's telemetry records a message's text only, and their bytes are in no payload"
 
+[tool.sideseat-example.truth.unexported.withheld_reasoning]
+reason = "reasoning the model signed and withheld the text of: AG2's telemetry exports no reasoning part for it, and no payload holds one"
+scenarios = ["multi_turn", "session", "structured_output"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

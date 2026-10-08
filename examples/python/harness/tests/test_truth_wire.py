@@ -168,7 +168,7 @@ def test_converse_keeps_text_reasoning_and_tool_calls_in_order() -> None:
     assert call is not None
     assert call.model == "global.anthropic.claude-sonnet-5-5"
     assert call.parts == [
-        wire.reasoning_part("Think.", signed=True),
+        wire.reasoning_part("Think.", signature="s"),
         wire.reasoning_part(None, redacted=True),
         wire.text_part("Checking.  \n"),
         wire.tool_call_part("t1", "get_weather", {"city": "Rome"}),
@@ -245,7 +245,7 @@ def test_converse_stream_reassembles_text_reasoning_and_split_tool_arguments() -
     )
     assert call is not None and call.streamed
     assert call.parts == [
-        wire.reasoning_part("Hmm.", signed=True),
+        wire.reasoning_part("Hmm.", signature="sig"),
         wire.text_part("Rome is sunny."),
         wire.tool_call_part("t9", "get_weather", {"city": "Rome"}),
     ]
@@ -406,7 +406,7 @@ def anthropic_events() -> list[dict[str, Any]]:
 
 def expected_anthropic_parts() -> list[dict[str, Any]]:
     return [
-        wire.reasoning_part("Weigh.", signed=True),
+        wire.reasoning_part("Weigh.", signature="s"),
         wire.text_part("Paris is dry."),
         wire.tool_call_part("toolu_2", "get_weather", {"city": "Paris", "days": 2}),
     ]
@@ -607,7 +607,7 @@ def test_responses_echoes_the_system_prompt_and_reports_encrypted_reasoning() ->
     )
     assert call is not None
     assert call.system_echo == content.SYSTEM
-    assert call.parts[0] == wire.reasoning_part(None, signed=True)
+    assert call.parts[0] == wire.reasoning_part(None, signature="x")
     assert call.parts[2] == wire.tool_call_part(
         "call_1", "get_weather", {"city": "Rome", "days": 1}
     )
@@ -812,3 +812,16 @@ def test_every_committed_cassette_decodes_completely() -> None:
                 )
                 decoded += 1
     assert decoded > 400
+
+
+def test_signed_reasoning_is_sealed_by_its_signature_digest_never_by_the_signature() -> (
+    None
+):
+    import hashlib
+
+    part = wire.reasoning_part("", signature="abc")
+    assert part["signed"] is True
+    assert part["seal"] == hashlib.sha256(b"abc").hexdigest()
+    assert "abc" not in json.dumps({k: v for k, v in part.items() if k != "seal"})
+    assert wire.reasoning_part("", signature="abd")["seal"] != part["seal"]
+    assert "seal" not in wire.reasoning_part("Visible.", signed=True)

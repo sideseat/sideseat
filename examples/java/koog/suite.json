@@ -1,5 +1,13 @@
 {
   "producer": "koog",
   "integrations": ["koog"],
-  "service-name": "koog"
+  "service-name": "koog",
+  "truth": {
+    "unexported": {
+      "reasoning_span_signature": {
+        "reason": "the signature of reasoning the model withheld the text of, on the model call's own span: Koog reports the call in the GenAI conventions, whose reasoning part has no member for it, and keeps the signature only in the agent graph's node output",
+        "scenarios": ["error", "session"]
+      }
+    }
+  }
 }

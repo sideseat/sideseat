@@ -43,6 +43,26 @@ pub(super) fn adopt_failure(survivor: &mut BlockEntry, other: &BlockEntry) {
     }
 }
 
+/// Reasoning keeps the signature a copy of it carried.
+///
+/// An unsigned copy merges with a signed one only where it is unambiguously that block (see
+/// `signature_aliases`), so whichever survives - the model call's own, on quality - says it was signed.
+pub(super) fn adopt_signature(survivor: &mut BlockEntry, other: &BlockEntry) {
+    if let (
+        ContentBlock::Thinking {
+            signature: kept @ None,
+            ..
+        },
+        ContentBlock::Thinking {
+            signature: Some(found),
+            ..
+        },
+    ) = (&mut survivor.content, &other.content)
+    {
+        *kept = Some(found.clone());
+    }
+}
+
 /// A tool call keeps the provider's id a dropped copy of it carried.
 ///
 /// Copies of a call merge on name and input, so the id is the one thing a copy can lose without changing

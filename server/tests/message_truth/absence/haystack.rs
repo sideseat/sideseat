@@ -20,8 +20,10 @@ use super::super::truth;
 pub(in super::super) const MAX_DEPTH: usize = 8;
 
 /// One carrier's decoded content: every string it holds, every JSON subtree, every decoded byte digest.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(in super::super) struct Carrier {
+    /// The span this carrier belongs to, as hex: a span with its events, or a log record a span emitted.
+    pub span: Option<String>,
     /// Whitespace-collapsed strings with the location each came from.
     pub strings: Vec<(String, String)>,
     pub nodes: Vec<(String, Value)>,
@@ -64,12 +66,12 @@ impl Haystack {
             for (r, resource_spans) in request.resource_spans.iter().enumerate() {
                 if let Some(resource) = &resource_spans.resource {
                     let at = format!("{file} resource[{r}]");
-                    haystack.carrier(|e| e.attributes(&at, &resource.attributes));
+                    haystack.carrier(None, |e| e.attributes(&at, &resource.attributes));
                 }
                 for (s, scope_spans) in resource_spans.scope_spans.iter().enumerate() {
                     if let Some(scope) = &scope_spans.scope {
                         let at = format!("{file} resource[{r}].scope[{s}]");
-                        haystack.carrier(|e| {
+                        haystack.carrier(None, |e| {
                             e.string(&format!("{at}.name"), &scope.name, 0);
                             e.string(&format!("{at}.version"), &scope.version, 0);
                             e.attributes(&at, &scope.attributes);
@@ -77,7 +79,7 @@ impl Haystack {
                     }
                     for span in &scope_spans.spans {
                         let at = format!("{file} span {:?}", span.name);
-                        haystack.carrier(|e| {
+                        haystack.carrier(Some(hex(&span.span_id)), |e| {
                             e.string(&format!("{at}.name"), &span.name, 0);
                             e.string(&format!("{at}.trace_state"), &span.trace_state, 0);
                             e.attributes(&at, &span.attributes);
@@ -103,12 +105,12 @@ impl Haystack {
             for (r, resource_logs) in request.resource_logs.iter().enumerate() {
                 if let Some(resource) = &resource_logs.resource {
                     let at = format!("{file} resource[{r}]");
-                    haystack.carrier(|e| e.attributes(&at, &resource.attributes));
+                    haystack.carrier(None, |e| e.attributes(&at, &resource.attributes));
                 }
                 for (s, scope_logs) in resource_logs.scope_logs.iter().enumerate() {
                     if let Some(scope) = &scope_logs.scope {
                         let at = format!("{file} resource[{r}].scope[{s}]");
-                        haystack.carrier(|e| {
+                        haystack.carrier(None, |e| {
                             e.string(&format!("{at}.name"), &scope.name, 0);
                             e.string(&format!("{at}.version"), &scope.version, 0);
                             e.attributes(&at, &scope.attributes);
@@ -116,7 +118,8 @@ impl Haystack {
                     }
                     for (i, record) in scope_logs.log_records.iter().enumerate() {
                         let at = format!("{file} log[{i}] {:?}", record.event_name);
-                        haystack.carrier(|e| {
+                        let span = (!record.span_id.is_empty()).then(|| hex(&record.span_id));
+                        haystack.carrier(span, |e| {
                             e.string(&format!("{at}.event_name"), &record.event_name, 0);
                             e.string(&format!("{at}.severity"), &record.severity_text, 0);
                             if let Some(body) = &record.body {
@@ -131,8 +134,11 @@ impl Haystack {
         haystack
     }
 
-    fn carrier(&mut self, fill: impl FnOnce(&mut Expander<'_>)) {
-        let mut carrier = Carrier::default();
+    fn carrier(&mut self, span: Option<String>, fill: impl FnOnce(&mut Expander<'_>)) {
+        let mut carrier = Carrier {
+            span,
+            ..Carrier::default()
+        };
         let mut expander = Expander {
             carrier: &mut carrier,
             undecoded: &mut self.undecoded,
@@ -380,4 +386,9 @@ fn unescape(text: &str) -> String {
         }
     }
     out
+}
+
+/// Lowercase hex, as a span id is written everywhere else.
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

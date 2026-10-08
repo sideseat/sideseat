@@ -116,7 +116,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-001"
+   "call": "call-001",
+   "seal": "96f432561107ec332b0be13d56476d08308294f54673e7cdc788efe5104fcd99"
   },
   {
    "id": "fact-003",
@@ -191,16 +192,16 @@
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   },
   {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-002"
-  },
-  {
    "fact": "tool_result",
    "reason": "tool_not_deterministic",
    "detail": "trip_plan is not one of the shared deterministic tools",
    "subject": "fact-003"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: ADK for Java's telemetry exports no reasoning part for it, and no payload holds one",
+   "subject": "fact-002"
   }
  ]
 }

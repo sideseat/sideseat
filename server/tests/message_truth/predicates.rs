@@ -54,10 +54,23 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
         ("reasoning", "presence") => yes(block.is("assistant", "redacted_thinking")),
         // Reasoning the model signed and withheld the text of: a thinking block with no text that says it
         // was signed. Owed by its presence, role and place, since there is no text to compare - and never
-        // as `redacted_thinking`, which is the provider's own redaction of a text that existed.
-        ("reasoning", "signed") => yes(block.is("assistant", "thinking")
-            && block.text().is_some_and(|text| text.trim().is_empty())
-            && block.content.get("signed").and_then(Value::as_bool) == Some(true)),
+        // as `redacted_thinking`, which is the provider's own redaction of a text that existed. Where the
+        // telemetry carries no signature (`signature_not_exported`, proven), the block says it is unsigned.
+        ("reasoning", "signed") => {
+            let signed = fact
+                .value
+                .get("signed")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            yes(block.is("assistant", "thinking")
+                && block.text().is_some_and(|text| text.trim().is_empty())
+                && block
+                    .content
+                    .get("signed")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+                    == signed)
+        }
         ("reasoning", _) => {
             yes(block.is("assistant", "thinking") && block.text() == Some(fact.text()))
         }

@@ -210,13 +210,12 @@ class Builder:
             self.gaps.append(entry)
 
 
-#: Why signed reasoning with no text is not yet owed in the conversation views. Each names the work that
-#: will owe it, so the gap says what is true today rather than what was undecided once.
-_WITHHELD_PENDING = (
-    "the provider signed this reasoning and withheld its text; views show it as signed thinking with no "
-    "text and the request check owes it on the span sent it, while owing it in every view waits on the "
-    "rubric track's withheld-reasoning batch, which proves per framework where no payload carries it"
-)
+def _withheld(part: dict[str, Any]) -> bool:
+    """Reasoning the model signed and withheld the text of: an empty text, not an unknown one."""
+    return part["text"] == "" and bool(part["signed"]) and not part["redacted"]
+
+
+#: Why an encrypted reasoning item with no text is not yet owed, naming the work that will owe it.
 _UNTEXTED_PENDING = (
     "the provider returned an encrypted reasoning item with no text at all; how it is shown waits on "
     "SideML slice S1, OpenAI reasoning items (docs/engineering/sideml-provider-review.md)"
@@ -293,7 +292,13 @@ class Framework:
     #: responses that only call tools, whose parts are recorded one execution at a time
     #: (``call_not_exported``); ``model``, ``response_model``, ``response_id``, ``finish`` - a call's
     #: metadata the producer states wrongly with the right value in no payload; ``reasoning_kind`` -
-    #: visible reasoning the producer records as plain text (``kind_not_exported``); ``media`` - the
+    #: visible reasoning the producer records as plain text (``kind_not_exported``);
+    #: ``withheld_reasoning`` - signed reasoning with no text the producer exports no part for
+    #: (``not_exported``); ``reasoning_signature`` - that reasoning's signature, the step itself exported
+    #: (``signature_not_exported``); ``reasoning_output`` - that reasoning missing from the span that
+    #: produced it, a later request re-sending it (``output_not_exported``); ``reasoning_span_signature``
+    #: - that reasoning's signature missing from the span that produced it, another carrier holding it
+    #: (``span_signature_not_exported``); ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
     #: those modalities, and it withdraws the fact, so it holds for every capture or none)
     #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
@@ -301,6 +306,10 @@ class Framework:
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
     #: telemetry leaves it out.
     unexported: dict[str, Any] = field(default_factory=dict)
+    #: What the rubric cannot yet hold the framework to, by the same vocabulary as ``unexported``, with a
+    #: reason naming the work it waits on. Withdrawn without a proof (``reasoning_text_omitted``), so it is
+    #: a debt, and only ``withheld_reasoning`` may be pending.
+    pending: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -318,6 +327,7 @@ class Framework:
                 for scenario, actions in table.get("initial_actions", {}).items()
             },
             unexported=dict(table.get("unexported", {})),
+            pending=dict(table.get("pending", {})),
             text_answer_action=dict(table.get("text_answer_action", {})),
         )
 
@@ -599,7 +609,18 @@ def assemble(
                     if record["usage"] is not None:
                         record["usage"]["output"] = None
             elif part["type"] == "reasoning":
-                visible = bool(part["text"])
+                # Visible reasoning is owed by its text and a provider's redaction by its presence.
+                # Reasoning the model signed and withheld the text of - an empty text, not an unknown one -
+                # is owed by its signed mark, since there is no text to compare.
+                match = (
+                    "exact"
+                    if part["text"]
+                    else "presence"
+                    if part["redacted"]
+                    else "signed"
+                    if _withheld(part)
+                    else None
+                )
                 fact = builder.fact(
                     conversation,
                     "reasoning",
@@ -607,17 +628,17 @@ def assemble(
                     evidence,
                     {key: part[key] for key in ("text", "signed", "redacted")},
                     call=identifier,
-                    require=_model_call_requirement("exact")
-                    if visible
-                    else _model_call_requirement("presence")
-                    if part["redacted"]
-                    else None,
+                    require=_model_call_requirement(match) if match else None,
                 )
-                if not visible and not part["redacted"]:
+                # The signature's digest, outside the value: what tells two withheld turns apart when
+                # their telemetry is searched, and no part of what a view must show.
+                if part.get("seal"):
+                    builder.facts[-1]["seal"] = part["seal"]
+                if match is None:
                     builder.gap(
                         "reasoning",
                         "reasoning_text_omitted",
-                        _WITHHELD_PENDING if part["text"] == "" else _UNTEXTED_PENDING,
+                        _UNTEXTED_PENDING,
                         subject=fact,
                     )
             else:
@@ -696,7 +717,17 @@ def assemble(
 #: Call metadata a producer may state wrongly with the right value in no payload.
 METADATA = ("model", "response_model", "response_id", "finish")
 UNEXPORTED = frozenset(
-    {"tool_call_ids", "tool_calling_rounds", "reasoning_kind", "media", *METADATA}
+    {
+        "tool_call_ids",
+        "tool_calling_rounds",
+        "reasoning_kind",
+        "withheld_reasoning",
+        "reasoning_signature",
+        "reasoning_output",
+        "reasoning_span_signature",
+        "media",
+        *METADATA,
+    }
 )
 
 
@@ -705,10 +736,14 @@ def _unexported(builder: Builder, framework: Framework) -> None:
     unknown = set(framework.unexported) - UNEXPORTED
     if unknown:
         raise ValueError(f"unknown unexported content {sorted(unknown)}")
+    if set(framework.pending) - {"withheld_reasoning"}:
+        raise ValueError(f"unknown pending content {sorted(framework.pending)}")
 
-    def declared(content: str) -> tuple[str, list[str]] | None:
+    def declared(
+        content: str, table: dict[str, Any] | None = None
+    ) -> tuple[str, list[str]] | None:
         """The reason and the capture modes it holds for (all when none are named)."""
-        entry = framework.unexported.get(content)
+        entry = (framework.unexported if table is None else table).get(content)
         if isinstance(entry, dict):
             if "scenarios" in entry and builder.scenario not in entry["scenarios"]:
                 return None
@@ -752,6 +787,65 @@ def _unexported(builder: Builder, framework: Framework) -> None:
                 and fact["require"] is not None
             ):
                 gap("reasoning", "kind_not_exported", detail, fact["id"])
+    if detail := declared("withheld_reasoning"):
+        for fact in builder.facts:
+            if fact["kind"] == "reasoning" and _withheld(fact["value"]):
+                fact["require"] = None
+                gap("reasoning", "not_exported", detail, fact["id"])
+    if detail := declared("withheld_reasoning", framework.pending):
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "reasoning"
+                and _withheld(fact["value"])
+                and fact["require"] is not None
+            ):
+                fact["require"] = None
+                gap("reasoning", "reasoning_text_omitted", detail, fact["id"])
+    if detail := declared("reasoning_output"):
+        # Only a call a later call of its conversation follows: the claim is that the next request's
+        # history re-sends what the call's own output left out, and nothing re-sends the last call's.
+        followed = {
+            record["id"]
+            for record in builder.calls
+            if any(
+                later["conversation"] == record["conversation"]
+                and builder.calls.index(later) > builder.calls.index(record)
+                for later in builder.calls
+            )
+        }
+        # The last call's has no next request to re-send it, so no payload holds it at all.
+        unsent = (
+            f"{detail[0]}; the last turn's is re-sent by no request, so no payload holds it",
+            detail[1],
+        )
+        for fact in builder.facts:
+            if not (
+                fact["kind"] == "reasoning"
+                and _withheld(fact["value"])
+                and fact["require"] is not None
+            ):
+                continue
+            if fact.get("call") in followed:
+                gap("reasoning", "output_not_exported", detail, fact["id"])
+            else:
+                fact["require"] = None
+                gap("reasoning", "not_exported", unsent, fact["id"])
+    if detail := declared("reasoning_span_signature"):
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "reasoning"
+                and _withheld(fact["value"])
+                and fact["require"] is not None
+            ):
+                gap("reasoning", "span_signature_not_exported", detail, fact["id"])
+    if detail := declared("reasoning_signature"):
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "reasoning"
+                and _withheld(fact["value"])
+                and fact["require"] is not None
+            ):
+                gap("reasoning", "signature_not_exported", detail, fact["id"])
     if detail := declared("tool_calling_rounds"):
         for record in builder.calls:
             outputs = [facts[output] for output in record["outputs"]]

@@ -100,7 +100,8 @@
     "cardinality": "exactly_once",
     "match": "exact"
    },
-   "call": "call-001"
+   "call": "call-001",
+   "seal": "bb4b36274dadbe7f7a67f669d7ab198394e24eb89a877167e5dd2a4cd528838b"
   },
   {
    "id": "fact-003",

@@ -439,18 +439,18 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
-          "content_digest": "be6e55d31f8eea42",
-          "finish_reason": "Stop",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "assistant",
-          "entry_type": "thinking",
-          "content": "",
-          "content_digest": "3ca100066bbf569b",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
@@ -525,18 +525,18 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
-          "content_digest": "be6e55d31f8eea42",
-          "finish_reason": "Stop",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "assistant",
-          "entry_type": "thinking",
-          "content": "",
-          "content_digest": "3ca100066bbf569b",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {

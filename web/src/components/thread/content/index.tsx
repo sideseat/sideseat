@@ -137,7 +137,7 @@ export { TextContent } from "./text-content";
 export { JsonContent } from "./json-content";
 export { ToolUseContent } from "./tool-use-content";
 export { ToolResultContent } from "./tool-result-content";
-export { ThinkingContent, WITHHELD_REASONING_LABEL } from "./thinking-content";
+export { ThinkingContent } from "./thinking-content";
 export { ToolDefinitionsContent } from "./tool-definitions-content";
 export { MediaContent } from "./media-content";
 export { ContextContent } from "./context-content";

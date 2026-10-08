@@ -77,10 +77,12 @@ The truth comparison runs inside `message_goldens`, on the four views it already
    flagged as an error.
 6. **Reasoning** the wire returned visibly is a thinking block with its exact text and is never shown as
    assistant text. Signed reasoning with no text is a thinking block with empty text marked `signed`, never
-   `redacted_thinking`, which is a provider's own redaction, and no view carries the signature itself. The
-   request check owes it on the span sent it, by presence, role and place. The conversation views do not owe
-   it yet: a gap (`reasoning_text_omitted`) withdraws it there until the withheld-reasoning batch proves,
-   per framework, where no payload carries it.
+   `redacted_thinking`, which is a provider's own redaction, and no view carries the signature itself. It is
+   owed by presence, role and place, in every view and on the span sent it. Each such fact carries a `seal`,
+   its signature's SHA-256, which is what an absence proof searches for. What a framework leaves out is
+   declared per scenario and proven: the step (`withheld_reasoning`), its signature everywhere
+   (`reasoning_signature`, shown unsigned) or on its producing span (`reasoning_span_signature`), or the step
+   on its producing span only, a later request re-sending it (`reasoning_output`).
 7. **Prompts, system prompt and attachments** are present: a prompt contained in (or equal to) a user
    text block; an echoed system prompt exactly; an attachment by modality, media type and the SHA-256 of
    its decoded bytes wherever the bytes are kept inline (long data that does not decode is damaged

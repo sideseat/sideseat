@@ -4,7 +4,11 @@
   "service-name": "spring-ai",
   "truth": {
     "unexported": {
-      "media": "the attachments the user sent: Spring AI's telemetry records the prompt's text only, and their bytes are in no payload"
+      "media": "the attachments the user sent: Spring AI's telemetry records the prompt's text only, and their bytes are in no payload",
+      "withheld_reasoning": {
+        "reason": "reasoning the model signed and withheld the text of: Spring AI's telemetry exports no reasoning part for it, and no payload holds one",
+        "scenarios": ["multi_turn", "session", "streaming"]
+      }
     }
   }
 }

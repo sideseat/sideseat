@@ -7,8 +7,8 @@ import {
   ThinkingContent,
   ToolDefinitionsContent,
   JsonContent,
-  WITHHELD_REASONING_LABEL,
 } from "./content";
+import { omittedReasoningLabel } from "./content/reasoning-labels";
 
 /**
  * Generate a unique key for a block.
@@ -154,7 +154,8 @@ export function getBlockPreview(block: Block): string {
   }
 
   if (entry_type === "thinking" && content.type === "thinking") {
-    if (content.text.trim() === "" && content.signed) return WITHHELD_REASONING_LABEL;
+    const omitted = omittedReasoningLabel(content.text, content.signed);
+    if (omitted) return omitted;
     return `"${truncate(content.text, 60)}" (${content.text.length} chars)`;
   }
 

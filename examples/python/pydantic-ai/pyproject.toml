@@ -13,6 +13,10 @@ dependencies = [
 producer = "pydantic-ai"
 integrations = ["pydantic-ai"]
 
+[tool.sideseat-example.truth.unexported.reasoning_signature]
+reason = "the signature of reasoning the model withheld the text of: Pydantic AI's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds"
+scenarios = ["error", "multi_turn", "session"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

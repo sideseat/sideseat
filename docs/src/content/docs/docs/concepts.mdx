@@ -106,8 +106,8 @@ type ContentBlock =
   | { type: 'thinking', text: string, signed?: true }
 ```
 
-Reasoning whose text the model withheld is a thinking block with empty text and `signed: true`. The signature
-itself stays in the stored telemetry and is not served.
+Reasoning whose text the model withheld is a thinking block with empty text, and `signed: true` where the
+telemetry carried its signature. The signature itself stays in the stored telemetry and is not served.
 
 ## Sessions
 

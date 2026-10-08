@@ -6,12 +6,13 @@
   "session_count": 1,
   "span_views": {
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-10": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -52,6 +53,14 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "34ae679dfabe86d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a different date if that works for you.",
@@ -181,11 +190,31 @@
       "messages": []
     },
     "trace-1/node nodeSendToolResult/span-9": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a different date if that works for you.",
+          "content_digest": "7dbc03d04f1a2d23",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/strategy single_run/span-3": {
       "message_count": 0,
@@ -197,12 +226,13 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -243,6 +273,14 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a different date if that works for you.",
@@ -254,12 +292,13 @@
   },
   "session_views": {
     "koog-error": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -301,6 +340,14 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a different date if that works for you.",
           "content_digest": "7dbc03d04f1a2d23",
@@ -310,9 +357,10 @@
     }
   },
   "feed_view": {
-    "message_count": 5,
+    "message_count": 6,
     "role_sequence": [
       "tool",
+      "assistant",
       "assistant",
       "user",
       "assistant",
@@ -332,13 +380,21 @@
       {
         "index": 1,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
         "entry_type": "text",
         "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a different date if that works for you.",
         "content_digest": "7dbc03d04f1a2d23",
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Book me a flight from London to Oslo on 2026-11-14.",
@@ -346,7 +402,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_o5oX5eWYsXq1DynKxFogB1\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
@@ -355,7 +411,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",

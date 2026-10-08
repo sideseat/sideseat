@@ -22,6 +22,10 @@ integrations = ["llama-index"]
 reason = "the document the user sent: the flattened input messages drop a document block (an image is kept, its data redacted), and no payload holds its bytes"
 modalities = ["document"]
 
+[tool.sideseat-example.truth.unexported.withheld_reasoning]
+reason = "reasoning the model signed and withheld the text of: LlamaIndex's telemetry exports no reasoning part for it, and no payload holds one"
+scenarios = ["multi_agent", "multi_turn", "session"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

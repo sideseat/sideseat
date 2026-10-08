@@ -148,8 +148,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-001"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-001",
+   "seal": "90486b8976f6ea3ce264c8ec7b51f18ccd666e3c47c0057fa964c9293fd664df"
   },
   {
    "id": "fact-003",
@@ -246,8 +257,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-003"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-003",
+   "seal": "eccce251a4f981f2160520056e83e3ac5259300a87e26b27c3aa5b12686f9700"
   },
   {
    "id": "fact-008",
@@ -331,14 +353,14 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "signature_not_exported",
+   "detail": "the signature of reasoning the model withheld the text of: Agent Framework's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
    "subject": "fact-002"
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "signature_not_exported",
+   "detail": "the signature of reasoning the model withheld the text of: Agent Framework's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
    "subject": "fact-007"
   }
  ],

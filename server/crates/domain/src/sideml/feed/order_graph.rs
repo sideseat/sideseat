@@ -43,10 +43,12 @@ use super::types::BlockEntry;
 use crate::sideml::types::{ChatRole, FinishReason};
 
 mod relisting;
+mod resent;
 mod resolve;
 mod tool_causality;
 
 use relisting::redundant_relistings;
+use resent::{at_home, own_outputs, resent_part_bindings};
 use tool_causality::{causal_sequence_edges, exact_tool_pairs, parallel_tool_branches};
 
 pub(super) use resolve::resolve;
@@ -679,6 +681,13 @@ pub(super) struct Constraints {
     /// included tool edge has an exact id on one tool span, and the two generation spans differ.
     /// Parallel generations, retries, abandoned calls and ambiguous ids add no edge.
     pub sibling_tool_turn_edges: bool,
+    /// Bind a part a later request's history is the first to show to the response it was re-sent with.
+    ///
+    /// A framework that reports a turn's answer without its reasoning and re-sends both in the next
+    /// request left the reasoning ordered at that request's time, after the answer it preceded. The
+    /// re-sent message says where it belongs: it joins that response's unit in the message's order.
+    /// Only where one response is unambiguous - see [`resent_part_bindings`].
+    pub resent_part_binding: bool,
 }
 
 impl Constraints {
@@ -698,6 +707,7 @@ impl Constraints {
         generation_dataflow_edges: false,
         request_framing_edges: false,
         sibling_tool_turn_edges: false,
+        resent_part_binding: false,
     };
 
     /// What production enforces today.
@@ -790,6 +800,7 @@ impl Constraints {
         generation_dataflow_edges: true,
         request_framing_edges: true,
         sibling_tool_turn_edges: true,
+        resent_part_binding: true,
     };
 
     /// Single-span projection keeps the payload's replayed input, so an identical call may occur both
@@ -815,6 +826,7 @@ impl Constraints {
         generation_dataflow_edges: true,
         request_framing_edges: true,
         sibling_tool_turn_edges: true,
+        resent_part_binding: true,
     };
 }
 

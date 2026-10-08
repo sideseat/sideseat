@@ -148,8 +148,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-001"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-001",
+   "seal": "1e86309b23858ea4b36321467f34f229da27f864d9911a01ae3264454268647e"
   },
   {
    "id": "fact-003",
@@ -246,8 +257,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-003"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-003",
+   "seal": "1a739ce29121dfc7e4407778eaae5fcad75ee4f1f84c09b1beeff45c2ecd9369"
   },
   {
    "id": "fact-008",
@@ -328,18 +350,6 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-002"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-007"
   }
  ],
  "requests": {

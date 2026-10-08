@@ -1,12 +1,20 @@
 {
   "producer": "langchain4j",
-  "integrations": [
-    "openinference"
-  ],
+  "integrations": ["openinference"],
   "service-name": "langchain4j",
   "truth": {
     "unexported": {
-      "model": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it"
+      "model": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
+      "withheld_reasoning": {
+        "reason": "reasoning the model signed and withheld the text of: LangChain4j's telemetry exports no reasoning part for it, and no payload holds one",
+        "scenarios": [
+          "error",
+          "files",
+          "multi_turn",
+          "session",
+          "structured_output"
+        ]
+      }
     }
   }
 }

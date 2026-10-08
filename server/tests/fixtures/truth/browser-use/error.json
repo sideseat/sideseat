@@ -237,8 +237,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-002"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-002",
+   "seal": "6cfa89c2da514c9493c46d574e1aa48ee0c6cd47b9151a72a53507697f3b020c"
   },
   {
    "id": "fact-006",
@@ -482,12 +493,6 @@
    "reason": "framework_restates_prompt",
    "detail": "the framework re-sends the task inside its own state message on every step; the request body is unrecorded, so the message is known only to contain the prompt",
    "subject": "call-002"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-005"
   },
   {
    "fact": "user_text",

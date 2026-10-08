@@ -57,8 +57,19 @@ use sideseat_ports::types::MessageCategory;
 
 mod adopt;
 mod identity;
+mod resent;
+mod signature;
+mod tie;
 mod timing;
-use adopt::{adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finishes, adopt_result_id};
+use adopt::{
+    adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finishes, adopt_result_id,
+    adopt_signature,
+};
+use resent::resent_parts;
+use signature::signature_aliases;
+#[cfg(any(test, feature = "test-support"))]
+pub use tie::PREFER_LATER_ON_TIE;
+use tie::prefer_later_on_tie;
 
 pub(super) use identity::*;
 pub use timing::{SpanTimestamps, effective_timestamp};
@@ -486,36 +497,6 @@ fn tool_result_aliases<'a>(
     aliases
 }
 
-// Test-only: prefer the *later* of two tied copies instead of the earlier.
-//
-// Which copy survives a quality tie is decided by arrival order, and it is not something a caller can
-// vary - reversing the row order does not reach it, because rows are re-sorted by timestamp before
-// dedup ever sees them. So the property "the *order* of the answer does not depend on which copy
-// survived" had no test, which is the central claim of the ordering redesign.
-//
-// Flipping this changes which copy survives, and content differs between copies - so the test asserts
-// the shape is unchanged *and* that the content moved somewhere, since a perturbation that reaches
-// nothing proves nothing.
-//
-// Thread-local, not a global: the suite runs in parallel, and a process-wide flag changed what every
-// other test was measuring at the same time. The read path runs on its caller's thread, so a
-// thread-local reaches exactly the pipeline under test.
-#[cfg(any(test, feature = "test-support"))]
-thread_local! {
-    #[doc(hidden)]
-    pub static PREFER_LATER_ON_TIE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-#[cfg(any(test, feature = "test-support"))]
-fn prefer_later_on_tie() -> bool {
-    PREFER_LATER_ON_TIE.with(|flag| flag.get())
-}
-
-#[cfg(not(any(test, feature = "test-support")))]
-fn prefer_later_on_tie() -> bool {
-    false
-}
-
 /// The key an observation was collapsed under: its identity and the rank of its call within its
 /// response. Two identical tool calls of one response differ only in the rank.
 pub(super) type DedupKey = (MessageIdentity, u32);
@@ -595,6 +576,12 @@ fn deduplicate_with_lineage(
         .filter(|key| aliased_by_current.contains(key))
         .collect();
     non_history_ids.extend(kept_for_merge);
+    // So are the parts of a re-sent response that only the re-send carries.
+    let resent = resent_parts(
+        blocks.iter().zip(ordinals.iter().copied()),
+        &non_history_ids,
+    );
+    non_history_ids.extend(resent);
 
     // Filter: keep non-history blocks, and history blocks only if they have a non-history equivalent
     // This removes messages from previous turns that appear in history
@@ -647,13 +634,18 @@ fn deduplicate_with_lineage(
             .map(|(index, block, ordinal)| (*index, block, *ordinal)),
     );
 
+    // An unsigned copy of reasoning is the one signed block it copies, where that is unambiguous.
+    let signature_alias =
+        signature_aliases(blocks.iter().map(|(_, block, ordinal)| (block, *ordinal)));
+
     // Identity-based dedup: non-history will win due to quality scoring.
     let mut candidates: HashMap<DedupKey, (BlockEntry, u32)> = HashMap::new();
 
     for (input_index, block, ordinal) in blocks {
-        let identity = match result_alias.get(&(MessageIdentity::from_block(&block), ordinal)) {
+        let own = (MessageIdentity::from_block(&block), ordinal);
+        let identity = match result_alias.get(&own).or_else(|| signature_alias.get(&own)) {
             Some(canonical) => (canonical.clone(), ordinal),
-            None => (MessageIdentity::from_block(&block), ordinal),
+            None => own,
         };
         let quality = compute_quality(&block);
         input_keys[input_index] = Some(identity.clone());
@@ -686,6 +678,7 @@ fn deduplicate_with_lineage(
                 adopt_failure(existing, &other);
                 adopt_result_id(existing, &other);
                 adopt_call_id(existing, &other);
+                adopt_signature(existing, &other);
             })
             .or_insert((block, quality));
     }

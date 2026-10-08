@@ -138,7 +138,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-001"
+   "call": "call-001",
+   "seal": "8b17d2c8dac8a0bdc8d44ad7b5ff3e58cc374bb39ba319ee40c3da719c11e0c0"
   },
   {
    "id": "fact-005",
@@ -177,16 +178,16 @@
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   },
   {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
-   "subject": "fact-004"
-  },
-  {
    "fact": "model",
    "reason": "metadata_not_exported",
    "detail": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
    "subject": "call-001"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: LangChain4j's telemetry exports no reasoning part for it, and no payload holds one",
+   "subject": "fact-004"
   }
  ]
 }

@@ -328,6 +328,16 @@ fn check_attribution(
         {
             continue;
         }
+        // A part its producing span does not carry (`output_not_exported`, proven) is owed off that span,
+        // where a later request re-sent it, so it is not attributed to it.
+        if fact.call.is_some()
+            && fact
+                .require
+                .as_ref()
+                .is_some_and(|r| !r.views.iter().any(|v| v == "span"))
+        {
+            continue;
+        }
         // An unexported response has no span of its own to be attributed to.
         if fact.call.as_deref().is_some_and(|c| context.unexported(c)) {
             continue;

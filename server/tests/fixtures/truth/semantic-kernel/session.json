@@ -169,7 +169,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-002"
+   "call": "call-002",
+   "seal": "a0cf3c6013f76e788e60aaad32e00f5f827b76e89c44831fbd243b68915bf505"
   },
   {
    "id": "fact-005",
@@ -262,8 +263,8 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: Semantic Kernel's telemetry exports no reasoning part for it, and no payload holds one",
    "subject": "fact-004"
   }
  ],

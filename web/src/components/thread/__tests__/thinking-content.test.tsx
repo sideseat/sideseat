@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { Block, ContentBlock } from "@/api/otel/types";
 import { AppProvider } from "@/lib/app-context";
-import { ContentRenderer, WITHHELD_REASONING_LABEL } from "../content";
+import { ContentRenderer } from "../content";
+import { OMITTED_REASONING_LABEL, WITHHELD_REASONING_LABEL } from "../content/reasoning-labels";
 import { getBlockPreview } from "../thread-utils";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -68,10 +69,11 @@ describe("ThinkingContent", () => {
     expect(previewOf(shown)).not.toBe(WITHHELD_REASONING_LABEL);
   });
 
-  it("does not call empty unsigned reasoning signed", async () => {
+  it("names reasoning with no text and no signature without calling it signed", async () => {
     const empty: ContentBlock = { type: "thinking", text: "" };
     await renderBlock(empty);
-    expect(container.textContent).not.toContain(WITHHELD_REASONING_LABEL);
-    expect(previewOf(empty)).not.toBe(WITHHELD_REASONING_LABEL);
+    expect(container.textContent).toBe(OMITTED_REASONING_LABEL);
+    expect(previewOf(empty)).toBe(OMITTED_REASONING_LABEL);
+    expect(previewOf({ type: "thinking", text: "  \n" })).toBe(OMITTED_REASONING_LABEL);
   });
 });

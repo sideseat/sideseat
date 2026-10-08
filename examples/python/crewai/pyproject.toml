@@ -15,6 +15,10 @@ dependencies = [
 producer = "crewai"
 integrations = ["crewai"]
 
+[tool.sideseat-example.truth.unexported.withheld_reasoning]
+reason = "reasoning the model signed and withheld the text of: CrewAI's telemetry exports no reasoning part for it, and no payload holds one"
+scenarios = ["mcp_tools"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

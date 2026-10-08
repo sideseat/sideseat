@@ -596,7 +596,7 @@ fn withheld_fact() -> Fact {
 }
 
 #[test]
-fn withheld_reasoning_is_present_where_a_payload_holds_its_part() {
+fn withheld_reasoning_is_absent_only_where_no_payload_holds_a_reasoning_part() {
     const SIGNATURE: &str = "EqQBCkgIBhABGAIiQKmvNk3zF7Yh0w2xQ5kVd9pLr8c3Tg1uB4oWnXeZsA6y";
     let fact = withheld_fact();
     let typed = serde_json::json!([{"type": "thinking", "thinking": "", "signature": SIGNATURE}]);
@@ -609,6 +609,11 @@ fn withheld_reasoning_is_present_where_a_payload_holds_its_part() {
         &fact,
         &attribute(string(&signed.to_string()))
     )));
+    let flagged = serde_json::json!({"parts": [{"thought": true, "text": ""}, {"text": TEXT}]});
+    assert!(present(prove(
+        &fact,
+        &attribute(string(&flagged.to_string()))
+    )));
     let flattened = span(|s| {
         s.attributes.push(kv(
             "gen_ai.output.messages.0.parts.0.type",
@@ -617,15 +622,23 @@ fn withheld_reasoning_is_present_where_a_payload_holds_its_part() {
     });
     assert!(present(prove(&fact, &flattened)));
 
-    // Configuration named for reasoning, and a signature that is no token, are not a part: with nothing else,
-    // whether the producer dropped one cannot be told, and absence is never assumed.
+    // Configuration named for reasoning, and a signature that is no token, are not a part: a payload holding
+    // only those exported no reasoning at all.
     let configured = serde_json::json!({
         "thinking": {"type": "enabled", "budget_tokens": 1024},
+        "thinking_config": {"include_thoughts": true},
         "tools": [{"name": "get_weather", "signature": "(city: str, days: int) -> dict"}],
         "text": TEXT,
     });
     assert_eq!(
         prove(&fact, &attribute(string(&configured.to_string()))),
-        Proof::Unprovable("no payload carries a reasoning part".to_string())
+        Proof::Absent
     );
+    // Withdrawn by a gap, the fact is proven by its value, not by the requirement it no longer has.
+    let mut withdrawn = withheld_fact();
+    withdrawn.require = None;
+    assert!(present(prove(
+        &withdrawn,
+        &attribute(string(&typed.to_string()))
+    )));
 }

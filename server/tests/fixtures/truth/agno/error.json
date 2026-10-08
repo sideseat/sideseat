@@ -169,7 +169,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-002"
+   "call": "call-002",
+   "seal": "b64a39c0ee0041947f29f7d20c0b12b1c425cc9c466f3cdc6189792bbab2ed9f"
   },
   {
    "id": "fact-005",
@@ -243,8 +244,8 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: Agno's telemetry exports no reasoning part for it, and no payload holds one",
    "subject": "fact-004"
   }
  ],

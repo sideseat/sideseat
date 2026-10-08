@@ -28,7 +28,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and the optimal solution totals 17 minutes. I'm working out the schedule: send 1 and 2 across together, send 1 back, then send 5 and 10 across toget…[5802 chars]",
-          "content_digest": "4ef71eb25abd1738",
+          "content_digest": "98d7ddc5201958f0",
           "observation_type": "generation"
         },
         {
@@ -100,7 +100,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and the optimal solution totals 17 minutes. I'm working out the schedule: send 1 and 2 across together, send 1 back, then send 5 and 10 across toget…[5802 chars]",
-          "content_digest": "4ef71eb25abd1738",
+          "content_digest": "98d7ddc5201958f0",
           "observation_type": "generation"
         },
         {
@@ -138,7 +138,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and the optimal solution totals 17 minutes. I'm working out the schedule: send 1 and 2 across together, send 1 back, then send 5 and 10 across toget…[5802 chars]",
-          "content_digest": "4ef71eb25abd1738",
+          "content_digest": "98d7ddc5201958f0",
           "observation_type": "generation"
         },
         {
@@ -167,7 +167,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and the optimal solution totals 17 minutes. I'm working out the schedule: send 1 and 2 across together, send 1 back, then send 5 and 10 across toget…[5802 chars]",
-        "content_digest": "4ef71eb25abd1738",
+        "content_digest": "98d7ddc5201958f0",
         "observation_type": "generation"
       },
       {

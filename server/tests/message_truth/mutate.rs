@@ -99,6 +99,10 @@ pub(super) fn visible_reasoning(fact: &Fact) -> bool {
     fact.kind == "reasoning" && !fact.text().is_empty()
 }
 
+pub(super) fn withheld_reasoning(fact: &Fact) -> bool {
+    fact.kind == "reasoning" && fact.require.as_ref().is_some_and(|r| r.matcher == "signed")
+}
+
 pub(super) fn usage(
     call: &super::truth::Call,
     field: fn(&super::truth::Usage) -> Option<i64>,

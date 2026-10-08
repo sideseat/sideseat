@@ -168,8 +168,19 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
-   "call": "call-002"
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
+   "call": "call-002",
+   "seal": "8d91d4ba69d7917530d87a57a3988b8c60be62a48dab38876f97e353d45b3ce5"
   },
   {
    "id": "fact-005",
@@ -262,8 +273,8 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "signature_not_exported",
+   "detail": "the signature of reasoning the model withheld the text of: Agent Framework's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds",
    "subject": "fact-004"
   }
  ],

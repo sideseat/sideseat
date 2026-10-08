@@ -329,7 +329,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-003"
+   "call": "call-003",
+   "seal": "802d34d170f1d931be9f26cde3f2a7a23b3e99270dd5865cae6d02f877c3f725"
   },
   {
    "id": "fact-007",
@@ -507,8 +508,8 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: ADK for Java's telemetry exports no reasoning part for it, and no payload holds one",
    "subject": "fact-006"
   }
  ]

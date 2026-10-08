@@ -3,7 +3,11 @@
   "integrations": ["claude-agent-sdk"],
   "truth": {
     "unexported": {
-      "media": "the attachments the user sent: the telemetry names an attachment by the file it was read from (`[Image: source: <path>]`), never by its bytes"
+      "media": "the attachments the user sent: the telemetry names an attachment by the file it was read from (`[Image: source: <path>]`), never by its bytes",
+      "withheld_reasoning": {
+        "reason": "reasoning the model signed and withheld the text of: the Claude Agent SDK's telemetry exports no reasoning part for it, and no payload holds one",
+        "scenarios": ["reasoning"]
+      }
     }
   }
 }

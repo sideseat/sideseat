@@ -236,7 +236,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-003"
+   "call": "call-003",
+   "seal": "327ed0058fc25414c2bf2b7bd4aca1a835d181bebeee32e276dd1c49bda76213"
   },
   {
    "id": "fact-006",
@@ -340,8 +341,8 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: LlamaIndex's telemetry exports no reasoning part for it, and no payload holds one",
    "subject": "fact-005"
   }
  ],

@@ -319,3 +319,107 @@ fn reasoning_is_told_apart_by_its_signature() {
         assert_eq!(signatures, [Some("sig-a"), Some("sig-b")], "text {text:?}");
     }
 }
+
+/// One response reported twice, once by a carrier that drops the reasoning's signature: the unsigned copy
+/// is the signed block, which keeps its signature. Where two signed blocks could be the one it copies,
+/// it is left alone, as is a copy whose message holds anything else.
+#[test]
+fn an_unsigned_copy_of_reasoning_is_the_one_signed_block_it_copies() {
+    let response = |span: &str, signature: Option<&str>, answer: &str| {
+        let mut reasoning = make_test_block("t1", span, ChatRole::Assistant, "", utc(100));
+        reasoning.entry_type = "thinking".to_string();
+        reasoning.content = ContentBlock::Thinking {
+            text: String::new(),
+            signature: signature.map(str::to_string),
+        };
+        let mut text = make_test_block("t1", span, ChatRole::Assistant, answer, utc(100));
+        text.entry_index = 1;
+        vec![reasoning, text]
+    };
+    let signatures = |blocks: &[BlockEntry]| -> Vec<Option<String>> {
+        let mut found: Vec<Option<String>> = blocks
+            .iter()
+            .filter_map(|b| match &b.content {
+                ContentBlock::Thinking { signature, .. } => Some(signature.clone()),
+                _ => None,
+            })
+            .collect();
+        found.sort();
+        found
+    };
+
+    let unique = [
+        response("chat", None, "Paris."),
+        response("node", Some("sig-a"), "Paris."),
+    ]
+    .concat();
+    let result = process_dedup(unique, HashMap::new());
+    assert_eq!(signatures(&result), [Some("sig-a".to_string())]);
+
+    let ambiguous = [
+        response("chat", None, "Paris."),
+        response("node", Some("sig-a"), "Paris."),
+        response("other", Some("sig-b"), "Paris."),
+    ]
+    .concat();
+    let result = process_dedup(ambiguous, HashMap::new());
+    assert_eq!(
+        signatures(&result),
+        [None, Some("sig-a".to_string()), Some("sig-b".to_string())]
+    );
+
+    let another_turn = [
+        response("chat", None, "Paris."),
+        response("node", Some("sig-a"), "Rome."),
+    ]
+    .concat();
+    let result = process_dedup(another_turn, HashMap::new());
+    assert_eq!(signatures(&result), [None, Some("sig-a".to_string())]);
+}
+
+/// A response re-sent with a part its own report left out keeps that part, though only the re-send has it;
+/// a re-send of two calls' parts says whose it is for neither, and the part stays history.
+#[test]
+fn a_part_only_a_re_sent_response_carries_is_kept() {
+    let reported = |span: &str, text: &str| {
+        let mut block = make_test_block("t1", span, ChatRole::Assistant, text, utc(100));
+        block.observation_type = Some("generation".to_string());
+        block.promoted_to_span_output = true;
+        block
+    };
+    let resent = |span: &str, entry: i32, content: ContentBlock| {
+        let mut block = make_test_block("t1", span, ChatRole::Assistant, "", utc(200));
+        block.observation_type = Some("generation".to_string());
+        block.is_history = true;
+        block.message_index = 1;
+        block.entry_index = entry;
+        block.entry_type = content.block_type().to_string();
+        block.content = content;
+        block
+    };
+    let reasoning = || ContentBlock::Thinking {
+        text: String::new(),
+        signature: Some("sig".to_string()),
+    };
+    let text = |t: &str| ContentBlock::Text {
+        text: t.to_string(),
+    };
+    let kept = |blocks: Vec<BlockEntry>| {
+        process_dedup(blocks, HashMap::new())
+            .iter()
+            .any(|b| matches!(b.content, ContentBlock::Thinking { .. }))
+    };
+
+    assert!(kept(vec![
+        reported("s1", "Paris."),
+        resent("s2", 0, reasoning()),
+        resent("s2", 1, text("Paris.")),
+    ]));
+    assert!(!kept(vec![
+        reported("s1", "Paris."),
+        reported("s3", "Rome."),
+        resent("s2", 0, reasoning()),
+        resent("s2", 1, text("Paris.")),
+        resent("s2", 2, text("Rome.")),
+    ]));
+}

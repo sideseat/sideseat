@@ -146,8 +146,8 @@ export type ContentBlock =
   | { type: "context"; data: unknown; context_type?: string }
   | { type: "refusal"; message: string }
   | { type: "json"; data: unknown }
-  // `signed` says the reasoning carries a signature; the signature itself is not served. Text may be empty where
-  // the model withheld its reasoning and only signed it.
+  // `signed` says the reasoning carries a signature; the signature itself is not served. Text is empty where
+  // the model withheld its reasoning: signed, or unsigned where the telemetry did not carry the signature.
   | { type: "thinking"; text: string; signed?: boolean }
   | { type: "redacted_thinking"; data: string }
   // `raw` is the original JSON, kept by the server so an unrecognised block is preserved rather than

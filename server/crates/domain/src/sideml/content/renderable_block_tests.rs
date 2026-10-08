@@ -1,17 +1,12 @@
 use super::*;
 
-/// The captured shape that motivated the predicate: agent-framework via Bedrock's
-/// OpenAI-compatible endpoint emits a reasoning part with no text and no signature, which
-/// reached the feed as a blank reasoning bubble.
+/// A reasoning part with no text and no signature is still a reasoning step: agent-framework via Bedrock's
+/// OpenAI-compatible endpoint emits one where the model withheld its text and the instrumentation dropped the
+/// signature. It is shown as thinking with no text, in every source shape, rather than hidden.
 #[test]
-fn empty_reasoning_part_is_dropped() {
-    let content = json!([{"type": "reasoning", "content": ""}]);
-    assert_eq!(normalize_content(Some(&content)), json!([]));
-}
-
-#[test]
-fn whitespace_only_reasoning_is_dropped_in_every_source_shape() {
+fn reasoning_with_no_text_is_kept_in_every_source_shape() {
     for shape in [
+        json!([{"type": "reasoning", "content": ""}]),
         json!([{"type": "reasoning", "content": "   "}]),
         json!([{"type": "reasoning", "text": "\n\t"}]),
         json!([{"type": "thinking", "text": ""}]),
@@ -19,11 +14,13 @@ fn whitespace_only_reasoning_is_dropped_in_every_source_shape() {
     ] {
         let out = normalize_content(Some(&shape));
         let blocks = out.as_array().expect("array");
+        assert_eq!(blocks.len(), 1, "{shape}");
+        assert_eq!(blocks[0]["type"], "thinking", "{shape}");
         assert!(
-            !blocks
-                .iter()
-                .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("thinking")),
-            "a blank thinking block survived for {shape}"
+            blocks[0]["text"]
+                .as_str()
+                .is_some_and(|t| t.trim().is_empty()),
+            "{shape}"
         );
     }
 }

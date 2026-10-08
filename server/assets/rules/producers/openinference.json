@@ -635,6 +635,36 @@
       }
     }
   ],
+  "content_blocks": [
+    {
+      "id": "openinference.signed_reasoning_content",
+      "doc": "OpenInference flattens a reasoning block as `message_content.type: reasoning` beside its `text` and the provider's `signature`, a member the semconv reasoning part does not have. Read as that part, reasoning whose text the model withheld showed unsigned, though the span carries its signature.",
+      "at": "before_provider_formats",
+      "priority": 94,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "reasoning"
+            ]
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          },
+          {
+            "path": "$.signature",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": "$.text",
+        "signature": "$.signature"
+      }
+    }
+  ],
   "span_facts": [
     {
       "id": "openinference.tool_execution",

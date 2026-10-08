@@ -1,0 +1,96 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "koog",
+  "doc": "The Koog dialect. Its model calls are reported in the GenAI conventions, and its agent graph records what each node produced as the framework's own objects, which are read only where they hold what the conventions dropped.",
+  "carriers": [
+    {
+      "id": "koog.node_output",
+      "doc": "What one node of the agent graph produced, as the framework's own object. For a node that called the model it is the response, which the model call's own span reports too: framework state restating an observation made elsewhere.",
+      "match": {
+        "attribute": "koog.node.output"
+      },
+      "facts": {
+        "preset": "accumulated_state"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "koog.node_reasoned_response",
+      "doc": "A model response with reasoning, as the graph node that received it recorded it. The model call's span reports the response in the GenAI conventions, whose reasoning part has no member for a signature, so reasoning the model signed and withheld the text of arrived there unsigned; the node's copy keeps the signature as `encrypted`. Read only for a response holding reasoning, whole, so its text is the conventions' answer again and content identity makes the copies one.",
+      "where": {
+        "all": [
+          {
+            "source": "scope.name",
+            "equals": "koog"
+          },
+          {
+            "source": "span_name",
+            "starts_with": "node "
+          }
+        ]
+      },
+      "read": {
+        "attribute": "koog.node.output"
+      },
+      "parse": "json",
+      "emit": "message",
+      "also": [
+        {
+          "id": "reasoned_response",
+          "doc": "The response's parts, where one of them is reasoning.",
+          "wrap": {
+            "role": "assistant",
+            "content_from": "$.parts"
+          },
+          "where": {
+            "path": "$.parts[?@.type == 'ai.koog.prompt.message.MessagePart.Reasoning']",
+            "exists": true
+          }
+        }
+      ],
+      "priority": 2600
+    }
+  ],
+  "content_blocks": [
+    {
+      "id": "koog.reasoning_part",
+      "doc": "The model's reasoning: its text, one string per chunk under `content`, and the signature a later request replays under `encrypted`.",
+      "at": "before_provider_formats",
+      "priority": 95,
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "ai.koog.prompt.message.MessagePart.Reasoning"
+        ]
+      },
+      "thinking": {
+        "text": "$.content[0]",
+        "signature": "$.encrypted"
+      }
+    },
+    {
+      "id": "koog.text_part",
+      "doc": "Prose.",
+      "at": "before_provider_formats",
+      "priority": 96,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "ai.koog.prompt.message.MessagePart.Text"
+            ]
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "text": {
+        "text": "$.text"
+      }
+    }
+  ]
+}

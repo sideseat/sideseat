@@ -91,7 +91,8 @@
     "redacted": false
    },
    "require": null,
-   "call": "call-001"
+   "call": "call-001",
+   "seal": "62524182f0d7c6754a26726a5b132f3d843ff1adffa3f4faac48b3a3a2af4fdd"
   },
   {
    "id": "fact-003",
@@ -155,8 +156,8 @@
   },
   {
    "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
+   "reason": "not_exported",
+   "detail": "reasoning the model signed and withheld the text of: AG2's telemetry exports no reasoning part for it, and no payload holds one",
    "subject": "fact-002"
   }
  ],

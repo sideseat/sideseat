@@ -123,29 +123,13 @@ fn splice_into<'b>(blocks: impl Iterator<Item = &'b JsonValue>, out: &mut Vec<&'
 /// Whether a normalized block carries anything a reader could see.
 ///
 /// Deliberately per block type rather than a blanket "has text" rule: an empty `tool_result`
-/// still records that a tool ran and must survive, while an empty `thinking` block renders as
-/// a blank reasoning bubble that is indistinguishable from a parsing failure.
-///
-/// The case this exists for: semconv 1.37 reasoning parts arrive as
-/// `{"type":"reasoning","content":""}` from models that return summarised or encrypted
-/// reasoning. With no text and no signature there is nothing to show and nothing to prove
-/// reasoning happened - reasoning token counts come from `gen_ai.usage.*` attributes, not from
-/// this block, so dropping it loses no accounting. A block that DOES carry a signature or
-/// redacted payload is kept: that is replay state a multi-turn request needs.
+/// still records that a tool ran and must survive, and so does an empty `thinking` block - a reasoning
+/// step happened even where its text was withheld (signed, or with the signature dropped by the
+/// instrumentation: semconv reasoning parts arrive as `{"type":"reasoning","content":""}`), and the view
+/// says so rather than hiding the step. A `redacted_thinking` block with no payload carries nothing.
 fn is_renderable_block(block: &JsonValue) -> bool {
     let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
     match block_type {
-        "thinking" => {
-            let has_text = block
-                .get("text")
-                .and_then(|t| t.as_str())
-                .is_some_and(|t| !t.trim().is_empty());
-            let has_signature = block
-                .get("signature")
-                .and_then(|s| s.as_str())
-                .is_some_and(|s| !s.trim().is_empty());
-            has_text || has_signature
-        }
         "redacted_thinking" => block
             .get("data")
             .and_then(|d| d.as_str())
