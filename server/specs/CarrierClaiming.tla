@@ -244,10 +244,18 @@ ClaimTakesCarrier ==
     \A c \in Carriers :
         ownedBy[c] # NoRule => ownedBy[c] \in (emitted \cup claimed)
 
-\* The generic reading ran exactly when no dialect rule took anything. The
+\* The generic reading ran only when no dialect rule took anything. The
 \* "only if" half is what keeps a span from reporting its payload twice.
 FallbackIsLastResort ==
     fellBack => (emitted = {} /\ claimed = {})
+
+\* And the "if" half, which no state predicate can state: between the last
+\* evaluation and the fallback there is a state where nothing took and the
+\* fallback has not run yet. So it is a property of behaviours - such a state
+\* is always followed by the fallback. Without `FallBack` in `Next`, evaluation
+\* stops there, every invariant above still holds, and this is what fails.
+FallbackRunsIfNothingTook ==
+    (pending = {} /\ emitted = {} /\ claimed = {}) ~> fellBack
 
 \* Once evaluation is complete, the outcome is exactly the rank-ordered greedy
 \* one - computed above without reference to these steps.
