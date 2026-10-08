@@ -13,8 +13,9 @@ use crate::error::DuckdbError;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    RequestContextParams, RequestContextRows,
 };
-use sideseat_query_sql::{Backend, analytics, messages};
+use sideseat_query_sql::{Backend, analytics, messages, request_context};
 
 fn duckdb_values(values: &[analytics::QueryValue]) -> Vec<&dyn duckdb::ToSql> {
     values
@@ -66,6 +67,105 @@ pub fn get_project_messages(
     execute_message_query(conn, &query)
 }
 
+/// The rows a request span's view is composed from: its thread's earlier requests, and the tool spans holding the
+/// calls those requests' deltas answer. Two keyed reads, in one call so both see one connection's instant.
+pub fn get_request_context(
+    conn: &Connection,
+    params: &RequestContextParams,
+) -> Result<RequestContextRows, DuckdbError> {
+    let ids: Vec<&str> = params.call_ids.iter().map(String::as_str).collect();
+    let traces: Vec<&str> = params.call_trace_ids.iter().map(String::as_str).collect();
+    Ok(RequestContextRows {
+        thread: thread_rows(
+            conn,
+            &request_context::thread_requests(
+                &params.thread,
+                params.before_us,
+                params.ingested_before_us,
+                Backend::Duckdb,
+            ),
+        )?,
+        calls: match ids.is_empty() || traces.is_empty() {
+            true => Vec::new(),
+            false => thread_rows(
+                conn,
+                &request_context::calls_in_traces(
+                    &traces,
+                    &ids,
+                    params.ingested_before_us,
+                    Backend::Duckdb,
+                ),
+            )?,
+        },
+    })
+}
+
+fn thread_rows(
+    conn: &Connection,
+    query: &analytics::ParameterizedQuery,
+) -> Result<Vec<MessageSpanRow>, DuckdbError> {
+    let values = duckdb_values(query.params());
+    let mut stmt = conn.prepare(query.sql())?;
+    let rows: Vec<Result<MessageSpanRow, _>> = stmt
+        .query_map(values.as_slice(), parse_thread_row)?
+        .collect();
+    rows.into_iter()
+        .collect::<Result<_, _>>()
+        .map_err(Into::into)
+}
+
+/// One row of a thread read, in `request_context::THREAD_COLUMNS` order.
+///
+/// The unprojected fields are left at what a span that carries none would have: a composition reads the messages
+/// and the facts that place them, and a projection is what keeps the rest of a span's bytes unread.
+fn parse_thread_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
+    let span_timestamp = row
+        .get::<_, Option<i64>>(2)
+        .map(|micros| micros.map(micros_to_datetime))?
+        .unwrap_or(chrono::DateTime::UNIX_EPOCH);
+    Ok(MessageSpanRow {
+        trace_id: row.get(0)?,
+        span_id: row.get(1)?,
+        span_timestamp,
+        ingested_at: span_timestamp,
+        status_code: row.get(3)?,
+        messages_json: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+        observation_type: row.get(5)?,
+        span_name: row.get(6)?,
+        scope_name: row.get(7)?,
+        scope_version: row.get(8)?,
+        session_id: row.get(9)?,
+        parent_span_id: None,
+        span_end_timestamp: None,
+        tool_definitions_json: "[]".to_string(),
+        tool_names_json: "[]".to_string(),
+        log_messages_json: "[]".to_string(),
+        body_cache_key: None,
+        model: None,
+        provider: None,
+        exception_type: None,
+        exception_message: None,
+        exception_stacktrace: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        cost_total: 0.0,
+        framework: None,
+        response_model: None,
+        response_id: None,
+        temperature: None,
+        top_p: None,
+        max_tokens: None,
+        finish_reasons: None,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        reasoning_tokens: 0,
+        cost_input: 0.0,
+        cost_output: 0.0,
+        request_thread: String::new(),
+    })
+}
+
 // ============================================================================
 // Helper functions
 // ============================================================================
@@ -92,7 +192,7 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
         tool_definitions_json: row.get::<_, Option<String>>(16)?.unwrap_or_default(),
         tool_names_json: row.get::<_, Option<String>>(17)?.unwrap_or_default(),
         log_messages_json: row
-            .get::<_, Option<String>>(36)?
+            .get::<_, Option<String>>(37)?
             .unwrap_or_else(|| "[]".to_string()),
         body_cache_key: None,
         observation_type: row.get(18)?,
@@ -113,6 +213,7 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
         reasoning_tokens: row.get(33)?,
         cost_input: row.get(34)?,
         cost_output: row.get(35)?,
+        request_thread: row.get::<_, Option<String>>(36)?.unwrap_or_default(),
     })
 }
 

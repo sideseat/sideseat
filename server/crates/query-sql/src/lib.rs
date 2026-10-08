@@ -20,6 +20,8 @@ pub mod messages;
 pub mod metrics;
 /// Order-clause rendering.
 pub mod order;
+/// The keyed reads a delta-exporting producer's request view composes from.
+pub mod request_context;
 /// Typed three-valued chronological search queries.
 pub mod search;
 /// Typed project-statistics statements and bucket planning.

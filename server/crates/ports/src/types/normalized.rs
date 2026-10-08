@@ -354,6 +354,13 @@ pub struct NormalizedSpan {
     /// span's JSON: the events and links themselves are read from the raw record.
     pub event_count: u32,
     pub link_count: u32,
+    /// The conversation thread this span is a request of, where a `request_threads` rule names one
+    /// (`domain::rules::request_threads`); empty on every other span.
+    ///
+    /// Derived from the span's attributes at ingest because the read path holds a span's messages and not its
+    /// attributes - a cache a re-parse rebuilds identically, like every extracted column.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub request_thread: String,
     /// Which export of an ingest batch the span came from: ingestion's own bookkeeping, never stored. Carried
     /// on the span because a batch drops spans at several fences and must still answer each export for its own,
     /// and because two exports in one batch can carry the same span identity, which therefore cannot say whose

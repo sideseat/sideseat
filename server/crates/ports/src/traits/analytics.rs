@@ -411,6 +411,18 @@ pub trait MessageStore: Send + Sync {
         &self,
         params: &FeedMessagesParams,
     ) -> Result<MessageQueryResult, DataError>;
+
+    /// The rows a request span's view is composed from, for a producer that exports each request's delta: the
+    /// earlier requests of `thread` that started at or before `before_us`, and the tool spans holding the calls
+    /// with these ids.
+    ///
+    /// One call rather than two, because the two reads answer one question and a caller that made them separately
+    /// could see a thread and its calls from two instants. Both are keyed - the thread, and the call ids - so
+    /// neither is proportional to the project.
+    async fn get_request_context(
+        &self,
+        params: &crate::types::RequestContextParams,
+    ) -> Result<crate::types::RequestContextRows, DataError>;
 }
 
 /// Deletes, counts and the watermark - what a sweep needs and a read path does not.

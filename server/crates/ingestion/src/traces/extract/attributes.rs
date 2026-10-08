@@ -244,6 +244,11 @@ pub struct SpanData {
     /// A `String` rather than an enum on purpose: an enum is a list of frameworks in Rust, and adding
     /// one would then be a code change rather than an asset. Nothing reads this to decide behaviour.
     pub framework: Option<String>,
+    /// The conversation thread this span is a request of, where a rule names one; empty on every other span.
+    ///
+    /// Derived here, from the span's attributes, because the read path holds a span's messages and not its
+    /// attributes. A cache a re-parse rebuilds identically, like every other extracted column.
+    pub request_thread: String,
     /// The instrumentation scope that produced this span - `ScopeSpans.scope.name`/`.version`.
     ///
     /// The one fact about a span nothing else derives: the resource names the *process*, the span

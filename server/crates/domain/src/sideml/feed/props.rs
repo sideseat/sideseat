@@ -135,6 +135,7 @@ fn row(trace_seq: u32, span_seq: u32, offset: i64, messages_json: String) -> Mes
         reasoning_tokens: 0,
         cost_input: 0.0,
         cost_output: 0.0,
+        request_thread: String::new(),
     }
 }
 

@@ -15,8 +15,8 @@ use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, S
 use sideseat_ports::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, ObservationType, ProjectId, SearchQuery, SearchRecord, SearchSignal,
-    SessionRow, SpanCategory, SpanRow, TraceRow,
+    NormalizedSpan, ObservationType, ProjectId, RequestContextRows, SearchQuery, SearchRecord,
+    SearchSignal, SessionRow, SpanCategory, SpanRow, TraceRow,
 };
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.

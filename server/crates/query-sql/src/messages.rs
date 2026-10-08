@@ -43,7 +43,8 @@ fn message_projection(backend: Backend) -> &'static str {
     gen_ai_usage_cache_write_tokens AS cache_write_tokens,
     gen_ai_usage_reasoning_tokens AS reasoning_tokens,
     gen_ai_cost_input::DOUBLE AS cost_input,
-    gen_ai_cost_output::DOUBLE AS cost_output"#
+    gen_ai_cost_output::DOUBLE AS cost_output,
+    request_thread"#
         }
         Backend::Clickhouse => {
             r#"trace_id,
@@ -82,7 +83,8 @@ fn message_projection(backend: Backend) -> &'static str {
     gen_ai_usage_cache_write_tokens AS cache_write_tokens,
     gen_ai_usage_reasoning_tokens AS reasoning_tokens,
     toFloat64(gen_ai_cost_input) AS cost_input,
-    toFloat64(gen_ai_cost_output) AS cost_output"#
+    toFloat64(gen_ai_cost_output) AS cost_output,
+    request_thread"#
         }
     }
 }
@@ -236,6 +238,7 @@ const MESSAGE_COLUMNS: &[&str] = &[
     "reasoning_tokens",
     "cost_input",
     "cost_output",
+    "request_thread",
 ];
 
 /// Every non-empty `otel_logs.messages` array for the selected spans, one row per `(trace, span)`.

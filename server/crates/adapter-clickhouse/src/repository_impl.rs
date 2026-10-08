@@ -710,6 +710,18 @@ impl MessageStore for ClickhouseRepository {
             params
         )
     }
+
+    async fn get_request_context(
+        &self,
+        params: &sideseat_ports::types::RequestContextParams,
+    ) -> Result<sideseat_ports::types::RequestContextRows, DataError> {
+        tenant_query!(
+            self,
+            &params.project_id,
+            messages::get_request_context,
+            params
+        )
+    }
 }
 
 #[async_trait]

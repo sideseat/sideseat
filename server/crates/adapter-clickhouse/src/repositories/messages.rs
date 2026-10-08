@@ -9,8 +9,9 @@ use serde::Deserialize;
 use crate::ClickhouseError;
 use sideseat_ports::types::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    RequestContextParams, RequestContextRows,
 };
-use sideseat_query_sql::{Backend, analytics, messages};
+use sideseat_query_sql::{Backend, analytics, messages, request_context};
 
 use super::query::bind_analytics_values;
 
@@ -54,6 +55,7 @@ struct ChMessageSpanRow {
     cost_input: f64,
     cost_output: f64,
     log_messages: String,
+    request_thread: String,
 }
 
 impl From<ChMessageSpanRow> for MessageSpanRow {
@@ -96,6 +98,7 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
             top_p: row.top_p,
             max_tokens: row.max_tokens,
             finish_reasons: row.finish_reasons,
+            request_thread: row.request_thread,
             cache_read_tokens: row.cache_read_tokens,
             cache_write_tokens: row.cache_write_tokens,
             reasoning_tokens: row.reasoning_tokens,
@@ -138,6 +141,143 @@ pub async fn get_project_messages(
 ) -> Result<MessageQueryResult, ClickhouseError> {
     let query = messages::get_project_messages(params, Backend::Clickhouse);
     execute_message_query(client, &query).await
+}
+
+/// A thread's rows, as the composed-request reads project them: the messages and the facts that place them.
+///
+/// Its own row type, not `ChMessageSpanRow`: the projection is a tenth of a span's columns, and a row type that
+/// named the rest would make ClickHouse read them.
+#[derive(Debug, clickhouse::Row, serde::Deserialize)]
+struct ChThreadRow {
+    trace_id: String,
+    span_id: String,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    timestamp_start: time::OffsetDateTime,
+    status_code: Option<String>,
+    messages: String,
+    observation_type: Option<String>,
+    span_name: Option<String>,
+    scope_name: Option<String>,
+    scope_version: Option<String>,
+    session_id: Option<String>,
+}
+
+impl From<ChThreadRow> for MessageSpanRow {
+    fn from(row: ChThreadRow) -> Self {
+        let span_timestamp = DateTime::from_timestamp_micros(
+            i64::try_from(row.timestamp_start.unix_timestamp_nanos() / 1_000).unwrap_or_default(),
+        )
+        .unwrap_or(DateTime::UNIX_EPOCH);
+        MessageSpanRow {
+            trace_id: row.trace_id,
+            span_id: row.span_id,
+            span_timestamp,
+            ingested_at: span_timestamp,
+            status_code: row.status_code,
+            messages_json: row.messages,
+            observation_type: row.observation_type,
+            span_name: row.span_name,
+            scope_name: row.scope_name,
+            scope_version: row.scope_version,
+            session_id: row.session_id,
+            ..thread_row_defaults()
+        }
+    }
+}
+
+/// The columns a thread read does not project, as a row that carries nothing.
+///
+/// Spelled out rather than `Default`, because `MessageSpanRow` has none: the full reads fill every field, and a
+/// default there would let a new field silently arrive empty on a path that does read it.
+fn thread_row_defaults() -> MessageSpanRow {
+    MessageSpanRow {
+        trace_id: String::new(),
+        span_id: String::new(),
+        parent_span_id: None,
+        span_timestamp: DateTime::UNIX_EPOCH,
+        span_end_timestamp: None,
+        messages_json: "[]".to_string(),
+        tool_definitions_json: "[]".to_string(),
+        tool_names_json: "[]".to_string(),
+        log_messages_json: "[]".to_string(),
+        body_cache_key: None,
+        model: None,
+        provider: None,
+        status_code: None,
+        exception_type: None,
+        exception_message: None,
+        exception_stacktrace: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        cost_total: 0.0,
+        observation_type: None,
+        session_id: None,
+        ingested_at: DateTime::UNIX_EPOCH,
+        scope_name: None,
+        scope_version: None,
+        span_name: None,
+        framework: None,
+        response_model: None,
+        response_id: None,
+        temperature: None,
+        top_p: None,
+        max_tokens: None,
+        finish_reasons: None,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        reasoning_tokens: 0,
+        cost_input: 0.0,
+        cost_output: 0.0,
+        request_thread: String::new(),
+    }
+}
+
+/// The rows a request span's view is composed from: its thread's earlier requests, and the tool spans holding the
+/// calls those requests' deltas answer. Two keyed reads, in one call so both see one instant.
+pub async fn get_request_context(
+    client: &Client,
+    params: &RequestContextParams,
+) -> Result<RequestContextRows, ClickhouseError> {
+    let ids: Vec<&str> = params.call_ids.iter().map(String::as_str).collect();
+    let traces: Vec<&str> = params.call_trace_ids.iter().map(String::as_str).collect();
+    Ok(RequestContextRows {
+        thread: fetch_thread(
+            client,
+            &request_context::thread_requests(
+                &params.thread,
+                params.before_us,
+                params.ingested_before_us,
+                Backend::Clickhouse,
+            ),
+        )
+        .await?,
+        calls: match ids.is_empty() || traces.is_empty() {
+            true => Vec::new(),
+            false => {
+                fetch_thread(
+                    client,
+                    &request_context::calls_in_traces(
+                        &traces,
+                        &ids,
+                        params.ingested_before_us,
+                        Backend::Clickhouse,
+                    ),
+                )
+                .await?
+            }
+        },
+    })
+}
+
+async fn fetch_thread(
+    client: &Client,
+    query: &analytics::ParameterizedQuery,
+) -> Result<Vec<MessageSpanRow>, ClickhouseError> {
+    let rows: Vec<ChThreadRow> = bind_analytics_values(client.query(query.sql()), query.params())
+        .fetch_all()
+        .await?;
+    Ok(rows.into_iter().map(MessageSpanRow::from).collect())
 }
 
 /// Repository-level regression tests.

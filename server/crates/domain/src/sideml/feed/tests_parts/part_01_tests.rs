@@ -65,6 +65,7 @@ fn make_span_row(
         reasoning_tokens: 0,
         cost_input: 0.0,
         cost_output: 0.0,
+        request_thread: String::new(),
     }
 }
 
@@ -138,6 +139,7 @@ fn make_span_row_full(
         reasoning_tokens: 0,
         cost_input: 0.0,
         cost_output: 0.0,
+        request_thread: String::new(),
     }
 }
 

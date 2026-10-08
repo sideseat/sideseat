@@ -53,7 +53,8 @@ pub use analytics::{
 pub use logs::{ListLogsParams, LogRow};
 pub use messages::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
-    SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, TRACE_FILTER_OPTION_COLUMNS,
+    RequestContextParams, RequestContextRows, SESSION_FILTER_OPTION_COLUMNS,
+    SPAN_FILTER_OPTION_COLUMNS, TRACE_FILTER_OPTION_COLUMNS,
 };
 pub use metrics::{ListMetricsParams, MetricAggregateRow, MetricRow};
 

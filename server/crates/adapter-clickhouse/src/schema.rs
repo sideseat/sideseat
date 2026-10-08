@@ -305,8 +305,14 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     search_error_truncated     UInt8 DEFAULT 0,
     search_span_name           Array(String) DEFAULT [],
     search_span_name_truncated UInt8 DEFAULT 0,
+    -- The conversation thread a request span belongs to, where a producer exports each request as what it added
+    -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Not
+    -- Nullable: a null map costs a byte on every span, and '' already means "no thread". LowCardinality would
+    -- hold a dictionary per part for values that are nearly unique within a project.
+    request_thread             String DEFAULT '' CODEC(ZSTD(1)),
 
     -- INDICES for fast lookups
+    INDEX idx_request_thread request_thread TYPE bloom_filter GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 1,
@@ -489,8 +495,14 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     search_error_truncated     UInt8 DEFAULT 0,
     search_span_name           Array(String) DEFAULT [],
     search_span_name_truncated UInt8 DEFAULT 0,
+    -- The conversation thread a request span belongs to, where a producer exports each request as what it added
+    -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Not
+    -- Nullable: a null map costs a byte on every span, and '' already means "no thread". LowCardinality would
+    -- hold a dictionary per part for values that are nearly unique within a project.
+    request_thread             String DEFAULT '' CODEC(ZSTD(1)),
 
     -- INDICES for fast lookups
+    INDEX idx_request_thread request_thread TYPE bloom_filter GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 1,

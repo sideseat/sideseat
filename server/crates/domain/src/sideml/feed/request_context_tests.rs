@@ -109,6 +109,7 @@ fn span(id: &str, second: i64, observation: &str, messages: &[RawMessage]) -> Me
         reasoning_tokens: 0,
         cost_input: 0.0,
         cost_output: 0.0,
+        request_thread: String::new(),
     }
 }
 
@@ -494,6 +495,16 @@ fn composing_a_long_thread() {
             })
             .collect();
         let bytes: usize = rows.iter().map(|row| row.messages_json.len()).sum();
+        // The floor for any reading of these bodies: decoding them, with no normalisation at all.
+        let decoding = std::time::Instant::now();
+        let decoded: usize = rows
+            .iter()
+            .map(|row| {
+                serde_json::from_str::<Vec<RawMessage>>(&row.messages_json)
+                    .map_or(0, |messages| messages.len())
+            })
+            .sum();
+        let decoded_in = decoding.elapsed();
         let target = rows.last().expect("a thread").clone();
         let started = std::time::Instant::now();
         let view = compose(RequestContextRows {
@@ -509,7 +520,7 @@ fn composing_a_long_thread() {
             .sum();
         println!(
             "{requests} requests, restating={restating}: {} blocks, {answer} answer bytes, {bytes} row bytes read, \
-             composed in {elapsed:?}",
+             composed in {elapsed:?}; decoding the {decoded} stored messages alone takes {decoded_in:?}",
             view.messages.len()
         );
     };

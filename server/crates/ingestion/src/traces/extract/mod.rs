@@ -512,6 +512,13 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                     &otlp_span.name,
                     &span_attrs,
                 ));
+                // The thread this span is a request of, where a producer exports each request as what it added.
+                // Derived here because a read holds a span's messages and not its attributes; which attributes key
+                // a thread is the asset's statement (`request_threads`).
+                span.request_thread = sideseat_domain::rules::ruleset()
+                    .request_threads
+                    .thread_key(&otlp_span.name, &span_attrs)
+                    .unwrap_or_default();
                 span.span_category =
                     Some(attributes::categorize_span(&otlp_span.name, &span_attrs));
 

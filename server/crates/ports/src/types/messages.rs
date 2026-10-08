@@ -106,6 +106,9 @@ pub struct MessageSpanRow {
     pub reasoning_tokens: i64,
     pub cost_input: f64,
     pub cost_output: f64,
+    /// The conversation thread this span is a request of, where a rule names one; empty on every other span. What
+    /// lets a request span's view read the earlier requests of its thread - see `domain::sideml::request_context`.
+    pub request_thread: String,
 }
 
 impl SpanIdentity for MessageSpanRow {
@@ -135,6 +138,31 @@ pub struct MessageQueryResult {
 // ============================================================================
 // Query parameters
 // ============================================================================
+
+/// What a request span's view needs beside its own rows: its thread, and the calls its deltas answer.
+#[derive(Debug, Default, Clone)]
+pub struct RequestContextParams {
+    pub project_id: ProjectId,
+    /// The derived thread key, as stored on the span (`NormalizedSpan::request_thread`).
+    pub thread: String,
+    /// The target request's start, in epoch microseconds: nothing later was sent before it.
+    pub before_us: i64,
+    /// The call ids the thread's deltas return results for.
+    pub call_ids: Vec<String>,
+    /// The traces the thread's requests sit in, which are the traces its tool spans sit in. Read keyed on the
+    /// trace, whose index every trace read already uses, and narrowed by the call ids afterwards - so no second
+    /// index is maintained on every span for the few that carry a call id.
+    pub call_trace_ids: Vec<String>,
+    /// The traversal watermark, as every other read applies it.
+    pub ingested_before_us: Option<i64>,
+}
+
+/// The rows those two reads answered with, kept apart because they are different evidence.
+#[derive(Debug, Default, Clone)]
+pub struct RequestContextRows {
+    pub thread: Vec<MessageSpanRow>,
+    pub calls: Vec<MessageSpanRow>,
+}
 
 /// Parameters for project-wide message feed query.
 #[derive(Debug, Default, Clone)]

@@ -596,3 +596,84 @@ async fn a_span_keeps_its_winners_terms_whatever_order_revisions_arrive_in() {
         .expect("a correction");
     assert_eq!(terms(), vec!["correction".to_string()]);
 }
+
+/// A composed request's reads find their rows through the index, not by reading the store.
+///
+/// The thread key and the call ids are each their scan's only filter, so an index on the column serves it; a
+/// project predicate beside the key, or a dropped index, reads every span and fails here. Measured over a store
+/// holding thirty thousand spans of which five are the thread's.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_composed_request_reads_its_thread_and_its_calls_through_the_index() {
+    use sideseat_ports::traits::MessageStore;
+    use sideseat_ports::types::RequestContextParams;
+
+    let s = store().await;
+    let start = Utc.timestamp_opt(1_700_000_000, 0).single().expect("start");
+    let thread = r#"["acme.request_thread","session-1",null,null]"#;
+    let requests: Vec<NormalizedSpan> = (0..5)
+        .map(|n| NormalizedSpan {
+            project_id: Some(PROJECT.into()),
+            trace_id: format!("thread-trace-{n:019}"),
+            span_id: format!("thread-span-{n:04}"),
+            content_digest: format!("thread-{n}"),
+            span_name: "acme.request".into(),
+            timestamp_start: start + TimeDelta::seconds(n),
+            request_thread: thread.to_string(),
+            messages: Some("[]".to_string()),
+            ..Default::default()
+        })
+        .collect();
+    let calls: Vec<NormalizedSpan> = (0..3)
+        .map(|n| NormalizedSpan {
+            project_id: Some(PROJECT.into()),
+            trace_id: format!("call-trace-{n:021}"),
+            span_id: format!("call-span-{n:06}"),
+            content_digest: format!("call-{n}"),
+            span_name: "acme.tool".into(),
+            timestamp_start: start + TimeDelta::seconds(n),
+            gen_ai_tool_call_id: Some(format!("call-{n}")),
+            messages: Some("[]".to_string()),
+            ..Default::default()
+        })
+        .collect();
+    s.repo.insert_spans(requests).await.expect("the thread");
+    s.repo.insert_spans(calls).await.expect("the calls");
+    let total = (TRACES * SPANS_PER_TRACE + 8) as u64;
+
+    let params = RequestContextParams {
+        project_id: ProjectId::from(PROJECT),
+        thread: thread.to_string(),
+        before_us: (start + TimeDelta::seconds(4)).timestamp_micros(),
+        call_ids: vec!["call-0".to_string(), "call-2".to_string()],
+        call_trace_ids: (0..3).map(|n| format!("call-trace-{n:021}")).collect(),
+        ingested_before_us: None,
+    };
+    let rows = s
+        .repo
+        .get_request_context(&params)
+        .await
+        .expect("the request context");
+    assert_eq!(rows.thread.len(), 5, "the thread's own requests");
+    assert_eq!(rows.calls.len(), 2, "only the calls asked for");
+    let scanned = rows_scanned(&s.profile);
+    assert!(
+        scanned <= 32,
+        "the call read scanned {scanned} of {total} rows for 2 matching, so it read the store"
+    );
+
+    // And the thread read alone, profiled on its own statement.
+    let thread_only = s
+        .repo
+        .get_request_context(&RequestContextParams {
+            call_ids: Vec::new(),
+            ..params
+        })
+        .await
+        .expect("the thread alone");
+    assert_eq!(thread_only.thread.len(), 5);
+    let scanned = rows_scanned(&s.profile);
+    assert!(
+        scanned <= 32,
+        "the thread read scanned {scanned} of {total} rows for 5 matching, so it read the store"
+    );
+}

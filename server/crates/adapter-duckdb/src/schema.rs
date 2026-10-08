@@ -194,7 +194,12 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- (sideseat_query_sql::search::duckdb_field_bit): a search reads a record's field state here and only its
     -- terms from span_terms. No bit set means not indexed yet, which the backfill picks up.
     search_fields              UTINYINT NOT NULL DEFAULT 0,
-    search_truncated           UTINYINT NOT NULL DEFAULT 0
+    search_truncated           UTINYINT NOT NULL DEFAULT 0,
+    -- The conversation thread a request span belongs to, where a producer exports each request as what it added
+    -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Derived at
+    -- ingest from the span's attributes, because a read holds a span's messages and not its attributes - a cache a
+    -- re-parse rebuilds, like every extracted column.
+    request_thread             VARCHAR NOT NULL DEFAULT ''
 );
 
 -- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose
@@ -203,9 +208,13 @@ CREATE TABLE IF NOT EXISTS otel_spans (
 -- were therefore never read - measured on a million spans, every keyed read scanned every row with them and
 -- without - while they took a quarter of the file and every insert maintained them. What remains is one index per
 -- key a read looks rows up by, each read written so the key is its scan's only filter (`sideseat_query_sql::keyed`):
--- `span_id` for the identity lookups an ingest makes, `trace_id` for reading a trace.
+-- `span_id` for the identity lookups an ingest makes, `trace_id` for reading a trace and for the tool spans a
+-- composed request's calls sit in, and `request_thread` for the earlier requests of one thread. Deliberately no
+-- index on `gen_ai_tool_call_id`: a composed request's calls are read through the trace index and narrowed by
+-- their ids, so an index maintained on every span for the few that carry one buys nothing.
 CREATE INDEX IF NOT EXISTS idx_spans_span ON otel_spans(span_id);
 CREATE INDEX IF NOT EXISTS idx_spans_trace ON otel_spans(trace_id);
+CREATE INDEX IF NOT EXISTS idx_spans_request_thread ON otel_spans(request_thread);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- OTEL metrics table: Main table for all OpenTelemetry metric data points

@@ -421,6 +421,16 @@ impl MessageStore for DedupAnalyticsRepository {
         result.rows = deduplicate_by_span_identity(result.rows);
         Ok(result)
     }
+
+    async fn get_request_context(
+        &self,
+        params: &sideseat_ports::types::RequestContextParams,
+    ) -> Result<sideseat_ports::types::RequestContextRows, DataError> {
+        let mut rows = self.inner.get_request_context(params).await?;
+        rows.thread = deduplicate_by_span_identity(rows.thread);
+        rows.calls = deduplicate_by_span_identity(rows.calls);
+        Ok(rows)
+    }
 }
 
 #[async_trait]

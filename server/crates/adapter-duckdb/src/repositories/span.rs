@@ -156,6 +156,7 @@ fn insert_spans(
             SqlOptTimestamp(superseded_us.and_then(chrono::DateTime::from_timestamp_micros)),
             search_fields,
             search_truncated,
+            span.request_thread.as_str(),
         ])?;
     }
 
