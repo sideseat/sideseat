@@ -15,31 +15,45 @@ make --no-print-directory secret-scan-staged
 
 staged() { git diff --cached --name-only --diff-filter=ACMR -- "$@"; }
 
-# The staged Rust files only, as `make quick` checks them: formatting the whole workspace would fail a
-# commit on someone else's unformatted work in progress, which says nothing about this change. Without
-# skip_children rustfmt also checks every module a staged file declares, which is the same problem one level
-# down: a staged lib.rs would fail on an unformatted sibling module someone else is editing.
-# Files under `*_rule_cases/` are expression fragments `include!`d into a test, which rustfmt cannot parse alone.
-rust_files="$(staged '*.rs' | grep -v '_rule_cases/' || true)"
-if [ -n "$rust_files" ]; then
-    # shellcheck disable=SC2086
-    rustfmt --check --edition 2024 --config skip_children=true $rust_files
-fi
+# Formatting is checked on the staged blobs, not the working copies: in a shared tree a commit built from a
+# private index can stage one agent's hunks of a file that also holds another agent's unformatted work in
+# progress, and the working copy says nothing about what is committed. Each blob is piped through its formatter
+# and compared with itself (`rustfmt --check` exits 0 on stdin whatever it finds, so the comparison is the check).
+unformatted=()
+formats_unchanged() {
+    local path="$1"
+    shift
+    cmp -s <(git show ":$path") <(git show ":$path" | "$@" 2>/dev/null)
+}
 
-python_files="$(staged '*.py')"
-if [ -n "$python_files" ]; then
-    # shellcheck disable=SC2086
-    uv run --locked ruff format --check $python_files
-fi
+# Files under `*_rule_cases/` are expression fragments `include!`d into a test, which rustfmt cannot parse alone.
+while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    formats_unchanged "$file" rustfmt --edition 2024 --emit stdout || unformatted+=("$file")
+done < <(staged '*.rs' | grep -v '_rule_cases/' || true)
+
+while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    formats_unchanged "$file" uv run --locked ruff format --stdin-filename "$file" || unformatted+=("$file")
+done < <(staged '*.py')
 
 for project in web sdk/js examples/javascript; do
     files="$(staged "$project/*.ts" "$project/*.tsx" "$project/*.css" "$project/*.json")"
     [ -n "$files" ] || continue
     [ -x "$project/node_modules/.bin/prettier" ] || { echo "Error: $project/node_modules missing. Run 'make setup'."; exit 1; }
-    # From the project, as `make quick` runs it, so the project's .prettierignore applies: generated
-    # JSON such as capture cassettes is not the project's to format.
-    # shellcheck disable=SC2046,SC2086
-    (cd "$project" && node_modules/.bin/prettier --check $(sed "s#^$project/##" <<<"$files"))
+    # The project's .prettierignore applies through --stdin-filepath: generated JSON such as capture cassettes
+    # is passed through unchanged.
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        formats_unchanged "$file" "$project/node_modules/.bin/prettier" \
+            --ignore-path "$project/.prettierignore" --stdin-filepath "$file" || unformatted+=("$file")
+    done <<<"$files"
 done
+
+if [ ${#unformatted[@]} -gt 0 ]; then
+    echo "[pre-commit] staged content is not formatted:" >&2
+    printf '  %s\n' "${unformatted[@]}" >&2
+    exit 1
+fi
 
 echo "[pre-commit] Passed"
