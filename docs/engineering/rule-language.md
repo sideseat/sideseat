@@ -118,7 +118,9 @@ see the attributes; a message projection sees a stored row's span name and its s
 attributes.
 These are refused when the asset compiles: a condition that reads a source its section cannot see, a test its
 source cannot answer, an empty prefix, substring, scope name or search phrase, and a disjunct its own group
-already covers.
+already covers. Beneath an odd number of `not`s only a repeated disjunct counts as covered: there a group that is
+unknown rather than false makes the negation unknown rather than true, so a disjunct that is true only where another
+is can still decide whether the rule applies.
 
 ```json example
 {
@@ -1665,7 +1667,7 @@ What a tool returned.
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `tool_use_id` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
 | `name` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the human-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a duplicate tool-span observation. |
-| `content` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain, so a selector naming the block itself (`$`), or a closed `map` to a value this case recognises, is refused: it would re-enter the case for ever. Re-entry through several cases is bounded at run time, the innermost levels kept as they stand. |
+| `content` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain, so a selector naming the block itself (`$`) is refused, and so is a closed `map` with a literal the assembled chain never finishes normalising - checked by normalising every literal, so a literal this case recognises that maps on to one the chain finishes with is accepted. Nesting the telemetry itself drives is bounded at run time, the innermost levels kept as they stand. |
 | `content_as` | [`ResultContent`](#resultcontent) | How the selected content is shaped. |
 | `is_error` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
 
@@ -1962,7 +1964,7 @@ One piece of evidence. At least one form, and both together read as a conjunctio
 | --- | --- | --- |
 | `id` (required) | string | This clause's own name, unique within the rule or fragment that holds it. |
 | `doc` | string |  |
-| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The evidence, over the span's name and attributes. A conjunction is written as `all`: a tool name alone sits on a model span that merely mentions a tool, while the name *and* a call id together are a call being run. |
+| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The evidence, over the span's attributes - a span fact sees no span name, so a `span_name` source is refused. A conjunction is written as `all`: a tool name alone sits on a model span that merely mentions a tool, while the name *and* a call id together are a call being run. |
 
 ### `Fragment`
 

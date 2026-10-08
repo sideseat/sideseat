@@ -333,7 +333,7 @@ impl SpanFieldPlan {
             // others - the two conversion functions are called from a dozen places and neither knows the target.
             let reading = within_range(
                 folded_if_declared(
-                    read_source(&source.spec, field_type, span_name, attrs, events, parsed),
+                    read_source(&source.spec, rule.target, span_name, attrs, events, parsed),
                     source.spec.lowercase(),
                 ),
                 rule.target,
@@ -523,12 +523,13 @@ fn folded_if_declared(reading: Reading, lowercase: bool) -> Reading {
 
 fn read_source<'a>(
     spec: &'a FieldSource,
-    field_type: FieldType,
+    target: FieldTarget,
     span_name: &str,
     attrs: &HashMap<String, String>,
     events: &[SpanEvent],
     parsed: &mut HashMap<&'a str, Option<JsonValue>>,
 ) -> Reading {
+    let field_type = target.field_type();
     if let Some(attribute) = spec.attribute() {
         let Some(raw) = attrs.get(attribute) else {
             return Reading::Absent;
@@ -568,7 +569,7 @@ fn read_source<'a>(
     let Some(json) = &spec.json else {
         return Reading::Absent;
     };
-    read_json(json, field_type, attrs, parsed)
+    read_json(json, target, attrs, parsed)
 }
 
 /// One attribute of one of the span's events.
@@ -619,10 +620,11 @@ fn read_event_attribute(
 
 fn read_json<'a>(
     json: &'a JsonFieldSource,
-    field_type: FieldType,
+    target: FieldTarget,
     attrs: &HashMap<String, String>,
     parsed: &mut HashMap<&'a str, Option<JsonValue>>,
 ) -> Reading {
+    let field_type = target.field_type();
     // Keyed by the attribute name so one `metadata` payload is parsed once per span, not once per field that
     // reads it. A failed parse is cached as a failure for the same reason - re-parsing junk per field is the
     // same waste as re-parsing a payload.
@@ -713,6 +715,16 @@ fn read_json<'a>(
                     };
                 }
                 Reading::Integer(value) => {
+                    // Each member is a measurement of the target's quantity, so the target's range bounds it, not
+                    // only the total: checked after summing, `-5` beside `10` reported `5`, a negative count
+                    // cancelling a genuine one with no diagnostic - the case the range exists to refuse.
+                    if let Reading::OutOfRange { detail } =
+                        within_range(Reading::Integer(value), target)
+                    {
+                        return Reading::OutOfRange {
+                            detail: format!("a summed member: {detail}"),
+                        };
+                    }
                     // `checked_add`: an overflow is invalid telemetry, and saturating would report `i64::MAX` as a
                     // believable count - an enormous bill from a number nobody sent. The retired reduction wrapped
                     // in release and panicked in debug, so neither answer is the one to reproduce.

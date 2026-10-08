@@ -233,7 +233,8 @@ fn self_selecting_tool_result_content_is_refused() {
 
 /// The same loop through a closed `map`: a literal the case itself recognises would be offered back to it as the
 /// content's normalisation, for ever. As `blocks` the content is wrapped as data and never re-enters, so there
-/// selecting the whole block is a statement, not a loop.
+/// selecting the whole block is a statement, not a loop. And a literal the case recognises is not a loop by
+/// itself: one that maps on to a literal the chain finishes with is two steps, and compiles.
 #[test]
 fn a_tool_result_content_that_rebuilds_its_own_block_is_refused_and_blocks_content_is_not() {
     let looping = |content_as: &str| {
@@ -251,9 +252,34 @@ fn a_tool_result_content_that_rebuilds_its_own_block_is_refused_and_blocks_conte
             }
         })
     };
-    refused(looping("normalized"), "re-enters it");
-    refused(looping("value"), "re-enters it");
+    refused(looping("normalized"), "never finishes");
+    refused(looping("value"), "never finishes");
     assert!(compiled(vec![looping("blocks")]).is_ok());
+    let finite = plan_from(serde_json::json!({
+        "id": "probe.finite",
+        "at": "after_provider_formats",
+        "priority": 1,
+        "where": {"path": "$.kind", "one_of": ["result"]},
+        "tool_result": {
+            "content": {
+                "path": "$.state",
+                "pipe": [{"map": {
+                    "outer": {"kind": "result", "state": "inner"},
+                    "inner": {"type": "text", "text": "ok"}
+                }, "closed": true}]
+            }
+        }
+    }));
+    let normalised = crate::sideml::content::normalize_block_in(
+        &finite,
+        &serde_json::json!({"kind": "result", "state": "outer"}),
+        false,
+    )
+    .expect("the case recognises the block");
+    assert!(
+        normalised.to_string().contains(r#""text":"ok""#),
+        "two steps through the table reach its last literal: {normalised}"
+    );
     let whole = serde_json::json!({
         "id": "probe.whole",
         "at": "after_provider_formats",
@@ -268,9 +294,10 @@ fn a_tool_result_content_that_rebuilds_its_own_block_is_refused_and_blocks_conte
 }
 
 /// **Normalisation is bounded however the telemetry nests.** A loop through two cases - each mapping its content
-/// to the other's shape, which no single-case check can see - finishes at the depth bound, as does the deepest
-/// nesting of the shipped chain's own wrapper a JSON text can hold. Both run on a thread with a small stack, so
-/// an unbounded recursion fails here rather than passing on a large one.
+/// to the other's shape, which no single-case check can see - is refused when the plan is assembled, because the
+/// assembled chain is run on every literal a table can hand it; and the deepest nesting of the shipped chain's own
+/// wrapper a JSON text can hold finishes at the depth bound, on a thread with a small stack, so an unbounded
+/// recursion fails here rather than passing on a large one.
 #[test]
 fn hostile_nesting_is_normalised_in_bounded_depth() {
     let case = |id: &str, kind: &str, other: &str, priority: i32| {
@@ -287,10 +314,13 @@ fn hostile_nesting_is_normalised_in_bounded_depth() {
             }
         })
     };
-    let plan = plan_from_all(vec![
-        case("probe.ping", "ping", "pong", 1),
-        case("probe.pong", "pong", "ping", 2),
-    ]);
+    refused_all(
+        vec![
+            case("probe.ping", "ping", "pong", 1),
+            case("probe.pong", "pong", "ping", 2),
+        ],
+        "never finishes",
+    );
     // The deepest a JSON text can nest the wrapper the shipped chain unwraps: serde_json refuses deeper.
     let mut text = r#"{"type":"text","text":"bottom"}"#.to_string();
     let mut deepest = None;
@@ -309,22 +339,19 @@ fn hostile_nesting_is_normalised_in_bounded_depth() {
         .stack_size(256 * 1024)
         .spawn(move || {
             let started = std::time::Instant::now();
-            let looped = crate::sideml::content::normalize_block_in(
-                &plan,
-                &serde_json::json!({"type": "ping", "payload": "x"}),
-                false,
-            );
-            let nested = crate::sideml::content::normalize_content_block(&deepest);
-            (looped.is_some(), nested.is_some(), started.elapsed())
+            let (nested, bounded) = NormalisationDepth::observe(|| {
+                crate::sideml::content::normalize_content_block(&deepest)
+            });
+            (nested.is_some(), bounded, started.elapsed())
         })
         .expect("the thread starts")
         .join()
         .expect("normalisation finishes within a small stack");
-    assert!(answers.0, "the loop answers, bounded");
     assert!(
-        answers.1,
+        answers.0,
         "the nesting degrades to a block rather than to nothing"
     );
+    assert!(answers.1, "and it is the bound that stopped it");
     assert!(
         answers.2 < std::time::Duration::from_secs(5),
         "bounded time: {:?}",

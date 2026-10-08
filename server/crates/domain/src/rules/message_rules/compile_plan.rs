@@ -364,6 +364,7 @@ pub fn compile(
                             // Ownership resolving them is the only thing that makes a shared tag safe;
                             // nothing else separates two emissions under one name.
                             narrowed: shared_ownership,
+                            parsed_as: None,
                         };
                         emitted
                     })

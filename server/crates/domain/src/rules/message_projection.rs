@@ -80,12 +80,16 @@ impl MessageProjectionPlan {
                         ),
                     ));
                 }
-                let condition = span_conditions::lower(&rule.condition, Readable::PROJECTION)
-                    .map_err(|defect| {
+                // Through the validator every section's `where` goes through, so a projection cannot carry the
+                // empty literal or the covered disjunct the others refuse: lowered alone, `span_name starts_with
+                // ""` beside a scope matched every row of that scope.
+                let condition =
+                    super::detect_rules::checked_condition(&rule.condition, Readable::PROJECTION)
+                        .map_err(|refusal| {
                         ClauseDefect::new(
                             &[&rule.id],
                             Some(&file.id),
-                            format!("message projection clause `{}`: {defect}", rule.id),
+                            format!("message projection clause `{}`: {refusal}", rule.id),
                         )
                     })?;
                 if !requires_a_scope(&condition) {
@@ -290,6 +294,51 @@ mod tests {
                 "{why}: accepted without a scope"
             );
         }
+    }
+
+    /// A projection's `where` meets the refusals every section's does: lowered alone, it accepted an empty prefix
+    /// beside its scope - matching every row of that scope - an empty scope name, and a covered disjunct.
+    #[test]
+    fn a_projection_condition_meets_the_common_refusals() {
+        let compiled = |condition: serde_json::Value| {
+            let file: RuleFile = serde_json::from_value(serde_json::json!({
+                "id": "probe",
+                "message_projections": [{
+                    "id": "probe.projection",
+                    "where": condition,
+                    "only_attribute_sources": ["probe.messages"],
+                    "successful_only": true,
+                    "action": "suppress_messages"
+                }]
+            }))
+            .expect("the probe asset parses");
+            MessageProjectionPlan::compile(&[file])
+        };
+        let scope = serde_json::json!({"source": "scope.name", "equals": "probe.scope"});
+        for (why, condition) in [
+            (
+                "an empty span-name prefix beside the scope",
+                serde_json::json!({"all": [scope.clone(), {"source": "span_name", "starts_with": ""}]}),
+            ),
+            (
+                "an empty scope name",
+                serde_json::json!({"source": "scope.name", "equals": ""}),
+            ),
+            (
+                "a disjunct its group covers",
+                serde_json::json!({"all": [scope.clone(), {"any": [
+                    {"source": "span_name", "starts_with": "probe "},
+                    {"source": "span_name", "starts_with": "probe x"}
+                ]}]}),
+            ),
+        ] {
+            assert!(compiled(condition).is_err(), "{why}: accepted");
+        }
+        assert!(
+            compiled(serde_json::json!({"all": [scope, {"source": "span_name", "starts_with": "probe "}]}))
+                .is_ok(),
+            "a scope and a real prefix compile"
+        );
     }
 
     /// `scope.version` against the major-number dimension it replaced, over the versions a scope reports: equal

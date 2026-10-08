@@ -37,8 +37,8 @@ pub enum ContentBlockCompileError {
     )]
     SelfSelectingContent { rule: String },
     #[error(
-        "content-block rule `{rule}` maps its tool-result content to a value it recognises itself, so normalising \
-         the content re-enters it with that value for ever"
+        "content-block rule `{rule}` maps its tool-result content to a literal that normalising never finishes \
+         with: the chain answers it by re-entering itself until the depth bound"
     )]
     SelfRebuildingContent { rule: String },
     #[error(
@@ -197,26 +197,6 @@ impl ContentBlockPlan {
                     rule: rule.id.clone(),
                 });
             }
-            // The same loop through a closed `map`: a literal the case itself recognises is offered back to it
-            // as the content's normalisation, which answers with the same literal. Refused here; a loop through
-            // two cases is bounded at run time by `CONTENT_BLOCK_MAX_DEPTH`.
-            if let Some(spec) = &rule.tool_result
-                && renormalised(spec)
-                && spec.content.iter().any(|source| match source {
-                    ValueSource::Transformed(transformed) => {
-                        transformed.map().is_some_and(|table| {
-                            table
-                                .values()
-                                .any(|value| predicates_hold(value, &rule.require))
-                        })
-                    }
-                    ValueSource::Path(_) => false,
-                })
-            {
-                return Err(ContentBlockCompileError::SelfRebuildingContent {
-                    rule: rule.id.clone(),
-                });
-            }
             // The same bound for an unwrap, which re-enters the chain by construction: a member naming the
             // block itself would recurse forever, in a language whose whole point is that it cannot loop.
             if let Some(spec) = &rule.unwrap {
@@ -331,7 +311,54 @@ impl ContentBlockPlan {
                 });
             }
         }
+        if let Some(rule) = plan.first_endlessly_mapping_case() {
+            return Err(ContentBlockCompileError::SelfRebuildingContent { rule });
+        }
         Ok(plan)
+    }
+
+    /// The first case whose closed `map` hands its tool-result content a value that normalising never finishes
+    /// with - a literal the chain answers by re-entering itself without end.
+    ///
+    /// Decided by **running** the assembled chain on every literal of the table, the one way a producer's value
+    /// can reach it: the content's own normalisation is deterministic, so a literal either finishes or reaches
+    /// `CONTENT_BLOCK_MAX_DEPTH`. A literal the case recognises is not enough - `outer` mapping to a block that
+    /// selects `inner`, and `inner` to text, finishes after two steps - and which case answers a literal depends on
+    /// every case before it, which only the assembled plan knows. A loop the telemetry itself drives, through a
+    /// path rather than a literal, is bounded at run time instead.
+    fn first_endlessly_mapping_case(&self) -> Option<String> {
+        let cases = self
+            .envelopes
+            .iter()
+            .chain(&self.before)
+            .chain(&self.providers)
+            .chain(&self.after);
+        for rule in cases {
+            let Some(spec) = &rule.tool_result else {
+                continue;
+            };
+            if matches!(spec.content_as, super::schema::ResultContent::Blocks) {
+                continue;
+            }
+            let literals = spec.content.iter().filter_map(|source| match source {
+                ValueSource::Transformed(transformed) => transformed.map(),
+                ValueSource::Path(_) => None,
+            });
+            for table in literals {
+                for literal in table.values() {
+                    let (_, bounded) = NormalisationDepth::observe(|| {
+                        crate::sideml::content::normalize_tool_result_content_in(
+                            self,
+                            Some(literal.clone()),
+                        )
+                    });
+                    if bounded {
+                        return Some(rule.id.clone());
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// The first declared case at this position that recognises the block, read as a message's own block.
@@ -725,17 +752,38 @@ struct NormalisationDepth;
 
 thread_local! {
     static NORMALISATION_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Whether a normalisation on this thread has been stopped at the bound since [`NormalisationDepth::observe`]
+    /// last asked.
+    static NORMALISATION_BOUNDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 impl NormalisationDepth {
     /// One more level, or `None` at the bound.
     fn enter() -> Option<Self> {
         NORMALISATION_DEPTH.with(|depth| {
-            (depth.get() < sideseat_core::constants::CONTENT_BLOCK_MAX_DEPTH).then(|| {
+            // A guard exists only for a level that was counted: one built and dropped at the bound would
+            // uncount a level it never entered, and the bound would never be reached.
+            if depth.get() < sideseat_core::constants::CONTENT_BLOCK_MAX_DEPTH {
                 depth.set(depth.get() + 1);
-                Self
-            })
+                Some(Self)
+            } else {
+                NORMALISATION_BOUNDED.with(|bounded| bounded.set(true));
+                None
+            }
         })
+    }
+
+    /// Run `normalise`, and say whether the bound stopped any of it. Nests: an outer observer still learns of a
+    /// bound an inner one saw.
+    fn observe<T>(normalise: impl FnOnce() -> T) -> (T, bool) {
+        let outer = NORMALISATION_BOUNDED.with(|bounded| bounded.replace(false));
+        let answer = normalise();
+        let bounded = NORMALISATION_BOUNDED.with(|flag| {
+            let inner = flag.get();
+            flag.set(outer || inner);
+            inner
+        });
+        (answer, bounded)
     }
 }
 

@@ -712,6 +712,39 @@ fn a_value_outside_what_a_quantity_can_hold_is_malformed() {
         Some(Reading::Integer(7))
     );
 
+    // A summed member is a measurement too, so the bound applies to each one and not only to the total: summed
+    // first, `-5` beside `10` answered `5` - a negative count cancelling a genuine one, without a diagnostic.
+    let summed = r#"{"id":"t","doc":"d","span_fields":[
+        {"id":"f","doc":"d","target":"usage_input_tokens",
+         "sources":[{"id":"probe.sum","json":{"attribute":"usage","path":"$.m[*].t","reduce":"sum"}}]}]}"#;
+    let resolved = resolve(summed, &[("usage", r#"{"m":[{"t":-5},{"t":10}]}"#)]);
+    let found = resolved
+        .iter()
+        .find(|r| r.target == FieldTarget::UsageInputTokens)
+        .expect("the rule resolved");
+    assert_eq!(
+        found.reading,
+        Reading::Absent,
+        "a negative member is not summed"
+    );
+    assert!(
+        found.refused.iter().any(|refusal| matches!(
+            &refusal.cause,
+            crate::rules::refusal::Unusable::OutOfRange { detail } if detail.contains("a summed member")
+        )),
+        "the negative member is not reported: {:?}",
+        found.refused
+    );
+    let resolved = resolve(summed, &[("usage", r#"{"m":[{"t":5},{"t":10}]}"#)]);
+    assert_eq!(
+        resolved
+            .iter()
+            .find(|r| r.target == FieldTarget::UsageInputTokens)
+            .map(|r| r.reading.clone()),
+        Some(Reading::Integer(15)),
+        "counts in range still sum"
+    );
+
     // **The source's own `on_malformed` policy governs**, exactly as it does for a value of the wrong type - no
     // new mechanism, because the argument is the same one that policy already carries: a wrong value in a
     // producer's own usage attribute means answering from a *second* key reports another framework's counter as
@@ -867,7 +900,7 @@ fn what_an_unseen_producer_can_and_cannot_declare() {
     // Expressible: the flat indexed family, declared entirely in an asset.
     let plan = compiled(
         r#"[{"id":"acme.flat_family","doc":"d","read":{"indexed_family":"chat"},
-             "parse":"text","emit":"message","priority":1}]"#,
+             "emit":"message","priority":1}]"#,
     )
     .expect("a flat indexed family is an asset edit");
 

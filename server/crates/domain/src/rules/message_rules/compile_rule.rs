@@ -542,14 +542,19 @@ pub(super) fn compile_rule(
             }
         }
     }
-    // The same for an indexed family, whose branch also returns before the walk, the readings and the
-    // fallback. Its existing refusal covered `wrap`, `alternatives` and `also` only.
+    // The same for an indexed family, whose branch also returns before the walk, the readings, the element
+    // passes and the fallback, and parses no carrier text: each member is read by `numeric_members` and
+    // `entry_value_parse`. Its existing refusal covered `wrap`, `alternatives` and `also` only.
     if read.indexed_family.is_some()
-        && (!fallback.is_empty() || walk.is_some() || sections.is_some())
+        && (!fallback.is_empty()
+            || walk.is_some()
+            || sections.is_some()
+            || elements.is_some()
+            || parse.is_some())
     {
         return Err(inexpressible(
-            "an indexed family assembles each entry itself, so a `fallback`, a walk or `sections` would be \
-                 ignored",
+            "an indexed family assembles each entry itself from its members, so a `fallback`, a walk, \
+                 `sections`, element passes or a rule-level `parse` would be ignored",
         ));
     }
     // Each entry is its own observation, tagged by the entry's own key; only the aggregate's one observation
@@ -658,6 +663,7 @@ pub(super) fn compile_rule(
     if tool_repr.is_some()
         && (emit_target != EmitTarget::ToolDefinitions
             || read.indexed_family.is_some()
+            || read.family.is_some()
             || aggregate
             || !raw_where.is_empty()
             || wrap.is_some()
@@ -671,9 +677,9 @@ pub(super) fn compile_rule(
             || !fallback.is_empty())
     {
         return Err(inexpressible(
-            "a `repr` grammar assembles tool definitions itself from attribute carriers, so an indexed \
-                 family, an aggregate, a content requirement, a reading, an envelope, or any target but \
-                 `tool_definitions` would be ignored",
+            "a `repr` grammar assembles tool definitions itself from the text of attribute carriers, so a \
+                 family of either kind, an aggregate, a content requirement, a reading, an envelope, or any \
+                 target but `tool_definitions` would be ignored",
         ));
     }
     // `alternatives` and `also` may coexist: the first list is the ordered question "which shape is

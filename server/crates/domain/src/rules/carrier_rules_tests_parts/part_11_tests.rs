@@ -491,10 +491,10 @@ fn attribute_key_offenders(
 ) -> Vec<String> {
     production_names(source, relative)
         .into_iter()
-        .filter(|(_, text)| !is_priced_provider_name(relative, literal_text(text)))
+        .filter(|(_, text)| !is_priced_provider_name(relative, &literal_text(text)))
         .filter_map(|(line, text)| {
             framework_keys
-                .get(literal_text(&text))
+                .get(literal_text(&text).as_ref())
                 .map(|asset| format!("  {relative}:{line}: {text} <- declared by `{asset}`"))
         })
         .collect()

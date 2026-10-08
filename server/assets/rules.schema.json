@@ -3752,7 +3752,7 @@
           "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "content": {
-          "description": "What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain,\nso a selector naming the block itself (`$`), or a closed `map` to a value this case recognises, is\nrefused: it would re-enter the case for ever. Re-entry through several cases is bounded at run time,\nthe innermost levels kept as they stand.",
+          "description": "What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain,\nso a selector naming the block itself (`$`) is refused, and so is a closed `map` with a literal the\nassembled chain never finishes normalising - checked by normalising every literal, so a literal this case\nrecognises that maps on to one the chain finishes with is accepted. Nesting the telemetry itself drives is\nbounded at run time, the innermost levels kept as they stand.",
           "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "content_as": {
@@ -4501,7 +4501,7 @@
           ]
         },
         "where": {
-          "description": "The evidence, over the span's name and attributes. A conjunction is written as `all`: a tool name alone\nsits on a model span that merely mentions a tool, while the name *and* a call id together are a call\nbeing run.",
+          "description": "The evidence, over the span's attributes - a span fact sees no span name, so a `span_name` source is\nrefused. A conjunction is written as `all`: a tool name alone sits on a model span that merely mentions a\ntool, while the name *and* a call id together are a call being run.",
           "$ref": "#/$defs/Expr_SpanCondition"
         }
       },

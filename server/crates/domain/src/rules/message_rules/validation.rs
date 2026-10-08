@@ -500,10 +500,12 @@ pub(super) fn rule_condition(rule: &CompiledMessageRule) -> Condition {
             (Expr::all(comparable), opaque)
         }
     };
+    let parsed_as = text_parse(rule);
     if opaque {
         return Condition {
             gate,
             narrowed: true,
+            parsed_as,
         };
     }
     // Every reading this rule can produce is gated on the payload itself, so it claims nothing on a span
@@ -531,6 +533,7 @@ pub(super) fn rule_condition(rule: &CompiledMessageRule) -> Condition {
     Condition {
         gate,
         narrowed: (any && every_reading_narrowed) || !rule.raw_where.is_empty(),
+        parsed_as,
     }
 }
 
@@ -609,15 +612,55 @@ pub(super) fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
 
 /// What narrows a claim on a carrier: the span it runs on, and whether the payload narrows it further.
 ///
-/// Two independent facets, because a rule can have both and they answer different questions. The gate says
-/// *which spans* the rule runs on and can be related to another rule's gate; `narrowed` says the rule may
-/// read nothing even where it runs, for a reason nothing here can compare with another rule's.
+/// Three independent facets, because a rule can have all of them and they answer different questions. The gate
+/// says *which spans* the rule runs on and can be related to another rule's gate; `narrowed` says the rule may
+/// read nothing even where it runs, for a reason nothing here can compare with another rule's; `parsed_as` says
+/// which texts of the carrier it can read at all, which *can* be compared with another rule's.
 #[derive(Clone, Default)]
 pub(super) struct Condition {
     /// The spans this runs on. `None` means every span.
     pub(super) gate: Option<SpanExpr>,
     /// Narrowed by the payload, by a parent, or by which spelling of the carrier a producer used.
     pub(super) narrowed: bool,
+    /// The parse the carrier's text must pass before anything is read from it; `None` where the reading does not
+    /// parse the text. A text the parse refuses yields nothing and claims nothing, so it is left to a later rule
+    /// that reads it another way.
+    pub(super) parsed_as: Option<ParseMode>,
+}
+
+/// The parse a rule applies to its carrier's whole text, where one decides whether the rule reads it at all.
+///
+/// Only the scalar readings parse the text: a section split reads it as text, and a compose, a branch or a family
+/// assemble their value from members with parses of their own.
+fn text_parse(rule: &CompiledMessageRule) -> Option<ParseMode> {
+    let assembled = rule.compose.is_some()
+        || rule.branch_set.is_some()
+        || rule.read.indexed_family.is_some()
+        || rule.read.family.is_some()
+        || rule.sections.is_some();
+    (!assembled).then(|| rule.parse.unwrap_or(ParseMode::Json))
+}
+
+/// Whether every text a reading under `theirs` accepts is one a reading under `mine` accepts too - sound and
+/// deliberately incomplete: where it cannot tell, it answers no, so a later rule is not convicted.
+fn reads_whatever(mine: Option<ParseMode>, theirs: Option<ParseMode>) -> bool {
+    let every_text = |mode: ParseMode| {
+        matches!(
+            mode,
+            ParseMode::Text | ParseMode::JsonOrString | ParseMode::JsonStructureOrString
+        )
+    };
+    match (mine, theirs) {
+        (None, _) => true,
+        (Some(mine), _) if every_text(mine) => true,
+        (Some(mine), Some(theirs)) if mine == theirs => true,
+        // Both decode the text as JSON first and refuse what does not decode, so JSON covers them.
+        (
+            Some(ParseMode::Json),
+            Some(ParseMode::StringifiedArray | ParseMode::PythonConstructorReprArray),
+        ) => true,
+        _ => false,
+    }
 }
 
 impl Condition {
@@ -635,6 +678,11 @@ impl Condition {
     /// `no_declared_rule_is_dead_across_the_corpus` is what measures that case instead.
     pub(super) fn suppresses(&self, other: &Self) -> bool {
         if self.narrowed {
+            return false;
+        }
+        // A text this rule's parse refuses is one it does not claim, so a later rule reading that text another way
+        // is live there: a JSON reading beside a text reading of one attribute is a decoder and its fallback.
+        if !reads_whatever(self.parsed_as, other.parsed_as) {
             return false;
         }
         match (&self.gate, &other.gate) {
@@ -679,6 +727,8 @@ pub(super) fn narrow_with(patterns: Vec<Consumed>, wholly: &Condition) -> Vec<Co
     patterns
         .into_iter()
         .map(|mut consumed| {
+            // Every pattern here is the rule's own, so the parse it applies to the text is the rule's.
+            consumed.condition.parsed_as = wholly.parsed_as;
             if consumed.condition.narrowed {
                 // Already the narrowest answer available: this carrier is read only sometimes, for a reason
                 // nothing here can relate to another rule's. A rule-wide condition cannot widen that.
@@ -721,6 +771,7 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         condition: Condition {
             gate: None,
             narrowed: true,
+            parsed_as: None,
         },
     };
     if let Some(attribute) = rule.read.attribute().map(String::as_str) {
@@ -866,6 +917,7 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
                 condition: Condition {
                     gate: None,
                     narrowed: true,
+                    parsed_as: None,
                 },
             }
         });
@@ -880,6 +932,7 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
                 condition: Condition {
                     gate: None,
                     narrowed: true,
+                    parsed_as: None,
                 },
             }
         } else {

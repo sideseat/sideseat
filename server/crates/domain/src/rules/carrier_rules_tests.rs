@@ -16,3 +16,4 @@ include!("carrier_rules_tests_parts/part_11_tests.rs");
 include!("carrier_rules_tests_parts/part_12_tests.rs");
 include!("carrier_rules_tests_parts/part_13_tests.rs");
 include!("carrier_rules_tests_parts/part_14_tests.rs");
+include!("carrier_rules_tests_parts/part_15_tests.rs");

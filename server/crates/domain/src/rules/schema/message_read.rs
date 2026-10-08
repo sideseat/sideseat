@@ -321,9 +321,9 @@ pub struct SpanSignal {
     /// identity after it, and nothing could safely reference one.
     pub id: String,
     pub doc: Option<String>,
-    /// The evidence, over the span's name and attributes. A conjunction is written as `all`: a tool name alone
-    /// sits on a model span that merely mentions a tool, while the name *and* a call id together are a call
-    /// being run.
+    /// The evidence, over the span's attributes - a span fact sees no span name, so a `span_name` source is
+    /// refused. A conjunction is written as `all`: a tool name alone sits on a model span that merely mentions a
+    /// tool, while the name *and* a call id together are a call being run.
     #[serde(rename = "where")]
     pub condition: SpanWhere,
 }

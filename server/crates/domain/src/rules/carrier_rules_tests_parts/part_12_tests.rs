@@ -610,6 +610,7 @@ fn no_production_module_spells_a_declared_producer_word() {
                 continue;
             }
             let literal = literal_text(&text);
+            let literal = literal.as_ref();
             if PRICING.iter().any(|prefix| relative.starts_with(prefix)) && is_provider(literal) {
                 continue;
             }

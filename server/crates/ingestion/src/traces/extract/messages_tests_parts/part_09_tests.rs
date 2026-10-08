@@ -175,9 +175,11 @@ fn carrier_ownership_conflicts_are_refused() {
                 {"id":"b","doc":"d","read":{"attribute":"f.0"},"parse":"json","emit":"message",
                  "priority":2}]}"#,
         ),
+        // The earlier reading accepts every text: a JSON-only one would leave the compose every text it refuses,
+        // which is a decoder and its fallback rather than a conflict.
         (
             "a compose consumes a carrier another rule emits",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "r.text"}, "parse": "json", "emit": "message", "priority": 1}, {"id": "b", "doc": "d", "compose": {"tag": "r", "members": [{"as": "content", "from": "r.text", "parse": "text"}]}, "emit": "message", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "r.text"}, "parse": "json_or_string", "emit": "message", "priority": 1}, {"id": "b", "doc": "d", "compose": {"tag": "r", "members": [{"as": "content", "from": "r.text", "parse": "text"}]}, "emit": "message", "priority": 2}]}"#,
         ),
         // The sweep ranked first: ranked after the exact reader, it is the reading that reader starves, which the
         // starvation refusal answers before this one is asked.

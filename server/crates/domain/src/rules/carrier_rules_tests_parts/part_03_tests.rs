@@ -505,7 +505,7 @@ fn collect_production_names(
                     match &tokens[index] {
                         TokenTree::Literal(literal) => {
                             let text = literal.to_string();
-                            joined.push_str(literal_text(&text));
+                            joined.push_str(&literal_text(&text));
                             out.push((literal.span().start().line, text));
                             index += 1;
                         }
@@ -531,12 +531,60 @@ fn collect_production_names(
     }
 }
 
-/// A string literal's own text, without the quoting a `contains` search would have to see through.
+/// A string literal's own text, as Rust evaluates it: without the quoting a `contains` search would have to see
+/// through, and with its escapes decoded - `"llm.cost.\u{74}otal"` is the key `llm.cost.total`, and comparing its
+/// spelling let it past every sweep that reads literals.
 #[cfg(test)]
-fn literal_text(text: &str) -> &str {
-    text.trim_start_matches('r')
-        .trim_matches('#')
-        .trim_matches('"')
+fn literal_text(text: &str) -> std::borrow::Cow<'_, str> {
+    use std::borrow::Cow;
+    let unprefixed = text.strip_prefix('b').unwrap_or(text);
+    if let Some(raw) = unprefixed.strip_prefix('r') {
+        return Cow::Borrowed(raw.trim_matches('#').trim_matches('"'));
+    }
+    let Some(inner) = unprefixed
+        .strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+    else {
+        return Cow::Borrowed(text.trim_matches('"'));
+    };
+    if !inner.contains('\\') {
+        return Cow::Borrowed(inner);
+    }
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            Some('0') => out.push('\0'),
+            Some('x') => {
+                let hex: String = chars.by_ref().take(2).collect();
+                if let Some(decoded) = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
+                    out.push(decoded);
+                }
+            }
+            Some('u') => {
+                let hex: String = chars
+                    .by_ref()
+                    .skip_while(|c| *c == '{')
+                    .take_while(|c| *c != '}')
+                    .collect();
+                if let Some(decoded) = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
+                    out.push(decoded);
+                }
+            }
+            // A line continuation: the newline and the indentation after it are not part of the value.
+            Some('\n') => while chars.next_if(|c| c.is_whitespace()).is_some() {},
+            Some(other) => out.push(other),
+            None => {}
+        }
+    }
+    Cow::Owned(out)
 }
 
 /// Whether the token at `index` begins a `#[cfg(test)]` attribute.

@@ -784,11 +784,25 @@ pub fn disjoint(a: &SpanExpr, b: &SpanExpr) -> bool {
 
 /// The first disjunct of an `any` another disjunct of the same group already implies: it can never be why the
 /// group held, and reads as precision the condition does not have.
+///
+/// **Polarity-aware**, because [`implies`] relates where conditions are *true* and a negation also reads where
+/// they are *unknown*. Under an even number of negations a group that is not true is rejected whether it is false
+/// or unknown, so a disjunct that can only be true where another is changes nothing. Under an odd number it does:
+/// `not(any(exists(k), all(equals(k, "x"), exists(y))))` with `k` absent and `y` present is unknown, and without
+/// its second disjunct true - the disjunct decides whether the rule applies. There only an exact repeat is dead,
+/// since `any(a, a)` is `a` in every one of the three values.
 pub fn dead_disjunct(condition: &SpanExpr) -> Option<(SpanExpr, SpanExpr)> {
+    dead_disjunct_under(condition, true)
+}
+
+fn dead_disjunct_under(condition: &SpanExpr, positive: bool) -> Option<(SpanExpr, SpanExpr)> {
     match condition {
         Expr::Atom(_) => None,
-        Expr::Not(child) => dead_disjunct(child),
-        Expr::All(group) => group.children().iter().find_map(dead_disjunct),
+        Expr::Not(child) => dead_disjunct_under(child, !positive),
+        Expr::All(group) => group
+            .children()
+            .iter()
+            .find_map(|child| dead_disjunct_under(child, positive)),
         Expr::Any(group) => {
             let children = group.children();
             for (index, dead) in children.iter().enumerate() {
@@ -797,14 +811,16 @@ pub fn dead_disjunct(condition: &SpanExpr) -> Option<(SpanExpr, SpanExpr)> {
                     let covered = if dead == covering {
                         other < index
                     } else {
-                        index != other && implies(dead, covering)
+                        positive && index != other && implies(dead, covering)
                     };
                     if covered {
                         return Some((dead.clone(), covering.clone()));
                     }
                 }
             }
-            children.iter().find_map(dead_disjunct)
+            children
+                .iter()
+                .find_map(|child| dead_disjunct_under(child, positive))
         }
     }
 }

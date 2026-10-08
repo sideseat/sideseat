@@ -106,7 +106,7 @@ impl SpanFactPlan {
         let mut signals = Vec::new();
         for rule in assets.files().iter().flat_map(|file| &file.span_facts) {
             for signal in &rule.signals {
-                // A span fact is asked of a span's own name and attributes.
+                // A span fact is asked of a span's own attributes: its evaluation is given no span name.
                 let condition = detect_rules::checked_condition(
                     &signal.condition,
                     span_conditions::Readable::ATTRIBUTES,

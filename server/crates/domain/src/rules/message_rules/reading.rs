@@ -467,6 +467,20 @@ pub(super) fn built(
     }
 }
 
+/// The index a family key segment spells, when it spells one the way the convention writes it: decimal digits
+/// with no sign and no leading zero.
+///
+/// `usize::from_str` also accepts `01` and `+1`, so two keys - `msgs.1.role` and `msgs.01.role` - landed on one
+/// entry and one member, which of them won followed the attribute map's hash order, and the entry's consumed key
+/// was rebuilt as `msgs.1.role` whichever was read. A segment spelled any other way is not an index of the family,
+/// so its key is not read here and stays unclaimed.
+fn canonical_index(segment: &str) -> Option<usize> {
+    let canonical = !segment.is_empty()
+        && segment.bytes().all(|byte| byte.is_ascii_digit())
+        && (segment == "0" || !segment.starts_with('0'));
+    canonical.then(|| segment.parse().ok()).flatten()
+}
+
 /// One entry per index of a dotted attribute family, assembled from the keys under it.
 ///
 /// The convention flattens a list of objects into `<prefix>.<index>.<member>`, so this is the inverse:
@@ -502,7 +516,7 @@ pub(super) fn indexed_entries(
     for (key, value) in attrs {
         if let Some(rest) = key.strip_prefix(&family_dot)
             && let Some(index) = rest.split('.').next()
-            && let Ok(parsed) = index.parse::<usize>()
+            && let Some(parsed) = canonical_index(index)
         {
             // The remainder past `family.<index>` - empty where the key *is* the index, which a producer can
             // write and which belongs to no member.
