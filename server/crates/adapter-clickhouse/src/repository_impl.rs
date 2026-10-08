@@ -186,7 +186,15 @@ impl SpanStore for ClickhouseRepository {
         for (project_id, spans) in by_project {
             let client = self.0.tenant_client_str(&project_id);
             if let Err(error) = span::insert_batch(&client, &table, &spans).await {
+                let in_doubt = error.write_in_doubt();
                 let error = DataError::from(error);
+                let error = if in_doubt {
+                    DataError::InDoubt {
+                        source: Box::new(error),
+                    }
+                } else {
+                    error
+                };
                 return Err(if committed.is_empty() {
                     error
                 } else {

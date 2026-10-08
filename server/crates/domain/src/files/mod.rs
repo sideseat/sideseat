@@ -584,6 +584,16 @@ impl FileService {
         Ok(released)
     }
 
+    /// The file hashes a trace's stored rows and raw records reference - the survivor scan's answer, for a caller
+    /// that must decide whether rows it cannot vouch for hold a reference.
+    pub async fn hashes_referenced_by_trace(
+        project_id: &ProjectId,
+        trace_id: &str,
+        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
+    ) -> Result<Vec<String>, FileServiceError> {
+        Self::referenced_hashes(project_id, trace_id, analytics).await
+    }
+
     /// The file hashes the surviving winning spans of one trace reference.
     async fn referenced_hashes(
         project_id: &ProjectId,

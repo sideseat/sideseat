@@ -32,6 +32,7 @@ use sideseat_ports::types::{
 };
 
 use super::DuckdbService;
+use super::error::DuckdbError;
 use super::repositories::{log, messages, metric, query, search, span, stats};
 
 /// The port, implemented over the service.
@@ -218,7 +219,14 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         DuckdbService::run_query(move || db.write(|conn| span::insert_batch(conn, &spans)))
             .await
-            .map_err(DataError::from)?
+            .map_err(|error| match error {
+                // The caller stopped waiting, not the write: the blocking task still holds the statement and
+                // can commit it after this returns.
+                DuckdbError::Timeout { .. } => DataError::InDoubt {
+                    source: Box::new(error.into()),
+                },
+                error => error.into(),
+            })?
             .map_err(Into::into)
     }
 

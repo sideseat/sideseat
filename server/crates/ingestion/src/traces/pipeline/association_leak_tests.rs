@@ -62,6 +62,7 @@ fn every_early_return_between_files_and_the_write_releases_its_associations() {
                 let discharged = lines[from..n].iter().any(|l| {
                     l.contains("release_created_associations(")
                         || l.contains("release_associations_of_dropped(")
+                        || l.contains("settle_associations_of_dropped(")
                 });
                 assert!(
                     discharged,

@@ -185,6 +185,14 @@ Persistence order is deliberate:
 Files precede rows that reference them. If the second write fails, retention can reclaim an orphaned file;
 the reverse order would leave a row promising bytes that do not exist.
 
+A failed write does not release its associations on its own account. A ClickHouse insert can store its rows
+and still report failure, and one whose answer was lost can land after the caller gave up. So a project whose
+write failed has its associations settled by the references its stored rows and raw records hold: confirmed
+where they are named, released where they are not. A write whose outcome is in doubt (`DataError::InDoubt`: a
+lost connection, a timeout, an async insert whose wait expired) releases nothing, because no read can yet prove
+its rows absent; the retry or redrive that follows resolves the trace. An exact redelivery settles the
+associations it re-created the same way, which is how an association lost to an earlier failure is restored.
+
 ## Metrics and logs
 
 Metrics and logs share the signal lifecycle but have smaller synchronous persistence paths.

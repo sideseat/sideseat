@@ -125,6 +125,18 @@ pub enum DataError {
         #[source]
         source: Box<DataError>,
     },
+
+    /// A write that failed without settling: it may have been applied, or may still be.
+    ///
+    /// A rejection is settled - the backend ran the write to its end, and whatever it stored is stored, so a read
+    /// made afterwards sees it. A lost connection, a timeout, or a wait that expired leaves the write running
+    /// where the caller cannot see it, and a read made now does not prove its rows absent. A caller must not undo
+    /// bookkeeping such rows could still need on the strength of a read.
+    #[error("Write outcome unknown: {source}")]
+    InDoubt {
+        #[source]
+        source: Box<DataError>,
+    },
 }
 
 impl DataError {
@@ -200,11 +212,21 @@ impl DataError {
     /// conversion time, which is the only place that knows what its driver's errors mean.
     pub fn is_transient(&self) -> bool {
         match self {
-            Self::Timeout { .. } | Self::PoolExhausted { .. } => true,
+            Self::Timeout { .. } | Self::PoolExhausted { .. } | Self::InDoubt { .. } => true,
             Self::Sqlite { transient, .. }
             | Self::Postgres { transient, .. }
             | Self::Duckdb { transient, .. }
             | Self::Clickhouse { transient, .. } => *transient,
+            _ => false,
+        }
+    }
+
+    /// Whether a failed write may still have been applied where a read made now cannot see it - see
+    /// [`Self::InDoubt`]. A partial write is in doubt when the project that failed it is.
+    pub fn write_in_doubt(&self) -> bool {
+        match self {
+            Self::InDoubt { .. } => true,
+            Self::PartiallyWritten { source, .. } => source.write_in_doubt(),
             _ => false,
         }
     }
@@ -220,7 +242,7 @@ impl DataError {
             Self::Timeout { backend, .. } => backend,
             Self::PoolExhausted { backend } => backend,
             Self::BackendUnavailable { backend, .. } => backend,
-            Self::PartiallyWritten { source, .. } => source.backend(),
+            Self::PartiallyWritten { source, .. } | Self::InDoubt { source } => source.backend(),
             Self::Config(_) | Self::Io(_) | Self::NotImplemented(_) | Self::Conflict(_) => {
                 "unknown"
             }

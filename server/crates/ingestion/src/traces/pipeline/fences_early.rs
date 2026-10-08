@@ -418,8 +418,29 @@ impl TracePipeline {
         created: &mut Vec<(String, String, String)>,
         surviving_spans: &[NormalizedSpan],
     ) {
+        let orphaned = Self::take_associations_of_dropped(created, surviving_spans);
+        self.release_created_associations(&orphaned).await;
+    }
+
+    /// As [`Self::release_associations_of_dropped`], for spans dropped because their rows are already stored:
+    /// the associations are settled by those rows (`settle_associations_by_stored_rows`) instead of released.
+    pub(super) async fn settle_associations_of_dropped(
+        &self,
+        created: &mut Vec<(String, String, String)>,
+        surviving_spans: &[NormalizedSpan],
+    ) {
+        let orphaned = Self::take_associations_of_dropped(created, surviving_spans);
+        self.settle_associations_by_stored_rows(&orphaned, &HashSet::new())
+            .await;
+    }
+
+    /// Remove from `created`, and return, the associations of traces no surviving span belongs to.
+    fn take_associations_of_dropped(
+        created: &mut Vec<(String, String, String)>,
+        surviving_spans: &[NormalizedSpan],
+    ) -> Vec<(String, String, String)> {
         if created.is_empty() {
-            return;
+            return Vec::new();
         }
         let surviving: HashSet<(&str, &str)> = surviving_spans
             .iter()
@@ -437,7 +458,7 @@ impl TracePipeline {
             .collect();
         created
             .retain(|(project, trace, _)| surviving.contains(&(project.as_str(), trace.as_str())));
-        self.release_created_associations(&orphaned).await;
+        orphaned
     }
 
     /// Mark this batch's associations durable, reporting a confirmation that matched fewer rows than it had.
@@ -480,6 +501,77 @@ impl TracePipeline {
                 "Could not confirm this batch's file associations as durable; they keep a pending writer and                  a later failure path could release them"
             ),
         }
+    }
+
+    /// Settle associations whose rows this batch did not write itself, by the rows that are stored.
+    ///
+    /// Two callers have such associations. A failed write: a failed ClickHouse insert can still have landed its
+    /// rows, so its associations cannot be released on the failure alone - if the exporter never retried, its
+    /// readable rows would name files the sweeper then reclaims. And an exact redelivery, whose rows are already
+    /// in place: releasing what it re-created would undo the one thing a redelivery can repair, an association
+    /// an earlier failure lost.
+    ///
+    /// Each trace's stored references are read, and an association they name is confirmed - those rows are
+    /// committed - while the rest are released. The read-then-act shape that `release_created_associations`
+    /// avoids is sound here only because the write in question has finished: none of its rows can land after
+    /// the read, and a concurrent batch's association holds its own pending count, which this does not touch.
+    /// A project whose write is `in_doubt` has not finished, so its unreferenced associations are kept pending
+    /// rather than released, and so are all of a trace's whose read fails: an association kept too long holds
+    /// quota, one released under a live row loses the file.
+    pub(super) async fn settle_associations_by_stored_rows(
+        &self,
+        associations: &[(String, String, String)],
+        in_doubt: &HashSet<String>,
+    ) {
+        let mut by_trace = HashMap::new();
+        for association in associations {
+            by_trace
+                .entry((association.0.as_str(), association.1.as_str()))
+                .or_insert_with(Vec::new)
+                .push(association);
+        }
+        let mut confirm = Vec::new();
+        let mut release = Vec::new();
+        let mut kept = 0usize;
+        for ((project_id, trace_id), associations) in by_trace {
+            match sideseat_domain::files::FileService::hashes_referenced_by_trace(
+                &ProjectId::from(project_id),
+                trace_id,
+                self.analytics.as_ref(),
+            )
+            .await
+            {
+                Ok(referenced) => {
+                    for association in associations {
+                        if referenced.contains(&association.2) {
+                            confirm.push(association.clone());
+                        } else if in_doubt.contains(project_id) {
+                            kept += 1;
+                        } else {
+                            release.push(association.clone());
+                        }
+                    }
+                }
+                Err(error) => {
+                    kept += associations.len();
+                    tracing::error!(
+                        %error,
+                        project_id,
+                        trace_id,
+                        "Could not read which file references are stored; keeping the associations pending"
+                    );
+                }
+            }
+        }
+        if kept > 0 {
+            tracing::warn!(
+                kept,
+                "File associations of a write that may still land are kept pending: released now, a row landing \
+                 later would name a file the sweeper had reclaimed"
+            );
+        }
+        self.confirm_associations(&confirm, "stored rows").await;
+        self.release_created_associations(&release).await;
     }
 
     /// Release associations this batch referenced, decrementing its own writer.

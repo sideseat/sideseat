@@ -42,7 +42,7 @@ use super::enrich::enrich_batch;
 use super::extract::files::FileExtractionCache;
 use super::extract::{ExtractionMode, extract_attributes_batch, extract_messages_batch};
 use super::persist::{
-    BatchInput, IncomingReference, PendingFileWrite, SseSpanEvent, note_unstored_files,
+    BatchInput, IncomingReference, PendingFileWrite, SpanWrite, SseSpanEvent, note_unstored_files,
     persist_extracted_files, prepare_batch, publish_sse_events, reconcile_incoming_references,
     write_to_duckdb,
 };
@@ -633,6 +633,8 @@ fn drop_unstorable_spans(spans: &mut Vec<NormalizedSpan>) -> usize {
 
 #[cfg(test)]
 mod association_leak_tests;
+#[cfg(test)]
+mod association_settlement_tests;
 #[cfg(test)]
 mod batch_equivalence_tests;
 #[cfg(test)]

@@ -462,9 +462,10 @@ impl TracePipeline {
                 .insert((span.trace_id.clone(), span.span_id.clone()));
         }
         // Exact redeliveries are already stored, so they leave the batch without being dropped: the export is
-        // answered as stored.
+        // answered as stored. Their rows are in place, so the associations they re-created are settled by those
+        // rows rather than released: a redelivery is how an association lost to an earlier failure is restored.
         if self.drop_exact_redeliveries(&mut all_db_spans).await > 0 {
-            self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
+            self.settle_associations_of_dropped(&mut created_associations, &all_db_spans)
                 .await;
             if all_db_spans.is_empty() {
                 return ledger.outcomes();
@@ -536,13 +537,16 @@ impl TracePipeline {
                 )
             })
             .collect();
-        let committed = write_to_duckdb(all_db_spans, self.analytics.as_ref()).await;
+        let SpanWrite {
+            committed,
+            in_doubt,
+        } = write_to_duckdb(all_db_spans, self.analytics.as_ref()).await;
         let db_ok = !committed.is_empty();
         // A partial write: some projects' rows committed and the rest did not. The ones that did are carried on
         // - their rows are readable, so their associations and records stay theirs - while the rest are undone
-        // and their exports refused, so a retry writes them again. "Did not" is the backend's verdict, and a
-        // failed ClickHouse insert can still have landed rows; releasing those associations is safe only because
-        // the refusal makes the exporter retry, and the retry associates and confirms them again.
+        // and their exports refused, so a retry writes them again. "Did not" is only the backend's verdict - a
+        // failed ClickHouse insert can still have landed rows - so their associations are settled by what is
+        // stored, not released on the failure alone (`settle_associations_by_stored_rows`).
         let mut failed_slots: HashSet<usize> = HashSet::new();
         if db_ok
             && written
@@ -553,7 +557,8 @@ impl TracePipeline {
                 .drain(..)
                 .partition(|(project, _, _)| !committed.contains(project));
             created_associations = kept;
-            self.release_created_associations(&orphaned).await;
+            self.settle_associations_by_stored_rows(&orphaned, &in_doubt)
+                .await;
             for ((project, _, _), slot) in written.iter().zip(&written_slots) {
                 if !committed.contains(project) {
                     failed_slots.insert(*slot);
@@ -654,13 +659,13 @@ impl TracePipeline {
                 return failed();
             }
         } else {
-            // Release the associations this batch created, since the rows that would have justified them
-            // are not there. Files are written before the rows deliberately, so a failed write leaves
-            // associations holding `ref_count` above zero - and the orphan sweeper selects on
-            // `ref_count = 0`, so nothing would ever reclaim those bytes and the project's quota would
-            // shrink permanently. A redelivery re-creates them, so this costs nothing when the retry
-            // succeeds.
-            self.release_created_associations(&created_associations)
+            // Release the associations this batch created whose rows are not there. Files are written before
+            // the rows deliberately, so a failed write leaves associations holding `ref_count` above zero - and
+            // the orphan sweeper selects on `ref_count = 0`, so nothing would ever reclaim those bytes and the
+            // project's quota would shrink permanently. A redelivery re-creates them, so this costs nothing when
+            // the retry succeeds. Settled by what is stored rather than released outright, because a failed
+            // write is not proof that nothing landed (`settle_associations_by_stored_rows`).
+            self.settle_associations_by_stored_rows(&created_associations, &in_doubt)
                 .await;
         }
 

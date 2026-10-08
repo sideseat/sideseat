@@ -798,21 +798,26 @@ async fn write_and_record_files(
 // DUCKDB WRITES
 // ============================================================================
 
-/// Write batch to analytics backend with exponential backoff retry.
-///
-/// Each attempt clones spans (insert_spans consumes ownership for spawn_blocking).
-/// With pre-serialized String fields, clone cost is ~microseconds of memcpy, negligible
-/// compared to the DuckDB write which takes milliseconds-to-seconds.
-/// Write spans, and return the projects whose rows committed - all of them, some, or none.
+/// What a span write left behind, per project.
+pub(super) struct SpanWrite {
+    /// Projects whose rows committed.
+    pub(super) committed: HashSet<String>,
+    /// Projects that did not commit, but one of whose attempts failed without settling
+    /// (`DataError::write_in_doubt`): their rows may yet land, so a read made now cannot prove them absent.
+    pub(super) in_doubt: HashSet<String>,
+}
+
+/// Write spans, retrying with backoff, and report which projects' rows committed - all of them, some, or none.
 ///
 /// A backend that writes projects separately can commit some before failing another
 /// (`DataError::PartiallyWritten`); a retry then sends only the projects that did not commit, so a committed
 /// project is neither written twice nor reported as failed - its rows are readable, and the caller keeps the
-/// bookkeeping they need. An atomic backend returns every project or none.
+/// bookkeeping they need. An atomic backend returns every project or none. Each attempt clones the spans,
+/// because `insert_spans` takes ownership.
 pub(super) async fn write_to_duckdb(
     spans: Vec<NormalizedSpan>,
     repo: &(dyn AnalyticsRepository + Send + Sync),
-) -> HashSet<String> {
+) -> SpanWrite {
     let project_of = |span: &NormalizedSpan| {
         span.project_id
             .clone()
@@ -820,6 +825,7 @@ pub(super) async fn write_to_duckdb(
     };
     let span_count = spans.len();
     let mut committed: HashSet<String> = HashSet::new();
+    let mut in_doubt: HashSet<String> = HashSet::new();
     let mut remaining = spans;
     for attempt in 1..=DEFAULT_MAX_ATTEMPTS {
         match repo.insert_spans(remaining.clone()).await {
@@ -830,23 +836,39 @@ pub(super) async fn write_to_duckdb(
                     attempt,
                     "Wrote traces to analytics backend"
                 );
-                return committed;
-            }
-            Err(sideseat_ports::error::DataError::PartiallyWritten {
-                committed_projects,
-                source,
-            }) => {
-                tracing::warn!(
-                    error = %source,
-                    committed = committed_projects.len(),
-                    attempt,
-                    "Some projects' spans committed before the write failed; retrying the rest"
-                );
-                committed.extend(committed_projects);
-                remaining.retain(|span| !committed.contains(&project_of(span)));
+                in_doubt.retain(|project| !committed.contains(project));
+                return SpanWrite {
+                    committed,
+                    in_doubt,
+                };
             }
             Err(error) => {
-                tracing::warn!(%error, attempt, "Failed to write spans to analytics backend")
+                if let sideseat_ports::error::DataError::PartiallyWritten {
+                    committed_projects,
+                    ..
+                } = &error
+                {
+                    tracing::warn!(
+                        %error,
+                        committed = committed_projects.len(),
+                        attempt,
+                        "Some projects' spans committed before the write failed; retrying the rest"
+                    );
+                    committed.extend(committed_projects.iter().cloned());
+                } else {
+                    tracing::warn!(%error, attempt, "Failed to write spans to analytics backend");
+                }
+                // Which project's insert failed is not reported, so every project still unwritten is in doubt;
+                // the cost of over-counting is an association kept longer, never one released under live rows.
+                if error.write_in_doubt() {
+                    in_doubt.extend(
+                        remaining
+                            .iter()
+                            .map(project_of)
+                            .filter(|project| !committed.contains(project)),
+                    );
+                }
+                remaining.retain(|span| !committed.contains(&project_of(span)));
             }
         }
         if attempt < DEFAULT_MAX_ATTEMPTS {
@@ -861,7 +883,11 @@ pub(super) async fn write_to_duckdb(
         attempts = DEFAULT_MAX_ATTEMPTS,
         "Failed to write spans to analytics backend after retries"
     );
-    committed
+    in_doubt.retain(|project| !committed.contains(project));
+    SpanWrite {
+        committed,
+        in_doubt,
+    }
 }
 
 // ============================================================================
