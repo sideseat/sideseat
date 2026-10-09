@@ -55,7 +55,7 @@
   "content_blocks": [
     {
       "id": "koog.reasoning_part",
-      "doc": "The model's reasoning: its text, one string per chunk under `content`, and the signature a later request replays under `encrypted`.",
+      "doc": "The model's reasoning: its text, one string per chunk under `content`, joined in order, and the signature a later request replays under `encrypted`.",
       "at": "before_provider_formats",
       "priority": 95,
       "where": {
@@ -65,7 +65,14 @@
         ]
       },
       "thinking": {
-        "text": "$.content[0]",
+        "text": {
+          "path": "$.content[*]",
+          "pipe": [
+            {
+              "join": ""
+            }
+          ]
+        },
         "signature": "$.encrypted"
       }
     },

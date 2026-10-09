@@ -720,3 +720,18 @@ fn a_responses_reasoning_item_is_signed_reasoning_with_its_visible_text() {
     assert_eq!(reasoned["text"], "The reasoning itself.");
     assert_eq!(reasoned["signed"], true);
 }
+
+#[test]
+fn a_reasoning_part_streamed_in_chunks_reads_every_chunk_in_order() {
+    // A reasoning part may carry its text as several strings; reading only the first would
+    // drop the rest of the model's reasoning without any sign that something is missing.
+    let block = normalize_content_block(&json!({
+        "type": "ai.koog.prompt.message.MessagePart.Reasoning",
+        "content": ["First, ", "then ", "finally."],
+        "encrypted": "sig-1"
+    }))
+    .expect("a reasoning part is read");
+    assert_eq!(block["type"], "thinking");
+    assert_eq!(block["text"], "First, then finally.");
+    assert_eq!(block["signature"], "sig-1");
+}
