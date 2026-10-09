@@ -12,8 +12,9 @@ use crate::message_truth::truth::Truth;
 /// marked so in the raw payloads by a published convention; had the producer written one, the call could have
 /// its own - and the call answers a tool round on the span it shares (`shared_span`).
 /// That span shows every asserted output of the call. No other span but one enclosing it shows any of them as
-/// its output, as the reconstruction reads them, and no raw carrier under the run's span holds them: a span of
-/// its own, typed or not, would carry the response - a text, or a message holding a tool call's arguments. Anything else is refused: a model-call span, another span with the output, a call that answers no
+/// its output, as the reconstruction reads them, and no raw carrier of a span open while the run was - in any
+/// trace, the run's span and those enclosing it aside - holds them: a span of its own, typed or not, would
+/// carry the response - a text, or a message holding a tool call's arguments. Anything else is refused: a model-call span, another span with the output, a call that answers no
 /// tool round, a call with nothing asserted, or a shared span that does not carry all of the output.
 pub(super) fn prove_call_span(
     truth: &Truth,
@@ -61,15 +62,15 @@ pub(super) fn prove_call_span(
     {
         return Proof::Present(format!("{} shows this call's output", own.label));
     }
-    // In the raw carriers, where a span of its own would be: within the run, under the run's span, since the
-    // call happens while that span is active. Not the spans after it - the next agent of a crew is handed
-    // this call's answer as its task - which the reading above has already searched.
-    let within = descendants(&recon.paths, &recon.generations[span].span);
+    // In the raw carriers, where a span of its own would be: any span, in any trace, that was open while the run
+    // was - the call happened then - other than the run's span and those enclosing it. Not a span that opened
+    // after the run closed: the next agent of a crew is handed this call's answer as its task.
+    let during = concurrent(&recon.paths, &recon.generations[span].span, &run);
     let elsewhere = Haystack {
         carriers: haystack
             .carriers
             .iter()
-            .filter(|c| c.span.as_deref().is_some_and(|s| within.contains(s)))
+            .filter(|c| c.span.as_deref().is_some_and(|s| during.contains(s)))
             .cloned()
             .collect(),
         undecoded: haystack.undecoded.clone(),
@@ -78,7 +79,7 @@ pub(super) fn prove_call_span(
         if fact.kind != "tool_call" {
             let proof = prove(fact, &elsewhere);
             if proof != Proof::Absent {
-                return Proof::Present(format!("under the run's span, {}: {proof:?}", fact.id));
+                return Proof::Present(format!("during the run, {}: {proof:?}", fact.id));
             }
             continue;
         }
@@ -97,7 +98,7 @@ pub(super) fn prove_call_span(
                     && super::holds(node, arguments)
             }) {
                 return Proof::Present(format!(
-                    "{at}, under the run's span, is a message holding the arguments of {}",
+                    "{at}, during the run, is a message holding the arguments of {}",
                     fact.id
                 ));
             }
@@ -136,10 +137,11 @@ fn raw_model_call_span(paths: &[std::path::PathBuf]) -> Option<String> {
     None
 }
 
-/// Every raw span under `root`, as hex: its children, theirs, and so on.
-fn descendants(paths: &[std::path::PathBuf], root: &str) -> BTreeSet<String> {
+/// Every raw span, in any trace, open at some instant the run's span (`own`) was - its interval overlapping the
+/// run's - other than the run's span and those enclosing it (`run`), as hex.
+fn concurrent(paths: &[std::path::PathBuf], own: &str, run: &BTreeSet<&str>) -> BTreeSet<String> {
     let hex = crate::message_truth::truth::hex_digest;
-    let mut parent: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut times: Vec<(String, u64, u64)> = Vec::new();
     for path in paths {
         let request = crate::decode_request(path);
         for span in request
@@ -147,28 +149,23 @@ fn descendants(paths: &[std::path::PathBuf], root: &str) -> BTreeSet<String> {
             .iter()
             .flat_map(|r| &r.scope_spans)
             .flat_map(|s| &s.spans)
-            .filter(|s| !s.parent_span_id.is_empty())
         {
-            parent.insert(hex(&span.span_id), hex(&span.parent_span_id));
+            times.push((
+                hex(&span.span_id),
+                span.start_time_unix_nano,
+                span.end_time_unix_nano,
+            ));
         }
     }
-    parent
-        .keys()
-        .filter(|span| {
-            let mut cursor = span.as_str();
-            let mut seen = BTreeSet::new();
-            while let Some(up) = parent.get(cursor) {
-                if up == root {
-                    return true;
-                }
-                if !seen.insert(up.as_str()) {
-                    break;
-                }
-                cursor = up;
-            }
-            false
+    let Some(&(_, run_start, run_end)) = times.iter().find(|(id, _, _)| id == own) else {
+        return BTreeSet::new();
+    };
+    times
+        .into_iter()
+        .filter(|(id, start, end)| {
+            !run.contains(id.as_str()) && *start < run_end && *end > run_start
         })
-        .cloned()
+        .map(|(id, _, _)| id)
         .collect()
 }
 
@@ -213,7 +210,7 @@ mod tests {
             proof(&plain, "call-002", &recon, &haystack),
             Proof::Unprovable(_)
         ));
-        // A raw carrier within the run holding the answer: a span of its own the reading missed.
+        // A raw carrier open during the run holding the answer: a span of its own the reading missed.
         let answer = *signature(&truth, &truth.calls[1])
             .last()
             .expect("an output");

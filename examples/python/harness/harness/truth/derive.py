@@ -342,9 +342,11 @@ class Framework:
     #: telemetry leaves it out.
     unexported: dict[str, Any] = field(default_factory=dict)
     #: Text the framework writes into the conversation itself rather than the model: each ``{text, source,
-    #: scenarios}``, ``source`` citing the line of the framework that writes it. It becomes a fact resting on
-    #: ``framework`` evidence, ending the scenario's last turn, which the rubric proves per capture: verbatim in
-    #: the producer's own payload, in no model response, and carried by every later request.
+    #: scenarios[, after]}``, ``source`` citing the line of the framework that writes it and ``after`` the
+    #: successful call it is written after (the last by default). It becomes a fact resting on ``framework``
+    #: evidence, which the rubric proves per capture (``message_truth::authored``): byte for byte in a span's
+    #: payload, held by no other fact, sent by no request as user or system content, placed where the raw
+    #: timing says, and carried by every later request.
     framework_authored: tuple[dict[str, Any], ...] = ()
 
     @classmethod
@@ -369,12 +371,10 @@ class Framework:
             ),
         )
 
-    def authored(self, scenario: str) -> list[str]:
+    def authored(self, scenario: str) -> list[dict[str, Any]]:
         """The texts the framework writes itself in this scenario."""
         return [
-            entry["text"]
-            for entry in self.framework_authored
-            if scenario in entry["scenarios"]
+            entry for entry in self.framework_authored if scenario in entry["scenarios"]
         ]
 
     def actions(self, name: str, arguments: Any) -> list[tuple[str, Any]] | None:
@@ -797,14 +797,19 @@ def assemble(
                 "prompt_without_model_call",
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
-    for text in framework.authored(scenario):
-        _framework_text(builder, text)
+    for entry in framework.authored(scenario):
+        _framework_text(builder, entry["text"], entry.get("after"))
     unexported.apply(builder, framework)
     return builder
 
 
 def _authored(entry: dict[str, Any]) -> dict[str, Any]:
-    """One declared framework text, refused unless it states its text, its source and its scenarios."""
+    """One declared framework text, refused unless it states its text, its source and its scenarios.
+
+    ``after`` is the ordinal of the successful call the framework writes it after, from 1; without it, the
+    scenario's last. The rubric checks the place against the raw payload's timing.
+    """
+    after = entry.get("after")
     if not (
         isinstance(entry.get("text"), str)
         and entry["text"]
@@ -812,6 +817,7 @@ def _authored(entry: dict[str, Any]) -> dict[str, Any]:
         and entry["source"]
         and isinstance(entry.get("scenarios"), list)
         and entry["scenarios"]
+        and (after is None or (isinstance(after, int) and after >= 1))
     ):
         raise ValueError(
             f"a framework_authored entry needs a text, a source and scenarios: {entry!r}"
@@ -819,26 +825,43 @@ def _authored(entry: dict[str, Any]) -> dict[str, Any]:
     return entry
 
 
-def _framework_text(builder: Builder, text: str) -> None:
-    """A text the framework writes itself, ending the turn the scenario's last call answered.
+def _strings(value: Any) -> list[str]:
+    """Every string a value holds, at any depth."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for item in value.values() for s in _strings(item)]
+    if isinstance(value, list):
+        return [s for item in value for s in _strings(item)]
+    return []
+
+
+def _framework_text(builder: Builder, text: str, after: int | None) -> None:
+    """A text the framework writes itself, placed after the response of its ``after``-th successful call.
 
     No model said it, so a response of the scenario holding it - as text, reasoning or inside a tool call's
     arguments - refuses the declaration: that text is the model's, and already a fact.
     """
     for fact in builder.facts:
-        if fact.get("call") is not None and text in json.dumps(
-            fact["value"], ensure_ascii=False
+        if fact.get("call") is not None and any(
+            text in s for s in _strings(fact["value"])
         ):
             raise ValueError(
                 f"{text!r} is in the model's response {fact['id']}, so the framework did not write it"
             )
-    last = next((c for c in reversed(builder.calls) if c["outcome"] == "success"), None)
-    if last is None:
-        raise ValueError(f"{text!r} ends no turn: the scenario has no successful call")
+    succeeded = [c for c in builder.calls if c["outcome"] == "success"]
+    if not succeeded or (after is not None and after > len(succeeded)):
+        raise ValueError(f"{text!r} follows no call {after or 'at all'}")
+    written_after = succeeded[(after or len(succeeded)) - 1]
     conversation = next(
-        c for c in builder.conversations if c["id"] == last["conversation"]
+        c for c in builder.conversations if c["id"] == written_after["conversation"]
     )
-    builder.fact(
+    later = {
+        output
+        for call in succeeded[succeeded.index(written_after) + 1 :]
+        for output in call["outputs"]
+    }
+    fact = builder.fact(
         conversation,
         "text",
         "assistant",
@@ -846,6 +869,10 @@ def _framework_text(builder: Builder, text: str) -> None:
         {"text": text},
         require=_conversation_requirement("exact"),
     )
+    sequence = conversation["sequence"]
+    sequence.remove(fact)
+    at = next((i for i, f in enumerate(sequence) if f in later), len(sequence))
+    sequence.insert(at, fact)
 
 
 def _text_action_arguments(text: str, action: dict[str, str]) -> dict[str, Any]:

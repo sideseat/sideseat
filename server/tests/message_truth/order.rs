@@ -128,6 +128,39 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
             _ => {}
         }
     }
+    // A text the framework writes itself follows the response it was written after: after it in a trace or
+    // session view, before it in the feed, newest first.
+    for fact in truth.facts.iter().filter(|f| f.evidence == "framework") {
+        let Some(conversation) = truth
+            .conversations
+            .iter()
+            .find(|c| c.id == fact.conversation)
+        else {
+            continue;
+        };
+        let Some(at) = conversation.sequence.iter().position(|id| *id == fact.id) else {
+            continue;
+        };
+        let Some(call) = conversation.sequence[..at]
+            .iter()
+            .rev()
+            .filter_map(|id| context.fact(id))
+            .find_map(|f| f.call.as_deref())
+        else {
+            continue;
+        };
+        let (first, second) = if feed {
+            (vec![fact.id.clone()], outputs(call))
+        } else {
+            (outputs(call), vec![fact.id.clone()])
+        };
+        out.push((
+            "order.sequence",
+            format!("{} after {call}", fact.id),
+            first,
+            second,
+        ));
+    }
     // A request's instruction frames the turns it was sent with: in a trace or session view the instruction
     // comes before the prompt it framed, whichever span's copy of that prompt the view kept. Not in the
     // feed, which lists newest first and states no order among one request's inputs.
@@ -271,6 +304,69 @@ fn check_sequence(
                     "order.sequence",
                     &format!("{late} before {early}"),
                     "shown before a fact the truth sequences ahead of it".to_string(),
+                ));
+            }
+        }
+    }
+}
+
+/// In the feed, a split-off trace's record is newer than the conversation's calls before its call: its answer
+/// comes before their outputs, newest first. Each lies in a scope of its own (`checks::scopes`), so the order
+/// between them is checked here, from both scopes' assignments.
+pub(super) fn check_split_feed(
+    context: &Context<'_>,
+    feeds: &[(Scope<'_>, Assigned)],
+    out: &mut Vec<Violation>,
+) {
+    let Some((main, main_assigned)) = feeds.iter().find(|(s, _)| s.split.is_none()) else {
+        return;
+    };
+    let at = |scope: &Scope<'_>, assigned: &Assigned, id: &str| {
+        assigned
+            .block_of
+            .get(id)
+            .map(|&k| (scope.blocks[k].0, scope.blocks[k].1))
+    };
+    for (scope, assigned) in feeds {
+        let Some(split) = scope.split else {
+            continue;
+        };
+        let Some(call) = context.truth.calls.iter().find(|c| c.id == split.call) else {
+            continue;
+        };
+        let answer: Vec<(usize, usize)> = call
+            .outputs
+            .iter()
+            .filter_map(|o| at(scope, assigned, o))
+            .collect();
+        for edge in context
+            .truth
+            .edges
+            .iter()
+            .filter(|e| e.kind == "call_order" && e.after.as_deref() == Some(call.id.as_str()))
+        {
+            let Some(before) = edge
+                .before
+                .as_deref()
+                .and_then(|b| context.truth.calls.iter().find(|c| c.id == b))
+            else {
+                continue;
+            };
+            let late = before
+                .outputs
+                .iter()
+                .filter_map(|o| at(main, main_assigned, o))
+                .any(|(view, earlier)| {
+                    answer
+                        .iter()
+                        .any(|&(other, newer)| other == view && newer > earlier)
+                });
+            if late {
+                out.push(Violation::new(
+                    ViolationView::Feed,
+                    "order.calls",
+                    &format!("{}<{}", before.id, call.id),
+                    "out of order".to_string(),
                 ));
             }
         }

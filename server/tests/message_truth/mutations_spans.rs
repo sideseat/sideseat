@@ -322,3 +322,86 @@ fn a_split_off_trace_is_checked_as_a_view_of_its_own() {
         |v| v == "attribution.span:fact-003",
     );
 }
+
+#[test]
+fn a_split_off_trace_s_content_stays_its_own_and_reads_alike() {
+    // What only the split-off trace owes - its call's answer - copied into the conversation's trace in the feed
+    // is a leak; its copy of the prompt reading differently from the conversation's is a cross-view
+    // difference; its result shown on another span is misattributed; and its whole record listed behind the
+    // conversation's older calls in the feed is out of order.
+    let (truth, recon, baseline) = baseline("spring-ai/sdk/streaming");
+    let (prompt, result, answer) = (
+        fact(&truth, "fact-001"),
+        fact(&truth, "fact-005"),
+        fact(&truth, "fact-007"),
+    );
+    let moved = recon
+        .generations
+        .iter()
+        .find(|g| g.ancestors.is_empty() && g.typed)
+        .map(|g| g.trace.clone())
+        .expect("the split-off call's span");
+    let feed = recon
+        .views
+        .iter()
+        .position(|v| v.kind == ViewKind::Feed)
+        .expect("the feed");
+    let home = recon
+        .generations
+        .iter()
+        .find(|g| g.typed && g.trace != moved)
+        .map(|g| (g.trace.clone(), g.span.clone()))
+        .expect("the conversation's trace");
+    let mut leaked = recon.clone();
+    let at = first_shown(&leaked.views[feed].blocks, answer).expect("the feed shows the answer");
+    let mut copy = leaked.views[feed].blocks[at].clone();
+    (copy.trace, copy.span) = home.clone();
+    leaked.views[feed].blocks.push(copy);
+    caught(
+        &added(&truth, &leaked, &baseline),
+        "the split-off answer in the conversation's trace",
+        |v| v == "text.leaked:fact-007",
+    );
+    let mut reworded = recon.clone();
+    for view in reworded
+        .views
+        .iter_mut()
+        .filter(|v| v.kind == ViewKind::Trace && v.key == moved)
+    {
+        if let Some(at) = first_shown(&view.blocks, prompt) {
+            let text = view.blocks[at].text().unwrap_or_default().to_string();
+            view.blocks[at].content["text"] = format!("{text} And something it never said.").into();
+            view.blocks[at].refresh();
+        }
+    }
+    caught(
+        &added(&truth, &reworded, &baseline),
+        "a reworded prompt in the split-off trace",
+        |v| v.starts_with("cross_view.differs:fact-001"),
+    );
+    let mut elsewhere = recon.clone();
+    for view in elsewhere
+        .views
+        .iter_mut()
+        .filter(|v| v.kind == ViewKind::Trace && v.key == moved)
+    {
+        if let Some(at) = first_shown(&view.blocks, result) {
+            view.blocks[at].span = "another-span".into();
+        }
+    }
+    caught(
+        &added(&truth, &elsewhere, &baseline),
+        "the result on another span in the split-off trace",
+        |v| v == "attribution.span:fact-005@trace-2",
+    );
+    let mut behind = recon.clone();
+    let blocks = &mut behind.views[feed].blocks;
+    let (split, rest): (Vec<Block>, Vec<Block>) = blocks.drain(..).partition(|b| b.trace == moved);
+    blocks.extend(rest);
+    blocks.extend(split);
+    caught(
+        &added(&truth, &behind, &baseline),
+        "the split-off record behind the older call in the feed",
+        |v| v == "order.calls:call-001<call-002",
+    );
+}

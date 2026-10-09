@@ -42,6 +42,7 @@ mod propagation;
 mod recon;
 mod request_context;
 mod requests;
+mod scopes;
 mod shrink;
 mod truth;
 

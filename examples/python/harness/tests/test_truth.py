@@ -206,6 +206,54 @@ def test_a_framework_text_ends_the_turn_and_is_refused_if_the_model_said_it() ->
         )
     with pytest.raises(ValueError, match="needs a text, a source and scenarios"):
         derive.Framework.of({"framework_authored": [{"text": "Done here."}]})
+    # Quoted or spanning lines, a response holding it is still the model's text.
+    for said in ('Done "here".', "Done\nhere."):
+        quoted = derive.Options(
+            framework=derive.Framework.of(
+                {
+                    "framework_authored": [
+                        {
+                            "text": said,
+                            "source": "framework.py:1",
+                            "scenarios": ["chat"],
+                        }
+                    ]
+                }
+            )
+        )
+        with pytest.raises(ValueError, match="in the model's response"):
+            derive.assemble(
+                "p", "chat", [model_call(wire.text_part(said))], options=quoted
+            )
+
+
+def test_a_framework_text_written_after_a_call_precedes_the_next_response() -> None:
+    framework = derive.Framework.of(
+        {
+            "framework_authored": [
+                {
+                    "text": "Waiting for the tool.",
+                    "source": "framework.py:1",
+                    "scenarios": ["tool_use"],
+                    "after": 1,
+                }
+            ]
+        }
+    )
+    calls = [
+        model_call(
+            wire.tool_call_part("a", "get_weather", {"city": "Tokyo", "days": 1}),
+            finish="tool_use",
+        ),
+        model_call(wire.text_part("Pack an umbrella.")),
+    ]
+    builder = derive.assemble(
+        "p", "tool_use", calls, options=derive.Options(framework=framework)
+    )
+    (authored,) = [f for f in builder.facts if f["evidence"] == "framework"]
+    sequence = builder.conversations[0]["sequence"]
+    answer = builder.calls[1]["outputs"][0]
+    assert sequence.index(authored["id"]) == sequence.index(answer) - 1
 
 
 def test_calculator_evaluates_arithmetic_only() -> None:

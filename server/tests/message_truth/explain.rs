@@ -321,29 +321,43 @@ fn check_attribution(
         let Some(fact) = context.fact(fact_id) else {
             continue;
         };
+        let block = scope.blocks[at].2;
+        let shown_on = || {
+            recon
+                .generations
+                .iter()
+                .find(|g| g.span == block.span)
+                .map_or("an unknown span", |g| g.label.as_str())
+        };
+        // A split-off trace shows what its call was sent - a result too - on that call's span, and nowhere else.
+        if let Some(split) = scope.split.filter(|s| s.history.contains(fact_id)) {
+            if block.span != split.span {
+                out.push(Violation::new(
+                    ViolationView::from(scope.kind),
+                    "attribution.span",
+                    fact_id,
+                    format!("shown on {}, not the span of {}", shown_on(), split.call),
+                ));
+            }
+            continue;
+        }
+        // A text the framework writes itself is shown on a span whose payload holds it as written.
+        if let Some(spans) = context.authored_spans.get(fact_id) {
+            if !spans.contains(&block.span) {
+                out.push(Violation::new(
+                    ViolationView::from(scope.kind),
+                    "attribution.span",
+                    fact_id,
+                    format!("shown on {}, which did not write it", shown_on()),
+                ));
+            }
+            continue;
+        }
         // Which span reports a result - the tool's, or the next request's - is the framework's, and
         // so is the span of a call no model response states.
         if fact.call.is_none()
             && !["user_text", "user_media", "system"].contains(&fact.kind.as_str())
         {
-            continue;
-        }
-        // A split-off trace shows what its call was sent on that call's span, and nowhere else.
-        if let Some(split) = scope.split.filter(|s| s.history.contains(fact_id)) {
-            let block = scope.blocks[at].2;
-            if block.span != split.span {
-                let shown_on = recon
-                    .generations
-                    .iter()
-                    .find(|g| g.span == block.span)
-                    .map_or("an unknown span", |g| g.label.as_str());
-                out.push(Violation::new(
-                    ViolationView::from(scope.kind),
-                    "attribution.span",
-                    fact_id,
-                    format!("shown on {shown_on}, not the span of {}", split.call),
-                ));
-            }
             continue;
         }
         // A part its producing span does not carry (`output_not_exported`, proven) is owed off that span:
@@ -365,7 +379,6 @@ fn check_attribution(
         let Some(generation) = context.home_call(fact).and_then(span_of_call) else {
             continue;
         };
-        let block = scope.blocks[at].2;
         // A fact the requests re-sent belongs on a span that was sent it, or an enclosing one, and nowhere
         // else: a client's preamble goes with every request, so any of those spans is right, and the
         // conversation's first call - the ordinary home of a system prompt - is right only if it was sent it.
