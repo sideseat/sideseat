@@ -439,3 +439,151 @@ fn a_prepending_overlay_keeps_every_flattened_block() {
         );
     }
 }
+
+/// **A member of a JSON attribute is tested in the value grammar, and the answer is three-valued and typed.**
+///
+/// The three answers compose with `parses`: unknown where the attribute is absent, false where it is present and
+/// does not parse, and otherwise what the value grammar says of the selected member - a member that is not there
+/// satisfies nothing. Typed is the point: `equals: true` asks about the flag, not about the four characters
+/// `true`, which is what a substring of the payload's text would have matched.
+#[test]
+fn a_member_of_a_json_attribute_is_tested_typed_and_three_valued() {
+    use super::expr::Truth::{False as F, True as T, Unknown as U};
+    use super::span_conditions::{self, Readable, SpanSubject};
+    let lower = |condition: serde_json::Value| {
+        let parsed: super::schema::SpanWhere =
+            serde_json::from_value(condition).expect("the probe condition parses");
+        span_conditions::lower(&parsed, Readable::ATTRIBUTES)
+    };
+    let streaming = serde_json::json!({
+        "source": "attr:request_data", "parses": "json",
+        "member": {"path": "$.stream", "equals": true}
+    });
+    let positive = lower(streaming.clone()).expect("the test lowers");
+    let negated = lower(serde_json::json!({"not": streaming})).expect("and its negation");
+    let truth = |condition: &span_conditions::SpanExpr, value: Option<&str>| {
+        let attrs: std::collections::HashMap<String, String> = value
+            .map(|v| ("request_data".to_string(), v.to_string()))
+            .into_iter()
+            .collect();
+        let subject = SpanSubject {
+            span_name: "span",
+            attrs: &attrs,
+            scope_name: None,
+            scope_version: None,
+            resource: None,
+        };
+        condition.eval(&mut |atom| atom.eval(&subject))
+    };
+    for (why, value, is, is_not) in [
+        ("the flag is set", Some(r#"{"stream": true}"#), T, F),
+        ("the flag is clear", Some(r#"{"stream": false}"#), F, T),
+        (
+            "the flag is set, among others",
+            Some(r#"{"model": "m", "stream": true, "temperature": 0}"#),
+            T,
+            F,
+        ),
+        // Typed, which is the whole reason this is not a substring test: the text `"true"` is not the flag, and
+        // a payload that merely mentions the word is not a streamed request.
+        (
+            "the text, not the flag",
+            Some(r#"{"stream": "true"}"#),
+            F,
+            T,
+        ),
+        // A member that is not there is **unknown**, as it is everywhere else in the value grammar: "no value
+        // satisfied this" and "there was no value to ask about" are different answers, and an asset that wants
+        // the second to be false writes `exists: true` beside the test, which is checked below.
+        (
+            "the word in another member",
+            Some(r#"{"prompt": "answer with stream: true"}"#),
+            U,
+            U,
+        ),
+        ("no such member", Some(r#"{"model": "m"}"#), U, U),
+        // A null member is a value, and it is not the flag.
+        ("a null member", Some(r#"{"stream": null}"#), F, T),
+        // Present and unreadable is false, as `parses` answers for the same text: the attribute is there and
+        // does not hold what the condition asks about.
+        ("text cut short", Some(r#"{"stream": tr"#), F, T),
+        ("not JSON at all", Some("streaming"), F, T),
+        // And absent is unknown, so a `not` over it does not hold for a span that carries no such attribute.
+        ("no attribute", None, U, U),
+    ] {
+        assert_eq!(
+            (truth(&positive, value), truth(&negated, value)),
+            (is, is_not),
+            "{why}: {value:?}"
+        );
+    }
+
+    // The whole value grammar applies to the member, not just equality.
+    let kinds = lower(serde_json::json!({
+        "source": "attr:request_data", "parses": "json",
+        "member": {"path": "$.messages", "kind": "array", "non_empty": true}
+    }))
+    .expect("a kind and emptiness test lowers");
+    assert_eq!(
+        truth(&kinds, Some(r#"{"messages": [{"role": "user"}]}"#)),
+        T
+    );
+    assert_eq!(truth(&kinds, Some(r#"{"messages": []}"#)), F);
+    assert_eq!(truth(&kinds, Some(r#"{"messages": "one"}"#)), F);
+
+    // `exists` beside the test turns a member that is not there into a false answer, which is how the same
+    // escape hatch works for an absent attribute in the span grammar.
+    let required = lower(serde_json::json!({
+        "source": "attr:request_data", "parses": "json",
+        "member": {"path": "$.stream", "exists": true, "equals": true}
+    }))
+    .expect("a required member lowers");
+    assert_eq!(truth(&required, Some(r#"{"stream": true}"#)), T);
+    assert_eq!(truth(&required, Some(r#"{"model": "m"}"#)), F);
+    assert_eq!(
+        truth(&required, None),
+        U,
+        "an absent attribute stays unknown: the span said nothing about it"
+    );
+
+    // A member test says the attribute is there, so it implies the existence test.
+    let exists = lower(serde_json::json!({"source": "attr:request_data", "exists": true}))
+        .expect("an existence test lowers");
+    assert!(span_conditions::implies(&positive, &exists));
+
+    // Refusals. A member without the encoding that says how the text is read; a member of a source that has no
+    // text to parse; and a `member` holding no condition, which would be `parses` written twice.
+    for (why, condition) in [
+        (
+            "no encoding",
+            serde_json::json!({"source": "attr:request_data",
+                "member": {"path": "$.stream", "equals": true}}),
+        ),
+        (
+            "a source with nothing to parse",
+            serde_json::json!({"source": "span_name", "parses": "json",
+                "member": {"path": "$.stream", "equals": true}}),
+        ),
+        (
+            "no condition on the member",
+            serde_json::json!({"source": "attr:request_data", "parses": "json", "member": {}}),
+        ),
+    ] {
+        assert!(lower(condition).is_err(), "{why}: accepted");
+    }
+}
+
+/// A version range is still asked alone: the member test is a test like any other beside it.
+#[test]
+fn a_version_range_is_not_asked_beside_a_member_test() {
+    let parsed: super::schema::SpanWhere = serde_json::from_value(serde_json::json!({
+        "source": "scope.version", "parses": "json",
+        "member": {"path": "$.x", "exists": true},
+        "version": {"scheme": "semver", "at_least": "1.0.0", "because": "a probe"}
+    }))
+    .expect("the probe condition parses");
+    assert!(
+        super::span_conditions::lower(&parsed, super::span_conditions::Readable::ALL).is_err(),
+        "a version range beside a member test reads the version as text"
+    );
+}

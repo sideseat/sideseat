@@ -16,7 +16,7 @@ use super::*;
 /// Deliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of
 /// dotted keys, where "nested" means "some other key starts with this one". Same word, different domain -
 /// and one type spanning both would have to mean different things depending on where it was used.
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ValuePredicate {

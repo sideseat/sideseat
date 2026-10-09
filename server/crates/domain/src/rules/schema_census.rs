@@ -34,6 +34,12 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "SpanCondition.member",
+        "the member test of a JSON attribute; offered for a producer that writes a request's options as one \
+         JSON payload, where a substring of the text would also match a value a prompt mentions. No shipped \
+         asset needs it yet",
+    ),
+    (
         "FirstPresent_string.mode",
         "`present` is what an omitted mode means on a first-present list; the member exists so a list can say so \
          beside a `usable` one, and spelling the default would only restate it",

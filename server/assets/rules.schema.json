@@ -592,6 +592,17 @@
             }
           ]
         },
+        "member": {
+          "description": "A test of what is **inside** the parsed value, asked of the member a path selects.\n\nBeside `parses`, which says how to read the text; the whole value grammar applies to the member, so a\ncomparison is typed - `{\"path\": \"$.stream\", \"equals\": true}` asks about the flag rather than about the\nfour characters `true`. A producer that writes a request's options as one JSON attribute is read by this\nrather than by a substring of its text, which would also match a value a prompt mentions.\n\nThree-valued, composing with `parses`: **unknown** where the attribute is absent, **false** where it is\npresent and its text does not parse, and otherwise the member test's own answer in the value grammar -\nwhere a member that is not there is itself unknown, because \"no value satisfied this\" and \"there was no\nvalue to ask about\" are different answers. An asset that wants a missing member to be false writes\n`\"exists\": true` beside the test, the same escape hatch as for an absent attribute.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValuePredicate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "version": {
           "description": "The value is a release inside this half-open range, ordered by the package's scheme. Asked of\n`scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never\n\"the latest\". The last resort of the language: a shape test says what changed, a version only when.",
           "anyOf": [
@@ -676,6 +687,136 @@
           "type": "string",
           "const": "json"
         }
+      ]
+    },
+    "ValuePredicate": {
+      "description": "A condition on a JSON value, or on a member of it.\n\nOne vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,\nwhether a source is eligible, whether a section is dropped. Before this there were three bespoke\nspellings - a member-name list, an `is_object` flag, and a fused \"capture lacks prefix and body starts\nwith\" pair - and a fourth was about to be added for a dialect that needs \"this member is an object, or\nthat one is a non-empty string\". Three narrow predicates are harder to reason about than one, and the\nfused pair was producer policy wearing a generic name.\n\nDeliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of\ndotted keys, where \"nested\" means \"some other key starts with this one\". Same word, different domain -\nand one type spanning both would have to mean different things depending on where it was used.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this condition is the right one, where that is not obvious from the condition. A field rather\nthan a comment, as everywhere else here, because the explain trace surfaces it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "path": {
+          "description": "A JSONPath to the value under test. Absent means the value itself.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "exists": {
+          "description": "The member must be present. Implied when the predicate names nothing else.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "kind": {
+          "description": "The value's JSON kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "non_empty": {
+          "description": "A string, array or object must not be empty. Meaningless for other kinds, and refused there.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "identifier_like": {
+          "description": "The value begins like an identifier - a letter, a digit or an underscore.\n\nGeneric in form, and declared per rule rather than folded into the tool-definition constructor: one\ndialect reports a synthetic aggregate under a name in parentheses, which is not a tool anyone can\ncall, while another dialect's carriers have never needed the test. Making it canonical would change\nwhat every other carrier accepts, silently.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "non_blank": {
+          "description": "A string holding something other than whitespace. Meaningless for other kinds, and unknown there.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "not_null": {
+          "description": "The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from\n`non_empty`, which is about a string, array or object having contents.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "starts_with": {
+          "description": "A string must start with this.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "lacks_prefix": {
+          "description": "A string must *not* start with this.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "one_of": {
+          "description": "The value must be one of these strings. An absent member satisfies nothing.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "none_of": {
+          "description": "The value must not be any of these strings.\n\nAn **absent** member satisfies this: \"its value is not one of these\" is true when there is no value,\nwhich is how a dialect's unnamed events fall through to the reading that handles them.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "equals": {
+          "description": "The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about\nstrings. `null` cannot be written here (it reads as \"no condition\"); `kind: null` says it.",
+          "default": null
+        },
+        "only_members": {
+          "description": "The value must be an object with no member outside these. A subset: a shape that must also hold one\nof them says so with a predicate of its own.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ValueKind": {
+      "description": "A JSON kind, for `ValuePredicate::kind`.",
+      "type": "string",
+      "enum": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "bool",
+        "null"
       ]
     },
     "VersionRange": {
@@ -1307,136 +1448,6 @@
           ],
           "additionalProperties": false
         }
-      ]
-    },
-    "ValuePredicate": {
-      "description": "A condition on a JSON value, or on a member of it.\n\nOne vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,\nwhether a source is eligible, whether a section is dropped. Before this there were three bespoke\nspellings - a member-name list, an `is_object` flag, and a fused \"capture lacks prefix and body starts\nwith\" pair - and a fourth was about to be added for a dialect that needs \"this member is an object, or\nthat one is a non-empty string\". Three narrow predicates are harder to reason about than one, and the\nfused pair was producer policy wearing a generic name.\n\nDeliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of\ndotted keys, where \"nested\" means \"some other key starts with this one\". Same word, different domain -\nand one type spanning both would have to mean different things depending on where it was used.",
-      "type": "object",
-      "properties": {
-        "doc": {
-          "description": "Why this condition is the right one, where that is not obvious from the condition. A field rather\nthan a comment, as everywhere else here, because the explain trace surfaces it.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "path": {
-          "description": "A JSONPath to the value under test. Absent means the value itself.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "exists": {
-          "description": "The member must be present. Implied when the predicate names nothing else.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        },
-        "kind": {
-          "description": "The value's JSON kind.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ValueKind"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "non_empty": {
-          "description": "A string, array or object must not be empty. Meaningless for other kinds, and refused there.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        },
-        "identifier_like": {
-          "description": "The value begins like an identifier - a letter, a digit or an underscore.\n\nGeneric in form, and declared per rule rather than folded into the tool-definition constructor: one\ndialect reports a synthetic aggregate under a name in parentheses, which is not a tool anyone can\ncall, while another dialect's carriers have never needed the test. Making it canonical would change\nwhat every other carrier accepts, silently.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        },
-        "non_blank": {
-          "description": "A string holding something other than whitespace. Meaningless for other kinds, and unknown there.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        },
-        "not_null": {
-          "description": "The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from\n`non_empty`, which is about a string, array or object having contents.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        },
-        "starts_with": {
-          "description": "A string must start with this.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "lacks_prefix": {
-          "description": "A string must *not* start with this.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "one_of": {
-          "description": "The value must be one of these strings. An absent member satisfies nothing.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "none_of": {
-          "description": "The value must not be any of these strings.\n\nAn **absent** member satisfies this: \"its value is not one of these\" is true when there is no value,\nwhich is how a dialect's unnamed events fall through to the reading that handles them.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "equals": {
-          "description": "The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about\nstrings. `null` cannot be written here (it reads as \"no condition\"); `kind: null` says it.",
-          "default": null
-        },
-        "only_members": {
-          "description": "The value must be an object with no member outside these. A subset: a shape that must also hold one\nof them says so with a predicate of its own.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        }
-      },
-      "additionalProperties": false
-    },
-    "ValueKind": {
-      "description": "A JSON kind, for `ValuePredicate::kind`.",
-      "type": "string",
-      "enum": [
-        "object",
-        "array",
-        "string",
-        "number",
-        "bool",
-        "null"
       ]
     },
     "ParseMode": {

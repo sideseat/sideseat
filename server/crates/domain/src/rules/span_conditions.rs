@@ -36,6 +36,15 @@ pub enum SpanAtom {
     SpanAttrContains { key: String, value: String },
     /// This attribute's text parses as JSON. Unknown where the attribute is absent.
     SpanAttrParsesJson { key: String },
+    /// A question about a member of this attribute's parsed JSON, in the value grammar.
+    ///
+    /// Unknown where the attribute is absent, false where its text does not parse, and otherwise the member
+    /// question's own answer - which is the value grammar's, so a comparison is typed and a member that is not
+    /// there satisfies nothing.
+    SpanAttrJsonMember {
+        key: String,
+        question: Box<super::expr::JsonExpr>,
+    },
     /// The instrumentation scope is exactly this.
     ScopeNameEquals { name: String },
     /// The instrumentation scope's name begins with this. Unknown where the span reports no scope.
@@ -129,6 +138,20 @@ impl SpanAtom {
                 value_test(subject.attrs.get(key).map(String::as_str), &|found| {
                     serde_json::from_str::<serde::de::IgnoredAny>(found).is_ok()
                 })
+            }
+            Self::SpanAttrJsonMember { key, question } => {
+                match subject.attrs.get(key).map(String::as_str) {
+                    // Absent, like every other value test: "the member is not this" is not an answer a span
+                    // that carries no such attribute gives.
+                    None => Truth::Unknown,
+                    // Present and unreadable is a **false** answer rather than an unknown one: the attribute is
+                    // there and does not hold what the condition asks about, which is the same answer `parses`
+                    // gives, and the reason a `not` over this holds for a truncated payload.
+                    Some(text) => match serde_json::from_str::<serde_json::Value>(text) {
+                        Err(_) => Truth::False,
+                        Ok(parsed) => question.eval(&mut |atom| atom.eval(&parsed)),
+                    },
+                }
             }
             Self::ScopeNameEquals { name } => {
                 value_test(subject.scope_name, &|found| found == name)
@@ -245,7 +268,8 @@ impl SpanAtom {
             | Self::SpanAttrEquals { key, .. }
             | Self::SpanAttrEqualsIgnoreAsciiCase { key, .. }
             | Self::SpanAttrContains { key, .. }
-            | Self::SpanAttrParsesJson { key } => Some(key),
+            | Self::SpanAttrParsesJson { key }
+            | Self::SpanAttrJsonMember { key, .. } => Some(key),
             _ => None,
         }
     }
@@ -512,6 +536,7 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
         + usize::from(atom.contains.is_some())
         + usize::from(atom.contains_ignore_case.is_some())
         + usize::from(atom.parses.is_some())
+        + usize::from(atom.member.is_some())
         + usize::from(atom.version.is_some());
     if tests == 0 {
         return refuse("a condition names a source and asks nothing of it".to_string());
@@ -646,6 +671,29 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
         atoms.push(match &source {
             Source::Attr(key) => Expr::Atom(SpanAtom::SpanAttrParsesJson { key: key.clone() }),
             _ => unanswerable("parses")?,
+        });
+    }
+    if let Some(member) = &atom.member {
+        // Only beside the encoding that says how to read the text: a member of an attribute nobody declared as
+        // JSON would be a parse this condition performed without saying so.
+        if atom.parses != Some(super::schema::Encoding::Json) {
+            return Err(ConditionDefect(format!(
+                "source `{text}` asks about a member without `\"parses\": \"json\"`, so nothing says how its \
+                 text is to be read"
+            )));
+        }
+        let question = super::expr::json_expr_of_predicate(member).ok_or_else(|| {
+            ConditionDefect(format!(
+                "source `{text}` asks about a member with no condition on it - `member` is where the test goes, \
+                 and `parses` alone already says the text is JSON"
+            ))
+        })?;
+        atoms.push(match &source {
+            Source::Attr(key) => Expr::Atom(SpanAtom::SpanAttrJsonMember {
+                key: key.clone(),
+                question: Box::new(question),
+            }),
+            _ => unanswerable("member")?,
         });
     }
     if let Some(value) = &atom.contains {

@@ -93,6 +93,7 @@ An atom names a `source` and the tests asked of the value it selects:
 | `contains` | contains this text | `attr:<key>`, `resource:<key>` |
 | `contains_ignore_case` | contains this text, ignoring case | `span_name`, `attr:<key>` |
 | `parses` | parses in the named encoding (`json`); false where it does not, so a value cut short by a length limit does not hold | `attr:<key>` |
+| `member` | a test of one member **inside** the parsed value, in the value grammar, so a comparison is typed: `{"source": "attr:request_data", "parses": "json", "member": {"path": "$.stream", "equals": true}}` asks about the flag rather than about the four characters `true`. Needs `parses` beside it, and answers unknown for an absent attribute, false for text that does not parse, and otherwise what the member test says - a member that is not there is unknown, unless `"exists": true` sits beside the test | `attr:<key>` |
 | `version` | is a release in `[at_least, below)` of the stated `scheme` (`pep440` or `semver`) | `scope.version` |
 
 Atoms combine with `all` (`{"all": [...]}`), `any` (`{"any": [...]}`), each with two or more members, and `not`
@@ -760,6 +761,7 @@ the test to make it false instead.
 | `contains` | string | The value contains this text. |
 | `contains_ignore_case` | string | The value contains this text, ignoring case (Unicode lower-casing). |
 | `parses` | [`Encoding`](#encoding) or null | The attribute's text parses in this encoding: `json`. False where it is present and does not - text cut short by an attribute length limit, say - and unknown where it is absent, so `not` over it holds only for a value that is there and does not parse. |
+| `member` | [`ValuePredicate`](#valuepredicate) or null | A test of what is **inside** the parsed value, asked of the member a path selects. |
 | `version` | [`VersionRange`](#versionrange) or null | The value is a release inside this half-open range, ordered by the package's scheme. Asked of `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never "the latest". The last resort of the language: a shape test says what changed, a version only when. |
 
 ### `ConditionSource`
@@ -791,6 +793,44 @@ Only the first of several sources that has a value.
 An encoding an attribute's text may be written in.
 
 - `"json"`: Any JSON value, as `serde_json` reads one.
+
+### `ValuePredicate`
+
+A condition on a JSON value, or on a member of it.
+
+One vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,
+whether a source is eligible, whether a section is dropped. Before this there were three bespoke
+spellings - a member-name list, an `is_object` flag, and a fused "capture lacks prefix and body starts
+with" pair - and a fourth was about to be added for a dialect that needs "this member is an object, or
+that one is a non-empty string". Three narrow predicates are harder to reason about than one, and the
+fused pair was producer policy wearing a generic name.
+
+Deliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of
+dotted keys, where "nested" means "some other key starts with this one". Same word, different domain -
+and one type spanning both would have to mean different things depending on where it was used.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this condition is the right one, where that is not obvious from the condition. A field rather than a comment, as everywhere else here, because the explain trace surfaces it. |
+| `path` | string | A JSONPath to the value under test. Absent means the value itself. |
+| `exists` | true or false | The member must be present. Implied when the predicate names nothing else. |
+| `kind` | [`ValueKind`](#valuekind) or null | The value's JSON kind. |
+| `non_empty` | true or false | A string, array or object must not be empty. Meaningless for other kinds, and refused there. |
+| `identifier_like` | true or false | The value begins like an identifier - a letter, a digit or an underscore. |
+| `non_blank` | true or false | A string holding something other than whitespace. Meaningless for other kinds, and unknown there. |
+| `not_null` | true or false | The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from `non_empty`, which is about a string, array or object having contents. |
+| `starts_with` | string | A string must start with this. |
+| `lacks_prefix` | string | A string must *not* start with this. |
+| `one_of` | list of string | The value must be one of these strings. An absent member satisfies nothing. |
+| `none_of` | list of string | The value must not be any of these strings. |
+| `equals` | any JSON value | The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about strings. `null` cannot be written here (it reads as "no condition"); `kind: null` says it. |
+| `only_members` | list of string | The value must be an object with no member outside these. A subset: a shape that must also hold one of them says so with a predicate of its own. |
+
+### `ValueKind`
+
+A JSON kind, for `ValuePredicate::kind`.
+
+Written as one of `"object"`, `"array"`, `"string"`, `"number"`, `"bool"`, `"null"`.
 
 ### `VersionRange`
 
@@ -959,44 +999,6 @@ than a field to un-refuse.
 - object with `all` (list of [`Expr_ValuePredicate`](#expr_valuepredicate), required), `doc` (string)
 - object with `any` (list of [`Expr_ValuePredicate`](#expr_valuepredicate), required), `doc` (string)
 - object with `not` ([`Expr_ValuePredicate`](#expr_valuepredicate), required), `doc` (string)
-
-### `ValuePredicate`
-
-A condition on a JSON value, or on a member of it.
-
-One vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,
-whether a source is eligible, whether a section is dropped. Before this there were three bespoke
-spellings - a member-name list, an `is_object` flag, and a fused "capture lacks prefix and body starts
-with" pair - and a fourth was about to be added for a dialect that needs "this member is an object, or
-that one is a non-empty string". Three narrow predicates are harder to reason about than one, and the
-fused pair was producer policy wearing a generic name.
-
-Deliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of
-dotted keys, where "nested" means "some other key starts with this one". Same word, different domain -
-and one type spanning both would have to mean different things depending on where it was used.
-
-| Key | Type | What it is |
-| --- | --- | --- |
-| `doc` | string | Why this condition is the right one, where that is not obvious from the condition. A field rather than a comment, as everywhere else here, because the explain trace surfaces it. |
-| `path` | string | A JSONPath to the value under test. Absent means the value itself. |
-| `exists` | true or false | The member must be present. Implied when the predicate names nothing else. |
-| `kind` | [`ValueKind`](#valuekind) or null | The value's JSON kind. |
-| `non_empty` | true or false | A string, array or object must not be empty. Meaningless for other kinds, and refused there. |
-| `identifier_like` | true or false | The value begins like an identifier - a letter, a digit or an underscore. |
-| `non_blank` | true or false | A string holding something other than whitespace. Meaningless for other kinds, and unknown there. |
-| `not_null` | true or false | The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from `non_empty`, which is about a string, array or object having contents. |
-| `starts_with` | string | A string must start with this. |
-| `lacks_prefix` | string | A string must *not* start with this. |
-| `one_of` | list of string | The value must be one of these strings. An absent member satisfies nothing. |
-| `none_of` | list of string | The value must not be any of these strings. |
-| `equals` | any JSON value | The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about strings. `null` cannot be written here (it reads as "no condition"); `kind: null` says it. |
-| `only_members` | list of string | The value must be an object with no member outside these. A subset: a shape that must also hold one of them says so with a predicate of its own. |
-
-### `ValueKind`
-
-A JSON kind, for `ValuePredicate::kind`.
-
-Written as one of `"object"`, `"array"`, `"string"`, `"number"`, `"bool"`, `"null"`.
 
 ### `ParseMode`
 

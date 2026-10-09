@@ -52,6 +52,20 @@ pub struct SpanCondition {
     /// a value that is there and does not parse.
     #[serde(default)]
     pub parses: Option<Encoding>,
+    /// A test of what is **inside** the parsed value, asked of the member a path selects.
+    ///
+    /// Beside `parses`, which says how to read the text; the whole value grammar applies to the member, so a
+    /// comparison is typed - `{"path": "$.stream", "equals": true}` asks about the flag rather than about the
+    /// four characters `true`. A producer that writes a request's options as one JSON attribute is read by this
+    /// rather than by a substring of its text, which would also match a value a prompt mentions.
+    ///
+    /// Three-valued, composing with `parses`: **unknown** where the attribute is absent, **false** where it is
+    /// present and its text does not parse, and otherwise the member test's own answer in the value grammar -
+    /// where a member that is not there is itself unknown, because "no value satisfied this" and "there was no
+    /// value to ask about" are different answers. An asset that wants a missing member to be false writes
+    /// `"exists": true` beside the test, the same escape hatch as for an absent attribute.
+    #[serde(default)]
+    pub member: Option<ValuePredicate>,
     /// The value is a release inside this half-open range, ordered by the package's scheme. Asked of
     /// `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never
     /// "the latest". The last resort of the language: a shape test says what changed, a version only when.
