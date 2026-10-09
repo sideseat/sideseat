@@ -4,7 +4,7 @@ from typing import Any
 
 from google.adk.models.lite_llm import LiteLlm
 
-from harness import Model
+from harness import Model, litellm_models
 from harness.models import region
 
 
@@ -19,6 +19,7 @@ def build(model: Model, *, reasoning: bool = False) -> LiteLlm:
         # for a summary so the telemetry carries visible reasoning.
         extra["thinking"] = {"type": "adaptive", "display": "summarized"}
         extra["output_config"] = {"effort": "max"}
+    litellm_models.pin()
     return LiteLlm(
         model=model.litellm_id,
         aws_region_name=region(),

@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from harness import transcript
+from harness import litellm_models, transcript
 from harness.models import region
 from harness.scrub import scrub_body
 
@@ -37,11 +37,16 @@ _KEPT_RESPONSE_HEADERS = ("content-type", "x-amzn-bedrock-content-type")
 
 
 def client_environment(url: str) -> dict[str, str]:
-    """Environment variables that send every supported model client through the proxy at ``url``."""
+    """Environment variables that send every supported model client through the proxy at ``url``.
+
+    LiteLLM is also kept from downloading its model map (``litellm_models``): what it sends must depend on
+    the release and the pinned map, never on the network.
+    """
     return {
         "AWS_ENDPOINT_URL_BEDROCK_RUNTIME": url,
         "AWS_BEDROCK_RUNTIME_ENDPOINT": url,
         "SIDESEAT_MODEL_PROXY": url,
+        **litellm_models.ENV,
     }
 
 

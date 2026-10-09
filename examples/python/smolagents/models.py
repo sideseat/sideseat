@@ -4,7 +4,7 @@ from typing import Any
 
 from smolagents import LiteLLMModel
 
-from harness import Model
+from harness import Model, litellm_models
 from harness.models import region
 
 
@@ -21,6 +21,7 @@ def build(model: Model, *, reasoning: bool = False) -> LiteLLMModel:
         # for a summary so the telemetry carries visible reasoning.
         extra["thinking"] = {"type": "adaptive", "display": "summarized"}
         extra["output_config"] = {"effort": "max"}
+    litellm_models.pin()
     return LiteLLMModel(
         model_id=model.litellm_id,
         aws_region_name=region(),

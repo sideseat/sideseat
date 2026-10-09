@@ -98,6 +98,7 @@
     "fact-001",
     "fact-002",
     "fact-003",
+    "fact-006",
     "fact-004"
    ],
    "final_answers": [
@@ -228,7 +229,32 @@
    },
    "fixtures": [
     "adk/native/streaming",
+    "adk/native@1.22.1/streaming",
+    "adk/native@1.23.0/streaming",
     "adk/sdk/streaming"
+   ]
+  },
+  {
+   "id": "fact-006",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Handle the requests as specified in the System Instruction."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "adk/native@1.23.0/streaming"
    ]
   }
  ],
@@ -247,6 +273,11 @@
    "kind": "call_order",
    "before": "call-001",
    "after": "call-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-006",
+   "to": "call-002"
   }
  ],
  "gaps": [
@@ -352,6 +383,213 @@
           "is_error": false
          },
          "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "adk/native@1.22.1/streaming": {
+   "transcript": "server/tests/fixtures/messages/adk/native@1.22.1/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "new_fact": "fact-005"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "replay_of": "fact-005"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_xy2rgAvsDJyieSjl4FbFNw",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_xy2rgAvsDJyieSjl4FbFNw",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Rome\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "adk/native@1.23.0/streaming": {
+   "transcript": "server/tests/fixtures/messages/adk/native@1.23.0/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "new_fact": "fact-005"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "replay_of": "fact-005"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_xy2rgAvsDJyieSjl4FbFNw",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_xy2rgAvsDJyieSjl4FbFNw",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Rome\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        },
+        {
+         "part": {
+          "type": "text",
+          "text": "Handle the requests as specified in the System Instruction."
+         },
+         "new_fact": "fact-006"
         }
        ]
       }
