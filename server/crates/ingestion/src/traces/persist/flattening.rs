@@ -184,7 +184,7 @@ fn to_normalized_span(
         observation_type: span.observation_type,
         framework: span.framework,
         request_thread: span.request_thread,
-        span_marks: 0,
+        span_marks: span.span_marks,
         scope_name: span.scope_name.clone(),
         scope_version: span.scope_version.clone(),
         status_code: span.status_code,

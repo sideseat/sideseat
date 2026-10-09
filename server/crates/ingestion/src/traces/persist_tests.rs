@@ -273,3 +273,25 @@ fn a_quota_rejection_only_rewrites_the_project_it_happened_in() {
         "the other project stored this file; its reference must be left alone"
     );
 }
+
+/// What the extraction derived about a span reaches the stored row: the marks a read-time projection asks are
+/// answered once, at ingest, and a row that lost them answers every such question "no".
+#[test]
+fn flattening_keeps_the_derived_span_columns() {
+    let request = make_request(1);
+    let mut span = make_span("span1");
+    span.span_marks = 0b101;
+    span.request_thread = "thread-1".to_string();
+    let (result, _) = flatten(
+        &request,
+        vec![span],
+        vec![vec![]],
+        vec![vec![]],
+        vec![vec![]],
+        vec![make_enrichment()],
+        false,
+        None,
+    );
+    assert_eq!(result[0].span_marks, 0b101);
+    assert_eq!(result[0].request_thread, "thread-1");
+}
