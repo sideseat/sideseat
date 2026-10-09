@@ -62,11 +62,19 @@ fn call_span(project: &str, span: &str, offset: i64, call_id: &str) -> Normalize
 async fn seed_request_context(backend: &(impl AnalyticsRepository + ?Sized), project: &str) {
     backend
         .insert_spans(vec![
-            thread_request(project, "thread-a", "req-a1", 10, "first", "reply one"),
+            // Marked, as the call below is: a composed row goes through the projections its own view does, so
+            // both backends must hand a composition the marks each span was stored with.
+            NormalizedSpan {
+                span_marks: 0b1,
+                ..thread_request(project, "thread-a", "req-a1", 10, "first", "reply one")
+            },
             thread_request(project, "thread-a", "req-a2", 20, "second", "reply two"),
             thread_request(project, "thread-a", "req-a3", 30, "third", "reply three"),
             thread_request(project, "thread-b", "req-b1", 15, "other", "other reply"),
-            call_span(project, "tool-a", 12, "call-a"),
+            NormalizedSpan {
+                span_marks: 0b10,
+                ..call_span(project, "tool-a", 12, "call-a")
+            },
             call_span(project, "tool-b", 16, "call-b"),
         ])
         .await
@@ -88,8 +96,13 @@ async fn seed_request_context(backend: &(impl AnalyticsRepository + ?Sized), pro
         .expect("a re-sent request");
 }
 
-/// What a composed request's reads returned, reduced to what this suite is about.
+/// What a composed request's reads returned, reduced to what this suite is about: each row's span, with its marks
+/// where it has any, and the thread rows' messages.
 fn composed(rows: &RequestContextRows) -> (Vec<(String, String)>, Vec<String>) {
+    let label = |row: &MessageSpanRow| match row.span_marks {
+        0 => row.span_id.clone(),
+        marks => format!("{} marks={marks:#b}", row.span_id),
+    };
     let text = |row: &MessageSpanRow| {
         let messages: Vec<serde_json::Value> = serde_json::from_str(&row.messages_json)
             .unwrap_or_else(|e| panic!("messages_json is not an array: {e}: {row:?}"));
@@ -107,9 +120,9 @@ fn composed(rows: &RequestContextRows) -> (Vec<(String, String)>, Vec<String>) {
     (
         rows.thread
             .iter()
-            .map(|row| (row.span_id.clone(), text(row)))
+            .map(|row| (label(row), text(row)))
             .collect(),
-        rows.calls.iter().map(|row| row.span_id.clone()).collect(),
+        rows.calls.iter().map(label).collect(),
     )
 }
 
@@ -161,14 +174,17 @@ async fn a_request_s_thread_and_calls_read_the_same_on_both_backends() {
         duck_rows,
         (
             vec![
-                ("req-a1".to_string(), "first|reply one".to_string()),
+                (
+                    "req-a1 marks=0b1".to_string(),
+                    "first|reply one".to_string()
+                ),
                 (
                     "req-a2".to_string(),
                     "second|reply two, revised".to_string()
                 ),
                 ("req-a3".to_string(), "third|reply three".to_string()),
             ],
-            vec!["tool-a".to_string()],
+            vec!["tool-a marks=0b10".to_string()],
         ),
         "the thread's own requests, in order, at their latest revision, and only the call asked for"
     );
@@ -184,7 +200,7 @@ async fn a_request_s_thread_and_calls_read_the_same_on_both_backends() {
             .iter()
             .map(|(id, _)| id.as_str())
             .collect::<Vec<_>>(),
-        ["req-a1", "req-a2"],
+        ["req-a1 marks=0b1", "req-a2"],
         "nothing after the bound"
     );
     assert!(duck_earlier.1.is_empty(), "no ids asked for, no calls read");

@@ -162,6 +162,7 @@ struct ChThreadRow {
     scope_name: Option<String>,
     scope_version: Option<String>,
     session_id: Option<String>,
+    span_marks: u16,
 }
 
 impl From<ChThreadRow> for MessageSpanRow {
@@ -182,6 +183,7 @@ impl From<ChThreadRow> for MessageSpanRow {
             scope_name: row.scope_name,
             scope_version: row.scope_version,
             session_id: row.session_id,
+            span_marks: row.span_marks,
             ..thread_row_defaults()
         }
     }

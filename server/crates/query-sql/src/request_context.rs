@@ -13,18 +13,20 @@ use crate::keyed::{KEYED_CHUNK, duckdb_keyed};
 ///
 /// The messages and the facts that place them, and nothing else: the search terms, the previews and the raw
 /// pointers are bytes a composition never looks at, and on both backends a projection is what decides how much of
-/// a row is read.
+/// a row is read. The marks are among those facts: a composed row goes through the same projections as the row's
+/// own view, and a projection that asks about a mark must see the one the span was stored with, or a request
+/// withdrawn from its own view would still be composed into the next one's.
 pub const THREAD_COLUMNS: &str = "trace_id, span_id, timestamp_start, status_code, messages, \
-     observation_type, span_name, scope_name, scope_version, session_id";
+     observation_type, span_name, scope_name, scope_version, session_id, span_marks";
 
 /// The same, plus the two columns a winner condition reads: a keyed relation is materialised before the condition
 /// applies, so a column the condition names has to be in it.
 const KEYED_COLUMNS: &str = "trace_id, span_id, timestamp_start, status_code, messages, \
-     observation_type, span_name, scope_name, scope_version, session_id, superseded_at, ingested_at";
+     observation_type, span_name, scope_name, scope_version, session_id, span_marks, superseded_at, ingested_at";
 
 /// The same, plus the call id a call read narrows on afterwards.
 const KEYED_CALL_COLUMNS: &str = "trace_id, span_id, timestamp_start, status_code, messages, \
-     observation_type, span_name, scope_name, scope_version, session_id, superseded_at, ingested_at, \
+     observation_type, span_name, scope_name, scope_version, session_id, span_marks, superseded_at, ingested_at, \
      gen_ai_tool_call_id";
 
 /// The earlier requests of one thread: every winning span whose derived `request_thread` is `thread` and which

@@ -135,6 +135,7 @@ fn parse_thread_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> 
         scope_name: row.get(7)?,
         scope_version: row.get(8)?,
         session_id: row.get(9)?,
+        span_marks: row.get(10)?,
         parent_span_id: None,
         span_end_timestamp: None,
         tool_definitions_json: "[]".to_string(),
@@ -163,7 +164,6 @@ fn parse_thread_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> 
         cost_input: 0.0,
         cost_output: 0.0,
         request_thread: String::new(),
-        span_marks: 0,
     })
 }
 
@@ -678,5 +678,87 @@ mod tests {
             "the span view applies no content filter"
         );
         assert_eq!(alone.rows[0].log_messages_json, "[]");
+    }
+
+    /// **A composed row carries the marks its own view reads.** A request's view is composed from its thread's
+    /// rows, and those rows go through the same projections as each row's own view - so a projection that asks
+    /// about a mark must see, on the composed row, the word the span was stored with. The thread and call reads
+    /// once left it out, and every predecessor arrived unmarked: a request withdrawn from its own view would still
+    /// have been composed into the next one's.
+    #[tokio::test]
+    async fn a_composed_row_carries_the_marks_its_own_view_reads() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project = "test-project";
+        let thread = r#"["probe.thread","session-1"]"#;
+        let start = Utc::now() - Duration::seconds(60);
+        let messages = r#"[{"source":{"attribute":{"key":"probe","time":"2025-01-01T00:00:00Z"}},"content":{"role":"user","content":"q"}}]"#;
+        let request = |span: &str, offset: i64, marks: u16| NormalizedSpan {
+            timestamp_start: start + Duration::seconds(offset),
+            request_thread: thread.to_string(),
+            span_marks: marks,
+            ..make_span_with_messages(project, &format!("trace-{span}"), span, messages)
+        };
+        let call = NormalizedSpan {
+            timestamp_start: start + Duration::seconds(1),
+            gen_ai_tool_call_id: Some("call-1".to_string()),
+            span_marks: 0b100,
+            ..make_span_with_messages(project, "trace-call", "call", messages)
+        };
+        {
+            let conn = analytics.conn();
+            insert_batch(
+                &conn,
+                &[request("marked", 0, 0b10), request("plain", 2, 0), call],
+            )
+            .expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let context = get_request_context(
+            &conn,
+            &RequestContextParams {
+                project_id: ProjectId::from(project),
+                thread: thread.to_string(),
+                before_us: (start + Duration::seconds(10)).timestamp_micros(),
+                call_ids: vec!["call-1".to_string()],
+                call_trace_ids: vec!["trace-call".to_string()],
+                ingested_before_us: None,
+            },
+        )
+        .expect("the request context");
+        let composed: std::collections::BTreeMap<String, u16> = context
+            .thread
+            .iter()
+            .chain(&context.calls)
+            .map(|row| (row.span_id.clone(), row.span_marks))
+            .collect();
+        assert_eq!(
+            composed,
+            [("call", 0b100), ("marked", 0b10), ("plain", 0)]
+                .into_iter()
+                .map(|(span, marks)| (span.to_string(), marks))
+                .collect(),
+            "the thread and call reads carry each span's stored marks"
+        );
+        for (span, marks) in &composed {
+            let own = get_messages(
+                &conn,
+                &MessageQueryParams {
+                    project_id: ProjectId::from(project),
+                    span_id: Some(span.clone()),
+                    trace_id: Some(format!("trace-{span}")),
+                    ..Default::default()
+                },
+            )
+            .expect("the span's own view");
+            assert_eq!(
+                own.rows
+                    .iter()
+                    .map(|row| row.span_marks)
+                    .collect::<Vec<_>>(),
+                vec![*marks],
+                "`{span}`: its own view and the composition read the same marks"
+            );
+        }
     }
 }
