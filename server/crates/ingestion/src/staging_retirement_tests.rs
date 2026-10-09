@@ -227,3 +227,88 @@ async fn a_lost_registration_is_recorded_and_counted() {
         vec![(reference.id.clone(), reference.seq, 2)]
     );
 }
+
+/// What staging costs an export on the ack path and on the settle path, with the real filesystem blob store and
+/// SQLite registry: the fixed cost group commit is to share. Run by hand:
+///
+/// ```text
+/// cargo test --locked -p sideseat-ingestion --lib bench_staging_fixed_cost -- --ignored --nocapture
+/// ```
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "a measurement of synced writes; see the doc comment"]
+async fn bench_staging_fixed_cost() {
+    const EXPORTS: usize = 200;
+    // The corpus' median export.
+    let body = vec![7u8; 7_528];
+    let fixture = Arc::new(fixture().await);
+    for concurrency in [1usize, 16] {
+        let started = std::time::Instant::now();
+        let mut references = Vec::with_capacity(EXPORTS);
+        for chunk in (0..EXPORTS).collect::<Vec<_>>().chunks(concurrency) {
+            let staged =
+                futures::future::join_all(chunk.iter().map(|_| stage(&fixture, &body))).await;
+            references.extend(staged);
+        }
+        let staging = started.elapsed();
+        let started = std::time::Instant::now();
+        for chunk in references.chunks(concurrency) {
+            futures::future::join_all(chunk.iter().map(|reference| {
+                let fixture = Arc::clone(&fixture);
+                let id = reference.id.clone();
+                async move {
+                    let (payload, _) = fixture
+                        .service
+                        .load(&id)
+                        .await
+                        .expect("load")
+                        .expect("staged");
+                    fixture.service.release(&payload).await.expect("release");
+                }
+            }))
+            .await;
+        }
+        let releasing = started.elapsed();
+        println!(
+            "[staging] {concurrency:>2} at a time: stage {:.2} ms/export, load + release {:.2} ms/export",
+            staging.as_secs_f64() * 1000.0 / EXPORTS as f64,
+            releasing.as_secs_f64() * 1000.0 / EXPORTS as f64
+        );
+    }
+    // Its parts, one at a time: the blob write alone, then the registry row alone.
+    let started = std::time::Instant::now();
+    for index in 0..EXPORTS {
+        fixture
+            .service
+            .storage
+            .store(&fixture.project, &format!("{index:064x}"), &body)
+            .await
+            .expect("blob");
+    }
+    let blobs = started.elapsed();
+    let started = std::time::Instant::now();
+    for index in 0..EXPORTS {
+        let payload = sideseat_ports::types::StagedPayload {
+            id: format!("bench-{index}"),
+            project_id: fixture.project.clone(),
+            signal: StagedSignal::Traces,
+            blob_hash: format!("{index:064x}"),
+            byte_len: body.len() as u64,
+            created_at: Utc::now(),
+            redrive_attempts: 0,
+            unconfirmed: false,
+            records: Vec::new(),
+        };
+        fixture
+            .service
+            .database
+            .create_staged_payload(&payload)
+            .await
+            .expect("row");
+    }
+    let rows = started.elapsed();
+    println!(
+        "[staging] parts: blob {:.2} ms/export, registry row {:.2} ms/export",
+        blobs.as_secs_f64() * 1000.0 / EXPORTS as f64,
+        rows.as_secs_f64() * 1000.0 / EXPORTS as f64
+    );
+}
