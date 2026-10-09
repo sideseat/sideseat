@@ -33,13 +33,18 @@ def entries() -> dict[str, dict[str, Any]]:
 
 
 def pin() -> None:
-    """Registers the pinned entries with LiteLLM, and forbids a download it has not made yet.
+    """Makes the pinned entries the whole of what LiteLLM knows of these models.
 
-    Registering updates the model's description but not the per-provider sets LiteLLM routes by - which
-    models take Bedrock Converse - so the sets are folded again from the updated map.
+    Registering merges an entry into what the map already said, so each entry is then set as it is pinned, and
+    a capability another map stated cannot survive. Registering does not update the per-provider sets LiteLLM
+    routes by - which models take Bedrock Converse - so the sets are folded again from the updated map. The
+    harness package forbids the download when it is imported, before any suite imports LiteLLM.
     """
     os.environ.update(ENV)
     import litellm
 
-    litellm.register_model(entries())
+    pinned = entries()
+    litellm.register_model(pinned)
+    for model_id, entry in pinned.items():
+        litellm.model_cost[model_id] = dict(entry)
     litellm.add_known_models()
