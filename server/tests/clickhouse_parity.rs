@@ -24,7 +24,7 @@
 //!
 //! Not covered, and worth knowing before trusting a green run:
 //!
-//! - metric ingestion and reads.
+//! - metric ingestion, and metric reads beyond one datapoint's, which is read every way the API reads it.
 //! - anything that only appears at scale or with data this fixture does not have: a trace of
 //!   thousands of spans, top-N truncation in stats, several models or frameworks in one project. The core
 //!   reads over the message corpus grown to a million spans are compared by `reads_agree_at_a_million_spans`,

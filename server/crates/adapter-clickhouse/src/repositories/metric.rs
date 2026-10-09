@@ -203,7 +203,7 @@ impl From<ChMetricAggregateRow> for MetricAggregateRow {
 
 #[derive(Row, Deserialize)]
 struct ChFilterOptionRow {
-    value: Option<String>,
+    value: String,
     count: u64,
 }
 
@@ -403,11 +403,9 @@ pub async fn get_metric_filter_options(
         result.insert(
             option.column,
             rows.into_iter()
-                .filter_map(|row| {
-                    row.value.map(|value| FilterOptionRow {
-                        value,
-                        count: row.count,
-                    })
+                .map(|row| FilterOptionRow {
+                    value: row.value,
+                    count: row.count,
                 })
                 .collect(),
         );

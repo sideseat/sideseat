@@ -124,7 +124,7 @@ pub fn metric_filter_options(
                         "SELECT {} AS value, {} AS count FROM {} m WHERE {} \
                          GROUP BY m.{column} ORDER BY count DESC, value ASC \
                          LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}",
-                        string_value(&format!("m.{column}"), backend),
+                        option_value(column, backend),
                         count(backend),
                         winning_metrics(backend),
                         conditions.join(" AND ")
@@ -211,13 +211,25 @@ fn projection(backend: Backend) -> String {
         nullable_timestamp_micros("m.timestamp", backend),
         nullable_timestamp_micros("m.start_timestamp", backend),
         nullable_timestamp_micros("m.exemplar_timestamp", backend),
-        string_value("m.attributes", backend),
-        string_value("m.resource_attributes", backend),
-        string_value("m.scope_attributes", backend),
-        string_value("m.exemplars", backend),
-        string_value("m.raw_metric", backend),
+        text_column("attributes", backend),
+        text_column("resource_attributes", backend),
+        text_column("scope_attributes", backend),
+        text_column("exemplars", backend),
+        text_column("raw_metric", backend),
         nullable_timestamp_micros("m.ingested_at", backend),
     )
+}
+
+/// A JSON-text column of `m`, projected as text under its own name, which is what a row decodes it by.
+///
+/// ClickHouse stores these as `Nullable(String)` already and names a result column by its expression, so a
+/// conversion there would rename the column (`toString(attributes)`) and every metric row would fail to decode;
+/// DuckDB's JSON columns are cast and named.
+fn text_column(column: &str, backend: Backend) -> String {
+    match backend {
+        Backend::Duckdb => format!("CAST(m.{column} AS VARCHAR) AS {column}"),
+        Backend::Clickhouse => format!("m.{column}"),
+    }
 }
 
 fn winning_metrics(backend: Backend) -> &'static str {
@@ -234,10 +246,15 @@ fn count(backend: Backend) -> &'static str {
     }
 }
 
-fn string_value(column: &str, backend: Backend) -> String {
+/// A filter option's value: the column of `m` as text, never null, since the options exclude a null value.
+///
+/// ClickHouse decodes a nullable column into an optional value and refuses a non-nullable one into it, so a
+/// value whose type followed its column's - `String` for `metric_name`, `Nullable(String)` for `service_name` -
+/// failed the options of every non-nullable column; `assumeNotNull` gives every column one type.
+fn option_value(column: &str, backend: Backend) -> String {
     match backend {
-        Backend::Duckdb => format!("CAST({column} AS VARCHAR)"),
-        Backend::Clickhouse => format!("toString({column})"),
+        Backend::Duckdb => format!("CAST(m.{column} AS VARCHAR)"),
+        Backend::Clickhouse => format!("toString(assumeNotNull(m.{column}))"),
     }
 }
 
