@@ -226,3 +226,73 @@ async fn a_correction_written_after_a_later_one_stays_superseded_on_both_backend
         "the correction received later must stay the winner on both backends"
     );
 }
+
+/// A record found through its traces' spans on a two-shard cluster, each project on its own shard. Both tables are
+/// `Distributed` there, and a plain `IN` over one inside a read of the other is refused
+/// (`distributed_product_mode = deny`), so the read failed on every cluster of more than one shard.
+#[tokio::test]
+async fn survivor_records_are_read_across_a_two_shard_cluster() {
+    use sideseat_ports::traits::RawStore;
+
+    let Ok(url) = std::env::var(TWO_SHARD_URL_ENV) else {
+        eprintln!(
+            "clickhouse two-shard: skipped - set {TWO_SHARD_URL_ENV} (or run \
+             `make test-clickhouse-two-shard`)"
+        );
+        return;
+    };
+    let database = "sideseat_two_shard_survivors";
+    let store = replicated_backend_at(&url, database).await;
+    let user = std::env::var(USER_ENV).ok();
+    let password = std::env::var(PASSWORD_ENV).ok();
+    let client = raw_client_at(&url, database, &user, &password);
+    let mut per_shard: [Option<String>; 2] = [None, None];
+    for n in 0..64 {
+        let candidate = format!("survivor-shard-{n}");
+        let shard: Vec<u64> = client
+            .query("SELECT toUInt64((sipHash64(?) % 2) + 1)")
+            .bind(&candidate)
+            .fetch_all()
+            .await
+            .expect("compute the shard");
+        let index = (shard[0] - 1) as usize;
+        if per_shard[index].is_none() {
+            per_shard[index] = Some(candidate);
+        }
+    }
+    let [Some(near), Some(far)] = per_shard else {
+        panic!("could not find a project id for each shard");
+    };
+    for project in [near, far] {
+        let record = RawRecordRow {
+            project_id: ProjectId::from(project.as_str()),
+            signal_until: Utc::now(),
+            ..raw_row("raw-survivor", 1, &["trace-survivor"], project.as_bytes())
+        };
+        store
+            .insert_raw_records(std::slice::from_ref(&record))
+            .await
+            .expect("record");
+        store
+            .insert_spans(vec![NormalizedSpan {
+                project_id: Some(project.clone()),
+                timestamp_start: Utc::now(),
+                ingested_at: Some(Utc::now()),
+                ..span_of("trace-survivor", "span-survivor", "raw-survivor")
+            }])
+            .await
+            .expect("a span naming the record");
+        let survivors = store
+            .survivor_raw_records(
+                &ProjectId::from(project.as_str()),
+                &["trace-survivor".to_string()],
+            )
+            .await
+            .expect("the survivors read on a two-shard cluster");
+        assert_eq!(
+            survivors,
+            vec![project.as_bytes().to_vec()],
+            "{project}: its own record"
+        );
+    }
+}

@@ -402,7 +402,9 @@ pub async fn survivor_records(
     }
     let rows: Vec<RecordOnly> = client
         .query(
-            "SELECT record FROM otel_raw FINAL WHERE project_id = ? AND raw_id IN ( \
+            // `GLOBAL IN`: both tables are `Distributed` on a cluster, where a plain `IN` over one inside a read of
+            // the other is refused (`distributed_product_mode = deny`), as `consistency.rs` explains.
+            "SELECT record FROM otel_raw FINAL WHERE project_id = ? AND raw_id GLOBAL IN ( \
                  SELECT DISTINCT raw_id FROM otel_spans \
                  WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL)",
         )
