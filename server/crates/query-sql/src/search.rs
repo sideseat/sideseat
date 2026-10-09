@@ -210,18 +210,25 @@ pub struct SearchCandidatePlan {
 pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePlan {
     let shape = Shape::new(request.signal, backend);
     let lowered = lower(&request.expression, shape);
-    let mut params = vec![QueryValue::String(request.project_id.to_string())];
-    let (hits, from) = shape.term_matches(request, &mut params);
-    params.extend(lowered.params);
-
     let mut predicates = Vec::new();
-    push_time_predicates(request, shape, &mut predicates, &mut params);
-    push_after_cursor(request.cursor.as_ref(), shape, &mut predicates, &mut params);
-    let predicate = if predicates.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", predicates.join(" AND "))
-    };
+    let mut predicate_params = Vec::new();
+    push_time_predicates(request, shape, &mut predicates, &mut predicate_params);
+    push_after_cursor(
+        request.cursor.as_ref(),
+        shape,
+        &mut predicates,
+        &mut predicate_params,
+    );
+    let mut hit_params = Vec::new();
+    let (hits, from) = shape.term_matches(request, &mut hit_params);
+    let (hits, predicate, params) = scope_hits(
+        request,
+        hits,
+        &predicates,
+        predicate_params,
+        hit_params,
+        lowered.params,
+    );
     let fetch = request.max_examined.saturating_add(1);
     let state = match backend {
         Backend::Duckdb => format!("CAST(({}) AS SMALLINT)", lowered.sql),
@@ -339,15 +346,22 @@ pub fn arrivals(
 ) -> ParameterizedQuery {
     let shape = Shape::new(request.signal, backend);
     let lowered = lower(&request.expression, shape);
-    let mut params = vec![QueryValue::String(request.project_id.to_string())];
-    let (hits, from) = shape.term_matches(request, &mut params);
-    params.extend(lowered.params);
     let mut predicates = Vec::new();
-    push_time_predicates(request, shape, &mut predicates, &mut params);
+    let mut predicate_params = Vec::new();
+    push_time_predicates(request, shape, &mut predicates, &mut predicate_params);
     predicates.push(format!("{} > ?", shape.ingested_micros("r")));
-    params.push(QueryValue::Int64(through.started_at_us));
-    push_visited_region(through, shape, &mut predicates, &mut params);
-    let predicate = predicates.join(" AND ");
+    predicate_params.push(QueryValue::Int64(through.started_at_us));
+    push_visited_region(through, shape, &mut predicates, &mut predicate_params);
+    let mut hit_params = Vec::new();
+    let (hits, from) = shape.term_matches(request, &mut hit_params);
+    let (hits, predicate, params) = scope_hits(
+        request,
+        hits,
+        &predicates,
+        predicate_params,
+        hit_params,
+        lowered.params,
+    );
     let count = match backend {
         Backend::Duckdb => "COUNT(*) > 0",
         Backend::Clickhouse => "count() > 0",
@@ -356,7 +370,7 @@ pub fn arrivals(
         format!(
             "WITH winners AS ({winners}){hits}, scored AS (\
              SELECT {identity}, {timestamp} AS timestamp_us, ({state}) AS match_state, \
-             {ingested} AS ingested_at_us FROM {from} WHERE {predicate}) \
+             {ingested} AS ingested_at_us FROM {from} {predicate}) \
              SELECT {count} FROM scored WHERE match_state != 0",
             winners = shape.winners(),
             identity = shape.identity_projection(),
@@ -504,6 +518,40 @@ fn clickhouse_field_leaf(field: SearchField, terms: &[String], phrase: bool) -> 
         ),
         params: vec![QueryValue::String(terms.join(" "))],
     }
+}
+
+/// Where a search's own predicates go, with its values in the order the statement binds them.
+///
+/// With term matches, the predicates define the `candidates` the matches are read for, ahead of them; the scored
+/// relation then reads the candidates and needs no predicate of its own. Without, they stay on the scored relation.
+/// Returns the common tables after `winners`, the scored relation's `WHERE` (or nothing), and every value.
+fn scope_hits(
+    request: &SearchQuery,
+    hits: String,
+    predicates: &[String],
+    predicate_params: Vec<QueryValue>,
+    hit_params: Vec<QueryValue>,
+    expression_params: Vec<QueryValue>,
+) -> (String, String, Vec<QueryValue>) {
+    let condition = if predicates.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", predicates.join(" AND "))
+    };
+    let mut params = vec![QueryValue::String(request.project_id.to_string())];
+    if hits.is_empty() {
+        params.extend(expression_params);
+        params.extend(predicate_params);
+        return (hits, condition, params);
+    }
+    params.extend(predicate_params);
+    params.extend(hit_params);
+    params.extend(expression_params);
+    (
+        format!(", candidates AS (SELECT * FROM winners r {condition}){hits}"),
+        String::new(),
+        params,
+    )
 }
 
 fn push_time_predicates(
@@ -726,19 +774,25 @@ impl Shape {
     /// any of the expression's terms, each matching record with the `field:term` pairs it holds. Asked per
     /// record and field instead, as correlated `EXISTS`, every subquery carried every candidate's identity - at a
     /// million spans, more than the memory limit.
+    ///
+    /// The aggregate reads only the term rows of the `candidates` the caller defines - the winners its time range
+    /// and cursor admit - so its memory follows the candidates rather than the project: over every record holding
+    /// a term, a range of ten spans grouped a million and ran out of the limit at three million.
     fn term_matches(self, request: &SearchQuery, params: &mut Vec<QueryValue>) -> (String, String) {
         let mut terms = Vec::new();
         expression_terms(&request.expression, &mut terms);
         if self.backend == Backend::Clickhouse || terms.is_empty() {
             return (String::new(), "winners r".to_string());
         }
-        let (key, join) = match self.signal {
+        let (key, candidate, join) = match self.signal {
             SearchSignal::Spans => (
                 "t.trace_id AS trace_id, t.span_id AS span_id",
+                "(t.trace_id, t.span_id) IN (SELECT trace_id, span_id FROM candidates)",
                 "h.trace_id = r.trace_id AND h.span_id = r.span_id",
             ),
             SearchSignal::Logs => (
                 "t.log_digest AS log_digest, t.ordinal AS ordinal",
+                "(t.log_digest, t.ordinal) IN (SELECT log_digest, ordinal FROM candidates)",
                 "h.log_digest = r.log_digest AND h.ordinal = r.ordinal",
             ),
         };
@@ -751,13 +805,14 @@ impl Shape {
         (
             format!(
                 ", hits AS (SELECT {key}, list(DISTINCT t.field || ':' || t.term) AS pairs \
-                 FROM {table} t WHERE t.project_id = ? AND t.term IN ({placeholders}) GROUP BY ALL)",
+                 FROM {table} t WHERE t.project_id = ? AND t.term IN ({placeholders}) AND {candidate} \
+                 GROUP BY ALL)",
                 table = self.term_table(),
                 placeholders = std::iter::repeat_n("?", terms.len())
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
-            format!("winners r LEFT JOIN hits h ON {join}"),
+            format!("candidates r LEFT JOIN hits h ON {join}"),
         )
     }
 
@@ -802,148 +857,5 @@ impl Shape {
 }
 
 #[cfg(test)]
-mod tests {
-    use chrono::{TimeZone, Utc};
-    use sideseat_ports::types::{ProjectId, SearchQuery};
-
-    use super::*;
-
-    fn request(expression: SearchExpr, signal: SearchSignal) -> SearchQuery {
-        SearchQuery {
-            project_id: ProjectId::from("p"),
-            signal,
-            expression,
-            limit: 10,
-            max_examined: 7,
-            cursor: Some(SearchCursor {
-                timestamp_us: 42,
-                tie_breaker: "trace\0span".to_string(),
-                ordinal: 0,
-                started_at_us: 30,
-            }),
-            from_timestamp: Some(Utc.timestamp_micros(1).single().unwrap()),
-            to_timestamp: Some(Utc.timestamp_micros(100).single().unwrap()),
-        }
-    }
-
-    /// A document's bits name every field it carries, an empty one included, and only the truncated ones as
-    /// truncated; a document never indexed has none, so its record waits for the backfill.
-    #[test]
-    fn document_bits_name_the_indexed_and_the_truncated_fields() {
-        use sideseat_ports::types::{SearchDocument, SearchFieldTerms};
-        let field = |field, terms: &[&str], truncated| SearchFieldTerms {
-            field,
-            terms: terms.iter().map(|term| term.to_string()).collect(),
-            truncated,
-            text: String::new(),
-        };
-        let document = SearchDocument {
-            indexed: true,
-            fields: vec![
-                field(SearchField::Prompt, &["a"], true),
-                field(SearchField::Error, &[], false),
-                field(SearchField::SpanName, &["b"], false),
-            ],
-        };
-        assert_eq!(
-            duckdb_document_bits(SearchSignal::Spans, &document),
-            (0b11_0001, 0b00_0001)
-        );
-        let unindexed = SearchDocument {
-            indexed: false,
-            ..document
-        };
-        assert_eq!(
-            duckdb_document_bits(SearchSignal::Spans, &unindexed),
-            (0, 0)
-        );
-        assert_eq!(duckdb_every_field(SearchSignal::Spans), 63);
-        assert_eq!(duckdb_every_field(SearchSignal::Logs), 15);
-        assert_eq!(duckdb_field_bit(SearchSignal::Logs, SearchField::Prompt), 0);
-    }
-
-    #[test]
-    fn negated_phrase_stays_a_candidate_on_both_backends() {
-        let expression = SearchExpr::Not(Box::new(SearchExpr::Phrase {
-            field: Some(SearchField::Prompt),
-            phrase: "foo bar".to_string(),
-            terms: vec!["foo".to_string(), "bar".to_string()],
-        }));
-        for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            let plan = candidates(&request(expression.clone(), SearchSignal::Spans), backend);
-            assert!(plan.query.sql().contains("2 -"));
-            assert!(plan.query.sql().contains("match_state != 0"));
-            assert!(plan.query.sql().contains("LIMIT 8"));
-        }
-    }
-
-    #[test]
-    fn duckdb_uses_term_relations_and_clickhouse_uses_native_token_functions() {
-        let expression = SearchExpr::And(
-            Box::new(SearchExpr::Term {
-                field: Some(SearchField::Prompt),
-                term: "foo".to_string(),
-            }),
-            Box::new(SearchExpr::Term {
-                field: Some(SearchField::Completion),
-                term: "bar".to_string(),
-            }),
-        );
-        let duckdb = candidates(
-            &request(expression.clone(), SearchSignal::Spans),
-            Backend::Duckdb,
-        );
-        assert!(duckdb.query.sql().contains("FROM span_terms"));
-        assert!(duckdb.query.sql().contains("least("));
-        let clickhouse = candidates(
-            &request(expression, SearchSignal::Spans),
-            Backend::Clickhouse,
-        );
-        assert!(
-            clickhouse
-                .query
-                .sql()
-                .contains("hasAllTokens(r.search_prompt")
-        );
-        assert!(
-            clickhouse
-                .query
-                .sql()
-                .contains("hasAllTokens(r.search_completion")
-        );
-    }
-
-    #[test]
-    fn indexing_completeness_covers_the_whole_time_range() {
-        let query = request(SearchExpr::MatchAll, SearchSignal::Spans);
-        for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            let plan = indexing_complete(&query, backend);
-            assert!(!plan.sql().contains("trace_id >"));
-            assert!(plan.sql().contains("COUNT(*) = 0"));
-            assert!(plan.sql().contains("timestamp_start"));
-        }
-        assert!(
-            indexing_complete(&query, Backend::Duckdb)
-                .sql()
-                .contains("r.search_fields != 63")
-        );
-        assert!(
-            indexing_complete(&query, Backend::Clickhouse)
-                .sql()
-                .contains("r.search_indexed = 0")
-        );
-    }
-
-    #[test]
-    fn backfill_pages_only_unindexed_current_rows_in_identity_order() {
-        let duckdb = backfill_sources("p", SearchSignal::Spans, 256, Backend::Duckdb);
-        assert!(duckdb.sql().contains("r.search_fields != 63"));
-        assert!(duckdb.sql().contains("ORDER BY trace_id, span_id"));
-        assert!(duckdb.sql().contains("LIMIT ?"));
-
-        let clickhouse = backfill_sources("p", SearchSignal::Logs, 256, Backend::Clickhouse);
-        assert!(clickhouse.sql().contains("FROM otel_logs FINAL"));
-        assert!(clickhouse.sql().contains("r.search_indexed = 0"));
-        assert!(clickhouse.sql().contains("ORDER BY log_digest, ordinal"));
-    }
-}
+#[path = "search_tests.rs"]
+mod tests;

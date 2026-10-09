@@ -145,3 +145,45 @@ async fn field_state_comes_from_the_row_and_the_backfill_sets_it() {
         vec!["truncated".to_string(), "unindexed".to_string()],
     );
 }
+
+/// A ranged search answers from its range alone, its term matches read for the range's candidates: the spans
+/// that hold the term inside it, and none outside it however many do.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_ranged_search_reads_its_term_matches_for_the_range() {
+    let (_temp, service) = service().await;
+    let spans: Vec<NormalizedSpan> = (0..40)
+        .map(|second| span(&format!("s{second:02}"), second, prompt("common", false)))
+        .chain([span("other", 15, prompt("rare", false))])
+        .collect();
+    service
+        .write(|conn| crate::repositories::span::insert_batch(conn, &spans))
+        .expect("write");
+    let conn = service.conn();
+    let at = |second: i64| chrono::DateTime::from_timestamp(1_800_000_000 + second, 0);
+    let found = |term: &str| -> Vec<String> {
+        search(
+            &conn,
+            &SearchQuery {
+                from_timestamp: at(10),
+                to_timestamp: at(19),
+                ..query(term)
+            },
+        )
+        .expect("search")
+        .candidates
+        .into_iter()
+        .map(|candidate| match candidate.record {
+            SearchRecord::Span(record) => record.span_id,
+            _ => panic!("a span search returns spans"),
+        })
+        .collect()
+    };
+    assert_eq!(
+        found("common"),
+        (10..20)
+            .rev()
+            .map(|second| format!("s{second:02}"))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(found("rare"), vec!["other".to_string()]);
+}
