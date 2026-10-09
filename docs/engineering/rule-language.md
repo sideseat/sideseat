@@ -572,6 +572,13 @@ worst, with every word different.
 }
 ```
 
+A projection says where a withdrawn row's messages come from with `only_attribute_sources`, `only_event_sources`,
+or both: every message of the row must come from one of the named attributes or one of the named events, matched
+by kind as well as name, and a row with one message from any other carrier keeps all of them. A producer whose
+bookkeeping span carries its request as events - span events, log records read as events, or the elements of an
+attribute its reading declares to be events - names them in `only_event_sources`. Two empty lists, an empty name
+and a name listed twice are refused.
+
 ## Precedence and claiming
 
 Order is stated, not inferred from how specific a condition looks, with one exception: carrier clauses, whose
@@ -1548,15 +1555,17 @@ A read-time projection decision for one producer-owned span shape.
 
 The row is recognised by a `where` over what a stored row says of its span - its name and its
 instrumentation scope, version included - and the condition must name the scope, so a producer rule cannot
-suppress a broad class of ordinary input-only spans. `only_attribute_sources` means every extracted message
-must come from one of the named attributes; an empty message list never matches.
+suppress a broad class of ordinary input-only spans. `only_attribute_sources` and `only_event_sources` say
+where every extracted message must come from: each from one of the named attributes or one of the named
+events. A row's message from any other carrier keeps the row, and an empty message list never matches.
 
 | Key | Type | What it is |
 | --- | --- | --- |
 | `id` (required) | string | Stable clause id, reported by diagnostics. |
 | `doc` | string |  |
 | `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The rows this applies to: their span name, `scope.name` and `scope.version`. It must name an instrumentation scope the row has to carry: in a conjunction at any depth, or in every branch of a disjunction. |
-| `only_attribute_sources` (required) | list of string | The attributes every extracted message of the row came from: each message from one of them. Two or more where a request is split across carriers - its conversation in one, its system instructions in another. An empty list, an empty name and a name listed twice are refused. |
+| `only_attribute_sources` | list of string | The attributes a row's extracted messages may come from. Two or more where a request is split across carriers - its conversation in one, its system instructions in another. An empty name and a name listed twice are refused, and so is a rule whose two lists are both empty, which no message comes from. |
+| `only_event_sources` | list of string | The events a row's extracted messages may come from: a span event, a log record read as one, or an element of an attribute its reading declares to be events (`ElementsSpec::tags_are_events`). Matched by kind as well as name, so an attribute named like an event is not one. Refused as `only_attribute_sources` is. |
 | `successful_only` (required) | true or false | Only a row whose span succeeded: a failure may have no completed companion, so it stays visible. |
 | `action` (required) | [`MessageProjectionAction`](#messageprojectionaction) |  |
 

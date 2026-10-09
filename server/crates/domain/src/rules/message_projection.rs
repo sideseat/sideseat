@@ -33,6 +33,7 @@ pub struct MessageProjectionPlan {
 struct CompiledProjection {
     condition: SpanExpr,
     only_attribute_sources: Vec<String>,
+    only_event_sources: Vec<String>,
     successful_only: bool,
     action: MessageProjectionAction,
 }
@@ -57,34 +58,39 @@ impl MessageProjectionPlan {
                         ),
                     ));
                 }
+                let lists = [
+                    ("attribute", &rule.only_attribute_sources),
+                    ("event", &rule.only_event_sources),
+                ];
                 if rule.id.is_empty()
-                    || rule.only_attribute_sources.is_empty()
-                    || rule.only_attribute_sources.iter().any(String::is_empty)
+                    || lists.iter().all(|(_, names)| names.is_empty())
+                    || lists
+                        .iter()
+                        .any(|(_, names)| names.iter().any(String::is_empty))
                 {
                     return Err(ClauseDefect::new(
                         &[&rule.id],
                         Some(&file.id),
                         format!(
-                            "message projection clause `{}` contains an empty identifier, an empty attribute source \
-                             or no attribute source at all - which no message comes from, so it would match nothing",
+                            "message projection clause `{}` contains an empty identifier, an empty source name \
+                             or no attribute and no event source at all - which no message comes from, so it \
+                             would match nothing",
                             rule.id
                         ),
                     ));
                 }
-                let mut sources = BTreeSet::new();
-                if !rule
-                    .only_attribute_sources
-                    .iter()
-                    .all(|source| sources.insert(source.as_str()))
-                {
-                    return Err(ClauseDefect::new(
-                        &[&rule.id],
-                        Some(&file.id),
-                        format!(
-                            "message projection clause `{}` names one attribute source twice",
-                            rule.id
-                        ),
-                    ));
+                for (kind, names) in lists {
+                    let mut seen = BTreeSet::new();
+                    if !names.iter().all(|name| seen.insert(name.as_str())) {
+                        return Err(ClauseDefect::new(
+                            &[&rule.id],
+                            Some(&file.id),
+                            format!(
+                                "message projection clause `{}` names one {kind} source twice",
+                                rule.id
+                            ),
+                        ));
+                    }
                 }
                 // Through the validator every section's `where` goes through, so a projection cannot carry the
                 // empty literal or the covered disjunct the others refuse: lowered alone, `span_name starts_with
@@ -115,6 +121,7 @@ impl MessageProjectionPlan {
                 rules.push(CompiledProjection {
                     condition,
                     only_attribute_sources: rule.only_attribute_sources.clone(),
+                    only_event_sources: rule.only_event_sources.clone(),
                     successful_only: rule.successful_only,
                     action: rule.action,
                 });
@@ -139,14 +146,20 @@ impl MessageProjectionPlan {
         };
         self.rules.iter().any(|rule| {
             let success_matches = !rule.successful_only || context.successful;
+            // By kind and name: an attribute and an event of one name are different carriers.
             let source_matches = !context.messages.is_empty()
-                && context.messages.iter().all(|message| {
-                    matches!(
-                        &message.source,
-                        MessageSource::Attribute { key, .. }
-                            if rule.only_attribute_sources.iter().any(|source| source == key)
-                    )
-                });
+                && context
+                    .messages
+                    .iter()
+                    .all(|message| match &message.source {
+                        MessageSource::Attribute { key, .. } => rule
+                            .only_attribute_sources
+                            .iter()
+                            .any(|source| source == key),
+                        MessageSource::Event { name, .. } => {
+                            rule.only_event_sources.iter().any(|source| source == name)
+                        }
+                    });
             span_conditions::holds(&rule.condition, &subject)
                 && success_matches
                 && source_matches
@@ -521,5 +534,154 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// **A projection may name the events a row's messages come from, beside or instead of attributes**, each
+    /// carrier matched by kind as well as name - and, with a mark over a JSON member, withdraws only the row
+    /// whose question was answered *true* at ingest. False and unknown (the options do not parse, or are not
+    /// there) leave the row unmarked, so it stays.
+    #[test]
+    fn a_projection_names_the_events_its_rows_messages_come_from() {
+        let compiled = |attributes: Option<serde_json::Value>,
+                        events: Option<serde_json::Value>| {
+            let mut projection = serde_json::json!({
+                "id": "probe.projection",
+                "where": {"all": [
+                    {"source": "scope.name", "equals": "probe.scope"},
+                    {"source": "mark:probe.streamed", "exists": true}
+                ]},
+                "successful_only": false,
+                "action": "suppress_messages"
+            });
+            if let Some(attributes) = attributes {
+                projection["only_attribute_sources"] = attributes;
+            }
+            if let Some(events) = events {
+                projection["only_event_sources"] = events;
+            }
+            let file: RuleFile = serde_json::from_value(serde_json::json!({
+                "id": "probe",
+                "span_marks": [{
+                    "id": "probe.streamed",
+                    "because": "the read holds a row's messages and not its attributes",
+                    "where": {"source": "attr:probe_options", "parses": "json",
+                        "member": {"path": "$.stream", "equals": true}}
+                }],
+                "message_projections": [projection]
+            }))
+            .expect("the probe asset parses");
+            let marks =
+                crate::rules::span_marks::SpanMarkPlan::compile(std::slice::from_ref(&file))
+                    .expect("the marks compile");
+            MessageProjectionPlan::compile(&[file], &marks).map(|plan| (plan, marks))
+        };
+        let (plan, marks) = compiled(
+            Some(serde_json::json!(["probe.request"])),
+            Some(serde_json::json!(["probe.user", "probe.system"])),
+        )
+        .expect("attribute and event sources compile");
+        let time = chrono::Utc::now();
+        let from = |source: MessageSource| RawMessage {
+            source,
+            content: serde_json::json!({"role": "user", "content": "q"}),
+            rendering: false,
+            direction: None,
+        };
+        let event = |name: &str| {
+            from(MessageSource::Event {
+                name: name.to_string(),
+                time,
+            })
+        };
+        let attribute = |key: &str| {
+            from(MessageSource::Attribute {
+                key: key.to_string(),
+                time,
+            })
+        };
+        let mark = |options: Option<&str>| {
+            let attrs: HashMap<String, String> = options
+                .map(|text| ("probe_options".to_string(), text.to_string()))
+                .into_iter()
+                .collect();
+            marks.marks_of("span", &attrs, None, None)
+        };
+        let suppressed = |messages: &[RawMessage], marks: u16| {
+            plan.suppresses_messages(&MessageProjectionContext {
+                scope_name: Some("probe.scope"),
+                scope_version: None,
+                span_name: None,
+                successful: true,
+                messages,
+                marks,
+            })
+        };
+        let streamed = mark(Some(r#"{"stream": true}"#));
+        let request = [
+            event("probe.system"),
+            event("probe.user"),
+            attribute("probe.request"),
+        ];
+        assert!(suppressed(&request[..2], streamed), "a row of named events");
+        assert!(
+            suppressed(&request, streamed),
+            "a row mixing named events and attributes"
+        );
+        for (why, marks) in [
+            ("false", mark(Some(r#"{"stream": false}"#))),
+            ("unknown: the options do not parse", mark(Some("{stream"))),
+            ("unknown: there are no options", mark(None)),
+        ] {
+            assert!(
+                !suppressed(&request, marks),
+                "{why}: the row is unmarked and stays"
+            );
+        }
+        for (why, messages) in [
+            (
+                "an event not named",
+                vec![event("probe.user"), event("probe.choice")],
+            ),
+            (
+                "an attribute named like a listed event",
+                vec![attribute("probe.user")],
+            ),
+            (
+                "an event named like a listed attribute",
+                vec![event("probe.request")],
+            ),
+            ("no message at all", Vec::new()),
+        ] {
+            assert!(!suppressed(&messages, streamed), "{why} keeps the row");
+        }
+
+        assert!(
+            compiled(None, Some(serde_json::json!(["probe.user"]))).is_ok(),
+            "events alone are a source"
+        );
+        for (why, attributes, events) in [
+            ("no list", None, None),
+            (
+                "two empty lists",
+                Some(serde_json::json!([])),
+                Some(serde_json::json!([])),
+            ),
+            ("an empty event name", None, Some(serde_json::json!([""]))),
+            (
+                "an event named twice",
+                None,
+                Some(serde_json::json!(["probe.user", "probe.user"])),
+            ),
+        ] {
+            let refused = compiled(attributes, events)
+                .err()
+                .map(|defect| defect.to_string());
+            assert!(
+                refused
+                    .as_deref()
+                    .is_some_and(|reason| reason.contains("probe.projection")),
+                "{why}: {refused:?}"
+            );
+        }
     }
 }

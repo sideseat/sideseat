@@ -3135,7 +3135,7 @@
       ]
     },
     "MessageProjectionRule": {
-      "description": "A read-time projection decision for one producer-owned span shape.\n\nThe row is recognised by a `where` over what a stored row says of its span - its name and its\ninstrumentation scope, version included - and the condition must name the scope, so a producer rule cannot\nsuppress a broad class of ordinary input-only spans. `only_attribute_sources` means every extracted message\nmust come from one of the named attributes; an empty message list never matches.",
+      "description": "A read-time projection decision for one producer-owned span shape.\n\nThe row is recognised by a `where` over what a stored row says of its span - its name and its\ninstrumentation scope, version included - and the condition must name the scope, so a producer rule cannot\nsuppress a broad class of ordinary input-only spans. `only_attribute_sources` and `only_event_sources` say\nwhere every extracted message must come from: each from one of the named attributes or one of the named\nevents. A row's message from any other carrier keeps the row, and an empty message list never matches.",
       "type": "object",
       "properties": {
         "id": {
@@ -3154,11 +3154,20 @@
           "$ref": "#/$defs/Expr_SpanCondition"
         },
         "only_attribute_sources": {
-          "description": "The attributes every extracted message of the row came from: each message from one of them. Two or\nmore where a request is split across carriers - its conversation in one, its system instructions in\nanother. An empty list, an empty name and a name listed twice are refused.",
+          "description": "The attributes a row's extracted messages may come from. Two or more where a request is split across\ncarriers - its conversation in one, its system instructions in another. An empty name and a name listed\ntwice are refused, and so is a rule whose two lists are both empty, which no message comes from.",
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "default": []
+        },
+        "only_event_sources": {
+          "description": "The events a row's extracted messages may come from: a span event, a log record read as one, or an\nelement of an attribute its reading declares to be events (`ElementsSpec::tags_are_events`). Matched by\nkind as well as name, so an attribute named like an event is not one. Refused as\n`only_attribute_sources` is.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
         "successful_only": {
           "description": "Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.",
@@ -3172,7 +3181,6 @@
       "required": [
         "id",
         "where",
-        "only_attribute_sources",
         "successful_only",
         "action"
       ]

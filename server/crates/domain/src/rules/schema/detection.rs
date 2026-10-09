@@ -343,8 +343,9 @@ pub struct CarrierRule {
 ///
 /// The row is recognised by a `where` over what a stored row says of its span - its name and its
 /// instrumentation scope, version included - and the condition must name the scope, so a producer rule cannot
-/// suppress a broad class of ordinary input-only spans. `only_attribute_sources` means every extracted message
-/// must come from one of the named attributes; an empty message list never matches.
+/// suppress a broad class of ordinary input-only spans. `only_attribute_sources` and `only_event_sources` say
+/// where every extracted message must come from: each from one of the named attributes or one of the named
+/// events. A row's message from any other carrier keeps the row, and an empty message list never matches.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -358,10 +359,17 @@ pub struct MessageProjectionRule {
     /// disjunction.
     #[serde(rename = "where")]
     pub condition: SpanWhere,
-    /// The attributes every extracted message of the row came from: each message from one of them. Two or
-    /// more where a request is split across carriers - its conversation in one, its system instructions in
-    /// another. An empty list, an empty name and a name listed twice are refused.
+    /// The attributes a row's extracted messages may come from. Two or more where a request is split across
+    /// carriers - its conversation in one, its system instructions in another. An empty name and a name listed
+    /// twice are refused, and so is a rule whose two lists are both empty, which no message comes from.
+    #[serde(default)]
     pub only_attribute_sources: Vec<String>,
+    /// The events a row's extracted messages may come from: a span event, a log record read as one, or an
+    /// element of an attribute its reading declares to be events (`ElementsSpec::tags_are_events`). Matched by
+    /// kind as well as name, so an attribute named like an event is not one. Refused as
+    /// `only_attribute_sources` is.
+    #[serde(default)]
+    pub only_event_sources: Vec<String>,
     /// Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.
     pub successful_only: bool,
     pub action: MessageProjectionAction,

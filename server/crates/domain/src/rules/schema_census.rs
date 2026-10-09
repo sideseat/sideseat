@@ -39,6 +39,11 @@ const UNUSED: &[(&str, &str)] = &[
          answer would state it, and no shipped asset has one - the only use is turns on an output carrier",
     ),
     (
+        "MessageProjectionRule.only_event_sources",
+        "the event half of where a projected row's messages may come from, for a producer whose bookkeeping span \
+         carries its request as events; no shipped projection names one yet",
+    ),
+    (
         "RuleFile.span_marks",
         "a fact a read needs that the read path cannot see, stored as one bit per span. The section exists so \
          such a fact is declared and bounded rather than answered by storing a span's attributes twice; no \
