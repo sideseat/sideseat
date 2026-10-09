@@ -467,6 +467,20 @@
           },
           "on_malformed": "continue",
           "doc": "Why a Genkit model action stopped, which Genkit states beside its response."
+        },
+        {
+          "id": "invocation_parameters_stop_reason",
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.stop_reason",
+            "scalar_only": true
+          },
+          "where": {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "LLM"
+          },
+          "on_malformed": "continue",
+          "doc": "The response's stop reason where an instrumentation merged it into the call's parameters: OpenInference's Bedrock instrumentation 0.1.35 to 0.1.49 writes the Converse answer's `stop_reason` there and nowhere else. No request parameter has that name - a request's stops are `stop` or `stop_sequences` - so the member is the answer's. Last, behind every source that states a finish where it belongs."
         }
       ]
     },

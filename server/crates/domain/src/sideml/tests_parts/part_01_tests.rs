@@ -92,6 +92,10 @@ fn test_finish_reason_normalization() {
         Some(FinishReason::ToolUse)
     );
     assert_eq!(
+        FinishReason::from_str_normalized("TOOL_EXECUTION"), // LangChain4j
+        Some(FinishReason::ToolUse)
+    );
+    assert_eq!(
         FinishReason::from_str_normalized("tool_use"),
         Some(FinishReason::ToolUse)
     );

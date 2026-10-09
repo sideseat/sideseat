@@ -454,3 +454,64 @@ fn the_declared_metadata_field_reads_as_the_constant_it_replaced() {
         assert_eq!(span.metadata, retired, "{value:?}");
     }
 }
+
+/// An answer's stop reason an instrumentation merged into the call's parameters (OpenInference's Bedrock
+/// instrumentation, 0.1.35 to 0.1.49) is the call's finish - on an LLM span only, and behind every source that
+/// states a finish where the conventions put it.
+#[test]
+fn a_stop_reason_merged_into_the_parameters_is_the_last_finish_source() {
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+
+    let kv = |key: &str, value: &str| KeyValue {
+        key: key.to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue(value.to_string())),
+        }),
+    };
+    let finish = |attrs: Vec<KeyValue>| {
+        let request = ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                scope_spans: vec![ScopeSpans {
+                    spans: vec![Span {
+                        trace_id: vec![1; 16],
+                        span_id: vec![2; 8],
+                        name: "bedrock.converse".to_string(),
+                        attributes: attrs,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+        crate::traces::extract::extract_attributes_batch(&request)
+            .into_iter()
+            .next()
+            .expect("one span")
+            .gen_ai_finish_reasons
+    };
+    let parameters = kv(
+        "llm.invocation_parameters",
+        r#"{"maxTokens": 16000, "stop_reason": "end_turn"}"#,
+    );
+    let llm = kv("openinference.span.kind", "LLM");
+    assert_eq!(
+        finish(vec![llm.clone(), parameters.clone()]),
+        vec!["end_turn".to_string()]
+    );
+    assert!(
+        finish(vec![
+            kv("openinference.span.kind", "CHAIN"),
+            parameters.clone()
+        ])
+        .is_empty(),
+        "another operation's parameters state no model's finish"
+    );
+    assert_eq!(
+        finish(vec![llm, parameters, kv("llm.finish_reason", "tool_use")]),
+        vec!["tool_use".to_string()],
+        "a finish stated where it belongs wins"
+    );
+}

@@ -34,13 +34,14 @@
     {
       "id": "finish-reasons.tool_use",
       "means": "tool_use",
-      "doc": "The model asked for a tool: OpenAI (`tool_calls`, and `function_call` before it), Anthropic and Bedrock (`tool_use`), the conventions (`tool_call`), AutoGen's own `function_calls`, and the bare `tool`. The Vercel AI SDK's `tool-calls` is `tool_calls` with another separator.",
+      "doc": "The model asked for a tool: OpenAI (`tool_calls`, and `function_call` before it), Anthropic and Bedrock (`tool_use`), the conventions (`tool_call`), AutoGen's own `function_calls`, LangChain4j's `TOOL_EXECUTION`, and the bare `tool`. The Vercel AI SDK's `tool-calls` is `tool_calls` with another separator.",
       "spellings": [
         "tool_calls",
         "tool_use",
         "tool_call",
         "function_call",
         "function_calls",
+        "tool_execution",
         "tool"
       ]
     },
