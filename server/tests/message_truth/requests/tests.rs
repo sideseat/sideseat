@@ -485,8 +485,8 @@ fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
         fixtures: None,
         seal: None,
     };
-    let result = |call_id: &str| {
-        let content = json!({"type": "tool_result", "tool_use_id": call_id, "content": [{"type": "web_search", "status": "completed"}]});
+    let result_of = |call_id: &str, shown: Value| {
+        let content = json!({"type": "tool_result", "tool_use_id": call_id, "content": shown});
         Block {
             role: "tool".to_string(),
             kind: "tool_result".to_string(),
@@ -503,8 +503,28 @@ fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
             position: String::new(),
         }
     };
+    let nothing = json!([{"type": "web_search", "status": "completed", "sources": []}]);
+    let result = |call_id: &str| result_of(call_id, nothing.clone());
     assert_eq!(shows(&fact("ws_1"), &result("ws_1"), None), Shows::Yes);
+    assert_eq!(
+        shows(&fact("ws_1"), &result_of("ws_1", json!([])), None),
+        Shows::Yes
+    );
     assert_eq!(shows(&fact("ws_1"), &result("ws_2"), None), Shows::No);
+    // A result paired to the call that shows something after all does not show that nothing was found.
+    for something in [
+        json!([{"sources": [{"url": "https://a"}]}]),
+        json!("sunny"),
+        Value::Null,
+        json!([{"error_code": "unavailable"}]),
+        json!([{"type": "web_search", "status": "completed"}]),
+    ] {
+        assert_eq!(
+            shows(&fact("ws_1"), &result_of("ws_1", something.clone()), None),
+            Shows::No,
+            "{something}"
+        );
+    }
     // With no id to pair by, an empty expectation is no evidence at all.
     assert_eq!(shows(&fact(""), &result(""), None), Shows::No);
 }

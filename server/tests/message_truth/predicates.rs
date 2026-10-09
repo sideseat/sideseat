@@ -121,10 +121,12 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
             let expected = &fact.value["value"];
             let content = &block.content["content"];
             yes(if matcher == "contains" {
-                // A run that found nothing has nothing to find in its result: the block answering the
-                // call by its id is shown by that pairing alone. Without an id there is no pairing.
+                // A run that found nothing has no value to look for: the block answering the call by
+                // its id shows it when it says nothing was found. Without an id there is no pairing.
                 holds_every_value(content, expected)
-                    || (!expected_id.is_empty() && holds_nothing(expected))
+                    || (!expected_id.is_empty()
+                        && holds_nothing(expected)
+                        && shows_nothing_found(content, expected))
             } else if matcher == "error_message" {
                 expected
                     .as_str()
@@ -177,6 +179,56 @@ fn holds_nothing(expected: &Value) -> bool {
     let mut wanted = Vec::new();
     leaves(expected, &mut wanted);
     wanted.is_empty()
+}
+
+/// A result that found nothing, shown as nothing found: the shown result is empty itself, or every member the
+/// expectation holds empty (`sources: []`) is somewhere in it, and empty wherever it is. A result holding
+/// other content - sources after all, a text, an error - shows something.
+fn shows_nothing_found(shown: &Value, expected: &Value) -> bool {
+    fn empty(value: &Value) -> bool {
+        match value {
+            Value::Array(items) => items.is_empty(),
+            Value::Object(map) => map.is_empty(),
+            Value::String(text) => text.is_empty(),
+            _ => false,
+        }
+    }
+    fn members(value: &Value, key: &str, into: &mut Vec<Value>) {
+        match value {
+            Value::String(text) => {
+                if let Ok(document @ (Value::Object(_) | Value::Array(_))) =
+                    serde_json::from_str::<Value>(text)
+                {
+                    members(&document, key, into);
+                }
+            }
+            Value::Array(items) => items.iter().for_each(|item| members(item, key, into)),
+            Value::Object(map) => {
+                if let Some(member) = map.get(key) {
+                    into.push(member.clone());
+                }
+                map.values().for_each(|item| members(item, key, into));
+            }
+            _ => {}
+        }
+    }
+    if empty(shown) {
+        return true;
+    }
+    let Some(stated) = expected.as_object() else {
+        return false;
+    };
+    let keys: Vec<&String> = stated
+        .iter()
+        .filter(|(_, value)| empty(value))
+        .map(|(key, _)| key)
+        .collect();
+    !keys.is_empty()
+        && keys.iter().all(|key| {
+            let mut found = Vec::new();
+            members(shown, key, &mut found);
+            !found.is_empty() && found.iter().all(empty)
+        })
 }
 
 /// Every string `expected` holds - its leaves, at any depth - is a whole string somewhere in `shown`, at any
