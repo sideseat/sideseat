@@ -28,16 +28,126 @@ fn duckdb_values(values: &[analytics::QueryValue]) -> Vec<&dyn duckdb::ToSql> {
         .collect()
 }
 
+/// A row parser's columns, by the names its query gives them, resolved to positions once per statement.
+///
+/// Positional parsing has to agree with its query about every column's place, and it failed the way that
+/// invites: one column added to the projection moved the joined log messages along, and the parser read them
+/// from the column beside them. By name, a column the query does not return is an error naming it, and where a
+/// column sits stops mattering. Resolved once, from the executed statement, so each row then reads by index
+/// exactly as a positional parser does - the names cost one lookup per column per statement, never per row.
+macro_rules! row_columns {
+    ($(#[$meta:meta])* $name:ident { $($field:ident),+ $(,)? }) => {
+        $(#[$meta])*
+        struct $name {
+            $($field: usize),+
+        }
+
+        impl $name {
+            fn resolve(statement: &duckdb::Statement<'_>) -> duckdb::Result<Self> {
+                Ok(Self {
+                    $($field: statement.column_index(stringify!($field))?),+
+                })
+            }
+        }
+    };
+}
+
+row_columns!(
+    /// What a span read returns: `messages::MESSAGE_COLUMNS` and the joined log messages.
+    SpanColumns {
+        trace_id,
+        span_id,
+        parent_span_id,
+        span_timestamp_us,
+        span_end_timestamp_us,
+        messages,
+        model,
+        provider,
+        status_code,
+        exception_type,
+        exception_message,
+        exception_stacktrace,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cost_total,
+        tool_definitions,
+        tool_names,
+        observation_type,
+        session_id,
+        ingested_at_us,
+        scope_name,
+        scope_version,
+        span_name,
+        framework,
+        response_model,
+        response_id,
+        temperature,
+        top_p,
+        max_tokens,
+        finish_reasons,
+        cache_read_tokens,
+        cache_write_tokens,
+        reasoning_tokens,
+        cost_input,
+        cost_output,
+        request_thread,
+        span_marks,
+        log_messages,
+    }
+);
+
+row_columns!(
+    /// What a thread or call read returns: `request_context::THREAD_COLUMNS`.
+    ThreadColumns {
+        trace_id,
+        span_id,
+        timestamp_start,
+        status_code,
+        messages,
+        observation_type,
+        span_name,
+        scope_name,
+        scope_version,
+        session_id,
+        span_marks,
+    }
+);
+
+/// Every row a query returns, each parsed against the columns resolved once from the executed statement.
+fn read_rows<C>(
+    conn: &Connection,
+    sql: &str,
+    params: &[analytics::QueryValue],
+    resolve: fn(&duckdb::Statement<'_>) -> duckdb::Result<C>,
+    parse: fn(&duckdb::Row<'_>, &C) -> duckdb::Result<MessageSpanRow>,
+) -> Result<Vec<MessageSpanRow>, DuckdbError> {
+    let values = duckdb_values(params);
+    let mut stmt = conn.prepare(sql)?;
+    let mut rows = stmt.query(values.as_slice())?;
+    let Some(statement) = rows.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let columns = resolve(statement)?;
+    let mut out = Vec::new();
+    while let Some(row) = rows.next()? {
+        out.push(parse(row, &columns)?);
+    }
+    Ok(out)
+}
+
 fn execute_message_query(
     conn: &Connection,
     query: &analytics::ParameterizedQuery,
 ) -> Result<MessageQueryResult, DuckdbError> {
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let rows: Vec<Result<MessageSpanRow, _>> =
-        stmt.query_map(values.as_slice(), parse_span_row)?.collect();
     Ok(MessageQueryResult {
-        rows: rows.into_iter().collect::<Result<_, _>>()?,
+        rows: read_rows(
+            conn,
+            query.sql(),
+            query.params(),
+            SpanColumns::resolve,
+            parse_span_row,
+        )?,
     })
 }
 
@@ -104,38 +214,42 @@ fn thread_rows(
     conn: &Connection,
     query: &analytics::ParameterizedQuery,
 ) -> Result<Vec<MessageSpanRow>, DuckdbError> {
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let rows: Vec<Result<MessageSpanRow, _>> = stmt
-        .query_map(values.as_slice(), parse_thread_row)?
-        .collect();
-    rows.into_iter()
-        .collect::<Result<_, _>>()
-        .map_err(Into::into)
+    read_rows(
+        conn,
+        query.sql(),
+        query.params(),
+        ThreadColumns::resolve,
+        parse_thread_row,
+    )
 }
 
-/// One row of a thread read, in `request_context::THREAD_COLUMNS` order.
+/// One row of a thread read.
 ///
 /// The unprojected fields are left at what a span that carries none would have: a composition reads the messages
 /// and the facts that place them, and a projection is what keeps the rest of a span's bytes unread.
-fn parse_thread_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
+fn parse_thread_row(
+    row: &duckdb::Row,
+    at: &ThreadColumns,
+) -> Result<MessageSpanRow, duckdb::Error> {
     let span_timestamp = row
-        .get::<_, Option<i64>>(2)
+        .get::<_, Option<i64>>(at.timestamp_start)
         .map(|micros| micros.map(micros_to_datetime))?
         .unwrap_or(chrono::DateTime::UNIX_EPOCH);
     Ok(MessageSpanRow {
-        trace_id: row.get(0)?,
-        span_id: row.get(1)?,
+        trace_id: row.get(at.trace_id)?,
+        span_id: row.get(at.span_id)?,
         span_timestamp,
         ingested_at: span_timestamp,
-        status_code: row.get(3)?,
-        messages_json: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
-        observation_type: row.get(5)?,
-        span_name: row.get(6)?,
-        scope_name: row.get(7)?,
-        scope_version: row.get(8)?,
-        session_id: row.get(9)?,
-        span_marks: row.get(10)?,
+        status_code: row.get(at.status_code)?,
+        messages_json: row
+            .get::<_, Option<String>>(at.messages)?
+            .unwrap_or_default(),
+        observation_type: row.get(at.observation_type)?,
+        span_name: row.get(at.span_name)?,
+        scope_name: row.get(at.scope_name)?,
+        scope_version: row.get(at.scope_version)?,
+        session_id: row.get(at.session_id)?,
+        span_marks: row.get(at.span_marks)?,
         parent_span_id: None,
         span_end_timestamp: None,
         tool_definitions_json: "[]".to_string(),
@@ -171,53 +285,52 @@ fn parse_thread_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> 
 // Helper functions
 // ============================================================================
 
-/// Parse a span row from database - just extracts fields, no transformation.
-fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
+/// One row of a span read - just extracts fields, no transformation.
+fn parse_span_row(row: &duckdb::Row, at: &SpanColumns) -> Result<MessageSpanRow, duckdb::Error> {
+    let text = |column: usize| row.get::<_, Option<String>>(column);
     Ok(MessageSpanRow {
-        trace_id: row.get(0)?,
-        span_id: row.get(1)?,
-        parent_span_id: row.get(2)?,
-        span_timestamp: micros_to_datetime(row.get::<_, i64>(3)?),
-        span_end_timestamp: row.get::<_, Option<i64>>(4)?.map(micros_to_datetime),
-        messages_json: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
-        model: row.get(6)?,
-        provider: row.get(7)?,
-        status_code: row.get(8)?,
-        exception_type: row.get(9)?,
-        exception_message: row.get(10)?,
-        exception_stacktrace: row.get(11)?,
-        input_tokens: row.get(12)?,
-        output_tokens: row.get(13)?,
-        total_tokens: row.get(14)?,
-        cost_total: row.get(15)?,
-        tool_definitions_json: row.get::<_, Option<String>>(16)?.unwrap_or_default(),
-        tool_names_json: row.get::<_, Option<String>>(17)?.unwrap_or_default(),
-        log_messages_json: row
-            .get::<_, Option<String>>(38)?
-            .unwrap_or_else(|| "[]".to_string()),
+        trace_id: row.get(at.trace_id)?,
+        span_id: row.get(at.span_id)?,
+        parent_span_id: row.get(at.parent_span_id)?,
+        span_timestamp: micros_to_datetime(row.get::<_, i64>(at.span_timestamp_us)?),
+        span_end_timestamp: row
+            .get::<_, Option<i64>>(at.span_end_timestamp_us)?
+            .map(micros_to_datetime),
+        messages_json: text(at.messages)?.unwrap_or_default(),
+        model: row.get(at.model)?,
+        provider: row.get(at.provider)?,
+        status_code: row.get(at.status_code)?,
+        exception_type: row.get(at.exception_type)?,
+        exception_message: row.get(at.exception_message)?,
+        exception_stacktrace: row.get(at.exception_stacktrace)?,
+        input_tokens: row.get(at.input_tokens)?,
+        output_tokens: row.get(at.output_tokens)?,
+        total_tokens: row.get(at.total_tokens)?,
+        cost_total: row.get(at.cost_total)?,
+        tool_definitions_json: text(at.tool_definitions)?.unwrap_or_default(),
+        tool_names_json: text(at.tool_names)?.unwrap_or_default(),
+        log_messages_json: text(at.log_messages)?.unwrap_or_else(|| "[]".to_string()),
         body_cache_key: None,
-        observation_type: row.get(18)?,
-        session_id: row.get(19)?,
-        ingested_at: micros_to_datetime(row.get::<_, i64>(20)?),
-        scope_name: row.get(21)?,
-        scope_version: row.get(22)?,
-        span_name: row.get(23)?,
-        framework: row.get(24)?,
-        response_model: row.get(25)?,
-        response_id: row.get(26)?,
-        temperature: row.get(27)?,
-        top_p: row.get(28)?,
-        max_tokens: row.get(29)?,
-        finish_reasons: row.get(30)?,
-        cache_read_tokens: row.get(31)?,
-        cache_write_tokens: row.get(32)?,
-        reasoning_tokens: row.get(33)?,
-        cost_input: row.get(34)?,
-        cost_output: row.get(35)?,
-        request_thread: row.get::<_, Option<String>>(36)?.unwrap_or_default(),
-        // Cast to `INTEGER` in the projection, because this driver's row reader has no conversion for the raw
-        // `USMALLINT`; the stored column keeps its two bytes.
-        span_marks: row.get::<_, i32>(37)? as u16,
+        observation_type: row.get(at.observation_type)?,
+        session_id: row.get(at.session_id)?,
+        ingested_at: micros_to_datetime(row.get::<_, i64>(at.ingested_at_us)?),
+        scope_name: row.get(at.scope_name)?,
+        scope_version: row.get(at.scope_version)?,
+        span_name: row.get(at.span_name)?,
+        framework: row.get(at.framework)?,
+        response_model: row.get(at.response_model)?,
+        response_id: row.get(at.response_id)?,
+        temperature: row.get(at.temperature)?,
+        top_p: row.get(at.top_p)?,
+        max_tokens: row.get(at.max_tokens)?,
+        finish_reasons: row.get(at.finish_reasons)?,
+        cache_read_tokens: row.get(at.cache_read_tokens)?,
+        cache_write_tokens: row.get(at.cache_write_tokens)?,
+        reasoning_tokens: row.get(at.reasoning_tokens)?,
+        cost_input: row.get(at.cost_input)?,
+        cost_output: row.get(at.cost_output)?,
+        request_thread: text(at.request_thread)?.unwrap_or_default(),
+        span_marks: row.get(at.span_marks)?,
     })
 }
 
@@ -678,6 +791,61 @@ mod tests {
             "the span view applies no content filter"
         );
         assert_eq!(alone.rows[0].log_messages_json, "[]");
+    }
+
+    /// **A parser reads its columns by name, so where the query puts them is the query's business.** The
+    /// positional reader failed exactly here: one column added to a projection moved the joined log messages
+    /// along, and they were read from the column beside them. Reversed columns read the same row, and a column
+    /// the query does not return is an error that names it rather than a value read from somewhere else.
+    #[test]
+    fn a_parser_reads_by_name_whatever_order_the_query_returns() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.execute_batch(
+            "CREATE TABLE t AS SELECT 'trace-1' AS trace_id, 'span-1' AS span_id, \
+             1700000000000000::BIGINT AS timestamp_start, 'OK' AS status_code, '[]' AS messages, \
+             'generation' AS observation_type, 'chat' AS span_name, 'scope' AS scope_name, '1.0' AS scope_version, \
+             'session-1' AS session_id, 5::USMALLINT AS span_marks",
+        )
+        .expect("create");
+        let read = |columns: &str| {
+            read_rows(
+                &conn,
+                &format!("SELECT {columns} FROM t"),
+                &[],
+                ThreadColumns::resolve,
+                parse_thread_row,
+            )
+        };
+        let declared = "trace_id, span_id, timestamp_start, status_code, messages, observation_type, \
+                        span_name, scope_name, scope_version, session_id, span_marks";
+        let mut columns: Vec<&str> = declared.split(", ").collect();
+        columns.reverse();
+        let reversed = columns.join(", ");
+        let in_order = read(declared).expect("the declared order");
+        let out_of_order = read(&reversed).expect("the reversed order");
+        assert_eq!(in_order.len(), 1);
+        let row = &out_of_order[0];
+        assert_eq!(
+            (
+                row.trace_id.as_str(),
+                row.span_id.as_str(),
+                row.session_id.as_deref(),
+                row.span_marks
+            ),
+            ("trace-1", "span-1", Some("session-1"), 5),
+            "every column is read from the one that holds it"
+        );
+        assert_eq!(
+            format!("{in_order:?}"),
+            format!("{out_of_order:?}"),
+            "and the order changes nothing"
+        );
+        let missing = read(&declared.replace(", span_marks", ""))
+            .expect_err("a column the query does not return");
+        assert!(
+            missing.to_string().contains("span_marks"),
+            "the error names the column: {missing}"
+        );
     }
 
     /// **A composed row carries the marks its own view reads.** A request's view is composed from its thread's
