@@ -270,11 +270,16 @@ impl TracePipeline {
                         .iter()
                         .map(|(_, _, _, received)| received.clone())
                         .collect::<Vec<_>>();
-                    let outcomes = self.run_waves(&requests, &received).await;
+                    let staged = ready
+                        .iter()
+                        .map(|(_, payload, _, _)| Some(payload.clone()))
+                        .collect::<Vec<_>>();
+                    // Each export is settled after its own wave, before a later one is written (`waves.rs`).
+                    let answers = self.run_waves(&requests, &received, &staged).await;
                     // Each message by its own export's outcome: a fence that dropped another export's spans
                     // says nothing about this one.
-                    for ((msg_id, payload, _, _), outcome) in ready.into_iter().zip(outcomes) {
-                        if outcome.is_final() && self.settle_staged_trace(&payload).await {
+                    for ((msg_id, payload, _, _), answer) in ready.into_iter().zip(answers) {
+                        if answer.outcome.is_final() && answer.settled {
                             ack_ids.push(msg_id);
                         } else if self.note_staging_failure(&payload.id).await {
                             // Cap exhaustion quarantines the blob/registry row. Stop queue churn,
@@ -383,7 +388,7 @@ impl TracePipeline {
         Ok(Some((payload, request, received)))
     }
 
-    async fn settle_staged_trace(&self, payload: &StagedPayload) -> bool {
+    pub(super) async fn settle_staged_trace(&self, payload: &StagedPayload) -> bool {
         match self.staging.settle(payload).await {
             Ok(StagingDisposition::Confirmed) => true,
             Ok(StagingDisposition::DeliberatelyAbsent) => {

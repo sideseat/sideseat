@@ -310,3 +310,71 @@ fn a_restored_record_is_indexed_under_its_traces() {
         vec![hex::encode([21u8; 16]), hex::encode([22u8; 16])]
     );
 }
+
+/// Two revisions of the same spans in one batch, the earlier first: each is settled after its own wave, so the
+/// earlier one is confirmed while it is the winner. Settled after both, it found the later revision the winner,
+/// stayed pending, and was written again - over the revision that had arrived after it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn revisions_in_one_batch_are_each_settled_after_their_wave() {
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let first = export();
+    let mut second = export();
+    for span in &mut second.resource_spans[0].scope_spans[0].spans {
+        span.name = "corrected".into();
+    }
+    let requests = [first, second];
+    let received = [protobuf(&requests[0]), protobuf(&requests[1])];
+    let mut staged = Vec::new();
+    for (request, body) in requests.iter().zip(&received) {
+        let reference = pipeline
+            .staging
+            .stage(
+                "default",
+                StagedSignal::Traces,
+                &body.staged(),
+                crate::traces::confirmation_records(request),
+                "p".to_string(),
+            )
+            .await
+            .expect("stage");
+        staged.push(
+            pipeline
+                .staging
+                .registration(&reference.id)
+                .await
+                .expect("registration"),
+        );
+    }
+
+    let answers = pipeline.run_waves(&requests, &received, &staged).await;
+    assert!(
+        answers
+            .iter()
+            .all(|answer| answer.outcome == IngestOutcome::Stored && answer.settled),
+        "{answers:?}"
+    );
+    assert!(
+        pipeline
+            .staging
+            .pending(10)
+            .await
+            .expect("pending")
+            .is_empty(),
+        "an export stayed pending, to be written again"
+    );
+    let (rows, _) = analytics
+        .list_spans(&sideseat_ports::types::ListSpansParams {
+            project_id: ProjectId::from("default"),
+            page: 1,
+            limit: 10,
+            ..Default::default()
+        })
+        .await
+        .expect("spans");
+    assert_eq!(rows.len(), 3);
+    assert!(
+        rows.iter()
+            .all(|row| row.span_name.as_deref() == Some("corrected")),
+        "the later revision is the winner"
+    );
+}

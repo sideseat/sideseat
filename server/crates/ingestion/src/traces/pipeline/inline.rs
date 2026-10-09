@@ -14,8 +14,10 @@
 //! behind it.
 //!
 //! Correctness does not depend on the grouping: a batch answers each export exactly as it would be answered
-//! alone (`batch_equivalence_tests`), and nothing is acknowledged before its own outcome arrives. The queue is
-//! bounded in bytes, so a burst waits for room instead of growing memory.
+//! alone (`batch_equivalence_tests`), and nothing is acknowledged before its own outcome arrives. Each export's
+//! staged payload is settled after its wave, before the next is written (`waves.rs`). The queue is bounded in
+//! bytes, so a burst waits for room instead of growing memory, and a batch in bytes too: an export that would take
+//! it past the cap starts the next one, alone if it is over the cap by itself.
 
 use std::sync::{Arc, OnceLock};
 
@@ -37,6 +39,8 @@ const MAX_QUEUED_EXPORTS: usize = 4096;
 struct Job {
     request: ExportTraceServiceRequest,
     received: ReceivedPayload,
+    /// The id of the export's staged payload, settled after its wave.
+    staged: Option<String>,
     bytes: usize,
     reply: oneshot::Sender<IngestOutcome>,
     /// Held until the export is answered, so queued bytes stay within `MAX_QUEUED_BYTES`.
@@ -64,11 +68,13 @@ impl InlineBatcher {
         }
     }
 
-    /// Persist one export, in whatever batch it joins, and answer it.
+    /// Persist one export, in whatever batch it joins, and answer it; settle its staged payload, `staged` by id,
+    /// once it is written.
     pub async fn ingest(
         &self,
         request: &ExportTraceServiceRequest,
         received: &ReceivedPayload,
+        staged: Option<&str>,
     ) -> IngestOutcome {
         let bytes = received.bytes.len();
         // An export larger than the whole budget takes all of it: it waits for the queue to drain, then goes.
@@ -80,6 +86,7 @@ impl InlineBatcher {
         let job = Job {
             request: request.clone(),
             received: received.clone(),
+            staged: staged.map(str::to_string),
             bytes,
             reply,
             room,
@@ -105,19 +112,40 @@ impl InlineBatcher {
     }
 }
 
+/// Whether an export of `next` bytes joins a batch of `exports` exports and `bytes` bytes: only within both caps,
+/// so a batch never passes either, and an export over the byte cap by itself is never joined by another.
+fn joins(bytes: usize, exports: usize, next: usize) -> bool {
+    exports < MAX_BATCH_EXPORTS
+        && bytes < MAX_BATCH_BYTES
+        && bytes.saturating_add(next) <= MAX_BATCH_BYTES
+}
+
 async fn run(
     pipeline: Arc<TracePipeline>,
     mut receiver: mpsc::Receiver<Job>,
     #[cfg(test)] batches: Arc<std::sync::atomic::AtomicUsize>,
 ) {
-    while let Some(first) = receiver.recv().await {
+    // The export that would have taken the last batch past its byte cap: the first of the next.
+    let mut carried: Option<Job> = None;
+    loop {
+        let first = match carried.take() {
+            Some(job) => job,
+            None => match receiver.recv().await {
+                Some(job) => job,
+                None => break,
+            },
+        };
         let mut bytes = first.bytes;
         let mut jobs = vec![first];
         while jobs.len() < MAX_BATCH_EXPORTS && bytes < MAX_BATCH_BYTES {
             match receiver.try_recv() {
-                Ok(job) => {
+                Ok(job) if joins(bytes, jobs.len(), job.bytes) => {
                     bytes += job.bytes;
                     jobs.push(job);
+                }
+                Ok(job) => {
+                    carried = Some(job);
+                    break;
                 }
                 Err(_) => break,
             }
@@ -127,24 +155,66 @@ async fn run(
         let exports = jobs.len();
         let mut requests = Vec::with_capacity(exports);
         let mut received = Vec::with_capacity(exports);
+        let mut staged = Vec::with_capacity(exports);
         // Each export's answer channel and its share of the byte budget, held until it is answered.
         let mut waiting = Vec::with_capacity(exports);
         for job in jobs {
             requests.push(job.request);
             received.push(job.received);
+            staged.push(job.staged);
             waiting.push((job.reply, job.room));
         }
         // Its own task, so a panic fails this batch's exports and not the batcher.
         let batch = Arc::clone(&pipeline);
-        let outcomes = tokio::spawn(async move { batch.run_waves(&requests, &received).await })
-            .await
-            .unwrap_or_else(|_| {
-                tracing::error!(exports, "An inline batch panicked; refusing its exports");
-                vec![IngestOutcome::Failed; exports]
-            });
+        let outcomes = tokio::spawn(async move {
+            // A registration that cannot be read is settled by its requester instead, as before batching.
+            let mut payloads = Vec::with_capacity(staged.len());
+            for id in &staged {
+                payloads.push(match id {
+                    Some(id) => batch.staging.registration(id).await.ok().flatten(),
+                    None => None,
+                });
+            }
+            batch
+                .run_waves(&requests, &received, &payloads)
+                .await
+                .into_iter()
+                .map(|answer| answer.outcome)
+                .collect::<Vec<_>>()
+        })
+        .await
+        .unwrap_or_else(|_| {
+            tracing::error!(exports, "An inline batch panicked; refusing its exports");
+            vec![IngestOutcome::Failed; exports]
+        });
         for ((reply, _room), outcome) in waiting.into_iter().zip(outcomes) {
             // The requester may have gone - a closed connection - which changes nothing about what was written.
             let _ = reply.send(outcome);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MIB: usize = 1024 * 1024;
+
+    /// A batch stays within its byte cap: an export that would take it past starts the next batch, and one over
+    /// the cap by itself is joined by nothing.
+    #[test]
+    fn a_batch_never_passes_its_caps() {
+        assert!(joins(MIB, 1, MIB));
+        assert!(
+            !joins(31 * MIB, 1, 31 * MIB),
+            "two 31 MiB exports are 62 MiB"
+        );
+        assert!(
+            !joins(MIB, 1, 40 * MIB),
+            "a 40 MiB export after a small one"
+        );
+        assert!(!joins(40 * MIB, 1, 1), "an oversized export runs alone");
+        assert!(joins(MAX_BATCH_BYTES - 1, 1, 1));
+        assert!(!joins(1, MAX_BATCH_EXPORTS, 1), "the export cap");
     }
 }

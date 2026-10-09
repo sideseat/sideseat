@@ -179,7 +179,7 @@ async fn concurrent_inline_exports_are_batched_and_answered_alone() {
                     request.encode_to_vec(),
                     sideseat_domain::raw_payload::RawContent::Protobuf,
                 );
-                batcher.ingest(&request, &received).await
+                batcher.ingest(&request, &received, None).await
             })
         })
         .collect();
@@ -199,5 +199,113 @@ async fn concurrent_inline_exports_are_batched_and_answered_alone() {
         batches * 2 <= requests.len(),
         "{batches} batches for {} concurrent exports: they were not grouped",
         requests.len()
+    );
+}
+
+/// An export of one span on trace `trace` whose input is `value`.
+fn one_span(trace: u8, value: String) -> ExportTraceServiceRequest {
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+    ExportTraceServiceRequest {
+        resource_spans: vec![ResourceSpans {
+            scope_spans: vec![ScopeSpans {
+                spans: vec![Span {
+                    trace_id: vec![trace; 16],
+                    span_id: vec![1; 8],
+                    name: "generation".into(),
+                    start_time_unix_nano: 1_700_000_000_000_000_000,
+                    end_time_unix_nano: 1_700_000_000_000_000_100,
+                    attributes: vec![KeyValue {
+                        key: "input.value".into(),
+                        value: Some(AnyValue {
+                            value: Some(any_value::Value::StringValue(value)),
+                        }),
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+    }
+}
+
+fn received_of(request: &ExportTraceServiceRequest) -> ReceivedPayload {
+    ReceivedPayload::new(
+        request.encode_to_vec(),
+        sideseat_domain::raw_payload::RawContent::Protobuf,
+    )
+}
+
+/// An export naming a file that a later export of its batch supplies is stored as it is alone, arriving first:
+/// its reference finds nothing and is replaced with a note. In one wave the later export's file was stored before
+/// the reference was checked, so the reference held - and what was stored depended on the grouping.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_reference_to_a_file_a_later_export_supplies_is_stored_as_alone() {
+    use base64::Engine;
+    let picture = base64::engine::general_purpose::STANDARD
+        .encode((0..4096u32).map(|i| (i % 251) as u8).collect::<Vec<_>>());
+    let supplier = one_span(43, format!("data:image/png;base64,{picture}"));
+    // The file's hash, learned from a store of its own.
+    let hash = {
+        let (_temp, _analytics, database, pipeline) = pipeline_over_a_temp_store_with(true).await;
+        pipeline
+            .ingest_now(&supplier, &received_of(&supplier))
+            .await;
+        database
+            .get_file_hashes_for_traces(&ProjectId::from("default"), &[hex::encode([43u8; 16])])
+            .await
+            .expect("hashes")
+            .into_iter()
+            .next()
+            .expect("the supplier's file")
+    };
+    let referrer = one_span(
+        42,
+        format!(
+            "look at {}",
+            sideseat_core::utils::file_uri::build_file_uri(&hash, Some("image/png"))
+        ),
+    );
+    let requests = [referrer, supplier];
+
+    // The rows, and the text of every field of the referrer's span that can hold a reference: where the note
+    // replaces an unbacked one.
+    async fn seen(
+        analytics: &(dyn AnalyticsRepository + Send + Sync),
+    ) -> (Vec<String>, Vec<String>) {
+        let mut fields = analytics
+            .file_reference_fields_for_traces(
+                &ProjectId::from("default"),
+                &[hex::encode([42u8; 16])],
+            )
+            .await
+            .expect("reference fields");
+        fields.sort();
+        (stored(analytics).await, fields)
+    }
+    let sequential = {
+        let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(true).await;
+        for request in &requests {
+            pipeline.ingest_now(request, &received_of(request)).await;
+        }
+        seen(analytics.as_ref()).await
+    };
+    assert!(
+        sequential.1.iter().all(|field| !field.contains(&hash)),
+        "premise: alone and first, the reference is replaced with a note"
+    );
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(true).await;
+    let outcomes = pipeline.run_waves_outcomes_for_test(&requests).await;
+    assert!(
+        outcomes
+            .iter()
+            .all(|outcome| *outcome == IngestOutcome::Stored),
+        "{outcomes:?}"
+    );
+    assert_eq!(
+        seen(analytics.as_ref()).await,
+        sequential,
+        "batched, the reference was backed by a file that arrived after it"
     );
 }

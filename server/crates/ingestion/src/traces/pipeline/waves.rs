@@ -10,7 +10,14 @@
 //!
 //! A wave that fails is retried an export at a time. A failure caused by one export's data - an attachment
 //! that does not decode, a panic in its preparation - would otherwise fail every export it was grouped with,
-//! and keep failing them on every retry for as long as it kept arriving among them.
+//! and keep failing them on every retry for as long as it kept arriving among them. A batch also refuses its
+//! grouping, and so is retried an export at a time, when one export names a file another of its exports supplies:
+//! which of them came first decides whether the reference is backed (`batch.rs`).
+//!
+//! Each export's staged payload is settled after its own wave, before the next wave is written. Settling
+//! confirms the export's content is the stored winner; settled after a later wave that holds another revision of
+//! the same span, the export found that revision the winner, stayed pending, and was written again - over the
+//! revision that had arrived after it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -18,6 +25,15 @@ use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 
 use super::{IngestOutcome, TracePipeline};
 use crate::received::ReceivedPayload;
+use sideseat_ports::types::StagedPayload;
+
+/// What became of one export of [`TracePipeline::run_waves`]: its outcome, and whether its staged payload, when it
+/// had one, was settled after its wave.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct WaveAnswer {
+    pub outcome: IngestOutcome,
+    pub settled: bool,
+}
 
 /// Indices of `requests`, grouped into waves whose exports share no trace, with every export placed after any
 /// earlier export it shares a trace with.
@@ -50,13 +66,16 @@ pub(super) fn conflict_free_waves(requests: &[ExportTraceServiceRequest]) -> Vec
 }
 
 impl TracePipeline {
-    /// Persist exports in conflict-free waves, answering each; exports of a failed wave are retried alone.
+    /// Persist exports in conflict-free waves, answering each; exports of a failed wave are retried alone. An
+    /// export with a staged payload (`staged`, by index) is settled after its wave, before the next is written.
     pub(super) async fn run_waves(
         &self,
         requests: &[ExportTraceServiceRequest],
         received: &[ReceivedPayload],
-    ) -> Vec<IngestOutcome> {
+        staged: &[Option<StagedPayload>],
+    ) -> Vec<WaveAnswer> {
         let mut outcomes = vec![IngestOutcome::Failed; requests.len()];
+        let mut settled = vec![false; requests.len()];
         for wave in conflict_free_waves(requests) {
             let batch: Vec<ExportTraceServiceRequest> =
                 wave.iter().map(|&index| requests[index].clone()).collect();
@@ -87,8 +106,18 @@ impl TracePipeline {
                     }
                 }
             }
+            for &index in &wave {
+                if let (true, Some(Some(payload))) = (outcomes[index].is_final(), staged.get(index))
+                {
+                    settled[index] = self.settle_staged_trace(payload).await;
+                }
+            }
         }
         outcomes
+            .into_iter()
+            .zip(settled)
+            .map(|(outcome, settled)| WaveAnswer { outcome, settled })
+            .collect()
     }
 }
 

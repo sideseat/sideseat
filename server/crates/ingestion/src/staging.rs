@@ -194,6 +194,15 @@ impl StagingService {
             .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
+    /// A staged payload's registration - what settling it reads - without its bytes, or `None` once it is
+    /// retired.
+    pub async fn registration(&self, id: &str) -> Result<Option<StagedPayload>, StagingError> {
+        self.database
+            .get_staged_payload(id)
+            .await
+            .map_err(|error| StagingError::Registry(error.to_string()))
+    }
+
     pub async fn load(&self, id: &str) -> Result<Option<(StagedPayload, Vec<u8>)>, StagingError> {
         let Some(payload) = self
             .database

@@ -152,10 +152,12 @@ pub trait Signal: Send + Sync {
     fn response(&self, rejected: Option<(usize, SignalRejection, bool)>) -> Self::Response;
     fn total_drop_is_error(&self, reason: SignalRejection) -> bool;
 
+    /// Store `request`, whose payload is staged as `staged`.
     async fn persist(
         &self,
         request: &Self::Request,
         _context: &SignalContext<'_>,
+        staged: &StagedPayloadRef,
     ) -> Result<PersistOutcome, String>;
     async fn publish(&self, payload: &StagedPayloadRef) -> Result<(), String>;
 }
@@ -236,7 +238,7 @@ pub async fn export_signal<S: Signal>(
         LifecycleStrategy::PersistBeforeAck => {
             // The outcome of the write that settled: every path out of the loop passes a successful one.
             let last_outcome = loop {
-                let outcome = match signal.persist(&request, &context).await {
+                let outcome = match signal.persist(&request, &context, &payload_ref).await {
                     Ok(outcome) => outcome,
                     Err(error) => {
                         tracing::error!(
@@ -520,12 +522,16 @@ impl Signal for TraceSignal {
         &self,
         request: &Self::Request,
         _context: &SignalContext<'_>,
+        staged: &StagedPayloadRef,
     ) -> Result<PersistOutcome, String> {
         let batcher = self
             .batcher
             .as_ref()
             .ok_or_else(|| "trace persistence lifecycle has no pipeline".to_string())?;
-        match batcher.ingest(request, _context.received).await {
+        match batcher
+            .ingest(request, _context.received, Some(staged.id.as_str()))
+            .await
+        {
             IngestOutcome::Stored => Ok(PersistOutcome::Stored),
             IngestOutcome::Dropped { spans, reason } => Ok(PersistOutcome::Dropped {
                 records: spans,
@@ -693,6 +699,7 @@ impl Signal for MetricsSignal {
         &self,
         request: &Self::Request,
         context: &SignalContext<'_>,
+        _staged: &StagedPayloadRef,
     ) -> Result<PersistOutcome, String> {
         let stored = crate::metrics::ingest_governed(
             request,
@@ -854,6 +861,7 @@ impl Signal for LogSignal {
         &self,
         request: &Self::Request,
         context: &SignalContext<'_>,
+        _staged: &StagedPayloadRef,
     ) -> Result<PersistOutcome, String> {
         let stored = crate::logs::ingest_governed(
             request,
