@@ -33,6 +33,11 @@ reason = "the model responses that only call functions: automatic function calli
 scenarios = ["tool_use", "error", "streaming"]
 modes = { streaming = ["native@0.7b1+semconv-latest", "native@1.0b1"] }
 
+[tool.sideseat-example.truth.unexported.reasoning_kind]
+reason = "the model's thoughts: the Vertex AI instrumentation of the native setup records a thought part as an ordinary text part, with nothing marking it as a thought"
+scenarios = ["reasoning"]
+modes = { reasoning = ["native"] }
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

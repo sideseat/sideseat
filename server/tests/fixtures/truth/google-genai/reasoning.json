@@ -139,6 +139,15 @@
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   },
   {
+   "fact": "reasoning",
+   "reason": "kind_not_exported",
+   "detail": "the model's thoughts: the Google GenAI instrumentation of the native setup records a thought part as an ordinary text part, with nothing marking it as a thought",
+   "subject": "fact-002",
+   "modes": [
+    "native"
+   ]
+  },
+  {
    "fact": "request",
    "reason": "request_modelled",
    "detail": "a fake model answers the request it receives, and that request was not recorded: the one modelled here declares the scenario's shared tools and schema as the scripts do, so a fact is only as certain as that model of the framework's request"

@@ -13,6 +13,18 @@ fn names_reasoning(text: &str) -> bool {
     text.contains("reason") || text.contains("think") || text.contains("thought")
 }
 
+/// Whether a member's name says its value is reasoning. Not why a response ended: `finish_reason`, `stop_reason`
+/// and their camel-case spellings name a reason, not reasoning, and every message carrying one would otherwise
+/// read as marking its text as reasoning.
+fn member_names_reasoning(key: &str) -> bool {
+    let folded: String = key
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    names_reasoning(key) && !(folded.ends_with("finishreason") || folded.ends_with("stopreason"))
+}
+
 /// A key a provider writes reasoning's opaque replay token under: `signature`, `thoughtSignature`,
 /// `encrypted`, `encrypted_content`.
 fn names_signature(key: &str) -> bool {
@@ -181,7 +193,7 @@ pub(super) fn prove_kind(fact: &Fact, haystack: &Haystack) -> Proof {
     let marks = |node: &Value| {
         node.as_object().is_some_and(|map| {
             map.iter().any(|(key, value)| {
-                names_reasoning(key)
+                member_names_reasoning(key)
                     || (key == "type" && value.as_str().is_some_and(names_reasoning))
             })
         })

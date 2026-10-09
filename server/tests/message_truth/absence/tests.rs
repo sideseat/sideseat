@@ -759,3 +759,34 @@ fn a_decoded_signature_keeps_the_member_it_was_decoded_from() {
     );
     assert_eq!(prove(&fact, &flattened(OTHER)), Proof::Absent);
 }
+
+#[test]
+fn why_a_response_ended_does_not_mark_its_text_as_reasoning() {
+    const THOUGHT: &str = "The two slowest should cross together so the 10 absorbs the 5.";
+    let fact = fact("reasoning", serde_json::json!({ "text": THOUGHT }));
+    let kind = |payload: serde_json::Value| {
+        prove_claim(
+            &Claim::Kind(&fact),
+            &attribute(string(&payload.to_string())),
+        )
+    };
+    // A message stating why it ended carries a reason, not reasoning: its text is unmarked.
+    assert_eq!(
+        kind(
+            serde_json::json!([{"role": "assistant", "finish_reason": "stop",
+            "parts": [{"type": "text", "content": THOUGHT}]}])
+        ),
+        Proof::Absent
+    );
+    assert_eq!(
+        kind(serde_json::json!({"stopReason": "end_turn", "content": [{"text": THOUGHT}]})),
+        Proof::Absent
+    );
+    // A part typed as reasoning, or a member named for it, marks it.
+    assert!(present(kind(
+        serde_json::json!({"parts": [{"type": "reasoning", "content": THOUGHT}]})
+    )));
+    assert!(present(kind(
+        serde_json::json!({"finish_reason": "stop", "reasoning_content": THOUGHT})
+    )));
+}
