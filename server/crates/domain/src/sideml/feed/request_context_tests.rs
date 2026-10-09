@@ -26,6 +26,7 @@ fn message(key: &str, content: serde_json::Value, second: i64) -> RawMessage {
         },
         content,
         rendering: false,
+        direction: None,
     }
 }
 

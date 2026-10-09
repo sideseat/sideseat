@@ -220,13 +220,15 @@ pub(super) fn collect_order_evidence(
             // carries the facts *and* the ordering family, so asking twice - once for each - looked up
             // the same declaration twice and, worse, allowed the two answers to come from different
             // clauses if the context ever differed between the calls.
-            let clause = crate::rules::ruleset()
-                .carriers
-                .resolve(&block.carrier_context());
-            let semantics = clause
-                .map_or(crate::sideml::carrier::CarrierSemantics::SNAPSHOT, |c| {
+            let context = block.carrier_context();
+            let clause = crate::rules::ruleset().carriers.resolve(&context);
+            // Through the one place a declared side is applied, as every other carrier question is.
+            let semantics = crate::sideml::carrier::directed(
+                clause.map_or(crate::sideml::carrier::CarrierSemantics::SNAPSHOT, |c| {
                     c.semantics
-                });
+                }),
+                &context,
+            );
             let payload_root = block
                 .position
                 .to_string()

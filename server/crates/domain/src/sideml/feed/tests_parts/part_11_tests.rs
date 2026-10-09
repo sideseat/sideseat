@@ -473,6 +473,7 @@ fn test_no_promotion_when_choice_exists() {
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     };
 
     let choice_block = BlockEntry {
@@ -519,6 +520,7 @@ fn test_no_promotion_when_choice_exists() {
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     };
 
     let mut blocks = vec![assistant_block, choice_block];

@@ -288,6 +288,8 @@ struct ParsedMessage {
     scope_version: Option<String>,
     /// The stored message was a rendering (`RawMessage::rendering`).
     rendering: bool,
+    /// The side of the span its reading declared, where it declared one (`RawMessage::direction`).
+    direction: Option<crate::rules::schema::ReadingDirection>,
 }
 
 // ============================================================================

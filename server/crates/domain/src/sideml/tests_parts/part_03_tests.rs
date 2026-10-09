@@ -137,6 +137,7 @@ fn test_to_sideml_strands_user_message() {
             "role": "user"
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -170,6 +171,7 @@ fn test_to_sideml_strands_tool_message_categorization() {
             "role": "tool"
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -196,6 +198,7 @@ fn test_to_sideml_tool_input_categorization() {
             "content": [{"toolUse": {"toolUseId": "abc", "name": "weather", "input": {}}}]
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -217,6 +220,7 @@ fn test_to_sideml_attribute_source_uses_span_timestamp() {
             "content": "Hello"
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -239,6 +243,7 @@ fn test_to_sideml_choice_event_categorization() {
             "finish_reason": "stop"
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -392,6 +397,7 @@ fn test_bundled_tool_results_are_split_into_separate_messages() {
             ]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[bundled_message]);
@@ -429,6 +435,7 @@ fn test_single_tool_result_not_split() {
             ]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[single_message]);
@@ -456,6 +463,7 @@ fn test_non_tool_messages_not_affected_by_bundling_logic() {
             "content": [{"text": "Hello"}, {"text": "World"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[user_message]);
@@ -483,6 +491,7 @@ fn test_special_role_tool_call_preserved() {
             "content": {"city": "NYC"}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -507,6 +516,7 @@ fn test_special_role_tools_preserved() {
             "content": [{"name": "get_weather", "description": "Get weather"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -531,6 +541,7 @@ fn test_special_role_data_preserved() {
             "content": {"history": [{"user": "hi"}, {"assistant": "hello"}]}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -555,6 +566,7 @@ fn test_special_role_context_preserved() {
             "content": {"chat_history": "previous messages"}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -579,6 +591,7 @@ fn test_standard_role_overridden_by_event() {
             "content": "This should be assistant"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -606,6 +619,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
             "content": [{"toolUse": {"toolUseId": "call_abc", "name": "get_weather", "input": {}}}]
         }),
         rendering: false,
+        direction: None,
     };
 
     // Tool result without name but with matching tool_use_id
@@ -619,6 +633,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
             "content": [{"text": "Sunny, 25C"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml_with_context(&[tool_call, tool_result], false);
@@ -651,6 +666,7 @@ fn test_tool_result_no_name_when_no_matching_tool_use() {
             "content": [{"text": "Result"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[tool_result]);
@@ -676,6 +692,7 @@ fn test_gen_ai_choice_in_tool_span_becomes_tool_role() {
             "content": [{"text": "Tool output result"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     // In tool span: gen_ai.choice is tool OUTPUT
@@ -703,6 +720,7 @@ fn test_gen_ai_choice_in_chat_span_becomes_assistant_role() {
             "content": [{"text": "Assistant response"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     // In chat span: gen_ai.choice is assistant response
@@ -730,6 +748,7 @@ fn test_gen_ai_tool_message_in_chat_span_becomes_tool_role() {
             "content": [{"text": "Tool result"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     // In chat span: gen_ai.tool.message is tool result
@@ -801,6 +820,7 @@ fn test_to_sideml_derives_assistant_role_from_choice_event() {
             "finish_reason": "end_turn"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -826,6 +846,7 @@ fn test_to_sideml_derives_user_role_from_user_message_event() {
             "content": "What's the weather?"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -848,6 +869,7 @@ fn test_to_sideml_derives_tool_role_from_tool_message_event() {
             "id": "tool123"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -872,6 +894,7 @@ fn test_to_sideml_event_derived_role_takes_precedence() {
             "content": "Hello"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -902,6 +925,7 @@ fn test_unflatten_tool_calls_from_openinference() {
             "tool_calls.0.tool_call.function.arguments": {"city": "NYC", "days": 3}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);

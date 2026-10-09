@@ -185,13 +185,15 @@ fn try_declared_rules_for_span(
             sideseat_domain::rules::schema::EmitTarget::Message if emission.carrier.is_event() => {
                 messages.push(
                     RawMessage::from_event(key, timestamp, emission.value)
-                        .rendered(emission.rendering),
+                        .rendered(emission.rendering)
+                        .directed(emission.direction),
                 );
             }
             sideseat_domain::rules::schema::EmitTarget::Message => {
                 messages.push(
                     RawMessage::from_attr(key, timestamp, emission.value)
-                        .rendered(emission.rendering),
+                        .rendered(emission.rendering)
+                        .directed(emission.direction),
                 );
             }
             sideseat_domain::rules::schema::EmitTarget::ToolDefinitions => {
@@ -363,7 +365,7 @@ fn extract_per_carrier(
     }
     if messages
         .iter()
-        .any(|m| carrier_holds_span_output(&m.source, span.name, observation_type))
+        .any(|m| carrier_holds_span_output(m, span.name, observation_type))
     {
         return;
     }
@@ -373,7 +375,7 @@ fn extract_per_carrier(
     // read twice.
     let produced = fallback_messages(span, timestamp, &owned_by_dialects);
     for message in produced {
-        if !carrier_holds_span_output(&message.source, span.name, observation_type) {
+        if !carrier_holds_span_output(&message, span.name, observation_type) {
             continue;
         }
         let carrier = carrier_of(&message.source);
@@ -393,11 +395,11 @@ fn extract_per_carrier(
 /// rather than guessing.
 #[doc(hidden)]
 pub fn carrier_holds_span_output(
-    source: &MessageSource,
+    message: &RawMessage,
     span_name: &str,
     observation_type: ObservationType,
 ) -> bool {
-    let (event, attribute) = match source {
+    let (event, attribute) = match &message.source {
         MessageSource::Event { name, .. } => (Some(name.as_str()), None),
         MessageSource::Attribute { key, .. } => (None, Some(key.as_str())),
     };
@@ -407,6 +409,9 @@ pub fn carrier_holds_span_output(
             attribute,
             observation_type: Some(observation_type.as_str()),
             span_name: Some(span_name),
+            // A reading that declared its turns the request has said they are not the answer, whatever
+            // carrier holds them.
+            direction: message.direction,
         },
     )
     .carrier_holds_span_output
@@ -530,6 +535,7 @@ fn fallback_messages(
         .map(|emission| {
             RawMessage::from_attr(emission.carrier.name(), timestamp, emission.value)
                 .rendered(emission.rendering)
+                .directed(emission.direction)
         })
         .collect()
 }

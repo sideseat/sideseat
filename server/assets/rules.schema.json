@@ -2479,6 +2479,18 @@
             }
           ]
         },
+        "direction": {
+          "description": "Which side of the span *this reading's* observations are on, where it differs from what the carrier\nsays.\n\nOne payload may hold both sides: a dialect writes a run's output object with the request's turns under\none member and the answer under another, so the carrier's direction is right for the answer and wrong\nfor the turns. Declared per reading, as `emit` is, and only where it differs - a reading that restates\nits carrier's direction, or a rule whose readings all declare the same one, is refused, because that is\nthe carrier's fact and belongs on the carrier. Every other carrier fact stays the carrier's.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReadingDirection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "extra_cases": {
           "description": "Shapes recognised at *this* selection point only, tried after the shared fragment's own cases.\n\nA shared table says what a message looks like in a dialect; a particular place that dialect writes\nmessages may accept one shape more loosely than the rest - a bare `{content}` passed through where\nthe table would refuse it. Putting that in the table would loosen every other point that reads it.",
           "type": "array",
@@ -2576,6 +2588,21 @@
           "description": "The lifted value wins.",
           "type": "string",
           "const": "replace_target"
+        }
+      ]
+    },
+    "ReadingDirection": {
+      "description": "Which side of a span an observation is on: what the span was given, or what it produced.",
+      "oneOf": [
+        {
+          "description": "The span's input: the request it was sent.",
+          "type": "string",
+          "const": "input"
+        },
+        {
+          "description": "The span's output: what it answered.",
+          "type": "string",
+          "const": "output"
         }
       ]
     },

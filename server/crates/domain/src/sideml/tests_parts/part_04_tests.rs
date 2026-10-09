@@ -15,6 +15,7 @@ fn test_unflatten_multiple_tool_calls() {
             "tool_calls.1.tool_call.function.name": "get_time"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -63,6 +64,7 @@ fn test_unflatten_no_dotted_keys_unchanged() {
             "content": "Hello world"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -92,6 +94,7 @@ fn test_unflatten_nested_object_path() {
             "metadata.provider.version": "v1"
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -298,6 +301,7 @@ fn test_category_from_data_role() {
             "content": {"messages": []}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -363,6 +367,7 @@ fn test_category_from_tool_call_role() {
             "content": {"city": "NYC"}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -388,6 +393,7 @@ fn test_tool_call_role_from_event_gets_tool_input_category() {
             "content": {"city": "NYC"}
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -414,6 +420,7 @@ fn test_category_from_tools_role() {
             "content": [{"name": "search"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -443,6 +450,7 @@ fn test_pipeline_tool_span_messages_end_to_end() {
             "content": {"city": "NYC", "days": 3}
         }),
         rendering: false,
+        direction: None,
     };
 
     let tool_result_msg = RawMessage {
@@ -455,6 +463,7 @@ fn test_pipeline_tool_span_messages_end_to_end() {
             "content": [{"text": "Weather is sunny"}]
         }),
         rendering: false,
+        direction: None,
     };
 
     // Use is_tool_span=true for tool span context

@@ -14,6 +14,11 @@ pub struct RawMessage {
     /// stored message that is not one keeps the bytes it always had.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rendering: bool,
+    /// The side of the span this message is on, where the reading that produced it declares one that differs
+    /// from its carrier's (`Alternative::direction`). Written only when declared, so every other stored message
+    /// keeps the bytes it always had.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub direction: Option<crate::rules::schema::ReadingDirection>,
 }
 
 /// Physical carrier that supplied a message.
@@ -31,6 +36,12 @@ impl RawMessage {
         self
     }
 
+    /// The same message, on the side of the span its reading declared, where it declared one.
+    pub fn directed(mut self, direction: Option<crate::rules::schema::ReadingDirection>) -> Self {
+        self.direction = direction;
+        self
+    }
+
     pub fn from_event(name: &str, time: DateTime<Utc>, content: JsonValue) -> Self {
         Self {
             source: MessageSource::Event {
@@ -39,6 +50,7 @@ impl RawMessage {
             },
             content,
             rendering: false,
+            direction: None,
         }
     }
 
@@ -50,6 +62,7 @@ impl RawMessage {
             },
             content,
             rendering: false,
+            direction: None,
         }
     }
 }

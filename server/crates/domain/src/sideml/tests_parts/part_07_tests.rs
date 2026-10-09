@@ -524,6 +524,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
         },
         content: one_result.clone(),
         rendering: false,
+        direction: None,
     }];
     let out = to_sideml(&tagged);
     assert_eq!(out.len(), 1, "one bundled result is one message");
@@ -544,6 +545,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
         },
         content: one_result.clone(),
         rendering: false,
+        direction: None,
     }];
     assert_ne!(
         to_sideml(&untagged)[0].sideml.role,
@@ -563,6 +565,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
         },
         content: bogus,
         rendering: false,
+        direction: None,
     }];
     assert_eq!(
         to_sideml(&unreadable)[0].sideml.role,
@@ -580,6 +583,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
         },
         content: stated,
         rendering: false,
+        direction: None,
     }];
     assert_eq!(
         to_sideml(&explicit)[0].sideml.role,

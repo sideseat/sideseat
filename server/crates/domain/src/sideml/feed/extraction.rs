@@ -94,6 +94,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
                     scope_name: row.scope_name.clone(),
                     scope_version: row.scope_version.clone(),
                     rendering: msg.rendering,
+                    direction: msg.direction,
                 });
             }
         }
@@ -387,6 +388,8 @@ pub(in crate::sideml::feed) fn append_error_messages(
             scope_name: row.scope_name.clone(),
             scope_version: row.scope_version.clone(),
             rendering: false,
+            // Composed from the span's exception fields, so no reading declared a side for it.
+            direction: None,
         });
     }
 }
@@ -537,6 +540,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
                     &crate::rules::CarrierContext {
                         attribute: Some(key),
                         observation_type: msg.observation_type.as_deref(),
+                        direction: msg.direction,
                         ..crate::rules::CarrierContext::default()
                     },
                 )
@@ -654,6 +658,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
                 tool_use_id_correlated: false, // Will be set by correlate_tool_results()
                 promoted_to_span_output: false, // Will be set by classify_blocks()
                 is_rendering: msg.rendering,
+                declared_direction: msg.direction,
             });
         }
     }

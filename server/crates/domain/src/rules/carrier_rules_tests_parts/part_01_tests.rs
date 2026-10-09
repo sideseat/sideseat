@@ -571,6 +571,10 @@ fn the_engine_names_no_framework() {
         ("request_threads.rs", include_str!("../request_threads.rs")),
         ("span_marks.rs", include_str!("../span_marks.rs")),
         ("refusal.rs", include_str!("../refusal.rs")),
+        (
+            "reading_directions.rs",
+            include_str!("../reading_directions.rs"),
+        ),
         ("tool_shapes.rs", include_str!("../tool_shapes.rs")),
         ("finish_reasons.rs", include_str!("../finish_reasons.rs")),
         ("precedence.rs", include_str!("../precedence.rs")),

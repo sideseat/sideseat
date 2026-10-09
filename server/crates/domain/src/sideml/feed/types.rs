@@ -221,6 +221,14 @@ pub struct BlockEntry {
     #[serde(skip)]
     pub is_rendering: bool,
 
+    /// The side of the span its reading declared, where it declared one that differs from its carrier's
+    /// (`Alternative::direction`).
+    ///
+    /// Part of [`BlockEntry::carrier_context`], so every question asked of this block's carrier - direction,
+    /// ordering, history, dedup - sees it, through the one place carrier semantics are resolved.
+    #[serde(skip)]
+    pub declared_direction: Option<crate::rules::schema::ReadingDirection>,
+
     /// True when this tool result's `tool_use_id` was derived by correlation rather than sent by
     /// the framework.
     ///
@@ -310,6 +318,7 @@ impl BlockEntry {
             attribute: self.source_attribute.as_deref(),
             observation_type: self.observation_type.as_deref(),
             span_name: self.span_name.as_deref(),
+            direction: self.declared_direction,
         }
     }
 
@@ -628,6 +637,7 @@ mod tests {
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,
+            declared_direction: None,
         }
     }
 
@@ -637,6 +647,46 @@ mod tests {
         block.source_attribute = Some("llm.input_messages.0.message.content".to_string());
         assert!(block.is_input_source());
         assert!(!block.is_output_source());
+    }
+
+    /// **A reading's declared side is what every question about the block's carrier sees.** A carrier holding
+    /// the span's output may carry the request's turns as well, and the reading that found them says so; the
+    /// side then has to be the same whether direction, ordering, history or dedup asks - which is why it
+    /// travels in the carrier context and is applied where carrier semantics are resolved, once. Every other
+    /// carrier fact stays the carrier's.
+    #[test]
+    fn a_declared_side_is_what_every_carrier_question_sees() {
+        use crate::rules::schema::ReadingDirection;
+        use crate::sideml::carrier::{declared_semantics_for_context, semantics_for_context};
+        let mut block = make_test_block();
+        block.source_type = "attribute".to_string();
+        block.source_attribute = Some("output.value".to_string());
+        block.observation_type = Some("generation".to_string());
+        assert!(
+            block.is_output_source() && !block.is_input_source(),
+            "the carrier alone says output"
+        );
+        let carrier = semantics_for_context(&block.carrier_context());
+
+        block.declared_direction = Some(ReadingDirection::Input);
+        assert!(block.is_input_source(), "the declared side is input");
+        assert!(!block.is_output_source(), "and not output");
+        let mut expected = carrier;
+        expected.carrier_holds_span_input = true;
+        expected.carrier_holds_span_output = false;
+        assert_eq!(
+            semantics_for_context(&block.carrier_context()),
+            expected,
+            "only the two direction facts move"
+        );
+        assert_eq!(
+            declared_semantics_for_context(&block.carrier_context()),
+            Some(expected),
+            "and the declared twin agrees"
+        );
+
+        block.declared_direction = Some(ReadingDirection::Output);
+        assert!(block.is_output_source() && !block.is_input_source());
     }
 
     #[test]

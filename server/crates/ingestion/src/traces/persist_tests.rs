@@ -49,6 +49,7 @@ fn make_raw_message(content: &str) -> RawMessage {
             "content": content
         }),
         rendering: false,
+        direction: None,
     }
 }
 

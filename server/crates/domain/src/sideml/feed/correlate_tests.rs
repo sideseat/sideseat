@@ -54,6 +54,7 @@ fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole)
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     }
 }
 

@@ -51,9 +51,16 @@ use super::{expr, refusal, schema, tool_repr};
 ///
 /// Building inside the coalesce makes "could not be built" mean "this alternative produced nothing", which is
 /// the same answer as "this shape does not match" and the only one the coalesce can act on.
-/// A built value, its target where the reading states one, the clauses that produced it, and whether it is a
-/// rendering (`Alternative::rendering`).
-type Reading = (JsonValue, Option<EmitTarget>, Vec<String>, bool);
+/// A built value, its target where the reading states one, the clauses that produced it, whether it is a
+/// rendering (`Alternative::rendering`), and its side of the span where the reading states one
+/// (`Alternative::direction`).
+type Reading = (
+    JsonValue,
+    Option<EmitTarget>,
+    Vec<String>,
+    bool,
+    Option<super::schema::ReadingDirection>,
+);
 
 /// One node's readings, and which clauses **recognised** it.
 ///
@@ -236,6 +243,9 @@ pub struct Emission<'a> {
     /// A turn the producer re-sent as text that another carrier holds losslessly: kept on the span, left out
     /// of the trace and session views. Declared by a reading's `rendering`.
     pub rendering: bool,
+    /// The side of the span this observation is on, where its reading declares one that differs from the
+    /// carrier's (`Alternative::direction`). Every other carrier fact stays the carrier's.
+    pub direction: Option<super::schema::ReadingDirection>,
     /// The members a compose read through a conditional fallback, which it gives up - member and carrier
     /// together - where another rule already owns the carrier. Empty for every other reading.
     pub yields: Vec<YieldedMember<'a>>,

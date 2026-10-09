@@ -189,11 +189,39 @@ pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSem
 /// re-listing the turn its children produced. Only the second form can be told apart by asking about
 /// the span, which is why this exists beside [`semantics_for`].
 pub fn semantics_for_context(ctx: &crate::rules::CarrierContext<'_>) -> CarrierSemantics {
-    crate::rules::ruleset()
-        .carriers
-        .resolve(ctx)
-        .map(|clause| clause.semantics)
-        .unwrap_or(CarrierSemantics::SNAPSHOT)
+    directed(
+        crate::rules::ruleset()
+            .carriers
+            .resolve(ctx)
+            .map(|clause| clause.semantics)
+            .unwrap_or(CarrierSemantics::SNAPSHOT),
+        ctx,
+    )
+}
+
+/// The carrier's semantics with the observation's declared side applied, where its reading declared one.
+///
+/// **The one place direction is decided.** Every question about a block's carrier resolves through here or
+/// [`declared_semantics_for_context`] - direction, ordering, history, dedup - so a reading's `direction` is seen
+/// by all of them or none. Only the two direction facts move: what else a carrier is (snapshot or emission,
+/// expandable, restating) stays the carrier's, because the reading said which side its turns are on and nothing
+/// more.
+pub fn directed(
+    mut semantics: CarrierSemantics,
+    ctx: &crate::rules::CarrierContext<'_>,
+) -> CarrierSemantics {
+    match ctx.direction {
+        Some(crate::rules::schema::ReadingDirection::Input) => {
+            semantics.carrier_holds_span_input = true;
+            semantics.carrier_holds_span_output = false;
+        }
+        Some(crate::rules::schema::ReadingDirection::Output) => {
+            semantics.carrier_holds_span_input = false;
+            semantics.carrier_holds_span_output = true;
+        }
+        None => {}
+    }
+    semantics
 }
 
 /// The declared entry for a carrier, or `None` where no rule names it.
@@ -245,7 +273,7 @@ pub fn declared_semantics_for_context(
     crate::rules::ruleset()
         .carriers
         .resolve(ctx)
-        .map(|clause| clause.semantics)
+        .map(|clause| directed(clause.semantics, ctx))
 }
 
 /// The table this engine replaced, kept as the equivalence oracle.

@@ -67,6 +67,10 @@ pub struct SideMLMessage {
     /// The stored message was a rendering (`RawMessage::rendering`); not serialised, like `position`.
     #[serde(skip)]
     pub rendering: bool,
+    /// The side of the span its reading declared, where it declared one (`RawMessage::direction`); not
+    /// serialised, like `rendering`.
+    #[serde(skip)]
+    pub direction: Option<crate::rules::schema::ReadingDirection>,
 }
 
 // ============================================================================
@@ -141,6 +145,7 @@ pub fn to_sideml_with_context(
             timestamp,
             sideml,
             rendering: raw.rendering,
+            direction: raw.direction,
         });
     }
 
@@ -281,6 +286,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     source: raw.source.clone(),
                     content: msg.clone(),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 path.child_key("message"),
             ));
@@ -301,6 +307,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     source: raw.source.clone(),
                     content: json!({"role": "assistant", "content": text}),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 path.child_key(member),
             ));
@@ -350,6 +357,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     source: raw.source.clone(),
                     content: json!({"role": "system", "content": text}),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 path.child_key(member),
             ));
@@ -382,6 +390,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                             source: raw.source.clone(),
                             content: combined,
                             rendering: raw.rendering,
+                            direction: raw.direction,
                         },
                         array_path.child_index(run.start),
                     )),
@@ -394,6 +403,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                                         source: raw.source.clone(),
                                         content: message.clone(),
                                         rendering: raw.rendering,
+                                        direction: raw.direction,
                                     },
                                     array_path.child_index(position),
                                 ));
@@ -417,6 +427,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     source: raw.source.clone(),
                     content: item.clone(),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 array_path.child_index(position),
             ));
@@ -613,6 +624,7 @@ fn expand_bundled_tool_result(
                 source: raw.source.clone(),
                 content: new_content,
                 rendering: raw.rendering,
+                direction: raw.direction,
             },
             bundle_path.child_index(position),
         ));
@@ -700,6 +712,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         timestamp: msg.timestamp,
                         sideml: new_sideml,
                         rendering: msg.rendering,
+                        direction: msg.direction,
                     });
                 }
                 ContentBlock::ToolResult { tool_use_id, .. } => {
@@ -731,6 +744,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         timestamp: msg.timestamp,
                         sideml: new_sideml,
                         rendering: msg.rendering,
+                        direction: msg.direction,
                     });
                 }
                 _ => {
@@ -786,6 +800,7 @@ fn emit_non_tool_message(
         timestamp: msg.timestamp,
         sideml: new_sideml,
         rendering: msg.rendering,
+        direction: msg.direction,
     });
 }
 

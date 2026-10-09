@@ -98,6 +98,7 @@ pub(crate) fn read_message_event(
         .map(|emission| {
             RawMessage::from_event(emission.carrier.name(), time, emission.value)
                 .rendered(emission.rendering)
+                .directed(emission.direction)
         })
         .collect();
     if reading.replaces_raw {

@@ -371,6 +371,17 @@ impl AttachSpec {
     }
 }
 
+/// Which side of a span an observation is on: what the span was given, or what it produced.
+#[derive(Debug, Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum ReadingDirection {
+    /// The span's input: the request it was sent.
+    Input,
+    /// The span's output: what it answered.
+    Output,
+}
+
 /// What an emitted observation is.
 #[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
@@ -487,6 +498,16 @@ pub struct Alternative {
     /// are not the same kind of thing - so the target belongs to the reading, not only to the rule.
     #[serde(default)]
     pub emit: Option<EmitTarget>,
+    /// Which side of the span *this reading's* observations are on, where it differs from what the carrier
+    /// says.
+    ///
+    /// One payload may hold both sides: a dialect writes a run's output object with the request's turns under
+    /// one member and the answer under another, so the carrier's direction is right for the answer and wrong
+    /// for the turns. Declared per reading, as `emit` is, and only where it differs - a reading that restates
+    /// its carrier's direction, or a rule whose readings all declare the same one, is refused, because that is
+    /// the carrier's fact and belongs on the carrier. Every other carrier fact stays the carrier's.
+    #[serde(default)]
+    pub direction: Option<ReadingDirection>,
     /// Shapes recognised at *this* selection point only, tried after the shared fragment's own cases.
     ///
     /// A shared table says what a message looks like in a dialect; a particular place that dialect writes

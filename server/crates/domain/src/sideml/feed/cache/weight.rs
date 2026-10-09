@@ -208,6 +208,7 @@ mod weight_tests {
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,
+            declared_direction: None,
         }
     }
 
@@ -231,7 +232,12 @@ mod weight_tests {
         let block_entry = &block_entry[..block_entry.find("\n}").expect("its declaration ends")];
 
         // Fields whose size is bounded by their type, so the flat per-block charge covers them.
-        let fixed_size = ["order_time", "occurrence_ordinal", "is_rendering"];
+        let fixed_size = [
+            "order_time",
+            "occurrence_ordinal",
+            "is_rendering",
+            "declared_direction",
+        ];
         // Fields `weight_of` measures directly.
         let measured = ["position", "span_name", "scope_name", "scope_version"];
 

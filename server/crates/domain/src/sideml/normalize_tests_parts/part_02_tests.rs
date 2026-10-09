@@ -15,6 +15,7 @@ fn test_response_data_tool_calls() {
             "usage": {"prompt_tokens": 10}
         }),
         rendering: false,
+        direction: None,
     };
 
     let mut result = Vec::new();
@@ -40,6 +41,7 @@ fn test_response_data_streaming() {
             "chunk_count": 5
         }),
         rendering: false,
+        direction: None,
     };
 
     let mut result = Vec::new();
@@ -73,6 +75,7 @@ fn test_response_data_empty_streaming_skipped() {
             "chunk_count": 0
         }),
         rendering: false,
+        direction: None,
     };
 
     let mut result = Vec::new();

@@ -635,9 +635,10 @@ fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
                         );
                         let mut read: std::collections::HashSet<OwnedCarrier> =
                             std::collections::HashSet::new();
-                        // The sources the dialects produced, in the form the answer-recovery test reads.
+                        // The messages the dialects produced, in the form the answer-recovery test reads: their
+                        // source and the side their reading declared, which is what says a turn is not the answer.
                         let mut dialect_output: Vec<
-                            sideseat_ingestion::traces::extract::MessageSource,
+                            sideseat_ingestion::traces::extract::RawMessage,
                         > = Vec::new();
                         for emission in plan.run(&ctx) {
                             credit(emission.rule_id.to_string());
@@ -652,18 +653,21 @@ fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
                                 continue;
                             }
                             let time = chrono::Utc::now();
-                            let name = emission.carrier.name().to_string();
-                            dialect_output.push(if emission.carrier.is_event() {
-                                sideseat_ingestion::traces::extract::MessageSource::Event {
+                            let name = emission.carrier.name();
+                            let message = if emission.carrier.is_event() {
+                                sideseat_ingestion::traces::extract::RawMessage::from_event(
                                     name,
                                     time,
-                                }
+                                    serde_json::Value::Null,
+                                )
                             } else {
-                                sideseat_ingestion::traces::extract::MessageSource::Attribute {
-                                    key: name,
+                                sideseat_ingestion::traces::extract::RawMessage::from_attr(
+                                    name,
                                     time,
-                                }
-                            });
+                                    serde_json::Value::Null,
+                                )
+                            };
+                            dialect_output.push(message.directed(emission.direction));
                         }
                         // The fallback stage, gated as ingestion gates it: never on a tool span; with an
                         // **empty** claimed set when no dialect read anything (there is nothing to inherit);
@@ -689,9 +693,9 @@ fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
                                     credit(emission.rule_id.to_string());
                                     clause_paths(&emission).into_iter().for_each(&mut credit);
                                 }
-                            } else if generation && !dialect_output.iter().any(|source| {
+                            } else if generation && !dialect_output.iter().any(|message| {
                                 sideseat_ingestion::traces::extract::messages::carrier_holds_span_output(
-                                    source,
+                                    message,
                                     &span.name,
                                     observation,
                                 )

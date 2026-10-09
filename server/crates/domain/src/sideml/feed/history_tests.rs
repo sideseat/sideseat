@@ -69,6 +69,7 @@ fn make_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     }
 }
 
@@ -178,6 +179,7 @@ pub(super) fn make_block_with_source(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     }
 }
 
@@ -848,6 +850,23 @@ fn a_root_model_call_keeps_its_question_when_a_later_call_resends_tool_results()
     );
 }
 
+/// An answer the attribute carrier `output.value` holds on `span`, the carrier every re-listing below reports.
+fn output_value_block(span: &str, observation_type: &str) -> BlockEntry {
+    let mut block = make_block(
+        "text",
+        Some(observation_type),
+        None,
+        MessageCategory::GenAIAssistantMessage,
+        None,
+    );
+    block.span_id = span.to_string();
+    block.span_path = vec![span.to_string()];
+    block.source_attribute = Some("output.value".to_string());
+    block.source_type = "attribute".to_string();
+    block.event_name = None;
+    block
+}
+
 /// Two copies of one response, both reported as output: the model call's and an enclosing span's
 /// re-listing of it. The model call's survives even when the enclosing span ends first, because time
 /// cannot tell a producer from a re-listing - an enclosing span closed in the same millisecond, or a
@@ -855,18 +874,7 @@ fn a_root_model_call_keeps_its_question_when_a_later_call_resends_tool_results()
 #[test]
 fn a_model_calls_own_output_outranks_an_earlier_relisting() {
     let start = Utc::now();
-    let mut relisting = make_block(
-        "text",
-        Some("chain"),
-        None,
-        MessageCategory::GenAIAssistantMessage,
-        None,
-    );
-    relisting.span_id = "chain".to_string();
-    relisting.span_path = vec!["chain".to_string()];
-    relisting.source_attribute = Some("output.value".to_string());
-    relisting.source_type = "attribute".to_string();
-    relisting.event_name = None;
+    let mut relisting = output_value_block("chain", "chain");
     let mut produced = relisting.clone();
     produced.span_id = "model".to_string();
     produced.parent_span_id = Some("chain".to_string());
@@ -907,18 +915,7 @@ fn a_model_calls_own_output_outranks_an_earlier_relisting() {
 #[test]
 fn a_generations_restating_output_is_left_to_time() {
     let start = Utc::now();
-    let mut earlier = make_block(
-        "text",
-        Some("agent"),
-        None,
-        MessageCategory::GenAIAssistantMessage,
-        None,
-    );
-    earlier.span_id = "agent".to_string();
-    earlier.span_path = vec!["agent".to_string()];
-    earlier.source_attribute = Some("output.value".to_string());
-    earlier.source_type = "attribute".to_string();
-    earlier.event_name = None;
+    let mut earlier = output_value_block("agent", "agent");
     let mut restated = earlier.clone();
     // A sibling, not a span the agent encloses: a later call re-listing an earlier answer.
     restated.span_id = "later-model".to_string();
@@ -955,18 +952,7 @@ fn a_generations_restating_output_is_left_to_time() {
 #[test]
 fn an_enclosing_relisting_loses_to_the_span_it_encloses() {
     let start = Utc::now();
-    let mut outer = make_block(
-        "text",
-        Some("chain"),
-        None,
-        MessageCategory::GenAIAssistantMessage,
-        None,
-    );
-    outer.span_id = "kickoff".to_string();
-    outer.span_path = vec!["kickoff".to_string()];
-    outer.source_attribute = Some("output.value".to_string());
-    outer.source_type = "attribute".to_string();
-    outer.event_name = None;
+    let mut outer = output_value_block("kickoff", "chain");
     let mut inner = outer.clone();
     inner.span_id = "task".to_string();
     inner.span_path = vec!["kickoff".to_string(), "task".to_string()];

@@ -166,6 +166,7 @@ mod tests {
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,
+            declared_direction: None,
         }
     }
 
@@ -326,6 +327,7 @@ mod tests {
                 attribute: Some("output.value"),
                 observation_type: Some(observation_type),
                 span_name: None,
+                direction: None,
             })
         };
         assert!(semantics("generation").history_positions_provide_sequence_order);

@@ -32,6 +32,7 @@ pub mod members;
 pub mod message_projection;
 pub mod message_rules;
 pub mod precedence;
+mod reading_directions;
 pub mod refusal;
 pub mod request_threads;
 #[cfg(any(test, feature = "test-support"))]
@@ -249,6 +250,15 @@ impl Ruleset {
         let carriers = found.take(S::Carriers, carrier_rules::compile(assets));
         let detect = found.take(S::Detect, detect_rules::compile(assets));
         let messages = found.take(S::Messages, message_rules::compile(assets));
+        // A reading's declared side is judged against the carriers it reports under, so it is checked once both
+        // sections have compiled, and reported with the message rules.
+        let messages = match (messages, carriers.as_ref()) {
+            (Some(messages), Some(carriers)) => found.take(
+                S::Messages,
+                reading_directions::check(&messages, carriers).map(|()| messages),
+            ),
+            (messages, _) => messages,
+        };
         let message_events = found.take(S::MessageEvents, compile_message_events(files));
         // Log events are validated against the message events, so they are compiled only once those have; a
         // defect there is reported by the message-event section and would only be restated here.

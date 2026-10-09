@@ -34,6 +34,11 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "ReadingDirection=output",
+        "half of the closed pair a reading's side is stated in: a reading of an input carrier that holds the \
+         answer would state it, and no shipped asset has one - the only use is turns on an output carrier",
+    ),
+    (
         "RuleFile.span_marks",
         "a fact a read needs that the read path cannot see, stored as one bit per span. The section exists so \
          such a fact is declared and bounded rather than answered by storing a span's attributes twice; no \

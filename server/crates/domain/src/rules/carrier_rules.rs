@@ -32,6 +32,10 @@ pub struct CarrierContext<'a> {
     pub attribute: Option<&'a str>,
     pub observation_type: Option<&'a str>,
     pub span_name: Option<&'a str>,
+    /// The side of the span the observation's reading declared, where it declared one. Not a match key:
+    /// which clause resolves never depends on it. Applied on top of the resolved semantics by
+    /// `sideml::carrier::semantics_for_context` and its declared twin, the one place direction is decided.
+    pub direction: Option<super::schema::ReadingDirection>,
 }
 
 impl<'a> CarrierContext<'a> {

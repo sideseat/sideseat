@@ -107,13 +107,42 @@
       "priority": 1510,
       "also": [
         {
+          "id": "request",
+          "doc": "The turns the run was given - its instructions and the task it was asked - written into its output beside what it did with them. The request, whatever carrier holds it.",
+          "select": "$.messages[*]",
+          "direction": "input",
+          "where": {
+            "all": [
+              {
+                "path": "$.role",
+                "one_of": ["system", "user"]
+              },
+              {
+                "any": [
+                  {
+                    "path": "$.content"
+                  },
+                  {
+                    "path": "$.tool_calls"
+                  },
+                  {
+                    "path": "$.toolCalls"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "messages",
-          "doc": "The conversation's turns.",
+          "doc": "The rest of the conversation's turns: what the run did - the model's calls and the results it was given back - which are its output, as the carrier says.",
           "select": "$.messages[*]",
           "where": {
             "all": [
               {
-                "path": "$.role"
+                "path": "$.role",
+                "none_of": ["system", "user"],
+                "exists": true
               },
               {
                 "any": [
@@ -133,8 +162,9 @@
         },
         {
           "id": "messages_2",
-          "doc": "And each task's own turns.",
+          "doc": "And each task's own turns, as the crew's output lists them again. A rendering: each task's own span carries them losslessly, so the crew's copy is shown on the crew's span and left out of the trace and session views. Read there, the crew's copy placed every task's answer at the crew's end, after the request of the task that followed it.",
           "select": "$.tasks_output[*].messages[*]",
+          "rendering": {"path": "$.role"},
           "where": {
             "all": [
               {

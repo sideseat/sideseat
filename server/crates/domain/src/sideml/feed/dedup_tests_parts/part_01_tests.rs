@@ -51,6 +51,7 @@ fn make_test_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     }
 }
 
@@ -104,6 +105,7 @@ fn make_tool_use_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     }
 }
 
@@ -161,6 +163,7 @@ fn make_tool_result_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        declared_direction: None,
     }
 }
 

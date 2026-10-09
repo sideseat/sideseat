@@ -341,6 +341,7 @@ mod tests {
                 ..Default::default()
             },
             rendering: false,
+            direction: None,
         }
     }
 
@@ -611,6 +612,7 @@ mod tests {
                     ..Default::default()
                 },
                 rendering: false,
+                direction: None,
             },
         ];
 
@@ -672,6 +674,7 @@ mod tests {
                 ..Default::default()
             },
             rendering: false,
+            direction: None,
         }
     }
 

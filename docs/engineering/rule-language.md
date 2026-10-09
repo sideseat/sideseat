@@ -343,6 +343,16 @@ call and its result; nothing else about it changes - it is owned, ordered and co
 is. A fragment case's own `rendering` adds to its selection point's. `rendering` is refused on a reading that
 does not emit messages, inside an aggregate, and on a read that is not an indexed family.
 
+A reading may also state its observations' `direction` - `input` or `output` - where it differs from what the
+carrier holds: one payload written into a run's output may list the request it was given beside what it did, so
+the carrier is right for the answer and wrong for the request's turns. Only the two direction facts move; every
+other carrier fact stays the carrier's, and the side is applied in one place, where carrier semantics are
+resolved, so ordering, history and dedup see it alike. A side moves a turn's **placement** as well as its role -
+an input turn is placed at its span's start, an output turn at its end - so it is right for a payload's own
+request and wrong for a request listed later in the same payload, which would then be placed ahead of the turns
+before it; such a re-listing is a `rendering` instead. Refused: a reading restating its carrier's side, every
+reading of a rule on one side (a fact about the carrier), and a fragment case contradicting its selection point.
+
 ```json example
 {
   "id": "acme-messages",
@@ -1317,6 +1327,7 @@ One documented shape of a payload: where to look, what to require, and what to c
 | `rendering` | [`Expr_ValuePredicate`](#expr_valuepredicate) or null | The messages of this reading that are a **rendering**: turns the producer re-sent as text - a tool call written out as prose, a result quoted back - which another carrier holds losslessly. Asked of the same value as `where`. A rendering stays on the span that sent it, since it is what was sent, and is left out of the trace and session views, where the call and result it renders already are. Absent: none is; a fragment case's own `rendering` adds to its selection point's. |
 | `then_fragment` | string | Apply this named fragment's cases to each selected element. |
 | `emit` | [`EmitTarget`](#emittarget) or null | What this reading is, where it differs from the rule's own target. |
+| `direction` | [`ReadingDirection`](#readingdirection) or null | Which side of the span *this reading's* observations are on, where it differs from what the carrier says. |
 | `extra_cases` | list of [`Alternative`](#alternative) | Shapes recognised at *this* selection point only, tried after the shared fragment's own cases. |
 | `then_select` | [`FirstPresent_string`](#firstpresent_string) | For each selected element, the first of these paths that names a member, chosen by **presence**. |
 | `else_element` | true or false | Fall back to the element itself when `then_present_any_of` named nothing, or named a member of the wrong shape. |
@@ -1347,6 +1358,13 @@ What a lift does where the target already carries the member.
 
 - `"keep_target"`: The target's own value wins: the lifted one is a fallback.
 - `"replace_target"`: The lifted value wins.
+
+### `ReadingDirection`
+
+Which side of a span an observation is on: what the span was given, or what it produced.
+
+- `"input"`: The span's input: the request it was sent.
+- `"output"`: The span's output: what it answered.
 
 ### `CollectMembers`
 

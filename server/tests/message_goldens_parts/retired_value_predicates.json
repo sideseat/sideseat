@@ -1265,38 +1265,6 @@
     },
     "also",
     {
-     "id": "messages"
-    },
-    "where"
-   ],
-   "retired": {
-    "all": [
-     {
-      "path": "$.role"
-     }
-    ],
-    "any": [
-     {
-      "path": "$.content"
-     },
-     {
-      "path": "$.tool_calls"
-     },
-     {
-      "path": "$.toolCalls"
-     }
-    ]
-   }
-  },
-  {
-   "asset": "assets/rules/producers/crewai.json",
-   "path": [
-    "messages",
-    {
-     "id": "crewai.output"
-    },
-    "also",
-    {
      "id": "messages_2"
     },
     "where"

@@ -497,6 +497,7 @@ fn a_family_root_respects_the_separator() {
                 attribute: Some(attribute),
                 observation_type: Some("generation"),
                 span_name: None,
+                direction: None,
             })
             .map(|clause| clause.clause_id.to_string())
     };
@@ -520,6 +521,7 @@ fn a_family_root_respects_the_separator() {
                 attribute: Some("gen_ai.prompt.0.content"),
                 observation_type: Some("generation"),
                 span_name: None,
+                direction: None,
             })
             .is_some(),
         "a raw prefix ending in `.` still selects the keys below it"

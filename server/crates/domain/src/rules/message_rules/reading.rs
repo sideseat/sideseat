@@ -88,7 +88,7 @@ pub(super) fn all_readings(
             // envelope applies to it.
             return Selection {
                 built: match built(parsed.clone(), None, build) {
-                    Some(value) => vec![(value, None, Vec::new(), false)],
+                    Some(value) => vec![(value, None, Vec::new(), false, None)],
                     None => Vec::new(),
                 },
                 recognised: Vec::new(),
@@ -159,7 +159,7 @@ pub(super) fn readings(
     if alternatives.is_empty() {
         return Selection {
             built: match built(parsed.clone(), None, build) {
-                Some(value) => vec![(value, None, Vec::new(), false)],
+                Some(value) => vec![(value, None, Vec::new(), false, None)],
                 None => Vec::new(),
             },
             recognised: Vec::new(),
@@ -382,11 +382,19 @@ pub(super) fn readings(
                         recognised.push(alternative.id.clone());
                     }
                     produced.extend(inner.built.into_iter().map(
-                        |(value, target, mut steps, inner_rendering)| {
+                        |(value, target, mut steps, inner_rendering, inner_direction)| {
                             let mut path = vec![alternative.id.clone()];
                             path.append(&mut steps);
-                            // The selection point's declaration or the case's: either says it is one.
-                            (value, target, path, rendering || inner_rendering)
+                            // The selection point's declaration or the case's: either says it is one. A
+                            // direction is the case's where it states one - it knows what the element is - and
+                            // the selection point's otherwise; compilation refuses the two disagreeing.
+                            (
+                                value,
+                                target,
+                                path,
+                                rendering || inner_rendering,
+                                inner_direction.or(alternative.direction),
+                            )
                         },
                     ));
                     continue;
@@ -406,6 +414,7 @@ pub(super) fn readings(
                     alternative.emit,
                     vec![alternative.id.clone()],
                     rendering,
+                    alternative.direction,
                 ));
             }
         }

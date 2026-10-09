@@ -137,6 +137,7 @@ fn test_bundled_tool_results_expanded_from_gen_ai_tool_result_event() {
             "tool_call_id": "id1"
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -178,6 +179,7 @@ fn test_bundled_tool_results_single_result_not_expanded() {
             "tool_call_id": "id1"
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -201,6 +203,7 @@ fn test_message_array_expanded_from_gen_ai_input_messages() {
             {"role": "user", "content": "Hello"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -232,6 +235,7 @@ fn test_message_array_expanded_from_gen_ai_output_messages() {
             {"role": "assistant", "content": "And here's more info"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -254,6 +258,7 @@ fn test_message_array_single_message_not_expanded() {
             {"role": "user", "content": "Hello"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -277,6 +282,7 @@ fn test_message_array_with_nested_content_field() {
             ]
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -302,6 +308,7 @@ fn test_tool_span_role_derivation_with_gen_ai_choice() {
             "message": "Tool result: 72F"
         }),
         rendering: false,
+        direction: None,
     }];
 
     // In a tool span, gen_ai.choice = tool OUTPUT (role: tool)
@@ -329,6 +336,7 @@ fn test_chat_span_role_derivation_with_gen_ai_choice() {
             "message": "Hello! How can I help?"
         }),
         rendering: false,
+        direction: None,
     }];
 
     // In a chat span (not tool), gen_ai.choice = assistant response
@@ -362,6 +370,7 @@ fn test_documents_role_is_preserved_in_special_roles() {
             ]
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -396,6 +405,7 @@ fn test_documents_role_from_attribute_source() {
             "content": [{"id": "doc1", "content": "Retrieved content"}]
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -425,6 +435,7 @@ fn test_message_array_expanded_from_ai_prompt_messages() {
             {"role": "user", "content": "Hello!"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -453,6 +464,7 @@ fn test_message_array_expanded_from_mlflow_span_inputs() {
             {"role": "assistant", "content": "4"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -481,6 +493,7 @@ fn test_message_array_not_expanded_from_unknown_source() {
             {"role": "assistant", "content": "Message 2"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -513,6 +526,7 @@ fn test_tool_message_in_tool_span_without_extraction_role() {
             // Note: NO role field - will be derived from event name + span context
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, true); // is_tool_span=true
@@ -544,6 +558,7 @@ fn test_tool_call_role_preserved_in_tool_span() {
             "content": [{"type": "text", "text": "{\"location\": \"NYC\"}"}]
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, true); // is_tool_span=true
@@ -586,6 +601,7 @@ fn test_gen_ai_tool_result_role_derivation() {
             "content": [{"toolResult": {"toolUseId": "123", "content": "Result"}}]
         }),
         rendering: false,
+        direction: None,
     }];
 
     // Test in both chat span and tool span contexts
@@ -621,6 +637,7 @@ fn test_special_roles_categorization() {
                 "content": "test content"
             }),
             rendering: false,
+            direction: None,
         }];
 
         let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -697,6 +714,7 @@ fn test_special_roles_case_insensitive() {
                 "content": "test"
             }),
             rendering: false,
+            direction: None,
         }];
 
         let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -731,6 +749,7 @@ fn test_bundled_tool_results_snake_case_format() {
             ]
         }),
         rendering: false,
+        direction: None,
     };
 
     let sideml_messages = to_sideml_with_context(&[bundled_message], false);
@@ -757,6 +776,7 @@ fn test_bundled_tool_results_direct_array() {
             {"toolResult": {"toolUseId": "id2", "content": "Result 2"}}
         ]),
         rendering: false,
+        direction: None,
     };
 
     let sideml_messages = to_sideml_with_context(&[bundled_message], false);
@@ -843,6 +863,7 @@ fn test_message_array_expanded_from_messages_field() {
             ]
         }),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -870,6 +891,7 @@ fn test_message_array_expansion_with_gemini_parts() {
             {"role": "user", "parts": [{"text": "Hello from Gemini"}]}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);
@@ -895,6 +917,7 @@ fn test_message_array_expansion_with_bedrock_text() {
             {"role": "user", "text": "Hello from Bedrock"}
         ]),
         rendering: false,
+        direction: None,
     }];
 
     let sideml_messages = to_sideml_with_context(&raw_messages, false);

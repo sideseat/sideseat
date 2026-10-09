@@ -74,6 +74,7 @@ fn legacy_expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, pat
                     source: raw.source.clone(),
                     content: msg.clone(),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 path.child_key("message"),
             ));
@@ -89,6 +90,7 @@ fn legacy_expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, pat
                     source: raw.source.clone(),
                     content: json!({"role": "assistant", "content": text}),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 path.child_key("combined_chunk_content"),
             ));
@@ -134,6 +136,7 @@ fn legacy_expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, pat
                     source: raw.source.clone(),
                     content: json!({"role": "system", "content": text}),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 path.child_key("system"),
             ));
@@ -166,6 +169,7 @@ fn legacy_expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, pat
                             source: raw.source.clone(),
                             content: combined,
                             rendering: raw.rendering,
+                            direction: raw.direction,
                         },
                         array_path.child_index(run.start),
                     )),
@@ -178,6 +182,7 @@ fn legacy_expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, pat
                                         source: raw.source.clone(),
                                         content: message.clone(),
                                         rendering: raw.rendering,
+                                        direction: raw.direction,
                                     },
                                     array_path.child_index(position),
                                 ));
@@ -201,6 +206,7 @@ fn legacy_expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, pat
                     source: raw.source.clone(),
                     content: item.clone(),
                     rendering: raw.rendering,
+                    direction: raw.direction,
                 },
                 array_path.child_index(position),
             ));
@@ -302,6 +308,7 @@ fn legacy_expand_bundled_tool_result(
                 source: raw.source.clone(),
                 content: new_content,
                 rendering: raw.rendering,
+                direction: raw.direction,
             },
             bundle_path.child_index(position),
         ));
@@ -355,6 +362,7 @@ fn the_declared_members_expand_and_categorise_as_the_tables_they_replace() {
         },
         content,
         rendering: false,
+        direction: None,
     };
     let on = |name: &str, content: JsonValue| RawMessage {
         source: MessageSource::Event {
@@ -363,6 +371,7 @@ fn the_declared_members_expand_and_categorise_as_the_tables_they_replace() {
         },
         content,
         rendering: false,
+        direction: None,
     };
     let array = "gen_ai.input.messages";
     let messages = json!([{"role": "user", "content": "hi"}]);
