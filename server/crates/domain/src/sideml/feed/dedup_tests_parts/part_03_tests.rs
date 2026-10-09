@@ -423,3 +423,59 @@ fn a_part_only_a_re_sent_response_carries_is_kept() {
         resent("s2", 2, text("Rome.")),
     ]));
 }
+
+/// Two turns a client ran on one span, each reasoning without text, rank 0 and 1 in that emission; their
+/// signed copies on two node spans each rank 0. Each unsigned copy is its turn's signed block, rank and all,
+/// so neither survives twice.
+#[test]
+fn an_unsigned_copy_takes_the_rank_of_the_signed_block_it_copies() {
+    use crate::sideml::provenance::PositionPath;
+    let part = |span: &str, message: i32, entry: i32, content: ContentBlock, emitted: bool| {
+        let mut block = make_test_block(
+            "t1",
+            span,
+            ChatRole::Assistant,
+            "",
+            utc(100 + message as i64),
+        );
+        block.message_index = message;
+        block.entry_index = entry;
+        block.entry_type = content.block_type().to_string();
+        block.content = content;
+        block.position = PositionPath::root(message as usize).child_index(entry as usize);
+        if emitted {
+            block.event_name = Some("gen_ai.choice".to_string());
+            block.observation_type = Some("generation".to_string());
+        }
+        block
+    };
+    let reasoning = |signature: Option<&str>| ContentBlock::Thinking {
+        text: String::new(),
+        signature: signature.map(str::to_string),
+    };
+    let text = |t: &str| ContentBlock::Text {
+        text: t.to_string(),
+    };
+    let blocks = vec![
+        part("chat", 0, 0, reasoning(None), true),
+        part("chat", 0, 1, text("Paris."), true),
+        part("chat", 1, 0, reasoning(None), true),
+        part("chat", 1, 1, text("Rome."), true),
+        part("node-1", 0, 0, reasoning(Some("sig-a")), false),
+        part("node-1", 0, 1, text("Paris."), false),
+        part("node-2", 0, 0, reasoning(Some("sig-b")), false),
+        part("node-2", 0, 1, text("Rome."), false),
+    ];
+    let mut signatures: Vec<Option<String>> = process_dedup(blocks, HashMap::new())
+        .iter()
+        .filter_map(|b| match &b.content {
+            ContentBlock::Thinking { signature, .. } => Some(signature.clone()),
+            _ => None,
+        })
+        .collect();
+    signatures.sort();
+    assert_eq!(
+        signatures,
+        [Some("sig-a".to_string()), Some("sig-b".to_string())]
+    );
+}

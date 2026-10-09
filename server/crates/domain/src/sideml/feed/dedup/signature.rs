@@ -16,7 +16,7 @@ use super::*;
 /// thought the same words. More than one signed candidate, or none, leaves the unsigned block alone.
 pub(super) fn signature_aliases<'a>(
     blocks: impl Iterator<Item = (&'a BlockEntry, u32)> + Clone,
-) -> HashMap<DedupKey, MessageIdentity> {
+) -> HashMap<DedupKey, DedupKey> {
     let mut messages: Messages<'a> = HashMap::new();
     for (block, _) in blocks.clone() {
         messages
@@ -24,10 +24,9 @@ pub(super) fn signature_aliases<'a>(
             .or_default()
             .insert(block.entry_index, MessageIdentity::from_block(block));
     }
-    let signed: Vec<&BlockEntry> = blocks
+    let signed: Vec<(&BlockEntry, u32)> = blocks
         .clone()
-        .map(|(block, _)| block)
-        .filter(|block| text_of(block).is_some_and(|(_, signed)| signed))
+        .filter(|(block, _)| text_of(block).is_some_and(|(_, signed)| signed))
         .collect();
     let mut aliases = HashMap::new();
     for (block, ordinal) in blocks {
@@ -38,15 +37,17 @@ pub(super) fn signature_aliases<'a>(
         if siblings.is_empty() {
             continue;
         }
-        let candidates: HashSet<MessageIdentity> = signed
+        // The whole key, rank included: the signed copy is its own response's, and two turns' unsigned
+        // copies rank 0 and 1 where their signed ones each rank 0.
+        let candidates: HashSet<DedupKey> = signed
             .iter()
-            .filter(|other| {
+            .filter(|(other, _)| {
                 other.trace_id == block.trace_id
                     && other.entry_index == block.entry_index
                     && text_of(other).is_some_and(|(other_text, _)| other_text == text)
                     && rest(&messages, other) == siblings
             })
-            .map(|other| MessageIdentity::from_block(other))
+            .map(|(other, other_ordinal)| (MessageIdentity::from_block(other), *other_ordinal))
             .collect();
         if candidates.len() == 1 {
             let one = candidates.into_iter().next().expect("one candidate");

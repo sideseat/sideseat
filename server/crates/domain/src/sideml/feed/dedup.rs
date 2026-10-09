@@ -643,9 +643,9 @@ fn deduplicate_with_lineage(
 
     for (input_index, block, ordinal) in blocks {
         let own = (MessageIdentity::from_block(&block), ordinal);
-        let identity = match result_alias.get(&own).or_else(|| signature_alias.get(&own)) {
+        let identity = match result_alias.get(&own) {
             Some(canonical) => (canonical.clone(), ordinal),
-            None => own,
+            None => signature_alias.get(&own).cloned().unwrap_or(own),
         };
         let quality = compute_quality(&block);
         input_keys[input_index] = Some(identity.clone());

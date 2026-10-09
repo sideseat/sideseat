@@ -62,13 +62,15 @@ pub(super) fn resent_part_bindings(
             .push((seen.entry_index, survivor));
         received_in.entry(survivor).or_default().insert(key);
     }
-    // Whether a model call's span receives a survivor in a message other than this one: its request in
-    // another copy. An agent's or a chain's span re-lists state, which is no second copy of a request.
+    // Whether a model call's span receives a survivor in another carrier too: its request in a second
+    // copy. Another message of the same carrier is another turn of one request, never a copy of this one,
+    // and two turns sharing a part - one answer given twice - must not bind their reasoning together. An
+    // agent's or a chain's span re-lists state, which is no second copy of a request either.
     let copied_elsewhere = |survivor: usize, key: &(usize, usize, i32)| {
         requests.contains(&key.0)
             && received_in[&survivor]
                 .iter()
-                .any(|other| other.0 == key.0 && other != key)
+                .any(|other| other.0 == key.0 && other.1 != key.1)
     };
     // The one home each new part is re-sent with, or `None` once two disagree.
     let mut home_of_new: HashMap<usize, Option<Home>> = HashMap::new();
@@ -271,6 +273,19 @@ mod tests {
         // A part every copy holds is no part one of them dropped: nothing to bind.
         let both = [seen(1, 1, 2, 0, false), seen(1, 2, 2, 0, false)];
         assert!(bindings(&both, &[1, 1]).is_empty());
+    }
+
+    /// Two turns of one request share an answer: another message of the same carrier is another turn, not a
+    /// second copy of the request, so neither turn's reasoning is bound to the shared answer.
+    #[test]
+    fn two_turns_of_one_carrier_sharing_a_part_are_not_copies_of_each_other() {
+        let evidence = [
+            seen(1, 1, 2, 0, false),
+            seen(1, 1, 2, 1, false),
+            seen(1, 1, 4, 0, false),
+            seen(1, 1, 4, 1, false),
+        ];
+        assert!(bindings(&evidence, &[0, 1, 2, 1]).is_empty());
     }
 
     /// Re-sent beside parts of two responses, or with two responses in two messages: which one it
