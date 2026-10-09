@@ -50,7 +50,12 @@ tracing = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true }
 validator = { workspace = true }
+sideseat-workspace-hack.workspace = true
 
 [dev-dependencies]
 sideseat-adapter-registrations-memory = { path = "../adapter-registrations-memory" }
 sideseat-adapter-topics = { path = "../adapter-topics" }
+
+[package.metadata.cargo-machete]
+# Present only to pin feature sets for cargo-hakari; nothing imports it.
+ignored = ["sideseat-workspace-hack"]

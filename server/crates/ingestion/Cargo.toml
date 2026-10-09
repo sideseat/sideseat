@@ -33,6 +33,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+sideseat-workspace-hack.workspace = true
 
 [dev-dependencies]
 sideseat-domain = { path = "../domain", features = ["test-support"] }
@@ -42,3 +43,7 @@ sideseat-adapter-duckdb = { path = "../adapter-duckdb" }
 sideseat-adapter-sqlite = { path = "../adapter-sqlite", features = ["test-support"] }
 sideseat-adapter-topics = { path = "../adapter-topics" }
 tempfile = "3"
+
+[package.metadata.cargo-machete]
+# Present only to pin feature sets for cargo-hakari; nothing imports it.
+ignored = ["sideseat-workspace-hack"]

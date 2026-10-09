@@ -19,6 +19,11 @@ reqwest = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+sideseat-workspace-hack.workspace = true
 
 [dev-dependencies]
 axum = { workspace = true }
+
+[package.metadata.cargo-machete]
+# Present only to pin feature sets for cargo-hakari; nothing imports it.
+ignored = ["sideseat-workspace-hack"]

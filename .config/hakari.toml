@@ -1,0 +1,71 @@
+# This file contains settings for `cargo hakari`.
+# See https://docs.rs/cargo-hakari/latest/cargo_hakari/config for a full list of options.
+
+hakari-package = "sideseat-workspace-hack"
+
+# Format version for hakari's output. Version 4 requires cargo-hakari 0.9.22 or above.
+dep-format-version = "4"
+
+# Members name the hack as `sideseat-workspace-hack.workspace = true`, so it carries no version to keep in step
+# with the workspace's.
+workspace-hack-line-style = "workspace-dotted"
+
+# Setting workspace.resolver = "2" or higher in the root Cargo.toml is HIGHLY recommended.
+# Hakari works much better with the v2 resolver. (The v2 and v3 resolvers are identical from
+# hakari's perspective, so you're welcome to set either.)
+#
+# For more about the new feature resolver, see:
+# https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#cargos-new-feature-resolver
+resolver = "2"
+
+# Add triples corresponding to platforms commonly used by developers here.
+# https://doc.rust-lang.org/rustc/platform-support.html
+platforms = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+
+# Write out exact versions rather than a semver range. (Defaults to false.)
+# exact-versions = true
+
+# The Rust SDK is published to crates.io, so it cannot depend on an unpublished crate, and its users resolve its
+# features themselves.
+[traversal-excludes]
+workspace-members = ["sideseat"]
+
+[final-excludes]
+workspace-members = ["sideseat"]
+# Drivers and their own crates stay out: the hack is a dependency of every layer crate, and the layer crates
+# (core, ports, domain, ingestion, messaging, query-sql, api) must not build a database, queue, cloud or
+# transport driver. Their few variants live in the adapters that own them.
+third-party = [
+    { name = "duckdb" },
+    { name = "libduckdb-sys" },
+    { name = "clickhouse" },
+    { name = "sqlx" },
+    { name = "sqlx-core" },
+    { name = "sqlx-postgres" },
+    { name = "sqlx-sqlite" },
+    { name = "libsqlite3-sys" },
+    { name = "aws-config" },
+    { name = "aws-credential-types" },
+    { name = "aws-runtime" },
+    { name = "aws-sigv4" },
+    { name = "aws-smithy-async" },
+    { name = "aws-smithy-http" },
+    { name = "aws-smithy-runtime" },
+    { name = "aws-smithy-runtime-api" },
+    { name = "aws-smithy-types" },
+    { name = "aws-sdk-s3" },
+    { name = "aws-sdk-secretsmanager" },
+    { name = "aws-sdk-bedrock" },
+    { name = "rdkafka" },
+    { name = "rdkafka-sys" },
+    { name = "redis" },
+    { name = "axum" },
+    { name = "tonic" },
+    { name = "moka" },
+]

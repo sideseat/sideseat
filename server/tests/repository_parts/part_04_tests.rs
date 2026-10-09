@@ -542,6 +542,10 @@ fn no_layer_crate_depends_on_a_driver() {
     );
 }
 
+/// The cargo-hakari crate that pins one feature set per third-party dependency. Every member depends on it and it
+/// holds no code, so it is no layer and says nothing about the direction of dependencies.
+const WORKSPACE_HACK: &str = "sideseat-workspace-hack";
+
 #[test]
 fn the_api_crate_names_only_inward_workspace_crates() {
     let manifest = std::fs::read_to_string(repo_root().join("server/crates/api/Cargo.toml"))
@@ -555,7 +559,7 @@ fn the_api_crate_names_only_inward_workspace_crates() {
         .lines()
         .filter_map(|line| line.split_once('='))
         .map(|(name, _)| name.trim())
-        .filter(|name| name.starts_with("sideseat-"))
+        .filter(|name| name.starts_with("sideseat-") && *name != WORKSPACE_HACK)
         .collect();
     assert_eq!(
         workspace_dependencies,
@@ -582,7 +586,7 @@ fn messaging_stays_transport_neutral() {
         .lines()
         .filter_map(|line| line.split_once('='))
         .map(|(name, _)| name.trim())
-        .filter(|name| name.starts_with("sideseat-"))
+        .filter(|name| name.starts_with("sideseat-") && *name != WORKSPACE_HACK)
         .collect();
 
     assert_eq!(

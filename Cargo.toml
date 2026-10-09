@@ -21,6 +21,7 @@ members = [
   "server/crates/rule-assets",
   "server",
   "sdk/rust",
+  "server/crates/workspace-hack",
 ]
 resolver = "2"
 
@@ -98,6 +99,8 @@ literal_string_with_formatting_args = "allow"
 needless_pass_by_ref_mut = "allow"
 
 [workspace.dependencies]
+# cargo-hakari: one feature set per third-party dependency (server/crates/workspace-hack).
+sideseat-workspace-hack = { path = "server/crates/workspace-hack" }
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1.49", features = ["full"] }
 tower = "0.5"

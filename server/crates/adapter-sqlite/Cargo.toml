@@ -24,6 +24,11 @@ sqlx = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+sideseat-workspace-hack.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+
+[package.metadata.cargo-machete]
+# Present only to pin feature sets for cargo-hakari; nothing imports it.
+ignored = ["sideseat-workspace-hack"]

@@ -15,3 +15,8 @@ futures = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sideseat-workspace-hack.workspace = true
+
+[package.metadata.cargo-machete]
+# Present only to pin feature sets for cargo-hakari; nothing imports it.
+ignored = ["sideseat-workspace-hack"]

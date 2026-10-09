@@ -10,6 +10,8 @@ go = "1.27.1"
 # The JVM example suites (examples/java); Gradle comes from their wrapper.
 java = "temurin-25.0.1+8.0.LTS"
 "cargo:cargo-nextest" = "0.9.137"
+# One feature set per third-party dependency across the workspace; `make lint` checks the hack is current.
+"cargo:cargo-hakari" = "0.9.36"
 # Supply-chain gates: cargo-machete runs in `make lint`, cargo-deny and cargo-audit in `make audit`.
 "cargo:cargo-machete" = "0.9.2"
 "cargo:cargo-deny" = "0.20.2"

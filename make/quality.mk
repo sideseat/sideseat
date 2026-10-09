@@ -26,6 +26,10 @@ lint: ## Run all linters
 	$(call run-with-disk-guard,cargo clippy --locked --all-targets -- -D warnings)
 	@command -v cargo-machete >/dev/null 2>&1 || { echo "[lint] cargo-machete is required: mise install"; exit 1; }
 	@cargo machete
+	@# One feature set per dependency (server/crates/workspace-hack): a stale hack lets builds split into variants again.
+	@command -v cargo-hakari >/dev/null 2>&1 || { echo "[lint] cargo-hakari is required: mise install"; exit 1; }
+	@cargo hakari generate --diff >/dev/null || { echo "[lint] the workspace-hack is stale: run cargo hakari generate"; exit 1; }
+	@cargo hakari manage-deps --dry-run >/dev/null || { echo "[lint] a crate lacks the workspace-hack: run cargo hakari manage-deps"; exit 1; }
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
 	@cd examples/javascript && npm run lint
