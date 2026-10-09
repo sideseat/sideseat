@@ -31,6 +31,7 @@ UNEXPORTED = frozenset(
         "reasoning_span_signature",
         "tool_calling_round_output",
         "parallel_tool_results",
+        "structured_tool_results",
         "media",
         *METADATA,
     }
@@ -169,6 +170,19 @@ def apply(builder: Builder, framework: Framework) -> None:
                 ):
                     fact["require"] = None
                     gap("tool_result", "not_exported", detail, fact["id"])
+    if detail := declared("structured_tool_results"):
+        # A text result is exported and stays owed; one the tool returned as data is proven absent per fact.
+        # Declared for some releases only, the fact stays asserted and the rubric withdraws it in those
+        # releases' captures alone.
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "tool_result"
+                and not isinstance(fact["value"].get("value"), str)
+                and fact["require"] is not None
+            ):
+                if not detail[1]:
+                    fact["require"] = None
+                gap("tool_result", "not_exported", detail, fact["id"])
     if detail := declared("media"):
         entry = framework.unexported["media"]
         modalities = entry.get("modalities") if isinstance(entry, dict) else None

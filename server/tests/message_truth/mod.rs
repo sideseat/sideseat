@@ -24,6 +24,7 @@
 mod absence;
 mod adversarial;
 mod checks;
+mod consistency;
 mod explain;
 mod invariance;
 mod ledger;
@@ -371,8 +372,8 @@ fn truth_documents_are_internally_consistent() {
     let mut defects = Vec::new();
     let mut described = BTreeMap::new();
     for (key, truth) in &documents {
-        defects.extend(truth::document_defects(key, truth));
-        defects.extend(truth::repository_defects(key, truth));
+        defects.extend(consistency::document_defects(key, truth));
+        defects.extend(consistency::repository_defects(key, truth));
         for fixture in &truth.fixtures {
             if let Some(other) = described.insert(fixture.clone(), key.clone()) {
                 defects.push(format!("{fixture} is described by both {other} and {key}"));

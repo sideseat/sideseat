@@ -151,8 +151,8 @@ fn truth_adversarial_fixtures_fire_their_checks() {
         // A patched truth is still a sound document: the case disagrees with the capture, not with
         // the format.
         let key = format!("{}/{}", truth.producer, truth.scenario);
-        let mut defects = super::truth::document_defects(&key, &truth);
-        defects.extend(super::truth::repository_defects(&key, &truth));
+        let mut defects = super::consistency::document_defects(&key, &truth);
+        defects.extend(super::consistency::repository_defects(&key, &truth));
         if !defects.is_empty() {
             failures.push(format!("{}: unsound truth: {defects:?}", case.name));
             continue;

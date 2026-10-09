@@ -304,7 +304,9 @@ class Framework:
     #: only calls tools, missing from the span that produced it, other carriers holding them
     #: (``output_not_exported``); ``parallel_tool_results`` - the results of every tool call but the
     #: first of one response, where the producer records only the first of the turn's tool messages
-    #: (``not_exported``; it withdraws them); ``media`` - the
+    #: (``not_exported``; it withdraws them); ``structured_tool_results`` - the results a tool returned as
+    #: data rather than text, where the producer records only text (``not_exported``; it withdraws them);
+    #: ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
     #: those modalities, and it withdraws the fact, so it holds for every capture or none)
     #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each

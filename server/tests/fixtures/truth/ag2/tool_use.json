@@ -426,6 +426,70 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: AG2 1.0.2 to 1.0.4 record no output on that chat span, and its execute_tool spans carry the calls",
+   "subject": "fact-002",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3",
+    "native@1.0.4"
+   ]
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: AG2 1.0.2 to 1.0.4 record no output on that chat span, and its execute_tool spans carry the calls",
+   "subject": "fact-003",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3",
+    "native@1.0.4"
+   ]
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: AG2 1.0.2 to 1.0.4 record no output on that chat span, and its execute_tool spans carry the calls",
+   "subject": "fact-004",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3",
+    "native@1.0.4"
+   ]
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: AG2 1.0.2 to 1.0.4 record no output on that chat span, and its execute_tool spans carry the calls",
+   "subject": "fact-005",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3",
+    "native@1.0.4"
+   ]
+  },
+  {
+   "fact": "tool_result",
+   "reason": "not_exported",
+   "detail": "the result of a tool that returned data rather than text: AG2 1.0.2 and 1.0.3 record `gen_ai.tool.call.result` only for a text result, and no payload holds the data",
+   "subject": "fact-006",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3"
+   ]
+  },
+  {
+   "fact": "tool_result",
+   "reason": "not_exported",
+   "detail": "the result of a tool that returned data rather than text: AG2 1.0.2 and 1.0.3 record `gen_ai.tool.call.result` only for a text result, and no payload holds the data",
+   "subject": "fact-007",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3"
+   ]
   }
  ],
  "requests": {

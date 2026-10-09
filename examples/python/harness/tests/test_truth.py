@@ -352,6 +352,45 @@ def test_a_tool_calling_round_missing_from_its_span_is_owed_off_it() -> None:
     ]
 
 
+def test_unexported_structured_tool_results_are_withdrawn_where_declared() -> None:
+    """`structured_tool_results` gives a `not_exported` gap to every result a tool returned as data, and a text
+    result stays owed. Declared for every capture, the result is withdrawn in the document; declared for some
+    releases only, it stays asserted there and the rubric withdraws it in those releases' captures alone."""
+    calls = [
+        model_call(
+            wire.tool_call_part("a", "get_weather", {"city": "Tokyo", "days": 1}),
+            wire.tool_call_part("b", "get_precipitation", {"city": "Paris"}),
+            finish="tool_use",
+        ),
+        model_call(wire.text_part("Pack an umbrella for Tokyo.")),
+    ]
+
+    def derived(entry: object) -> tuple[dict[str, dict], list[dict]]:
+        framework = derive.Framework.of(
+            {"unexported": {"structured_tool_results": entry}}
+        )
+        builder = derive.assemble(
+            "p", "tool_use", calls, options=derive.Options(framework=framework)
+        )
+        results = {
+            r["value"]["call_id"]: r for r in facts_by_kind(builder, "tool_result")
+        }
+        return results, [g for g in builder.gaps if g["reason"] == "not_exported"]
+
+    results, gaps = derived("records text results only")
+    assert results["a"]["require"] is None and results["b"]["require"] is not None
+    assert [(g["fact"], g["subject"]) for g in gaps] == [
+        ("tool_result", results["a"]["id"])
+    ]
+    results, gaps = derived(
+        {"reason": "records text results only", "modes": {"tool_use": ["native@1.0"]}}
+    )
+    assert results["a"]["require"] is not None
+    assert [(g["subject"], g["modes"]) for g in gaps] == [
+        (results["a"]["id"], ["native@1.0"])
+    ]
+
+
 def test_unexported_parallel_tool_results_withdraw_all_but_the_first() -> None:
     """`parallel_tool_results` withdraws the results of every tool call of a response but the first, each
     with a `not_exported` gap the rubric proves; the first result, and a lone call's, stay asserted."""

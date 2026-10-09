@@ -18,6 +18,16 @@ integrations = ["ag2"]
 [tool.sideseat-example.truth.unexported]
 media = "the attachments the user sent: AG2's telemetry records a message's text only, and their bytes are in no payload"
 
+[tool.sideseat-example.truth.unexported.tool_calling_round_output]
+reason = "the tool calls of a response that only calls tools, on the call's own span: AG2 1.0.2 to 1.0.4 record no output on that chat span, and its execute_tool spans carry the calls"
+scenarios = ["streaming", "tool_use"]
+modes = { streaming = ["native@1.0.2", "native@1.0.3", "native@1.0.4"], tool_use = ["native@1.0.2", "native@1.0.3", "native@1.0.4"] }
+
+[tool.sideseat-example.truth.unexported.structured_tool_results]
+reason = "the result of a tool that returned data rather than text: AG2 1.0.2 and 1.0.3 record `gen_ai.tool.call.result` only for a text result, and no payload holds the data"
+scenarios = ["streaming", "tool_use"]
+modes = { streaming = ["native@1.0.2", "native@1.0.3"], tool_use = ["native@1.0.2", "native@1.0.3"] }
+
 [tool.sideseat-example.truth.unexported.withheld_reasoning]
 reason = "reasoning the model signed and withheld the text of: AG2's telemetry exports no reasoning part for it, and no payload holds one"
 scenarios = ["multi_turn", "session", "structured_output"]
