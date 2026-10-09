@@ -619,6 +619,7 @@ async fn a_composed_request_reads_its_thread_and_its_calls_through_the_index() {
             span_name: "acme.request".into(),
             timestamp_start: start + TimeDelta::seconds(n),
             request_thread: thread.to_string(),
+            span_marks: 0,
             messages: Some("[]".to_string()),
             ..Default::default()
         })

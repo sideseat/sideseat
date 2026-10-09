@@ -163,6 +163,7 @@ fn parse_thread_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> 
         cost_input: 0.0,
         cost_output: 0.0,
         request_thread: String::new(),
+        span_marks: 0,
     })
 }
 
@@ -192,7 +193,7 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
         tool_definitions_json: row.get::<_, Option<String>>(16)?.unwrap_or_default(),
         tool_names_json: row.get::<_, Option<String>>(17)?.unwrap_or_default(),
         log_messages_json: row
-            .get::<_, Option<String>>(37)?
+            .get::<_, Option<String>>(38)?
             .unwrap_or_else(|| "[]".to_string()),
         body_cache_key: None,
         observation_type: row.get(18)?,
@@ -214,6 +215,9 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
         cost_input: row.get(34)?,
         cost_output: row.get(35)?,
         request_thread: row.get::<_, Option<String>>(36)?.unwrap_or_default(),
+        // Cast to `INTEGER` in the projection, because this driver's row reader has no conversion for the raw
+        // `USMALLINT`; the stored column keeps its two bytes.
+        span_marks: row.get::<_, i32>(37)? as u16,
     })
 }
 

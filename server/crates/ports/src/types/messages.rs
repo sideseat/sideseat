@@ -109,6 +109,9 @@ pub struct MessageSpanRow {
     /// The conversation thread this span is a request of, where a rule names one; empty on every other span. What
     /// lets a request span's view read the earlier requests of its thread - see `domain::sideml::request_context`.
     pub request_thread: String,
+    /// The declared read-time facts the span answered at ingest, one bit each (`domain::rules::span_marks`).
+    /// What lets a read-time rule ask about a span's attributes without the read carrying them.
+    pub span_marks: u16,
 }
 
 impl SpanIdentity for MessageSpanRow {

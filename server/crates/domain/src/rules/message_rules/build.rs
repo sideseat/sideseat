@@ -431,6 +431,7 @@ pub(super) fn composed<'p>(
                     scope_name: None,
                     resource: None,
                     scope_version: None,
+                    marks: 0,
                 },
             ) {
                 return None;

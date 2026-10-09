@@ -77,6 +77,7 @@ fn a_covered_disjunct_beneath_a_negation_is_live() {
         scope_name: None,
         scope_version: None,
         resource: None,
+        marks: 0,
     };
     assert!(!holds(&lowered(negated), &subject));
     assert!(holds(
@@ -472,6 +473,7 @@ fn a_member_of_a_json_attribute_is_tested_typed_and_three_valued() {
             scope_name: None,
             scope_version: None,
             resource: None,
+            marks: 0,
         };
         condition.eval(&mut |atom| atom.eval(&subject))
     };

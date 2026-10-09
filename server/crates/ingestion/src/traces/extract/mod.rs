@@ -519,6 +519,14 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                     .request_threads
                     .thread_key(&otlp_span.name, &span_attrs)
                     .unwrap_or_default();
+                // And the declared facts a read needs that a read cannot see, as one word of bits
+                // (`span_marks`). Nothing is stored about the attributes themselves: only the answers.
+                span.span_marks = sideseat_domain::rules::ruleset().span_marks.marks_of(
+                    &otlp_span.name,
+                    &span_attrs,
+                    span.scope_name.as_deref(),
+                    span.scope_version.as_deref(),
+                );
                 span.span_category =
                     Some(attributes::categorize_span(&otlp_span.name, &span_attrs));
 

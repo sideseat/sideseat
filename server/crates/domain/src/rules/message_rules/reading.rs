@@ -792,6 +792,7 @@ pub(super) fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) 
                 scope_name: ctx.scope_name,
                 resource: None,
                 scope_version: None,
+                marks: 0,
             },
         )
     })

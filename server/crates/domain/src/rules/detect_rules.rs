@@ -176,7 +176,24 @@ pub(super) fn checked_condition(
     condition: &super::schema::SpanWhere,
     readable: Readable,
 ) -> Result<SpanExpr, ConditionRefusal> {
-    let lowered = span_conditions::lower(condition, readable)
+    checked(condition, readable, None)
+}
+
+/// The same for a section whose conditions may name a span mark, which the plan resolves to its bit.
+pub(super) fn checked_condition_with_marks(
+    condition: &super::schema::SpanWhere,
+    readable: Readable,
+    marks: &super::span_marks::SpanMarkPlan,
+) -> Result<SpanExpr, ConditionRefusal> {
+    checked(condition, readable, Some(marks))
+}
+
+fn checked(
+    condition: &super::schema::SpanWhere,
+    readable: Readable,
+    marks: Option<&super::span_marks::SpanMarkPlan>,
+) -> Result<SpanExpr, ConditionRefusal> {
+    let lowered = span_conditions::lower_with(condition, readable, marks)
         .map_err(|defect| ConditionRefusal::Unlowerable(defect.0))?;
     if let Some(defect) = lowered
         .defects(&super::span_conditions::SpanAtom::defect)

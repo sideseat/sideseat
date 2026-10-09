@@ -113,6 +113,7 @@ struct SpanRow {
     search_span_name: Vec<String>,
     search_span_name_truncated: u8,
     request_thread: String,
+    span_marks: u16,
 }
 
 impl From<&NormalizedSpan> for SpanRow {
@@ -240,6 +241,7 @@ impl From<&NormalizedSpan> for SpanRow {
             search_span_name: search_terms(span, SearchField::SpanName).0,
             search_span_name_truncated: search_terms(span, SearchField::SpanName).1,
             request_thread: span.request_thread.clone(),
+            span_marks: span.span_marks,
         }
     }
 }

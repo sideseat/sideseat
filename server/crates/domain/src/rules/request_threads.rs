@@ -104,6 +104,7 @@ impl RequestThreadPlan {
             scope_name: None,
             scope_version: None,
             resource: None,
+            marks: 0,
         };
         let rule = self
             .rules

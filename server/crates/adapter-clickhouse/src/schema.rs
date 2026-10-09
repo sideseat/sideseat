@@ -310,6 +310,11 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     -- Nullable: a null map costs a byte on every span, and '' already means "no thread". LowCardinality would
     -- hold a dictionary per part for values that are nearly unique within a project.
     request_thread             String DEFAULT '' CODEC(ZSTD(1)),
+    -- The declared read-time facts the span answered at ingest, one bit each
+    -- (sideseat_domain::rules::span_marks); 0 where no mark holds, which is almost every span. A word rather
+    -- than a column per mark, because the marks are one bounded set and a run of zeroes compresses to nothing.
+    -- No index: a projection asks about a mark for a row it is already reading, never to find rows.
+    span_marks                 UInt16 DEFAULT 0 CODEC(ZSTD(1)),
 
     -- INDICES for fast lookups
     INDEX idx_request_thread request_thread TYPE bloom_filter GRANULARITY 1,
@@ -500,6 +505,11 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- Nullable: a null map costs a byte on every span, and '' already means "no thread". LowCardinality would
     -- hold a dictionary per part for values that are nearly unique within a project.
     request_thread             String DEFAULT '' CODEC(ZSTD(1)),
+    -- The declared read-time facts the span answered at ingest, one bit each
+    -- (sideseat_domain::rules::span_marks); 0 where no mark holds, which is almost every span. A word rather
+    -- than a column per mark, because the marks are one bounded set and a run of zeroes compresses to nothing.
+    -- No index: a projection asks about a mark for a row it is already reading, never to find rows.
+    span_marks                 UInt16 DEFAULT 0 CODEC(ZSTD(1)),
 
     -- INDICES for fast lookups
     INDEX idx_request_thread request_thread TYPE bloom_filter GRANULARITY 1,

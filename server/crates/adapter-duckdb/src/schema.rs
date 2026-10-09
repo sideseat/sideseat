@@ -199,7 +199,12 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Derived at
     -- ingest from the span's attributes, because a read holds a span's messages and not its attributes - a cache a
     -- re-parse rebuilds, like every extracted column.
-    request_thread             VARCHAR NOT NULL DEFAULT ''
+    request_thread             VARCHAR NOT NULL DEFAULT '',
+    -- The declared read-time facts the span answered at ingest, one bit each
+    -- (sideseat_domain::rules::span_marks); 0 where no mark holds, which is almost every span. Derived at ingest
+    -- for the same reason as the thread key: a read holds a span's messages and not its attributes, and storing
+    -- the answers bounds what that costs where storing the attributes again would not.
+    span_marks                 USMALLINT NOT NULL DEFAULT 0
 );
 
 -- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose

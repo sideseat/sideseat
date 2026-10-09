@@ -11,6 +11,7 @@ impl CompiledDetect {
                 scope_name: ctx.scope_name,
                 resource: Some(ctx.resource_attrs),
                 scope_version: None,
+                marks: 0,
             },
         )
     }

@@ -162,6 +162,7 @@ fn insert_spans(
             search_fields,
             search_truncated,
             span.request_thread.as_str(),
+            span.span_marks,
         ])?;
     }
 

@@ -18,6 +18,7 @@ mod message_read;
 mod observed;
 mod request_threads;
 mod span_fields;
+mod span_marks;
 
 pub use conditions::*;
 pub use content::*;
@@ -28,6 +29,7 @@ pub use message_read::*;
 pub use observed::*;
 pub use request_threads::*;
 pub use span_fields::*;
+pub use span_marks::*;
 
 /// One rule file's parsed contents.
 ///
@@ -152,6 +154,9 @@ pub struct RuleFile {
     /// request added rather than what it sent.
     #[serde(default)]
     pub request_threads: Vec<RequestThreadRule>,
+    /// Facts a read needs that the read path cannot see, each decided at ingest and carried as one bit.
+    #[serde(default)]
+    pub span_marks: Vec<SpanMarkRule>,
     /// Named reading tables other rules may apply.
     ///
     /// One dialect's message shapes are recognised at four different selection points - the node itself, a
@@ -280,6 +285,7 @@ impl RuleFile {
                 observation_types: _,
                 span_facts: _,
                 request_threads: _,
+                span_marks: _,
                 fragments: _,
                 sdk_slugs: _,
                 span_fields: _,
@@ -400,6 +406,10 @@ impl RuleFile {
                 .iter()
                 .map(|rule| rule.id.clone())
                 .collect(),
+        ));
+        out.push((
+            "span_marks".to_string(),
+            self.span_marks.iter().map(|rule| rule.id.clone()).collect(),
         ));
         out.push((
             "synthetic_call_ids".to_string(),

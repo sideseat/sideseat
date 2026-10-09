@@ -14,6 +14,7 @@ const EVERYTHING: Readable = Readable {
     scope: true,
     scope_version: true,
     resource: true,
+    marks: true,
 };
 
 fn lowered(condition: serde_json::Value, readable: Readable) -> Result<SpanExpr, String> {
@@ -41,6 +42,7 @@ fn truth(condition: &SpanExpr, version: Option<&str>, span_name: &str) -> super:
         scope_name: Some("scope"),
         scope_version: version,
         resource: None,
+        marks: 0,
     };
     condition.eval(&mut |atom: &SpanAtom| atom.eval(&subject))
 }

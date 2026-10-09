@@ -518,6 +518,50 @@ different content, or a failed request) composes nothing past it. The design and
 }
 ```
 
+## Span marks
+
+A read holds a span's messages and its extracted columns, not its attributes, so a read-time rule - a message
+projection - cannot ask what the span carried, and storing the attributes again to answer it would keep a second
+copy of raw content. A `span_marks` entry stores the **answer** instead: its `where` is asked of the span's name,
+attributes and scope once, at ingest, and its truth is one bit of a 16-bit word stored on the span. A projection
+then asks `{"source": "mark:<id>", "exists": true}`, which is total - a mark is set or it is not, and a span the
+condition was false or unknown for is unmarked.
+
+Each mark has an `id`, unique across every asset because the marks share one word, and a `because` that says why
+the fact cannot be read where it is needed - required, since a mark is storage on every span. A mark's condition
+may not name a mark, a projection naming a mark no asset declares is refused at startup, and a seventeenth mark is
+refused rather than widening the word. Bits follow the order of the ids. The word is a derived cache like every
+extracted column: a re-parse rebuilds it from the raw span. Measured at a million spans, the column costs nothing
+while no span is marked (every segment is constant), about 1.3 bytes per span with 1% of spans marked, and 2.6 at
+worst, with every word different.
+
+```json example
+{
+  "id": "acme-marks",
+  "doc": "A producer that reports a streamed request's lifetime as a span of its own.",
+  "span_marks": [
+    {
+      "id": "acme.streamed",
+      "because": "the read holds a row's messages and not its attributes, and only the request options say it streamed",
+      "where": {"source": "attr:acme.request", "parses": "json", "member": {"path": "$.stream", "equals": true}}
+    }
+  ],
+  "message_projections": [
+    {
+      "id": "acme.streamed_lifetime",
+      "doc": "The lifetime span of a streamed request repeats the request its generation span already shows.",
+      "where": {"all": [
+        {"source": "scope.name", "equals": "acme"},
+        {"source": "mark:acme.streamed", "exists": true}
+      ]},
+      "only_attribute_sources": ["acme.request"],
+      "successful_only": true,
+      "action": "suppress_messages"
+    }
+  ]
+}
+```
+
 ## Precedence and claiming
 
 Order is stated, not inferred from how specific a condition looks, with one exception: carrier clauses, whose
@@ -645,6 +689,7 @@ Every key an asset may write, generated from the schema the engine is compiled f
 | `observation_types` | list of [`ClassifyRule`](#classifyrule) | What kind of observation a span is, as ordered first-match rules. |
 | `span_facts` | list of [`SpanFactRule`](#spanfactrule) | Facts about a *span* this dialect can establish, as opposed to about a carrier. |
 | `request_threads` | list of [`RequestThreadRule`](#requestthreadrule) | What identifies the conversation a request span belongs to, for a producer that exports what each request added rather than what it sent. |
+| `span_marks` | list of [`SpanMarkRule`](#spanmarkrule) | Facts a read needs that the read path cannot see, each decided at ingest and carried as one bit. |
 | `fragments` | map of text to [`Fragment`](#fragment) | Named reading tables other rules may apply. |
 | `sdk_slugs` | list of [`SdkSlug`](#sdkslug) | The slugs an SDK may write into `sideseat.framework` for this framework, and the label they resolve to. |
 | `span_fields` | list of [`SpanFieldRule`](#spanfieldrule) | Which keys carry a *span field* - a scalar or list on the stored span, as opposed to a message. |
@@ -2052,6 +2097,28 @@ path sees a span's messages and not its attributes.
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The spans that are requests of a thread. At most one rule may hold for a span, which compilation proves. |
 | `key` (required) | list of string | The span attributes whose values identify a thread, each as an `attr:<key>` source, in a fixed order. Two requests share a thread when every source agrees, absent included - so a subagent with its own id is a thread of its own. Never the trace: a thread continues across the interactions and traces of a session. |
+
+### `SpanMarkRule`
+
+One fact about a span, decided from its attributes when it is ingested and carried to the read as a bit.
+
+A read holds a span's messages and its extracted columns, not its attributes, so a read-time rule - a message
+projection - cannot ask what the span carried. Storing the attributes again to answer that would be a second
+copy of raw content, which is the one thing storage here never keeps. A mark stores the **answer** instead: the
+condition runs once at ingest and its truth occupies one bit, so the cost does not grow with the payload the
+question was about.
+
+Derived, like every extracted column: a re-parse rebuilds it from the raw span, and the bit a span holds says
+nothing that the asset's condition does not say about that span. The width is bounded
+([`MARK_LIMIT`](crate::rules::span_marks::MARK_LIMIT)), and a corpus that declares more marks than fit is
+refused at startup rather than silently losing the last ones.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `id` (required) | string | This mark's own name, which a read-time condition names as `mark:<id>`. Unique across every asset: the marks are one shared, bounded set rather than one set per producer, because they share a stored byte. |
+| `because` (required) | string | Why this fact cannot be read where it is needed, which is what justifies storing it. Required: a mark is storage per span, and the reason it is not a plain condition belongs beside it. |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The spans this holds for, asked of the span's own name, attributes and scope at ingest. It may not ask about a mark: the marks are decided in one pass, in no declared order, so one reading another would depend on which came first. |
 
 ### `Fragment`
 

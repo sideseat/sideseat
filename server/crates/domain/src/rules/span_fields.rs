@@ -453,6 +453,7 @@ fn source_applies(
                 scope_name: None,
                 resource: None,
                 scope_version: None,
+                marks: 0,
             },
         )
     {

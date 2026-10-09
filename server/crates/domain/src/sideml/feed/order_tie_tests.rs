@@ -73,6 +73,7 @@ fn row(span: &str, trace: &str, messages: Vec<serde_json::Value>) -> MessageSpan
         cost_input: 0.0,
         cost_output: 0.0,
         request_thread: String::new(),
+        span_marks: 0,
     }
 }
 

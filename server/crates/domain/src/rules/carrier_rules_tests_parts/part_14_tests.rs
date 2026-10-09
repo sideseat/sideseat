@@ -215,6 +215,7 @@ fn a_scope_name_prefix_is_unknown_where_no_scope_is_reported() {
         scope: true,
         scope_version: true,
         resource: true,
+        marks: true,
     };
     let lower = |condition: serde_json::Value, readable: Readable| {
         let parsed: super::schema::SpanWhere =
@@ -233,6 +234,7 @@ fn a_scope_name_prefix_is_unknown_where_no_scope_is_reported() {
             scope_name,
             scope_version: None,
             resource: None,
+            marks: 0,
         };
         condition.eval(&mut |atom| atom.eval(&subject))
     };
@@ -703,6 +705,7 @@ fn whether_an_attribute_parses_as_json_is_three_valued() {
             scope_name: None,
             scope_version: None,
             resource: None,
+            marks: 0,
         };
         condition.eval(&mut |atom| atom.eval(&subject))
     };

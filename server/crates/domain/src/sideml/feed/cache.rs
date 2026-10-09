@@ -353,6 +353,8 @@ fn digest_with(rows: &[MessageSpanRow], session_of_trace: &HashMap<String, Strin
         // which trace's history the other one strips against. Two row sets differing only here are
         // genuinely different inputs.
         hasher.update(&row.ingested_at.timestamp_micros().to_le_bytes());
+        // A mark decides whether a read-time projection withdraws the row.
+        hasher.update(&row.span_marks.to_le_bytes());
         hasher.update(&row.input_tokens.to_le_bytes());
         hasher.update(&row.output_tokens.to_le_bytes());
         hasher.update(&row.total_tokens.to_le_bytes());
@@ -420,6 +422,7 @@ mod tests {
             cost_input: 0.0,
             cost_output: 0.0,
             request_thread: String::new(),
+            span_marks: 0,
         }
     }
 

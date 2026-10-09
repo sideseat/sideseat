@@ -38,6 +38,8 @@ pub enum RuleSection {
     SyntheticCallIds,
     EventCategories,
     RequestThreads,
+    /// Facts a read needs that the read path cannot see.
+    SpanMarks,
 }
 
 impl RuleSection {
@@ -60,6 +62,7 @@ impl RuleSection {
             Self::ProviderAliases => "provider_aliases",
             Self::FinishReasons => "finish_reasons",
             Self::RequestThreads => "request_threads",
+            Self::SpanMarks => "span_marks",
             Self::SyntheticCallIds => "synthetic_call_ids",
             Self::EventCategories => "event_categories",
         }

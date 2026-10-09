@@ -30,6 +30,7 @@ fn thread_request(
         ingested_at: Some(ts(offset)),
         messages: Some(messages.to_string()),
         request_thread: thread.to_string(),
+        span_marks: 0,
         ..Default::default()
     }
 }

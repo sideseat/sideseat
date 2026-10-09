@@ -138,6 +138,11 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
                 output_preview: Some("child one output".to_string()),
                 messages: messages("first turn"),
                 tool_names: Some(r#"["get_weather"]"#.to_string()),
+                // The two derived columns, set on one span of the corpus and left clear on the rest, so a
+                // backend that stored either differently is a difference the comparison sees rather than two
+                // columns that are empty everywhere.
+                request_thread: r#"["parity.thread","session-1"]"#.to_string(),
+                span_marks: 0b101,
                 ..base("trace-a", "a-gen-1", "generation", 1)
             },
             100,
@@ -431,7 +436,7 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
          exception={:?}/{:?}/{:?} tokens=[{},{},{}] cost={} observation={:?} session={:?} \
          messages={} tools={} tool_names={} scope={:?}/{:?} span_name={:?} framework={:?} \
          response={:?}/{:?} params=[{:?},{:?},{:?}] finish={:?} \
-         usage=[{},{},{}] cost_split=[{},{}]",
+         usage=[{},{},{}] cost_split=[{},{}] thread={} marks={}",
         r.span_id,
         r.trace_id,
         r.parent_span_id,
@@ -467,6 +472,11 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
         r.reasoning_tokens,
         f(r.cost_input),
         f(r.cost_output),
+        // The two columns a read derives nothing from and a read-time rule depends on: a composed request's
+        // thread, and the marks a projection asks about. A backend that stored either differently would feed
+        // the pipeline different answers while every other column matched.
+        r.request_thread,
+        r.span_marks,
     )
 }
 

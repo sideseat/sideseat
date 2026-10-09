@@ -127,6 +127,7 @@ fn matching_rule<'a>(
         scope_name: None,
         resource: None,
         scope_version: None,
+        marks: 0,
     };
     rules
         .iter()

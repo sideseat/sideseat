@@ -569,6 +569,7 @@ fn the_engine_names_no_framework() {
         ("expr.rs", include_str!("../expr.rs")),
         ("log_events.rs", include_str!("../log_events.rs")),
         ("request_threads.rs", include_str!("../request_threads.rs")),
+        ("span_marks.rs", include_str!("../span_marks.rs")),
         ("refusal.rs", include_str!("../refusal.rs")),
         ("tool_shapes.rs", include_str!("../tool_shapes.rs")),
         ("finish_reasons.rs", include_str!("../finish_reasons.rs")),

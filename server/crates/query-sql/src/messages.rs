@@ -44,7 +44,10 @@ fn message_projection(backend: Backend) -> &'static str {
     gen_ai_usage_reasoning_tokens AS reasoning_tokens,
     gen_ai_cost_input::DOUBLE AS cost_input,
     gen_ai_cost_output::DOUBLE AS cost_output,
-    request_thread"#
+    request_thread,
+    -- Cast because the DuckDB driver's row reader has no conversion for the raw `USMALLINT`, which is the
+    -- narrowest width that holds the marks; the stored column keeps its two bytes.
+    span_marks::INTEGER AS span_marks"#
         }
         Backend::Clickhouse => {
             r#"trace_id,
@@ -84,7 +87,8 @@ fn message_projection(backend: Backend) -> &'static str {
     gen_ai_usage_reasoning_tokens AS reasoning_tokens,
     toFloat64(gen_ai_cost_input) AS cost_input,
     toFloat64(gen_ai_cost_output) AS cost_output,
-    request_thread"#
+    request_thread,
+    span_marks"#
         }
     }
 }
@@ -239,6 +243,7 @@ const MESSAGE_COLUMNS: &[&str] = &[
     "cost_input",
     "cost_output",
     "request_thread",
+    "span_marks",
 ];
 
 /// Every non-empty `otel_logs.messages` array for the selected spans, one row per `(trace, span)`.

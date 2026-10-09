@@ -18,6 +18,9 @@ pub struct MessageProjectionContext<'a> {
     pub span_name: Option<&'a str>,
     pub successful: bool,
     pub messages: &'a [RawMessage],
+    /// The marks the span answered at ingest, as stored on the row (`rules::span_marks`). How a read-time rule
+    /// asks about a span's attributes, which the read itself does not carry.
+    pub marks: u16,
 }
 
 /// Typed projection rules, compiled once with the rest of the embedded ruleset.
@@ -35,7 +38,10 @@ struct CompiledProjection {
 }
 
 impl MessageProjectionPlan {
-    pub fn compile(files: &[RuleFile]) -> Result<Self, super::diagnostics::ClauseDefect> {
+    pub fn compile(
+        files: &[RuleFile],
+        marks: &super::span_marks::SpanMarkPlan,
+    ) -> Result<Self, super::diagnostics::ClauseDefect> {
         let mut ids = BTreeSet::new();
         let mut rules = Vec::new();
 
@@ -83,15 +89,18 @@ impl MessageProjectionPlan {
                 // Through the validator every section's `where` goes through, so a projection cannot carry the
                 // empty literal or the covered disjunct the others refuse: lowered alone, `span_name starts_with
                 // ""` beside a scope matched every row of that scope.
-                let condition =
-                    super::detect_rules::checked_condition(&rule.condition, Readable::PROJECTION)
-                        .map_err(|refusal| {
-                        ClauseDefect::new(
-                            &[&rule.id],
-                            Some(&file.id),
-                            format!("message projection clause `{}`: {refusal}", rule.id),
-                        )
-                    })?;
+                let condition = super::detect_rules::checked_condition_with_marks(
+                    &rule.condition,
+                    Readable::PROJECTION,
+                    marks,
+                )
+                .map_err(|refusal| {
+                    ClauseDefect::new(
+                        &[&rule.id],
+                        Some(&file.id),
+                        format!("message projection clause `{}`: {refusal}", rule.id),
+                    )
+                })?;
                 if !requires_a_scope(&condition) {
                     return Err(ClauseDefect::new(
                         &[&rule.id],
@@ -126,6 +135,7 @@ impl MessageProjectionPlan {
             scope_name: context.scope_name,
             scope_version: context.scope_version,
             resource: None,
+            marks: context.marks,
         };
         self.rules.iter().any(|rule| {
             let success_matches = !rule.successful_only || context.successful;
@@ -190,7 +200,10 @@ mod tests {
                 }]
             }))
             .expect("the probe asset parses");
-            MessageProjectionPlan::compile(&[file])
+            MessageProjectionPlan::compile(
+                &[file],
+                &crate::rules::span_marks::SpanMarkPlan::default(),
+            )
         };
         let plan = compiled(serde_json::json!(["probe.messages", "probe.instructions"]))
             .expect("two attribute sources compile");
@@ -209,6 +222,7 @@ mod tests {
                 span_name: None,
                 successful: true,
                 messages,
+                marks: 0,
             })
         };
         assert!(suppressed(&[message("probe.messages")]));
@@ -246,7 +260,10 @@ mod tests {
                 }]
             }))
             .expect("the probe asset parses");
-            MessageProjectionPlan::compile(&[file])
+            MessageProjectionPlan::compile(
+                &[file],
+                &crate::rules::span_marks::SpanMarkPlan::default(),
+            )
         };
         let scope = serde_json::json!({"source": "scope.name", "equals": "probe.scope"});
         let name = serde_json::json!({"source": "span_name", "starts_with": "probe "});
@@ -312,7 +329,10 @@ mod tests {
                 }]
             }))
             .expect("the probe asset parses");
-            MessageProjectionPlan::compile(&[file])
+            MessageProjectionPlan::compile(
+                &[file],
+                &crate::rules::span_marks::SpanMarkPlan::default(),
+            )
         };
         let scope = serde_json::json!({"source": "scope.name", "equals": "probe.scope"});
         for (why, condition) in [
@@ -365,6 +385,7 @@ mod tests {
                     scope_name: None,
                     scope_version: version,
                     resource: None,
+                    marks: 0,
                 },
             )
         };
@@ -400,5 +421,103 @@ mod tests {
                 "{version}"
             );
         }
+    }
+
+    /// **A projection may ask about a span mark, which is how a read-time rule reads what the row cannot carry.**
+    ///
+    /// The read holds a row's messages and not its attributes, so a projection that must distinguish two spans by
+    /// what they carried asks about the answer stored at ingest. Here two rows differ only in their mark, and only
+    /// the marked one is withdrawn - which is the whole point: with no mark the projection would have to suppress
+    /// both or neither.
+    #[test]
+    fn a_projection_asks_about_a_mark_the_span_answered_at_ingest() {
+        let file: RuleFile = serde_json::from_value(serde_json::json!({
+            "id": "probe",
+            "span_marks": [{
+                "id": "probe.streamed",
+                "because": "the read holds a row's messages and not its attributes",
+                "where": {"source": "attr:probe_options", "parses": "json",
+                    "member": {"path": "$.stream", "equals": true}}
+            }],
+            "message_projections": [{
+                "id": "probe.projection",
+                "where": {"all": [
+                    {"source": "scope.name", "equals": "probe.scope"},
+                    {"source": "mark:probe.streamed", "exists": true}
+                ]},
+                "only_attribute_sources": ["probe.messages"],
+                "successful_only": false,
+                "action": "suppress_messages"
+            }]
+        }))
+        .expect("the probe asset parses");
+        let marks = crate::rules::span_marks::SpanMarkPlan::compile(std::slice::from_ref(&file))
+            .expect("the marks compile");
+        let plan =
+            MessageProjectionPlan::compile(&[file], &marks).expect("the projection compiles");
+        let message = RawMessage {
+            source: MessageSource::Attribute {
+                key: "probe.messages".to_string(),
+                time: chrono::Utc::now(),
+            },
+            content: serde_json::json!({"role": "user", "content": "q"}),
+            rendering: false,
+        };
+        let messages = [message];
+        let suppressed = |marks: u16| {
+            plan.suppresses_messages(&MessageProjectionContext {
+                scope_name: Some("probe.scope"),
+                scope_version: None,
+                span_name: None,
+                successful: true,
+                messages: &messages,
+                marks,
+            })
+        };
+        // The word the ingest side would have stored for a streamed request, and for every other span.
+        let streamed = marks.marks_of(
+            "span",
+            &[(
+                "probe_options".to_string(),
+                r#"{"stream": true}"#.to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            None,
+            None,
+        );
+        let plain = marks.marks_of("span", &HashMap::new(), None, None);
+        assert_eq!(
+            (streamed, plain),
+            (1, 0),
+            "one mark, set only for the one span"
+        );
+        assert!(suppressed(streamed), "the marked row is withdrawn");
+        assert!(
+            !suppressed(plain),
+            "and the unmarked one is not - the two rows are otherwise identical, which is why the mark exists"
+        );
+        // A projection naming a mark no asset declares is refused rather than never holding.
+        let unknown: RuleFile = serde_json::from_value(serde_json::json!({
+            "id": "probe",
+            "message_projections": [{
+                "id": "probe.projection",
+                "where": {"all": [
+                    {"source": "scope.name", "equals": "probe.scope"},
+                    {"source": "mark:probe.absent", "exists": true}
+                ]},
+                "only_attribute_sources": ["probe.messages"],
+                "successful_only": false,
+                "action": "suppress_messages"
+            }]
+        }))
+        .expect("the probe asset parses");
+        assert!(
+            MessageProjectionPlan::compile(
+                &[unknown],
+                &crate::rules::span_marks::SpanMarkPlan::default()
+            )
+            .is_err()
+        );
     }
 }

@@ -56,6 +56,7 @@ struct ChMessageSpanRow {
     cost_output: f64,
     log_messages: String,
     request_thread: String,
+    span_marks: u16,
 }
 
 impl From<ChMessageSpanRow> for MessageSpanRow {
@@ -99,6 +100,7 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
             max_tokens: row.max_tokens,
             finish_reasons: row.finish_reasons,
             request_thread: row.request_thread,
+            span_marks: row.span_marks,
             cache_read_tokens: row.cache_read_tokens,
             cache_write_tokens: row.cache_write_tokens,
             reasoning_tokens: row.reasoning_tokens,
@@ -230,6 +232,7 @@ fn thread_row_defaults() -> MessageSpanRow {
         cost_input: 0.0,
         cost_output: 0.0,
         request_thread: String::new(),
+        span_marks: 0,
     }
 }
 

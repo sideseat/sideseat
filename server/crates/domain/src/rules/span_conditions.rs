@@ -36,6 +36,9 @@ pub enum SpanAtom {
     SpanAttrContains { key: String, value: String },
     /// This attribute's text parses as JSON. Unknown where the attribute is absent.
     SpanAttrParsesJson { key: String },
+    /// This span carries this mark. Total: a span's stored marks are the answers to every declared condition, so
+    /// a mark is set or it is not (`span_marks`).
+    SpanMarkSet { id: String, bit: u8 },
     /// A question about a member of this attribute's parsed JSON, in the value grammar.
     ///
     /// Unknown where the attribute is absent, false where its text does not parse, and otherwise the member
@@ -94,6 +97,9 @@ pub struct SpanSubject<'a> {
     pub scope_name: Option<&'a str>,
     pub scope_version: Option<&'a str>,
     pub resource: Option<&'a HashMap<String, String>>,
+    /// The marks this span was stored with, for a section that reads a stored row. Zero where the subject is the
+    /// span itself: a section that can see the attributes asks the question rather than reading its answer.
+    pub marks: u16,
 }
 
 /// A span condition, lowered.
@@ -139,6 +145,7 @@ impl SpanAtom {
                     serde_json::from_str::<serde::de::IgnoredAny>(found).is_ok()
                 })
             }
+            Self::SpanMarkSet { bit, .. } => Truth::total(subject.marks & (1 << bit) != 0),
             Self::SpanAttrJsonMember { key, question } => {
                 match subject.attrs.get(key).map(String::as_str) {
                     // Absent, like every other value test: "the member is not this" is not an answer a span
@@ -395,6 +402,9 @@ pub struct Readable {
     pub scope: bool,
     pub scope_version: bool,
     pub resource: bool,
+    /// The marks a stored row carries. A section that can read the span's attributes asks its question directly,
+    /// so this is given only where the attributes are gone.
+    pub marks: bool,
 }
 
 impl Readable {
@@ -405,6 +415,7 @@ impl Readable {
         scope: false,
         scope_version: false,
         resource: false,
+        marks: false,
     };
     /// The span's name and attributes: classification and span-field sources.
     pub const SPAN: Self = Self {
@@ -413,6 +424,7 @@ impl Readable {
         scope: false,
         scope_version: false,
         resource: false,
+        marks: false,
     };
     /// And the instrumentation scope: message-rule gates.
     pub const SPAN_AND_SCOPE: Self = Self {
@@ -421,6 +433,7 @@ impl Readable {
         scope: true,
         scope_version: false,
         resource: false,
+        marks: false,
     };
     /// Everything: detection.
     pub const ALL: Self = Self {
@@ -429,6 +442,7 @@ impl Readable {
         scope: true,
         scope_version: false,
         resource: true,
+        marks: false,
     };
     /// A stored row being projected: its span name and instrumentation scope, version included, and none of
     /// its attributes - projection reads the row, not the span.
@@ -438,6 +452,7 @@ impl Readable {
         scope: true,
         scope_version: true,
         resource: false,
+        marks: true,
     };
 }
 
@@ -460,6 +475,7 @@ enum Source {
     Scope,
     ScopeVersion,
     Resource(String),
+    Mark(String),
 }
 
 fn parse_source(text: &str, readable: Readable) -> Result<Source, ConditionDefect> {
@@ -476,13 +492,22 @@ fn parse_source(text: &str, readable: Readable) -> Result<Source, ConditionDefec
         Source::Attr(key.to_string())
     } else if let Some(key) = text.strip_prefix("resource:") {
         Source::Resource(key.to_string())
+    } else if let Some(id) = text.strip_prefix("mark:") {
+        Source::Mark(id.to_string())
     } else {
         return refuse(
-            "is not one of `span_name`, `attr:<key>`, `attr_keys`, `scope.name`, `scope.version`, `resource:<key>`",
+            "is not one of `span_name`, `attr:<key>`, `attr_keys`, `scope.name`, `scope.version`, \
+             `resource:<key>`, `mark:<id>`",
         );
     };
     match &source {
-        Source::Attr(key) | Source::Resource(key) if key.is_empty() => refuse("names an empty key"),
+        Source::Attr(key) | Source::Resource(key) | Source::Mark(key) if key.is_empty() => {
+            refuse("names an empty key")
+        }
+        Source::Mark(_) if !readable.marks => refuse(
+            "is a span mark, which this section is not given - a mark exists for a read that cannot see the \
+             span's attributes, and a section that can see them asks the question itself",
+        ),
         Source::SpanName if !readable.span_name => {
             refuse("is the span's name, which this section is not given - it could never hold")
         }
@@ -504,13 +529,23 @@ fn parse_source(text: &str, readable: Readable) -> Result<Source, ConditionDefec
 
 /// A `where` lowered into the evaluated grammar, or why it cannot be.
 pub fn lower(condition: &SpanWhere, readable: Readable) -> Result<SpanExpr, ConditionDefect> {
+    lower_with(condition, readable, None)
+}
+
+/// The same, for a section whose conditions may name a span mark: the plan resolves each name to its bit, so a
+/// mark no asset declares is refused when the rule compiles rather than silently never holding.
+pub fn lower_with(
+    condition: &SpanWhere,
+    readable: Readable,
+    marks: Option<&super::span_marks::SpanMarkPlan>,
+) -> Result<SpanExpr, ConditionDefect> {
     Ok(match condition {
-        Expr::Atom(atom) => lower_atom(atom, readable)?,
+        Expr::Atom(atom) => lower_atom(atom, readable, marks)?,
         Expr::All(group) => Expr::all(
             group
                 .children()
                 .iter()
-                .map(|child| lower(child, readable))
+                .map(|child| lower_with(child, readable, marks))
                 .collect::<Result<_, _>>()?,
         )
         .expect("a group has at least two children"),
@@ -518,15 +553,19 @@ pub fn lower(condition: &SpanWhere, readable: Readable) -> Result<SpanExpr, Cond
             group
                 .children()
                 .iter()
-                .map(|child| lower(child, readable))
+                .map(|child| lower_with(child, readable, marks))
                 .collect::<Result<_, _>>()?,
         )
         .expect("a group has at least two children"),
-        Expr::Not(child) => Expr::Not(Box::new(lower(child, readable)?)),
+        Expr::Not(child) => Expr::Not(Box::new(lower_with(child, readable, marks)?)),
     })
 }
 
-fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, ConditionDefect> {
+fn lower_atom(
+    atom: &SpanCondition,
+    readable: Readable,
+    marks: Option<&super::span_marks::SpanMarkPlan>,
+) -> Result<SpanExpr, ConditionDefect> {
     let refuse = |why: String| Err(ConditionDefect(why));
     let tests = usize::from(atom.exists.is_some())
         + usize::from(atom.equals.is_some())
@@ -595,6 +634,20 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
     if let Some(want) = atom.exists {
         let present = match &source {
             Source::Attr(key) => Expr::Atom(SpanAtom::SpanAttrExists { key: key.clone() }),
+            // A mark's only question is whether the span carries it, which is what `exists` asks of every other
+            // source. The bit is resolved here rather than at evaluation, so an undeclared mark is a startup
+            // refusal instead of a condition that silently never holds.
+            Source::Mark(id) => match marks.and_then(|plan| plan.bit_of(id)) {
+                Some(bit) => Expr::Atom(SpanAtom::SpanMarkSet {
+                    id: id.clone(),
+                    bit,
+                }),
+                None => {
+                    return Err(ConditionDefect(format!(
+                        "source `{text}` names a mark no asset declares, so it could never hold"
+                    )));
+                }
+            },
             _ => return unanswerable("exists"),
         };
         atoms.push(if want {

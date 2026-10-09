@@ -361,10 +361,22 @@ pub struct NormalizedSpan {
     /// attributes - a cache a re-parse rebuilds identically, like every extracted column.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub request_thread: String,
+    /// The declared read-time facts this span answers, one bit each (`domain::rules::span_marks`); zero where no
+    /// mark holds, which is almost every span.
+    ///
+    /// Derived at ingest for the same reason as the thread key, and stored instead of the attributes the
+    /// conditions read - the answer is bounded, the attributes are not.
+    #[serde(default, skip_serializing_if = "is_unmarked")]
+    pub span_marks: u16,
     /// Which export of an ingest batch the span came from: ingestion's own bookkeeping, never stored. Carried
     /// on the span because a batch drops spans at several fences and must still answer each export for its own,
     /// and because two exports in one batch can carry the same span identity, which therefore cannot say whose
     /// raw record a row came from.
     #[serde(skip)]
     pub batch_slot: usize,
+}
+
+/// A span no declared mark holds for, which is almost every span: its word is left out of the wire form.
+fn is_unmarked(marks: &u16) -> bool {
+    *marks == 0
 }

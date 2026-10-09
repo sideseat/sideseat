@@ -34,6 +34,12 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "RuleFile.span_marks",
+        "a fact a read needs that the read path cannot see, stored as one bit per span. The section exists so \
+         such a fact is declared and bounded rather than answered by storing a span's attributes twice; no \
+         shipped asset declares one yet",
+    ),
+    (
         "SpanCondition.member",
         "the member test of a JSON attribute; offered for a producer that writes a request's options as one \
          JSON payload, where a substring of the text would also match a value a prompt mentions. No shipped \

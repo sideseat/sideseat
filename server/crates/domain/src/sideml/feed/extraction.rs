@@ -52,6 +52,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
                         span_name: row.span_name.as_deref(),
                         successful,
                         messages: &raw_msgs,
+                        marks: row.span_marks,
                     },
                 )
             {

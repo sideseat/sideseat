@@ -165,6 +165,13 @@
         "$ref": "#/$defs/RequestThreadRule"
       }
     },
+    "span_marks": {
+      "description": "Facts a read needs that the read path cannot see, each decided at ingest and carried as one bit.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SpanMarkRule"
+      }
+    },
     "fragments": {
       "description": "Named reading tables other rules may apply.\n\nOne dialect's message shapes are recognised at four different selection points - the node itself, a\n`messages` list, every member of a state object, and a nested state object - and a table repeated\nper point is four places to fix a shape. Referenced as `<file id>.<name>`, resolved at compile time\nby inlining, and a fragment's own cases may **not** reference a fragment: one level, no recursion,\nnothing to bound at runtime.",
       "type": "object",
@@ -4610,6 +4617,38 @@
         "id",
         "where",
         "key"
+      ]
+    },
+    "SpanMarkRule": {
+      "description": "One fact about a span, decided from its attributes when it is ingested and carried to the read as a bit.\n\nA read holds a span's messages and its extracted columns, not its attributes, so a read-time rule - a message\nprojection - cannot ask what the span carried. Storing the attributes again to answer that would be a second\ncopy of raw content, which is the one thing storage here never keeps. A mark stores the **answer** instead: the\ncondition runs once at ingest and its truth occupies one bit, so the cost does not grow with the payload the\nquestion was about.\n\nDerived, like every extracted column: a re-parse rebuilds it from the raw span, and the bit a span holds says\nnothing that the asset's condition does not say about that span. The width is bounded\n([`MARK_LIMIT`](crate::rules::span_marks::MARK_LIMIT)), and a corpus that declares more marks than fit is\nrefused at startup rather than silently losing the last ones.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This mark's own name, which a read-time condition names as `mark:<id>`. Unique across every asset: the\nmarks are one shared, bounded set rather than one set per producer, because they share a stored byte.",
+          "type": "string"
+        },
+        "because": {
+          "description": "Why this fact cannot be read where it is needed, which is what justifies storing it. Required: a mark is\nstorage per span, and the reason it is not a plain condition belongs beside it.",
+          "type": "string"
+        },
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "where": {
+          "description": "The spans this holds for, asked of the span's own name, attributes and scope at ingest. It may not ask\nabout a mark: the marks are decided in one pass, in no declared order, so one reading another would\ndepend on which came first.",
+          "$ref": "#/$defs/Expr_SpanCondition"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "because",
+        "where"
       ]
     },
     "Fragment": {

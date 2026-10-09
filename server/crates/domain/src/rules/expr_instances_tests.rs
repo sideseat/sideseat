@@ -370,6 +370,7 @@ fn three_valued_predicate_instances() {
             scope_name: None,
             resource: Some(&none),
             scope_version: None,
+            marks: 0,
         };
         let answer = lowered.eval(&mut |atom| atom.eval(&subject));
         assert_eq!(letter(answer), case.expect, "{}", case.id);

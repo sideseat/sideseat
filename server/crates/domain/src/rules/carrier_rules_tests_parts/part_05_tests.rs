@@ -343,6 +343,7 @@ fn every_where_answers_as_the_predicate_it_replaced() {
                                 },
                                 resource: readable.resource.then_some(resource),
                                 scope_version: None,
+                                marks: 0,
                             },
                         );
                         compared += 1;

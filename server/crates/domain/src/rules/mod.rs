@@ -39,6 +39,7 @@ pub mod retired_span_predicates;
 pub mod schema;
 pub mod span_conditions;
 pub mod span_fields;
+pub mod span_marks;
 mod tool_repr;
 pub mod tool_shapes;
 pub mod versions;
@@ -150,6 +151,7 @@ impl SpanFactPlan {
             scope_name: None,
             resource: None,
             scope_version: None,
+            marks: 0,
         };
         let witnesses: Vec<expr::ClausePath> = self
             .signals
@@ -213,6 +215,7 @@ pub struct Ruleset {
     pub event_categories: Vec<(Vec<String>, schema::EventCategory)>,
     /// Which thread a request span belongs to, for a producer that exports what each request added.
     pub request_threads: request_threads::RequestThreadPlan,
+    pub span_marks: span_marks::SpanMarkPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -255,10 +258,15 @@ impl Ruleset {
                 log_events::LogEventPlan::compile(files, events),
             )
         });
-        let message_projection = found.take(
-            S::MessageProjections,
-            message_projection::MessageProjectionPlan::compile(files),
-        );
+        // Before the projections, which are the only section that may name a mark: the plan resolves each name
+        // to its bit, so a projection naming a mark no asset declares is a startup defect.
+        let span_marks = found.take(S::SpanMarks, span_marks::SpanMarkPlan::compile(files));
+        let message_projection = span_marks.as_ref().and_then(|marks| {
+            found.take(
+                S::MessageProjections,
+                message_projection::MessageProjectionPlan::compile(files, marks),
+            )
+        });
         let content_blocks = found.take(
             S::ContentBlocks,
             content_blocks::ContentBlockPlan::compile(files),
@@ -285,6 +293,7 @@ impl Ruleset {
             S::RequestThreads,
             request_threads::RequestThreadPlan::compile(files),
         );
+
         // Every section is `Some` exactly when it compiled, and each `None` recorded its defect - so a full
         // match is a ruleset and anything else is the collected report.
         match (
@@ -307,6 +316,7 @@ impl Ruleset {
             synthetic_call_ids,
             event_categories,
             request_threads,
+            span_marks,
         ) {
             (
                 Some(carriers),
@@ -328,6 +338,7 @@ impl Ruleset {
                 Some(synthetic_call_ids),
                 Some(event_categories),
                 Some(request_threads),
+                Some(span_marks),
             ) => Ok(Ruleset {
                 carriers,
                 detect,
@@ -348,6 +359,7 @@ impl Ruleset {
                 synthetic_call_ids,
                 event_categories,
                 request_threads,
+                span_marks,
                 tagged_source_names,
                 digest: assets.digest().to_owned(),
             }),
