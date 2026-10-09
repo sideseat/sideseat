@@ -306,6 +306,18 @@
    "reason": "not_exported",
    "detail": "reasoning the model signed and withheld the text of: CrewAI's telemetry exports no reasoning part for it, and no payload holds one",
    "subject": "fact-004"
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_not_exported",
+   "detail": "the own span of a call that answers a tool round: CrewAI's OpenInference instrumentation records no model-call span, and the agent span of the run holds every call's output",
+   "subject": "call-002"
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_not_exported",
+   "detail": "the own span of a call that answers a tool round: CrewAI's OpenInference instrumentation records no model-call span, and the agent span of the run holds every call's output",
+   "subject": "call-003"
   }
  ],
  "requests": {

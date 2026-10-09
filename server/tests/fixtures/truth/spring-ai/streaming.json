@@ -285,6 +285,12 @@
    "reason": "not_exported",
    "detail": "the results of a response's tool calls after the first: Spring AI's OpenInference instrumentation records only the first tool message the next request sends, and no payload holds the others",
    "subject": "fact-006"
+  },
+  {
+   "fact": "response",
+   "reason": "trace_not_propagated",
+   "detail": "the trace of the call that answers a streamed tool round: Spring AI's OpenInference instrumentation starts a new trace for it, with no parent and no session",
+   "subject": "call-002"
   }
  ]
 }

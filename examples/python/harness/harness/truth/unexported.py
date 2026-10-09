@@ -32,6 +32,8 @@ UNEXPORTED = frozenset(
         "tool_calling_round_output",
         "parallel_tool_results",
         "structured_tool_results",
+        "tool_round_call_spans",
+        "tool_round_traces",
         "media",
         *METADATA,
     }
@@ -170,6 +172,16 @@ def apply(builder: Builder, framework: Framework) -> None:
                 ):
                     fact["require"] = None
                     gap("tool_result", "not_exported", detail, fact["id"])
+    if detail := declared("tool_round_call_spans"):
+        # The call that answers a tool round continues the run the previous call's span records; the rubric
+        # proves per capture that no model-call span exists and that span shows this call's output.
+        for record in _tool_round_answers(builder.calls, facts):
+            gap("response", "call_span_not_exported", detail, record["id"])
+    if detail := declared("tool_round_traces"):
+        # The rubric proves per capture that the call's span has no parent and sits in another trace than
+        # the previous call's.
+        for record in _tool_round_answers(builder.calls, facts):
+            gap("response", "trace_not_propagated", detail, record["id"])
     if detail := declared("structured_tool_results"):
         # A text result is exported and stays owed; one the tool returned as data is proven absent per fact.
         # Declared for some releases only, the fact stays asserted and the rubric withdraws it in those
@@ -198,3 +210,21 @@ def apply(builder: Builder, framework: Framework) -> None:
         for fact in builder.facts:
             if fact["kind"] == "tool_call" and isinstance(fact["value"].get("id"), str):
                 gap("tool_call", "id_not_exported", detail, fact["id"])
+
+
+def _tool_round_answers(
+    calls: list[dict[str, Any]], facts: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The successful calls whose conversation's previous successful call asked for a tool."""
+    previous: dict[str, dict[str, Any]] = {}
+    answers = []
+    for record in calls:
+        if record["outcome"] != "success":
+            continue
+        before = previous.get(record["conversation"])
+        if before is not None and any(
+            facts[output]["kind"] == "tool_call" for output in before["outputs"]
+        ):
+            answers.append(record)
+        previous[record["conversation"]] = record
+    return answers

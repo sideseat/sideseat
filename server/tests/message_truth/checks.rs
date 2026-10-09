@@ -49,6 +49,11 @@ pub(super) struct Context<'a> {
     /// shown on: those of the later calls whose requests handed it back, and for a tool call the span that
     /// ran it - a span of no model call that records that call and no other.
     pub off_span_homes: BTreeMap<String, BTreeSet<String>>,
+    /// The traces a fact is also at home in, where the producer started a new trace for a call it was sent
+    /// (`trace_not_propagated`), and the facts the session view therefore cannot hold.
+    pub moved_homes: BTreeMap<String, BTreeSet<String>>,
+    pub moved_spans: BTreeMap<String, BTreeSet<String>>,
+    pub sessionless: BTreeSet<String>,
     /// What this fixture's recorded requests account for in its views (`requests`).
     pub accounted: super::requests::Accounted,
     /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
@@ -72,6 +77,9 @@ impl<'a> Context<'a> {
             home_traces: BTreeMap::new(),
             sent_spans: BTreeMap::new(),
             off_span_homes: BTreeMap::new(),
+            moved_homes: BTreeMap::new(),
+            moved_spans: BTreeMap::new(),
+            sessionless: BTreeSet::new(),
             accounted,
             trace_label: BTreeMap::new(),
         };
@@ -119,6 +127,9 @@ impl<'a> Context<'a> {
                 context.home_trace.insert(fact.id.as_str(), trace);
             }
         }
+        (context.moved_homes, context.moved_spans) =
+            super::propagation::moved_homes(truth, recon, matching);
+        context.sessionless = super::propagation::sessionless(truth, recon, &context.moved_homes);
         let recorded = truth.requests.get(&recon.fixture);
         let off_span: Vec<&Fact> = truth
             .facts
@@ -245,6 +256,14 @@ impl<'a> Context<'a> {
             .find(|c| !self.unexported(c))
     }
 
+    /// Whether a call is proven to have no span of its own (`call_span_not_exported`).
+    pub fn span_unexported(&self, call: &str) -> bool {
+        self.truth
+            .gaps
+            .iter()
+            .any(|g| g.reason == "call_span_not_exported" && g.subject.as_deref() == Some(call))
+    }
+
     /// Whether a call's response is proven absent from the telemetry (`call_not_exported`).
     pub fn unexported(&self, call: &str) -> bool {
         self.truth
@@ -362,10 +381,11 @@ fn scopes<'a>(context: &Context<'a>) -> Vec<Scope<'a>> {
             .filter(|f| {
                 // A session view exists only for a trace that belongs to a session.
                 kind != ViewKind::Session
-                    || match context.home_trace.get(f.id.as_str()) {
-                        Some(trace) => recon.session_of_trace.contains_key(trace),
-                        None => every_trace_in_a_session,
-                    }
+                    || (!context.sessionless.contains(&f.id)
+                        && match context.home_trace.get(f.id.as_str()) {
+                            Some(trace) => recon.session_of_trace.contains_key(trace),
+                            None => every_trace_in_a_session,
+                        })
             })
             .collect();
         scopes.push(Scope {
@@ -483,6 +503,14 @@ pub(super) fn in_home(context: &Context<'_>, scope: &Scope<'_>, fact: &Fact, at:
                 || context.recon.session_of_trace.get(trace)
                     == Some(&context.recon.views[view].key))
     };
+    // A trace the producer started for a call this fact was sent is the conversation's too.
+    if context
+        .moved_homes
+        .get(fact.id.as_str())
+        .is_some_and(|traces| traces.contains(&block.trace))
+    {
+        return true;
+    }
     // A fact the requests re-sent is at home in every trace that was sent it.
     if let Some(traces) = context.home_traces.get(fact.id.as_str()) {
         return traces.iter().any(at_home);
@@ -721,10 +749,12 @@ fn report_assignment(
         // with every request of a session, so the session view holds one copy per trace and a second copy
         // *in one trace* is the duplicate.
         let per_trace = context.home_traces.contains_key(fact.id.as_str());
+        // A copy in a trace the producer split the conversation into is that trace's, not a second copy.
+        let split = context.moved_homes.contains_key(fact.id.as_str());
         let shown_trace = scope.blocks[at].2.trace.as_str();
         let (here, elsewhere): (Vec<usize>, Vec<usize>) = extra.into_iter().partition(|&b| {
             in_home(context, scope, fact, b)
-                && (!per_trace || scope.blocks[b].2.trace == shown_trace)
+                && (!(per_trace || split) || scope.blocks[b].2.trace == shown_trace)
         });
         let elsewhere: Vec<usize> = elsewhere
             .into_iter()

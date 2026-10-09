@@ -426,6 +426,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_not_exported",
+   "detail": "the own span of a call that answers a tool round: CrewAI's OpenInference instrumentation records no model-call span, and the agent span of the run holds every call's output",
+   "subject": "call-002"
   }
  ],
  "requests": {

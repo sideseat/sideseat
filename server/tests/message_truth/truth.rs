@@ -488,6 +488,11 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // A model call's response is missing as a unit: its parts are asserted where the conversation
         // shows them, but no span records the call and the response's own grouping is unknown.
         "call_not_exported" => effects(GapSubject::Call, false, false, true),
+        // A model call the producer records on no span of its own - an agent span holds every call of its run -
+        // so no span can be tied to it; its parts are asserted where the conversation shows them.
+        "call_span_not_exported" => effects(GapSubject::Call, false, false, true),
+        // A call the producer started a new trace for: what it was sent is at home in that trace too.
+        "trace_not_propagated" => effects(GapSubject::Call, false, false, true),
         // A call's model or finish the producer states wrongly, where the right one is in no payload:
         // the span cannot state what the telemetry never carried.
         "metadata_not_exported" => effects(GapSubject::Call, false, false, true),

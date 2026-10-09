@@ -68,6 +68,11 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
                 let (Some(a), Some(b)) = (edge.before.as_deref(), edge.after.as_deref()) else {
                     continue;
                 };
+                // Two calls recorded on one span (`call_span_not_exported`) are listed as that span lists
+                // them, oldest first, so the feed - newest response first - has no order between them.
+                if feed && (context.span_unexported(a) || context.span_unexported(b)) {
+                    continue;
+                }
                 // The feed is newest response first, so it states the calls in reverse.
                 let (first, second) = if feed { (b, a) } else { (a, b) };
                 out.push((

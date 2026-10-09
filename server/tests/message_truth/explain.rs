@@ -341,7 +341,11 @@ fn check_attribution(
             continue;
         }
         // An unexported response has no span of its own to be attributed to.
-        if fact.call.as_deref().is_some_and(|c| context.unexported(c)) {
+        if fact
+            .call
+            .as_deref()
+            .is_some_and(|c| context.unexported(c) || context.span_unexported(c))
+        {
             continue;
         }
         let Some(generation) = context.home_call(fact).and_then(span_of_call) else {
@@ -351,19 +355,25 @@ fn check_attribution(
         // A fact the requests re-sent belongs on a span that was sent it, or an enclosing one, and nowhere
         // else: a client's preamble goes with every request, so any of those spans is right, and the
         // conversation's first call - the ordinary home of a system prompt - is right only if it was sent it.
-        let allowed = match sent {
-            Some(spans) => {
-                spans.contains(&block.span)
-                    || recon
-                        .generations
-                        .iter()
-                        .any(|g| spans.contains(&g.span) && g.ancestors.contains(&block.span))
-            }
-            None => {
-                block.span == generation.span
-                    || (fact.call.is_none() && generation.ancestors.contains(&block.span))
-            }
-        };
+        // A fact the producer sent to a call it started a new trace for is at home on that call's span too.
+        let moved = context
+            .moved_spans
+            .get(fact_id.as_str())
+            .is_some_and(|spans| spans.contains(&block.span));
+        let allowed = moved
+            || match sent {
+                Some(spans) => {
+                    spans.contains(&block.span)
+                        || recon
+                            .generations
+                            .iter()
+                            .any(|g| spans.contains(&g.span) && g.ancestors.contains(&block.span))
+                }
+                None => {
+                    block.span == generation.span
+                        || (fact.call.is_none() && generation.ancestors.contains(&block.span))
+                }
+            };
         if !allowed {
             let shown_on = recon
                 .generations

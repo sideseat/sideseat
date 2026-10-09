@@ -17,6 +17,7 @@
 //! the documentation from the truths themselves (`limitations_section`).
 
 mod attachment;
+mod call_span;
 pub(super) mod haystack;
 mod reasoning;
 #[cfg(test)]
@@ -354,6 +355,12 @@ pub(super) enum Claim<'t> {
     /// Withheld reasoning's signature on the span that produced it (`span_signature_not_exported`): that
     /// span's carriers hold no signature, though another carrier may.
     SpanSignature(&'t Fact),
+    /// A call's own span (`call_span_not_exported`): the capture has no model-call span, and the span the call
+    /// before it is tied to carries this call's output.
+    CallSpan(&'t str),
+    /// A call's trace context (`trace_not_propagated`): its span has no parent, in a trace other than the
+    /// conversation's previous call's.
+    Untraced(&'t str),
 }
 
 impl Claim<'_> {
@@ -366,6 +373,8 @@ impl Claim<'_> {
             Claim::Signature(_) => "reasoning signature",
             Claim::Output(_) => "response part, on the span that produced it",
             Claim::SpanSignature(_) => "reasoning signature, on the span that produced it",
+            Claim::CallSpan(_) => "model call's own span",
+            Claim::Untraced(_) => "model call's trace context",
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
@@ -398,6 +407,8 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                 "signature_not_exported" => Claim::Signature(fact(subject)?),
                 "output_not_exported" => Claim::Output(fact(subject)?),
                 "span_signature_not_exported" => Claim::SpanSignature(fact(subject)?),
+                "call_span_not_exported" => Claim::CallSpan(subject),
+                "trace_not_propagated" => Claim::Untraced(subject),
                 "call_not_exported" => {
                     let call = truth.calls.iter().find(|c| c.id == subject)?;
                     Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
@@ -430,9 +441,12 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         Claim::Metadata(field, values) => prove_metadata(field, values, haystack),
         Claim::Kind(fact) => prove_kind(fact, haystack),
         Claim::Signature(fact) => prove_signature(fact.seal.as_deref(), haystack),
-        Claim::Output(_) | Claim::SpanSignature(_) => Proof::Unprovable(
-            "this absence is searched for on the span that produced the fact".to_string(),
-        ),
+        Claim::Output(_) | Claim::SpanSignature(_) | Claim::CallSpan(_) | Claim::Untraced(_) => {
+            Proof::Unprovable(
+                "this absence is searched for on the spans the capture's calls are tied to"
+                    .to_string(),
+            )
+        }
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
         // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
         // which only a copy of the response would. A response with any other part, or a call with no
@@ -791,20 +805,30 @@ fn every_absence_gap_is_proven() {
             // match it, by the call's output.
             let on_span = gaps.iter().any(|(gap, claim)| {
                 gap.holds_for(fixture)
-                    && matches!(claim, Claim::Output(_) | Claim::SpanSignature(_))
+                    && matches!(
+                        claim,
+                        Claim::Output(_)
+                            | Claim::SpanSignature(_)
+                            | Claim::CallSpan(_)
+                            | Claim::Untraced(_)
+                    )
             });
-            let producing: BTreeMap<String, String> = if on_span {
+            let checked = truth.for_fixture(fixture);
+            let matched = on_span.then(|| {
                 let recon = super::recon::build(fixture, paths);
-                let checked = truth.for_fixture(fixture);
                 let matching = super::matching::match_calls(&checked, &recon, &mut Vec::new());
-                matching
-                    .span_of
-                    .iter()
-                    .map(|(call, &g)| (call.clone(), recon.generations[g].span.clone()))
-                    .collect()
-            } else {
-                BTreeMap::new()
-            };
+                (recon, matching)
+            });
+            let producing: BTreeMap<String, String> = matched
+                .as_ref()
+                .map(|(recon, matching)| {
+                    matching
+                        .span_of
+                        .iter()
+                        .map(|(call, &g)| (call.clone(), recon.generations[g].span.clone()))
+                        .collect()
+                })
+                .unwrap_or_default();
             for (gap, claim) in gaps.iter().filter(|(gap, _)| gap.holds_for(fixture)) {
                 let proof = match claim {
                     Claim::Output(fact) | Claim::SpanSignature(fact) => {
@@ -816,6 +840,18 @@ fn every_absence_gap_is_proven() {
                             None => Proof::Unprovable("no span records its call".to_string()),
                         }
                     }
+                    Claim::CallSpan(call) => match &matched {
+                        Some((recon, matching)) => {
+                            call_span::prove_call_span(&checked, call, recon, matching)
+                        }
+                        None => Proof::Unprovable("the capture was not reconstructed".to_string()),
+                    },
+                    Claim::Untraced(call) => match &matched {
+                        Some((recon, matching)) => {
+                            super::propagation::prove_untraced(&checked, call, recon, matching)
+                        }
+                        None => Proof::Unprovable("the capture was not reconstructed".to_string()),
+                    },
                     _ => prove_claim(claim, &haystack),
                 };
                 match proof {

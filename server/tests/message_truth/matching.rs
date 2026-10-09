@@ -38,7 +38,7 @@ pub(super) fn outputs<'a>(recon: &'a Recon, generation: &Generation) -> Vec<&'a 
         .unwrap_or_default()
 }
 
-fn shown_in(fact: &Fact, blocks: &[&Block]) -> bool {
+pub(super) fn shown_in(fact: &Fact, blocks: &[&Block]) -> bool {
     blocks.iter().any(|b| shows_on_span(fact, b) != Shows::No) || shown_in_segments(fact, blocks)
 }
 
@@ -94,12 +94,12 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
     };
     // A response proven absent from the telemetry has no span to find.
     let unexported = proven("call_not_exported");
+    // A call proven to have no span of its own (`call_span_not_exported`) is tied to none.
+    let spanless = proven("call_span_not_exported");
     let off_span = proven("output_not_exported");
-    for call in truth
-        .calls
-        .iter()
-        .filter(|c| c.succeeded() && !unexported.contains(c.id.as_str()))
-    {
+    for call in truth.calls.iter().filter(|c| {
+        c.succeeded() && !unexported.contains(c.id.as_str()) && !spanless.contains(c.id.as_str())
+    }) {
         let signature = signature(truth, call);
         if signature.is_empty() {
             matching.unmatchable.insert(call.id.clone());

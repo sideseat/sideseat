@@ -311,6 +311,12 @@
    "fact": "routing",
    "reason": "multi_agent_routing",
    "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_not_exported",
+   "detail": "the own span of a call that answers a tool round: CrewAI's OpenInference instrumentation records no model-call span, and the agent span of the run holds every call's output",
+   "subject": "call-002"
   }
  ],
  "requests": {

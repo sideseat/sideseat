@@ -15,6 +15,9 @@ dependencies = [
 producer = "crewai"
 integrations = ["crewai"]
 
+[tool.sideseat-example.truth.unexported]
+tool_round_call_spans = "the own span of a call that answers a tool round: CrewAI's OpenInference instrumentation records no model-call span, and the agent span of the run holds every call's output"
+
 [tool.sideseat-example.truth.unexported.withheld_reasoning]
 reason = "reasoning the model signed and withheld the text of: CrewAI's telemetry exports no reasoning part for it, and no payload holds one"
 scenarios = ["mcp_tools"]

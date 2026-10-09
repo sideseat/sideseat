@@ -329,6 +329,10 @@ class Framework:
     #: first of one response, where the producer records only the first of the turn's tool messages
     #: (``not_exported``; it withdraws them); ``structured_tool_results`` - the results a tool returned as
     #: data rather than text, where the producer records only text (``not_exported``; it withdraws them);
+    #: ``tool_round_call_spans`` - the own span of a call that answers a tool round, where the producer
+    #: records the whole run on one agent span and no model-call span (``call_span_not_exported``);
+    #: ``tool_round_traces`` - the trace context of such a call, which the producer starts a new trace for
+    #: (``trace_not_propagated``);
     #: ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
     #: those modalities, and it withdraws the fact, so it holds for every capture or none)

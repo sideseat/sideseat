@@ -723,3 +723,93 @@ fn a_call_whose_span_carries_none_of_its_response_is_found_by_its_metadata_alone
         "two candidates are not reported: {new:?}"
     );
 }
+
+#[test]
+fn a_call_recorded_on_the_run_s_span_still_owes_its_parts_in_every_view() {
+    // CrewAI records no model-call span: the call answering the tool round is on the run's agent span
+    // (`call_span_not_exported`). That frees it from a span of its own, not from the views.
+    let (truth, recon, baseline) = baseline("crewai/sdk/tool_use");
+    let fact = |id: &str| truth.facts.iter().find(|f| f.id == id).expect("a fact");
+    let (answer, first_call) = (fact("fact-010"), fact("fact-002"));
+    let mut missing = recon.clone();
+    let positions: Vec<(usize, usize)> = locate(answer, &missing)
+        .into_iter()
+        .filter(|&(v, _)| missing.views[v].kind == ViewKind::Trace)
+        .collect();
+    assert!(!positions.is_empty(), "the trace view shows the answer");
+    remove_positions(&mut missing, positions);
+    let new = added(&truth, &missing, &baseline);
+    assert!(
+        new.iter()
+            .any(|v| v.ends_with(":fact-010") && v.contains(".missing")),
+        "the answer missing from the trace view was not caught: {new:?}"
+    );
+    // The answer before the tool calls it answers, in the trace view.
+    let mut early = recon.clone();
+    for view in early.views.iter_mut().filter(|v| v.kind == ViewKind::Trace) {
+        let find = |blocks: &[super::recon::Block], fact: &super::truth::Fact| {
+            blocks.iter().position(|b| {
+                super::predicates::shows(fact, b, None) != super::predicates::Shows::No
+            })
+        };
+        if let (Some(a), Some(c)) = (find(&view.blocks, answer), find(&view.blocks, first_call)) {
+            let block = view.blocks.remove(a);
+            view.blocks.insert(c, block);
+        }
+    }
+    let new = added(&truth, &early, &baseline);
+    assert!(
+        new.iter().any(|v| v.starts_with("order.")),
+        "the answer shown before its tool calls was not caught: {new:?}"
+    );
+}
+
+#[test]
+fn a_trace_the_producer_split_off_explains_only_its_own_copies() {
+    // Spring AI starts a new trace for the call answering a streamed tool round (`trace_not_propagated`): what
+    // that call was sent is at home there too, once. A copy in any other trace, or a second copy there, is not.
+    let (truth, recon, baseline) = baseline("spring-ai/sdk/streaming");
+    let prompt = truth
+        .facts
+        .iter()
+        .find(|f| f.id == "fact-001")
+        .expect("the prompt");
+    let result = truth
+        .facts
+        .iter()
+        .find(|f| f.id == "fact-005")
+        .expect("the first tool result");
+    let mut leaked = recon.clone();
+    let &(v, b) = locate(prompt, &leaked)
+        .iter()
+        .find(|&&(v, _)| leaked.views[v].kind == ViewKind::Feed)
+        .expect("the feed shows the prompt");
+    let mut copy = leaked.views[v].blocks[b].clone();
+    copy.trace = "an-unrelated-trace".into();
+    copy.span = "an-unrelated-span".into();
+    leaked.views[v].blocks.insert(0, copy);
+    let new = added(&truth, &leaked, &baseline);
+    assert!(
+        new.iter().any(|v| v.ends_with(":fact-001")),
+        "the prompt shown in an unrelated trace was not caught: {new:?}"
+    );
+    let mut twice = recon.clone();
+    let moved = twice.generations[0..]
+        .iter()
+        .find(|g| g.ancestors.is_empty() && g.typed)
+        .map(|g| g.trace.clone())
+        .expect("the split-off call's span");
+    let &(v, b) = locate(result, &twice)
+        .iter()
+        .find(|&&(v, b)| {
+            twice.views[v].kind == ViewKind::Trace && twice.views[v].blocks[b].trace == moved
+        })
+        .expect("the split-off trace shows the result");
+    let copy = twice.views[v].blocks[b].clone();
+    twice.views[v].blocks.insert(b + 1, copy);
+    let new = added(&truth, &twice, &baseline);
+    assert!(
+        new.iter().any(|v| v.ends_with(":fact-005")),
+        "a second copy of the result in the split-off trace was not caught: {new:?}"
+    );
+}
