@@ -229,3 +229,44 @@ async fn a_client_that_goes_away_leaves_its_bytes_held_until_the_export_is_done(
     }
     assert_eq!(admission.in_flight(), 0, "released once the export is done");
 }
+
+/// Closing for a shutdown waits for an admitted export that is still running - its client gone - and then
+/// admits nothing more, so the stores it writes to are not closed under it.
+#[tokio::test]
+async fn closing_waits_for_running_exports_and_then_admits_none() {
+    let admission = Arc::new(IngestAdmission::new(100));
+    let running = admission.try_admit(40).expect("an export in flight");
+    let finished = Arc::new(AtomicBool::new(false));
+    let finish = {
+        let finished = Arc::clone(&finished);
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            finished.store(true, Ordering::SeqCst);
+            drop(running);
+        })
+    };
+    let closed = admission
+        .close(std::time::Duration::from_secs(5))
+        .await
+        .expect("closed once the export finished");
+    assert!(
+        finished.load(Ordering::SeqCst),
+        "closed before the export finished"
+    );
+    assert!(
+        admission.try_admit(1).is_none(),
+        "admitted an export after closing"
+    );
+    finish.await.expect("finish");
+    drop(closed);
+
+    let stuck = admission.try_admit(10).expect("another export");
+    assert!(
+        admission
+            .close(std::time::Duration::from_millis(20))
+            .await
+            .is_none(),
+        "closing gives up after its timeout"
+    );
+    drop(stuck);
+}

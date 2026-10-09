@@ -10,9 +10,13 @@
 //!
 //! A wave that fails is retried an export at a time. A failure caused by one export's data - an attachment
 //! that does not decode, a panic in its preparation - would otherwise fail every export it was grouped with,
-//! and keep failing them on every retry for as long as it kept arriving among them. A batch also refuses its
-//! grouping, and so is retried an export at a time, when one export names a file another of its exports supplies:
-//! which of them came first decides whether the reference is backed (`batch.rs`).
+//! and keep failing them on every retry for as long as it kept arriving among them.
+//!
+//! An export that names a stored file - a `#!B64!#` reference that arrived already formed - is a barrier: it has a
+//! wave of its own, after every export before it and before every export after it. Whether its reference is
+//! backed depends on which exports stored their files first, and through files any export can depend on any
+//! other, whatever their traces: grouped with an export that arrived after it and supplied the file, in its wave
+//! or an earlier one, the reference held where alone it would have found nothing.
 //!
 //! Each export's staged payload is settled after its own wave, before the next wave is written. Settling
 //! confirms the export's content is the stored winner; settled after a later wave that holds another revision of
@@ -35,13 +39,33 @@ pub(super) struct WaveAnswer {
     pub settled: bool,
 }
 
+/// Whether an export's body names a stored file. A byte search over the body as received, before it is decoded:
+/// the prefix is not escaped in either OTLP encoding, and a false match only costs a wave.
+fn names_a_file(received: &ReceivedPayload) -> bool {
+    let prefix = sideseat_core::utils::file_uri::FILE_URI_PREFIX.as_bytes();
+    received
+        .bytes
+        .windows(prefix.len())
+        .any(|window| window == prefix)
+}
+
 /// Indices of `requests`, grouped into waves whose exports share no trace, with every export placed after any
-/// earlier export it shares a trace with.
-pub(super) fn conflict_free_waves(requests: &[ExportTraceServiceRequest]) -> Vec<Vec<usize>> {
+/// earlier export it shares a trace with, and an export that names a file alone between those before and after.
+pub(super) fn conflict_free_waves(
+    requests: &[ExportTraceServiceRequest],
+    received: &[ReceivedPayload],
+) -> Vec<Vec<usize>> {
     let mut waves: Vec<Vec<usize>> = Vec::new();
     // The last wave each trace appears in.
     let mut latest: HashMap<&[u8], usize> = HashMap::new();
+    // The first wave an export may join: the one after the last barrier.
+    let mut floor = 0;
     for (index, request) in requests.iter().enumerate() {
+        if received.get(index).is_some_and(names_a_file) {
+            waves.push(vec![index]);
+            floor = waves.len();
+            continue;
+        }
         let traces: HashSet<&[u8]> = request
             .resource_spans
             .iter()
@@ -53,7 +77,8 @@ pub(super) fn conflict_free_waves(requests: &[ExportTraceServiceRequest]) -> Vec
             .iter()
             .filter_map(|trace| latest.get(trace))
             .max()
-            .map_or(0, |last| last + 1);
+            .map_or(0, |last| last + 1)
+            .max(floor);
         if wave == waves.len() {
             waves.push(Vec::new());
         }
@@ -76,7 +101,7 @@ impl TracePipeline {
     ) -> Vec<WaveAnswer> {
         let mut outcomes = vec![IngestOutcome::Failed; requests.len()];
         let mut settled = vec![false; requests.len()];
-        for wave in conflict_free_waves(requests) {
+        for wave in conflict_free_waves(requests, received) {
             let batch: Vec<ExportTraceServiceRequest> =
                 wave.iter().map(|&index| requests[index].clone()).collect();
             let bodies: Vec<ReceivedPayload> =
@@ -145,19 +170,49 @@ mod tests {
         }
     }
 
+    fn bodies(requests: &[ExportTraceServiceRequest]) -> Vec<ReceivedPayload> {
+        requests
+            .iter()
+            .map(|request| {
+                ReceivedPayload::new(
+                    prost::Message::encode_to_vec(request),
+                    sideseat_domain::raw_payload::RawContent::Protobuf,
+                )
+            })
+            .collect()
+    }
+
+    fn waves(requests: &[ExportTraceServiceRequest]) -> Vec<Vec<usize>> {
+        conflict_free_waves(requests, &bodies(requests))
+    }
+
     #[test]
     fn unrelated_exports_share_a_wave() {
         assert_eq!(
-            conflict_free_waves(&[export(&[1]), export(&[2]), export(&[3])]),
+            waves(&[export(&[1]), export(&[2]), export(&[3])]),
             vec![vec![0, 1, 2]]
+        );
+    }
+
+    /// An export naming a file waits for every export before it, and every export after it waits for it,
+    /// whatever their traces.
+    #[test]
+    fn an_export_naming_a_file_has_a_wave_of_its_own_in_arrival_order() {
+        let requests = [export(&[1]), export(&[2]), export(&[3]), export(&[4])];
+        let mut received = bodies(&requests);
+        received[1]
+            .bytes
+            .extend_from_slice(b"#!B64!#image/png::0123");
+        assert_eq!(
+            conflict_free_waves(&requests, &received),
+            vec![vec![0], vec![1], vec![2, 3]]
         );
     }
 
     /// Exports of one trace go in successive waves, in arrival order; an unrelated one stays in the first.
     #[test]
     fn exports_of_one_trace_are_never_batched_together() {
-        let waves =
-            conflict_free_waves(&[export(&[1]), export(&[1]), export(&[2]), export(&[1, 2])]);
-        assert_eq!(waves, vec![vec![0, 2], vec![1], vec![3]]);
+        let planned = waves(&[export(&[1]), export(&[1]), export(&[2]), export(&[1, 2])]);
+        assert_eq!(planned, vec![vec![0, 2], vec![1], vec![3]]);
     }
 }

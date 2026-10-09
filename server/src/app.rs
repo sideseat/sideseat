@@ -384,10 +384,20 @@ impl CoreApp {
             api_key_secret,
             clock: app.clock.clone(),
             shutdown_rx: app.shutdown.subscribe(),
-            ingest_admission,
+            ingest_admission: Arc::clone(&ingest_admission),
         });
         server.start().await?;
+        // The listeners have stopped; exports they admitted finish before the stores they write to close.
+        let closed = ingest_admission
+            .close(std::time::Duration::from_secs(
+                sideseat_core::constants::SHUTDOWN_TIMEOUT_SECS,
+            ))
+            .await;
+        if closed.is_none() {
+            tracing::warn!("OTLP exports were still running when the shutdown timeout passed");
+        }
         shutdown.shutdown().await;
+        drop(closed);
 
         Ok(())
     }

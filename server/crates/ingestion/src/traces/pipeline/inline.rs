@@ -120,6 +120,31 @@ fn joins(bytes: usize, exports: usize, next: usize) -> bool {
         && bytes.saturating_add(next) <= MAX_BATCH_BYTES
 }
 
+/// The batch that starts with `first`: it and whatever is already queued that [`joins`] it. A queued export that
+/// does not join is left in `carried`, to start the next batch.
+fn take_batch(
+    first: Job,
+    receiver: &mut mpsc::Receiver<Job>,
+    carried: &mut Option<Job>,
+) -> Vec<Job> {
+    let mut bytes = first.bytes;
+    let mut jobs = vec![first];
+    while jobs.len() < MAX_BATCH_EXPORTS && bytes < MAX_BATCH_BYTES {
+        match receiver.try_recv() {
+            Ok(job) if joins(bytes, jobs.len(), job.bytes) => {
+                bytes += job.bytes;
+                jobs.push(job);
+            }
+            Ok(job) => {
+                *carried = Some(job);
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+    jobs
+}
+
 async fn run(
     pipeline: Arc<TracePipeline>,
     mut receiver: mpsc::Receiver<Job>,
@@ -135,21 +160,7 @@ async fn run(
                 None => break,
             },
         };
-        let mut bytes = first.bytes;
-        let mut jobs = vec![first];
-        while jobs.len() < MAX_BATCH_EXPORTS && bytes < MAX_BATCH_BYTES {
-            match receiver.try_recv() {
-                Ok(job) if joins(bytes, jobs.len(), job.bytes) => {
-                    bytes += job.bytes;
-                    jobs.push(job);
-                }
-                Ok(job) => {
-                    carried = Some(job);
-                    break;
-                }
-                Err(_) => break,
-            }
-        }
+        let jobs = take_batch(first, &mut receiver, &mut carried);
         #[cfg(test)]
         batches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let exports = jobs.len();
@@ -199,6 +210,54 @@ mod tests {
     use super::*;
 
     const MIB: usize = 1024 * 1024;
+
+    /// A queued job of `bytes` bytes, as the batcher sees it: its body is not read here, only its size.
+    fn job(bytes: usize, room: &Arc<Semaphore>) -> Job {
+        Job {
+            request: ExportTraceServiceRequest::default(),
+            received: ReceivedPayload::new(
+                Vec::new(),
+                sideseat_domain::raw_payload::RawContent::Protobuf,
+            ),
+            staged: None,
+            bytes,
+            reply: oneshot::channel().0,
+            room: Arc::clone(room).try_acquire_owned().expect("room"),
+        }
+    }
+
+    /// The batcher's own loop keeps a batch within its byte cap: two queued 31 MiB exports go in two batches, the
+    /// second carried to start the next, and a 40 MiB export after a small one runs alone.
+    #[test]
+    fn queued_exports_past_the_cap_start_the_next_batch() {
+        let room = Arc::new(Semaphore::new(16));
+        let sizes = |batch: &[Job]| batch.iter().map(|job| job.bytes).collect::<Vec<_>>();
+        let (sender, mut receiver) = mpsc::channel(16);
+        for bytes in [31 * MIB, 31 * MIB, MIB, 40 * MIB, MIB] {
+            assert!(sender.try_send(job(bytes, &room)).is_ok(), "queued");
+        }
+        let mut carried = None;
+        let mut batches = Vec::new();
+        loop {
+            let first = match carried.take() {
+                Some(job) => job,
+                None => match receiver.try_recv() {
+                    Ok(job) => job,
+                    Err(_) => break,
+                },
+            };
+            batches.push(sizes(&take_batch(first, &mut receiver, &mut carried)));
+        }
+        assert_eq!(
+            batches,
+            vec![
+                vec![31 * MIB],
+                vec![31 * MIB, MIB],
+                vec![40 * MIB],
+                vec![MIB]
+            ]
+        );
+    }
 
     /// A batch stays within its byte cap: an export that would take it past starts the next batch, and one over
     /// the cap by itself is joined by nothing.

@@ -88,6 +88,30 @@ impl IngestAdmission {
     pub fn exhausted(&self) -> bool {
         self.permits.available_permits() == 0
     }
+
+    /// For a shutdown: wait until every admitted export has finished - one whose client went away is still running
+    /// on its own task - then hold the whole budget, so none is admitted while the stores they write to close.
+    /// `None` if they did not finish within `timeout`.
+    pub async fn close(&self, timeout: std::time::Duration) -> Option<Admitted> {
+        let all = async {
+            let mut held: Option<OwnedSemaphorePermit> = None;
+            let mut left = self.budget;
+            while left > 0 {
+                let take = left.min(u32::MAX as usize);
+                let permit = Arc::clone(&self.permits)
+                    .acquire_many_owned(u32::try_from(take).ok()?)
+                    .await
+                    .ok()?;
+                match held.as_mut() {
+                    Some(held) => held.merge(permit),
+                    None => held = Some(permit),
+                }
+                left -= take;
+            }
+            Some(Admitted { _held: held })
+        };
+        tokio::time::timeout(timeout, all).await.ok().flatten()
+    }
 }
 
 /// Run `answer` on a task of its own that holds `held` until it finishes, and wait for it.

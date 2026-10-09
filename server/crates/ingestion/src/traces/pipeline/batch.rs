@@ -163,10 +163,6 @@ impl TracePipeline {
         let mut all_db_spans: Vec<NormalizedSpan> = Vec::new();
         let mut all_pending_files: Vec<PendingFileWrite> = Vec::new();
         let mut all_incoming: Vec<IncomingReference> = Vec::new();
-        // Which export supplies each file's bytes and which names one already formed, by (project, hash): an
-        // export naming a file another export of the batch supplies is backed or not by which came first.
-        let mut supplied_by: HashMap<(String, String), usize> = HashMap::new();
-        let mut named_by: Vec<((String, String), usize)> = Vec::new();
         // Short results mean a worker thread died with its whole chunk, which no per-request outcome can
         // report - so cardinality is checked, not just the outcomes.
         let mut lost_requests = requests.len().saturating_sub(results.len());
@@ -183,18 +179,7 @@ impl TracePipeline {
                         .and_then(|span| span.project_id.clone())
                         .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string());
                     let draft = RawDraft::new(&project_id, &received[index], files_enabled);
-                    let media = draft.media_writes(&requests[index]);
-                    for file in media.iter().chain(&pending_files) {
-                        supplied_by
-                            .entry((file.project_id.clone(), file.hash.clone()))
-                            .or_insert(index);
-                    }
-                    for (project, _, uri) in &incoming {
-                        if let Some(parsed) = sideseat_core::utils::file_uri::parse_file_uri(uri) {
-                            named_by.push(((project.clone(), parsed.hash.to_string()), index));
-                        }
-                    }
-                    all_pending_files.extend(media);
+                    all_pending_files.extend(draft.media_writes(&requests[index]));
                     drafts.push((index, draft));
                     all_db_spans.extend(db_spans);
                     all_pending_files.extend(pending_files);
@@ -218,21 +203,6 @@ impl TracePipeline {
                 lost_requests,
                 requests = requests.len(),
                 "Refusing the batch: a request panicked and its spans would otherwise be acknowledged"
-            );
-            return failed();
-        }
-        // Sequentially, an export naming a file that a later export supplies finds it absent and is given a note;
-        // batched, the file is stored first and the reference holds. The grouping is refused rather than decide
-        // either way, before anything is written: every export is retried alone, in arrival order (`waves.rs`).
-        if named_by.iter().any(|(file, named)| {
-            supplied_by
-                .get(file)
-                .is_some_and(|supplier| supplier != named)
-        }) {
-            self.file_cache.invalidate_all();
-            tracing::debug!(
-                requests = requests.len(),
-                "An export names a file another export of its batch supplies; writing them one at a time"
             );
             return failed();
         }
