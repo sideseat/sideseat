@@ -187,10 +187,51 @@ impl AppStorage {
     }
 }
 
+/// Create `path` with whatever it lacks above it, durably: each level created is synced into the directory
+/// holding it, so the stores created inside survive a power loss on the server's first start, before anything
+/// else syncs those entries.
 async fn create_dir(what: &'static str, path: PathBuf) -> Result<(), StorageError> {
+    let fail = |path: &Path, source| StorageError::CreateDirectory {
+        what,
+        path: path.to_path_buf(),
+        source,
+    };
+    let mut missing = Vec::new();
+    let mut cursor = Some(path.as_path());
+    while let Some(level) = cursor {
+        if tokio::fs::try_exists(level).await.unwrap_or(false) {
+            break;
+        }
+        missing.push(level.to_path_buf());
+        cursor = level.parent();
+    }
     tokio::fs::create_dir_all(&path)
         .await
-        .map_err(|source| StorageError::CreateDirectory { what, path, source })
+        .map_err(|source| fail(&path, source))?;
+    for level in missing.iter().rev() {
+        let Some(holder) = level.parent() else {
+            continue;
+        };
+        sync_directory(holder)
+            .await
+            .map_err(|source| fail(holder, source))?;
+    }
+    Ok(())
+}
+
+/// Make a directory's entries durable. `sync_all` is `F_FULLFSYNC` on Apple platforms, where `fsync` stops at the
+/// drive's cache. POSIX only: Windows cannot open a directory as a file, and NTFS journals the creation itself.
+async fn sync_directory(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || std::fs::File::open(path)?.sync_all())
+            .await
+            .map_err(std::io::Error::other)??;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -13,7 +13,11 @@ its 200. The acknowledgement is durable only if, before the 200:
 - every file written was synced after its last write - with F_FULLFSYNC on macOS, where fsync stops at the
   drive's write cache;
 - every new directory entry (a created file, a renamed file, a new directory) was followed by a sync of the
-  directory that holds it.
+  directory that holds it;
+- every directory on the path of a file the request put in place - whenever it was created, by this request,
+  another or the server's start - had its own entry synced into its holder after it was created. An object is
+  only as durable as the directories that lead to it: a store that trusted a directory because it existed, while
+  its creator had not yet synced it, was acknowledged with an object a power loss could take.
 
 The paths are persist-before-ack (the embedded default) and the durable queue (Redis in a container, with
 `appendfsync always`). Each must show writes from the stores it uses, so a check that saw nothing fails
@@ -133,8 +137,9 @@ def start_redis() -> tuple[str, int]:
 
 def run_path(
     binary: Path, interposer: Path, path: str, extra_env: dict
-) -> list[tuple[float, str, list[str]]]:
-    """Run the server, post one export, and return the events between the request and its acknowledgement."""
+) -> tuple[list[tuple[float, str, list[str]]], list[tuple[float, str, list[str]]]]:
+    """Run the server, post one export, and return the events between the request and its acknowledgement, and
+    every event up to the acknowledgement since the server started."""
     scratch = Path(tempfile.mkdtemp(prefix="sideseat-durability-"))
     # Resolved, because the interposer compares resolved paths and /var is /private/var on macOS.
     data = (scratch / "data").resolve()
@@ -201,21 +206,24 @@ def run_path(
             server.wait(timeout=30)
         except subprocess.TimeoutExpired:
             server.kill()
-    events = []
+    events, before_ack = [], []
     for line in trace.read_text().splitlines() if trace.exists() else []:
         stamp, event, *paths = line.split(" ")
+        record = (float(stamp), event, [p.replace(str(data), "<data>") for p in paths])
+        if float(stamp) <= acked:
+            before_ack.append(record)
         if sent <= float(stamp) <= acked:
-            events.append(
-                (float(stamp), event, [p.replace(str(data), "<data>") for p in paths])
-            )
+            events.append(record)
     shutil.rmtree(scratch, ignore_errors=True)
-    return events
+    return events, before_ack
 
 
 def judge(
-    path: str, events: list[tuple[float, str, list[str]]]
+    path: str,
+    events: list[tuple[float, str, list[str]]],
+    before_ack: list[tuple[float, str, list[str]]],
 ) -> tuple[list[str], list[str]]:
-    """Failures and accepted residuals for one path's events."""
+    """Failures and accepted residuals for one path's events, `before_ack` holding every event up to the 200."""
     durable = {"fullfsync"} if APPLE else {"fsync"}
     syncs = collections.defaultdict(list)  # path -> [(time, event)]
     for stamp, event, paths in events:
@@ -258,6 +266,37 @@ def judge(
             NOT_DURABLE_SUFFIXES
         ):
             synced_after(os.path.dirname(paths[0]), stamp, directory=True)
+
+    # Every directory leading to a file the request put in place, whoever created it and when.
+    created_at = {}
+    durable_syncs = collections.defaultdict(list)
+    for stamp, event, paths in before_ack:
+        if event == "mkdir":
+            created_at.setdefault(paths[0], stamp)
+        elif event in durable:
+            durable_syncs[paths[0]].append(stamp)
+    placed = set()
+    for _, event, paths in events:
+        if event == "rename":
+            placed.add(paths[1])
+        elif event == "create" and not paths[0].endswith(NOT_DURABLE_SUFFIXES):
+            placed.add(paths[0])
+    unreachable = {}
+    for target in sorted(placed):
+        directory = os.path.dirname(target)
+        while directory not in ("<data>", "", "/"):
+            holder = os.path.dirname(directory)
+            made = created_at.get(directory)
+            if made is not None and not any(
+                t >= made for t in durable_syncs.get(holder, [])
+            ):
+                unreachable.setdefault(directory, target)
+            directory = holder
+    for directory, target in unreachable.items():
+        failures.append(
+            f"{directory}: on the path of {target}, its entry in {os.path.dirname(directory)} was never "
+            "made durable"
+        )
 
     failures = list(dict.fromkeys(failures))
     residuals = list(dict.fromkeys(residuals))
@@ -312,11 +351,11 @@ def main() -> int:
                 "SIDESEAT_CACHE_REDIS_URL": f"redis://127.0.0.1:{redis[1]}",
             }
         try:
-            events = run_path(binary.resolve(), interposer, path, extra)
+            events, before_ack = run_path(binary.resolve(), interposer, path, extra)
         finally:
             if redis:
                 subprocess.run(["docker", "stop", redis[0]], capture_output=True)
-        failures, residuals = judge(path, events)
+        failures, residuals = judge(path, events, before_ack)
         syncs = sum(
             1 for _, e, _ in events if e in ("fsync", "fullfsync", "barrierfsync")
         )

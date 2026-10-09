@@ -8,8 +8,21 @@
 //! object and a successful `store` survives a crash or power loss. The callers acknowledge telemetry after
 //! `store` returns; writing straight to the final path without a sync let a crash leave a truncated object
 //! that the existence check then accepted as complete, and lost recently acknowledged content outright.
+//!
+//! **A path is durable only when every directory on it is.** A directory's entry survives a power loss once the
+//! directory holding it has been synced, so a store makes every directory between the base and its object
+//! durable before it returns - whoever created them. Syncing only the levels a call created itself left a race:
+//! one writer created a project directory and had not yet synced its holder when a second saw it exist, stored
+//! beneath it and was acknowledged, and a power loss could take the directory and the acknowledged object with
+//! it. Each directory is synced once per process: [`FilesystemStorage`] remembers the directories it has made
+//! durable - only after their sync returns, so a directory another writer is still creating is synced again
+//! rather than trusted - and forgets the ones it removes. An object that already exists is treated the same way:
+//! its rename may be another writer's whose directory sync has not returned, so the directory is synced before
+//! the store answers.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use tokio::fs;
@@ -18,17 +31,63 @@ use sideseat_ports::blobs::FileStorage;
 use sideseat_ports::blobs::FileStorageError;
 use sideseat_ports::types::ProjectId;
 
+/// Directories remembered as durable, at most: past it the set starts again, which costs a sync per directory
+/// and nothing in correctness. A project's shards are 65,536 directories.
+const DURABLE_DIRECTORIES_MAX: usize = 1 << 16;
+
 /// Filesystem-based file storage
 #[derive(Debug, Clone)]
 pub struct FilesystemStorage {
     /// Base path for file storage
     base_path: PathBuf,
+    /// The directories under the base this process has made durable: created, and their holder synced since.
+    durable: Arc<Mutex<HashSet<PathBuf>>>,
 }
 
 impl FilesystemStorage {
     /// Create a new filesystem storage with the given base path
     pub fn new(base_path: PathBuf) -> Self {
-        Self { base_path }
+        Self {
+            base_path,
+            durable: Arc::new(Mutex::new(HashSet::new())),
+        }
+    }
+
+    fn is_durable(&self, dir: &Path) -> bool {
+        self.durable
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains(dir)
+    }
+
+    fn remember_durable(&self, dir: &Path) {
+        let mut durable = self
+            .durable
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if durable.len() >= DURABLE_DIRECTORIES_MAX {
+            durable.clear();
+        }
+        durable.insert(dir.to_path_buf());
+    }
+
+    /// Forget every directory on `path`: one of them is gone, and which is not known.
+    fn forget_path(&self, path: &Path) {
+        let mut durable = self
+            .durable
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for dir in path.ancestors() {
+            durable.remove(dir);
+        }
+    }
+
+    /// Forget the directories at and under `dir`: removed, so the next store creates and syncs them again.
+    fn forget_durable(&self, dir: &Path) {
+        self.durable
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .retain(|known| !known.starts_with(dir));
     }
 
     /// Get the full path for a file
@@ -49,28 +108,38 @@ impl FilesystemStorage {
         self.base_path.join(project_id)
     }
 
-    /// Ensure parent directories exist for a file path, durably.
+    /// Make every directory from the base down to `path`'s directory exist and be durable.
     ///
-    /// A directory created here is only durable once the directory holding its entry is fsynced, so every
-    /// level this call creates has its parent synced, deepest last.
+    /// Top down, so a directory's holder is durable before its own entry is synced into it. The base is created
+    /// with whatever it lacks above it, each level it creates synced into its holder, as a store's first call
+    /// finds it.
     async fn ensure_parent_dirs(&self, path: &Path) -> Result<(), FileStorageError> {
         let Some(parent) = path.parent() else {
             return Ok(());
         };
-        let mut missing = Vec::new();
-        let mut cursor = Some(parent);
-        while let Some(dir) = cursor {
-            if fs::try_exists(dir).await.unwrap_or(false) {
-                break;
+        let mut chain: Vec<&Path> = parent
+            .ancestors()
+            .take_while(|dir| dir.starts_with(&self.base_path))
+            .collect();
+        chain.reverse();
+        for dir in chain {
+            if self.is_durable(dir) {
+                continue;
             }
-            missing.push(dir.to_path_buf());
-            cursor = dir.parent();
-        }
-        fs::create_dir_all(parent).await?;
-        for dir in missing.iter().rev() {
+            if dir == self.base_path {
+                create_dir_all_durably(dir).await?;
+            } else {
+                match fs::create_dir(dir).await {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) => return Err(FileStorageError::Io(error)),
+                }
+            }
+            // Whoever created it: its entry is durable once its holder is synced after it exists.
             if let Some(holder) = dir.parent() {
                 sync_dir(holder).await?;
             }
+            self.remember_durable(dir);
         }
         Ok(())
     }
@@ -98,6 +167,26 @@ impl FilesystemStorage {
         Ok(())
     }
 
+    /// Store `data` at `path` durably, or make an existing object there durable.
+    async fn store_at(&self, path: &Path, data: &[u8]) -> Result<(), FileStorageError> {
+        self.ensure_parent_dirs(path).await?;
+        // Content-addressed: an object already there is this content, but its rename may be another writer's
+        // whose directory sync has not returned yet.
+        if fs::try_exists(path).await.unwrap_or(false) {
+            if let Some(parent) = path.parent() {
+                sync_dir(parent).await?;
+            }
+            tracing::trace!(path = %path.display(), "File already exists (content-addressed)");
+            return Ok(());
+        }
+        let temp = Self::temp_sibling(path);
+        if let Err(error) = write_synced(&temp, data).await {
+            fs::remove_file(&temp).await.ok();
+            return Err(error);
+        }
+        Self::publish(&temp, path).await
+    }
+
     /// Validate hash format (64 hex characters)
     fn validate_hash(hash: &str) -> Result<(), FileStorageError> {
         if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -121,24 +210,15 @@ impl FileStorage for FilesystemStorage {
         Self::validate_hash(hash)?;
 
         let path = self.file_path(project_id, hash);
-
-        // Content-addressed: if file exists with same hash, skip write
-        if path.exists() {
-            tracing::trace!(
-                project_id = %project_id,
-                hash,
-                "File already exists, skipping write (content-addressed)"
-            );
-            return Ok(());
+        match self.store_at(&path, data).await {
+            // A directory remembered as durable was removed under the store - an emptied shard a delete took -
+            // so it is forgotten and the store made once more, creating it again.
+            Err(FileStorageError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.forget_path(&path);
+                self.store_at(&path, data).await?;
+            }
+            other => other?,
         }
-
-        self.ensure_parent_dirs(&path).await?;
-        let temp = Self::temp_sibling(&path);
-        if let Err(error) = write_synced(&temp, data).await {
-            fs::remove_file(&temp).await.ok();
-            return Err(error);
-        }
-        Self::publish(&temp, &path).await?;
 
         tracing::debug!(
             project_id = %project_id,
@@ -202,7 +282,8 @@ impl FileStorage for FilesystemStorage {
         // Count files before deletion
         let count = self.count_files_recursive(&project_path).await;
 
-        // Remove the entire project directory tree
+        // Remove the entire project directory tree, and forget it was durable.
+        self.forget_durable(&project_path);
         fs::remove_dir_all(&project_path).await?;
 
         tracing::debug!(project_id = %project_id, deleted = count, "Project files deleted");
@@ -220,9 +301,13 @@ impl FileStorage for FilesystemStorage {
 
         let dest_path = self.file_path(project_id, hash);
 
-        // Content-addressed: if file exists, just remove temp
-        if dest_path.exists() {
+        self.ensure_parent_dirs(&dest_path).await?;
+        // Content-addressed: an object already there is this content; made durable as `store` makes it.
+        if fs::try_exists(&dest_path).await.unwrap_or(false) {
             fs::remove_file(temp_path).await.ok();
+            if let Some(parent) = dest_path.parent() {
+                sync_dir(parent).await?;
+            }
             tracing::trace!(
                 project_id = %project_id,
                 hash,
@@ -230,8 +315,6 @@ impl FileStorage for FilesystemStorage {
             );
             return Ok(());
         }
-
-        self.ensure_parent_dirs(&dest_path).await?;
 
         // The temp file is the caller's; its bytes must be on disk before the rename publishes them.
         sync_file(temp_path).await?;
@@ -286,6 +369,7 @@ impl FilesystemStorage {
             // Try to remove directory (will fail if not empty)
             match fs::remove_dir(dir).await {
                 Ok(_) => {
+                    self.forget_durable(dir);
                     tracing::trace!(path = %dir.display(), "Removed empty directory");
                     current = dir.parent();
                 }
@@ -351,6 +435,30 @@ async fn sync_file(path: &Path) -> Result<(), FileStorageError> {
     Ok(())
 }
 
+/// Create `dir` with whatever it lacks above it, syncing each created level into its holder, deepest last.
+async fn create_dir_all_durably(dir: &Path) -> Result<(), FileStorageError> {
+    let mut missing = Vec::new();
+    let mut cursor = Some(dir);
+    while let Some(level) = cursor {
+        if fs::try_exists(level).await.unwrap_or(false) {
+            break;
+        }
+        missing.push(level.to_path_buf());
+        cursor = level.parent();
+    }
+    fs::create_dir_all(dir).await?;
+    for level in missing.iter().rev() {
+        if let Some(holder) = level.parent() {
+            sync_dir(holder).await?;
+        }
+    }
+    Ok(())
+}
+
+/// The directories synced, in order, for the tests to read: the only way to see a sync from inside the process.
+#[cfg(test)]
+static SYNCED_DIRECTORIES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
 /// Fsync a directory, making the entries created or renamed in it durable.
 ///
 /// POSIX only: Windows cannot open a directory as a file, and NTFS journals the rename itself.
@@ -358,9 +466,16 @@ async fn sync_dir(path: &Path) -> Result<(), FileStorageError> {
     #[cfg(unix)]
     {
         let path = path.to_path_buf();
+        #[cfg(test)]
+        let recorded = path.clone();
         tokio::task::spawn_blocking(move || sync_handle(&std::fs::File::open(path)?))
             .await
             .map_err(|error| FileStorageError::Backend(error.to_string()))??;
+        #[cfg(test)]
+        SYNCED_DIRECTORIES
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(recorded);
     }
     #[cfg(not(unix))]
     let _ = path;
@@ -676,5 +791,94 @@ mod tests {
 
         assert_eq!(data1, b"data1");
         assert_eq!(data2, b"data2");
+    }
+
+    /// The directories synced under `root` since the test began, in order.
+    fn synced_under(root: &Path, from: usize) -> Vec<PathBuf> {
+        SYNCED_DIRECTORIES.lock().unwrap()[from..]
+            .iter()
+            .filter(|dir| dir.starts_with(root))
+            .cloned()
+            .collect()
+    }
+
+    fn synced_so_far() -> usize {
+        SYNCED_DIRECTORIES.lock().unwrap().len()
+    }
+
+    /// A project directory another writer has created but not yet made durable is synced into its holder by a
+    /// store beneath it, before the store returns: trusted because it existed, a power loss could take it and
+    /// the acknowledged object with it.
+    #[tokio::test]
+    async fn a_directory_another_writer_created_is_made_durable_before_the_store_returns() {
+        let temp_dir = TempDir::new().unwrap();
+        let base = temp_dir.path().canonicalize().unwrap();
+        let storage = FilesystemStorage::new(base.clone());
+        // Another writer's directory, created and not synced.
+        std::fs::create_dir_all(base.join("project1")).unwrap();
+        let from = synced_so_far();
+        storage
+            .store(&ProjectId::from("project1"), test_hash(), b"bytes")
+            .await
+            .unwrap();
+        let synced = synced_under(&base, from);
+        assert!(
+            synced.contains(&base),
+            "the project directory's entry was never synced into the base: {synced:?}"
+        );
+        let shard = base.join("project1").join("a1");
+        assert!(synced.contains(&base.join("project1")), "{synced:?}");
+        assert!(synced.contains(&shard), "{synced:?}");
+        assert!(
+            synced.contains(&shard.join("b2")),
+            "the object's own entry: {synced:?}"
+        );
+
+        // Once durable, a directory is not synced again for the next object beneath it.
+        let from = synced_so_far();
+        let other = "a1b2ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        storage
+            .store(&ProjectId::from("project1"), other, b"more")
+            .await
+            .unwrap();
+        assert_eq!(synced_under(&base, from), vec![shard.join("b2")]);
+    }
+
+    /// An object already in place - another writer's rename whose directory sync has not returned - is made
+    /// durable before a store of the same content answers.
+    #[tokio::test]
+    async fn an_object_another_writer_renamed_is_made_durable_before_the_store_returns() {
+        let temp_dir = TempDir::new().unwrap();
+        let base = temp_dir.path().canonicalize().unwrap();
+        let storage = FilesystemStorage::new(base.clone());
+        let directory = base.join("project1").join("a1").join("b2");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join(test_hash()), b"bytes").unwrap();
+        let from = synced_so_far();
+        storage
+            .store(&ProjectId::from("project1"), test_hash(), b"bytes")
+            .await
+            .unwrap();
+        assert!(
+            synced_under(&base, from).contains(&directory),
+            "the existing object's entry was not synced"
+        );
+    }
+
+    /// A directory remembered as durable and then removed outside a delete - the tree gone under the store - is
+    /// created again, not trusted into a failure on every later store.
+    #[tokio::test]
+    async fn a_directory_removed_under_the_store_is_created_again() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
+        let project = ProjectId::from("project1");
+        storage
+            .store(&project, test_hash(), b"first")
+            .await
+            .unwrap();
+        std::fs::remove_dir_all(temp_dir.path().join("project1")).unwrap();
+        let other = "a1b2ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        storage.store(&project, other, b"second").await.unwrap();
+        assert_eq!(storage.get(&project, other).await.unwrap(), b"second");
     }
 }
