@@ -250,7 +250,25 @@ fn shown_under(expected: &Expected, block: &Block) -> bool {
 fn matches(expected: &Expected, block: &Block) -> bool {
     block.role == expected.role
         && (!matches!(shows(&expected.fact, block, None), Shows::No)
-            || renders_as_sent(expected, block))
+            || renders_as_sent(expected, block)
+            || reduced_as_sent(expected, block))
+}
+
+/// A tool result the request sent in an encoding of its own - a text part holding the JSON of its content
+/// list - shown in the canonical form the view reduces a result to. The sent value is read through the same
+/// encodings the view's side is, and one of them must be the shown value exactly.
+fn reduced_as_sent(expected: &Expected, block: &Block) -> bool {
+    if expected.fact.kind != "tool_result" || !block.is_tool_result() {
+        return false;
+    }
+    super::predicates::interpretations(&expected.fact.value["value"], 0)
+        .into_iter()
+        .skip(1)
+        .any(|value| {
+            let mut fact = expected.fact.clone();
+            fact.value["value"] = value;
+            !matches!(shows(&fact, block, None), Shows::No)
+        })
 }
 
 /// A tool result the client sent as Python's `str()` of what the tool returned, shown as that value.

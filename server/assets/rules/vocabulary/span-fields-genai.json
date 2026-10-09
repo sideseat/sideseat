@@ -167,6 +167,15 @@
             "source": "attr:logfire.msg_template",
             "equals": "Responses API with {gen_ai.request.model!r}"
           }
+        },
+        {
+          "id": "response_object_metadata_id",
+          "doc": "A streamed OpenAI response the Langfuse integration keeps whole, field by field, in the observation's metadata: the metadata says it is that object (`object: response`), so its `id` is the response's. Only then - metadata is a caller's too, and an `id` among it says nothing about which response answered.",
+          "attribute": "langfuse.observation.metadata.id",
+          "where": {
+            "source": "attr:langfuse.observation.metadata.object",
+            "equals": "response"
+          }
         }
       ]
     },

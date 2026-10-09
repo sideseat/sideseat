@@ -452,6 +452,27 @@ pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
         Value::Array(items) if items.len() == 1 && is_json_part(&items[0]) => {
             out.extend(interpretations(&items[0]["data"], depth + 1));
         }
+        // An MCP tool's result as the protocol returns it (`CallToolResult`): exactly its structured result, or
+        // exactly its one text content - never a value found somewhere inside the envelope.
+        Value::Object(map) if is_mcp_tool_result(map) => {
+            if let Some(result) = map
+                .get("structuredContent")
+                .and_then(Value::as_object)
+                .filter(|structured| structured.len() == 1)
+                .and_then(|structured| structured.get("result"))
+            {
+                out.extend(interpretations(result, depth + 1));
+            }
+            if let Some([only]) = map
+                .get("content")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                && only.get("type").and_then(Value::as_str) == Some("text")
+                && let Some(text) = only.get("text").filter(|t| t.is_string())
+            {
+                out.extend(interpretations(text, depth + 1));
+            }
+        }
         Value::Object(map) if is_text_part(value) => {
             if let Some(text) = map.get("text") {
                 out.extend(interpretations(text, depth + 1));
@@ -466,6 +487,22 @@ pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
         _ => {}
     }
     out
+}
+
+/// The members of an MCP `CallToolResult`: its content list and error flag, and nothing it does not define.
+fn is_mcp_tool_result(map: &serde_json::Map<String, Value>) -> bool {
+    map.get("content").is_some_and(Value::is_array)
+        && map.get("isError").is_some_and(Value::is_boolean)
+        && map.keys().all(|key| {
+            [
+                "content",
+                "structuredContent",
+                "isError",
+                "_meta",
+                "resultType",
+            ]
+            .contains(&key.as_str())
+        })
 }
 
 fn is_json_part(value: &Value) -> bool {
@@ -496,4 +533,43 @@ fn rendered_text(value: &Value) -> String {
             .join("\n"),
         other => other.to_string(),
     }
+}
+
+/// An MCP tool's result is read as the protocol states it: its structured result, or its one text content,
+/// each exactly. A different number, or a value merely mentioned inside the envelope, is not it.
+#[test]
+fn an_mcp_tool_result_is_its_stated_value_exactly() {
+    let envelope = |text: &str, structured: Option<Value>| {
+        let mut result = serde_json::json!({
+            "_meta": {"fastmcp": {"wrap_result": true}},
+            "content": [{"type": "text", "text": text, "annotations": null, "_meta": null}],
+            "isError": false,
+            "resultType": "complete"
+        });
+        if let Some(structured) = structured {
+            result["structuredContent"] = structured;
+        }
+        result
+    };
+    let value = serde_json::json!(395);
+    assert!(semantic_eq(
+        &envelope("395.0", Some(serde_json::json!({"result": 395.0}))),
+        &value
+    ));
+    assert!(
+        semantic_eq(&envelope("395", None), &value),
+        "the one text content, parsed"
+    );
+    assert!(!semantic_eq(
+        &envelope("396.0", Some(serde_json::json!({"result": 396.0}))),
+        &value
+    ));
+    assert!(
+        !semantic_eq(&envelope("the answer is 395", None), &value),
+        "a text that only contains the value is not it"
+    );
+    // Not an MCP result: a member the protocol does not define.
+    let mut other = envelope("395", None);
+    other["extra"] = serde_json::json!(true);
+    assert!(!semantic_eq(&other, &value));
 }

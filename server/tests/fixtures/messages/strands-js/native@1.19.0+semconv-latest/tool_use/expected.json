@@ -144,16 +144,16 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_M39VQZAHYDT3qsQioJJtCU\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "d0995c033deb287e",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "688cde3e8ba959bb",
           "observation_type": "generation"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WNry4YeJJSmT6OQ7WUm7P6\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "8e7bee79da700567",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "c994cdaa71d1ec7f",
           "observation_type": "generation"
         },
         {
@@ -247,16 +247,16 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_M39VQZAHYDT3qsQioJJtCU\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "d0995c033deb287e",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "688cde3e8ba959bb",
           "observation_type": "agent"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WNry4YeJJSmT6OQ7WUm7P6\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "8e7bee79da700567",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "c994cdaa71d1ec7f",
           "observation_type": "agent"
         }
       ]
@@ -290,8 +290,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_M39VQZAHYDT3qsQioJJtCU\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "d0995c033deb287e",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "688cde3e8ba959bb",
           "observation_type": "tool"
         }
       ]
@@ -318,8 +318,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WNry4YeJJSmT6OQ7WUm7P6\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "8e7bee79da700567",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "c994cdaa71d1ec7f",
           "observation_type": "tool"
         }
       ]
@@ -522,16 +522,16 @@
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_M39VQZAHYDT3qsQioJJtCU\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "d0995c033deb287e",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "688cde3e8ba959bb",
           "observation_type": "tool"
         },
         {
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WNry4YeJJSmT6OQ7WUm7P6\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "8e7bee79da700567",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "c994cdaa71d1ec7f",
           "observation_type": "tool"
         },
         {
@@ -640,16 +640,16 @@
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_M39VQZAHYDT3qsQioJJtCU\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "d0995c033deb287e",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "688cde3e8ba959bb",
           "observation_type": "tool"
         },
         {
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WNry4YeJJSmT6OQ7WUm7P6\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "8e7bee79da700567",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "c994cdaa71d1ec7f",
           "observation_type": "tool"
         },
         {
@@ -714,16 +714,16 @@
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_M39VQZAHYDT3qsQioJJtCU\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-        "content_digest": "d0995c033deb287e",
+        "content": "10% chance of rain in Paris tomorrow.",
+        "content_digest": "688cde3e8ba959bb",
         "observation_type": "tool"
       },
       {
         "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WNry4YeJJSmT6OQ7WUm7P6\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-        "content_digest": "8e7bee79da700567",
+        "content": "80% chance of rain in Tokyo tomorrow.",
+        "content_digest": "c994cdaa71d1ec7f",
         "observation_type": "tool"
       },
       {

@@ -537,3 +537,17 @@ fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
     returned.content["provider_executed"] = json!(false);
     assert_eq!(shows(&fact("ws_1"), &returned, None), Shows::No);
 }
+
+/// A result sent in an encoding of the client's own - a text part holding the JSON of its content list - is shown
+/// by the canonical value the view reduces it to, exactly, and by no other value.
+#[test]
+fn a_result_sent_encoded_is_shown_by_the_value_it_reduces_to() {
+    let sent = sent_result(r#"[{"type":"text","text":"395.0"}]"#);
+    assert!(matches(&sent, &shown_result(json!("395.0"))));
+    assert!(matches(
+        &sent,
+        &shown_result(json!([{"type": "text", "text": "395.0"}]))
+    ));
+    assert!(!matches(&sent, &shown_result(json!("396.0"))));
+    assert!(!matches(&sent, &shown_result(json!("the answer is 395.0"))));
+}

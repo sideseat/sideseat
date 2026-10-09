@@ -802,7 +802,7 @@
     },
     {
       "id": "semconv.tool_call_response_parts",
-      "doc": "The conventions' tool result part whose `response` is a list of text parts. The conventions leave `response` as whatever the tool returned; Strands writes there the Bedrock content blocks it hands back to the model (`[{\"text\": ...}]`, the same list its `gen_ai.tool.call.result` attribute holds) and Vercel AI writes typed text parts, so such a list is read as the result's content, each member through the returned-value chain. Only a list every member of which is a part with `text`: a tool returning a JSON array of values returned a value, not content, and keeps the provider format's reading as one `json` block. The provider formats wrapped every non-string response that way, so a list of text parts rendered as the list itself and the attribute's copy of the same result no longer matched it.",
+      "doc": "The conventions' tool result part whose `response` is a list of text parts. The conventions leave `response` as whatever the tool returned; Strands writes there the Bedrock content blocks it hands back to the model (`[{\"text\": ...}]`, the same list its `gen_ai.tool.call.result` attribute holds) and Vercel AI writes typed text parts, so such a list is read as the result's content, each member through the returned-value chain. Only a list every member of which is a part with `text`: a tool returning a JSON array of values returned a value, not content, and keeps the provider format's reading as one `json` block. The provider formats wrapped every non-string response that way, so a list of text parts rendered as the list itself and the attribute's copy of the same result no longer matched it. The content is reduced to the value it holds, the canonical form a tool-role message's content takes: a lone text part is its string, a list of several parts stays a list, so one result reads alike whether a producer wrote it as this part or as a Bedrock block.",
       "at": "before_provider_formats",
       "priority": 62,
       "where": {
@@ -826,7 +826,8 @@
       },
       "tool_result": {
         "tool_use_id": "$.id",
-        "content": "$.response"
+        "content": "$.response",
+        "content_as": "value"
       }
     },
     {
