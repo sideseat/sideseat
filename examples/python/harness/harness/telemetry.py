@@ -90,6 +90,30 @@ class NativeTelemetry:
 
         return OTLPSpanExporter(endpoint=traces_endpoint(), headers=auth_headers())
 
+    def logger_provider(self) -> Any:
+        """A logger provider exporting OTLP logs beside the traces, under the suite's service name.
+
+        Without a resource the SDK names the service after the interpreter (`unknown_service:python3`),
+        which would make a capture depend on how Python was started.
+        """
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs import LoggerProvider
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+        from opentelemetry.sdk.resources import Resource
+
+        logs = LoggerProvider(
+            resource=Resource.create({"service.name": self.service_name})
+        )
+        logs.add_log_record_processor(
+            BatchLogRecordProcessor(
+                OTLPLogExporter(
+                    endpoint=traces_endpoint().removesuffix("/v1/traces") + "/v1/logs",
+                    headers=auth_headers(),
+                )
+            )
+        )
+        return logs
+
     def provider(self) -> Any:
         """A tracer provider with an OTLP exporter, installed as the global provider."""
         from opentelemetry.sdk.resources import Resource
@@ -186,24 +210,10 @@ class LogsTelemetry:
     def handler(self) -> Any:
         """A logging handler whose records are exported as OTLP logs to the same endpoint."""
         from opentelemetry._logs import set_logger_provider
-        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk._logs import LoggingHandler
 
         if self._logs is None:
-            logs = LoggerProvider(
-                resource=Resource.create({"service.name": self._native.service_name})
-            )
-            logs.add_log_record_processor(
-                BatchLogRecordProcessor(
-                    OTLPLogExporter(
-                        endpoint=traces_endpoint().removesuffix("/v1/traces")
-                        + "/v1/logs",
-                        headers=auth_headers(),
-                    )
-                )
-            )
+            logs = self._native.logger_provider()
             set_logger_provider(logs)
             self._logs = logs
         return LoggingHandler(logger_provider=self._logs)

@@ -9,11 +9,9 @@ import logging
 import os
 
 from opentelemetry._logs import set_logger_provider
-from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk._logs import LoggingHandler
 
-from harness.telemetry import NativeTelemetry, auth_headers, traces_endpoint
+from harness.telemetry import NativeTelemetry
 
 
 def configure(native: NativeTelemetry) -> None:
@@ -22,15 +20,7 @@ def configure(native: NativeTelemetry) -> None:
         "SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS_SENSITIVE"
     ] = "true"
     native.provider()
-    logs = LoggerProvider()
-    logs.add_log_record_processor(
-        BatchLogRecordProcessor(
-            OTLPLogExporter(
-                endpoint=traces_endpoint().removesuffix("/v1/traces") + "/v1/logs",
-                headers=auth_headers(),
-            )
-        )
-    )
+    logs = native.logger_provider()
     set_logger_provider(logs)
     kernel_logs = logging.getLogger("semantic_kernel")
     kernel_logs.addHandler(LoggingHandler(logger_provider=logs))
