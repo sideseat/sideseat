@@ -1,0 +1,254 @@
+{
+  "label": "autogen/logs/trailing_tool",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/create_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool get_weather/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/invoke_agent assistant/span-3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Look up the weather in Oslo for tomorrow. Report only the tool's result, verbatim.",
+          "content_digest": "c895162ecab74958",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_ab4fab2c6604\",\"name\":\"get_weather\",\"input\":{\"city\":\"Oslo\",\"days\":1}}",
+          "content_digest": "8ab448304c6ed7cc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_ab4fab2c6604\",\"content\":{\"city\":\"Oslo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21}]}}",
+          "content_digest": "6e160e8adcf79c17",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Oslo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}]}.",
+          "content_digest": "895be9e43b0112e4",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/trailing-tool/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Look up the weather in Oslo for tomorrow. Report only the tool's result, verbatim.",
+          "content_digest": "c895162ecab74958",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_ab4fab2c6604\",\"name\":\"get_weather\",\"input\":{\"city\":\"Oslo\",\"days\":1}}",
+          "content_digest": "8ab448304c6ed7cc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_ab4fab2c6604\",\"content\":{\"city\":\"Oslo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21}]}}",
+          "content_digest": "6e160e8adcf79c17",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Oslo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}]}.",
+          "content_digest": "895be9e43b0112e4",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "autogen-trailing_tool": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Look up the weather in Oslo for tomorrow. Report only the tool's result, verbatim.",
+          "content_digest": "c895162ecab74958",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_ab4fab2c6604\",\"name\":\"get_weather\",\"input\":{\"city\":\"Oslo\",\"days\":1}}",
+          "content_digest": "8ab448304c6ed7cc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_ab4fab2c6604\",\"content\":{\"city\":\"Oslo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21}]}}",
+          "content_digest": "6e160e8adcf79c17",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Oslo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}]}.",
+          "content_digest": "895be9e43b0112e4",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_ab4fab2c6604\",\"content\":{\"city\":\"Oslo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21}]}}",
+        "content_digest": "6e160e8adcf79c17",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "{'city': 'Oslo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}]}.",
+        "content_digest": "895be9e43b0112e4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Look up the weather in Oslo for tomorrow. Report only the tool's result, verbatim.",
+        "content_digest": "c895162ecab74958",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_ab4fab2c6604\",\"name\":\"get_weather\",\"input\":{\"city\":\"Oslo\",\"days\":1}}",
+        "content_digest": "8ab448304c6ed7cc",
+        "tool_name": "get_weather",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

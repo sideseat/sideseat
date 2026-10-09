@@ -1,0 +1,19 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwic3RyZWFtIjpmYWxzZSwibWVzc2FnZXMiOlt7ImNvbnRlbnQiOiJZb3UgYXJlIGEgY29uY2lzZSB0cmF2ZWwgYXNzaXN0YW50LiBVc2UgdGhlIHRvb2xzIGZvciB3ZWF0aGVyIGFuZCBib29raW5ncyBpbnN0ZWFkIG9mIGd1ZXNzaW5nLCBhbmQgYW5zd2VyIGluIGF0IG1vc3QgdGhyZWUgc2VudGVuY2VzLiIsInJvbGUiOiJzeXN0ZW0ifSx7InJvbGUiOiJ1c2VyIiwibmFtZSI6InVzZXIiLCJjb250ZW50IjoiU3VnZ2VzdCBvbmUgbXVzZXVtIHRvIHZpc2l0IGluIE1hZHJpZC4ifV19",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1/chat/completions",
+   "request_sha256": "e4ed30f4ae5b36ea01f748712a487ea4fefd16f20aebe8fad17d68b2414b17cc"
+  },
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwic3RyZWFtIjpmYWxzZSwibWVzc2FnZXMiOlt7ImNvbnRlbnQiOiJZb3UgYXJlIGEgY29uY2lzZSB0cmF2ZWwgYXNzaXN0YW50LiBVc2UgdGhlIHRvb2xzIGZvciB3ZWF0aGVyIGFuZCBib29raW5ncyBpbnN0ZWFkIG9mIGd1ZXNzaW5nLCBhbmQgYW5zd2VyIGluIGF0IG1vc3QgdGhyZWUgc2VudGVuY2VzLiIsInJvbGUiOiJzeXN0ZW0ifSx7InJvbGUiOiJ1c2VyIiwibmFtZSI6InVzZXIiLCJjb250ZW50IjoiU3VnZ2VzdCBvbmUgcGFyayB0byB2aXNpdCBpbiBNYWRyaWQuIn1dfQ==",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1/chat/completions",
+   "request_sha256": "c81f96c4a136471498b6ec68b085e8692f91fec8dde0f522c2ef6c6382bac193"
+  }
+ ]
+}

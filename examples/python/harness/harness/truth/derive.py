@@ -50,6 +50,7 @@ PROMPTS: dict[str, list[tuple[str, ...]]] = {
     "multi_agent": [(content.MULTI_AGENT,)],
     "mcp_tools": [(content.MCP,)],
     "server_tools": [(content.SERVER_TOOLS,)],
+    "trailing_tool": [(content.TRAILING_TOOL,)],
 }
 
 #: Attachments of the ``files`` scenario's user turn.

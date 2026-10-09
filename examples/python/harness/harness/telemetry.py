@@ -2,7 +2,8 @@
 
 ``native`` is what a user of the framework would write following the framework's own documentation:
 plain OpenTelemetry plus whatever the framework needs switched on, and nothing from SideSeat.
-``sdk`` is the same program with ``sideseat.init``. Running a scenario in both modes and comparing
+``sdk`` is the same program with ``sideseat.init``, and ``logs`` is a producer's own logging channel with
+nothing else instrumented. Running a scenario in both of the first two modes and comparing
 the captured telemetry is how the SDK is shown to add nothing wrong and lose nothing.
 """
 
@@ -161,3 +162,56 @@ class NativeTelemetry:
         shutdown = getattr(provider, "shutdown", None)
         if shutdown is not None:
             shutdown()
+
+
+class LogsTelemetry:
+    """A producer's **logging** channel: its own log records, exported as OTLP logs.
+
+    For a producer that reports a conversation through structured log events rather than through span
+    attributes. The suite's ``logs.py`` receives this object, calls :meth:`provider` so a record can name
+    the span it belongs to, and attaches :meth:`handler` to the logger its framework writes to. Nothing
+    else is instrumented, which is what makes the channel's own coverage measurable.
+    """
+
+    mode = "logs"
+
+    def __init__(self, service_name: str) -> None:
+        self._native = NativeTelemetry(service_name)
+        self._logs: Any = None
+
+    def provider(self) -> Any:
+        """The tracer provider, so a record carries the trace and span ids of the turn it belongs to."""
+        return self._native.provider()
+
+    def handler(self) -> Any:
+        """A logging handler whose records are exported as OTLP logs to the same endpoint."""
+        from opentelemetry._logs import set_logger_provider
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+        from opentelemetry.sdk.resources import Resource
+
+        if self._logs is None:
+            logs = LoggerProvider(
+                resource=Resource.create({"service.name": self._native.service_name})
+            )
+            logs.add_log_record_processor(
+                BatchLogRecordProcessor(
+                    OTLPLogExporter(
+                        endpoint=traces_endpoint().removesuffix("/v1/traces")
+                        + "/v1/logs",
+                        headers=auth_headers(),
+                    )
+                )
+            )
+            set_logger_provider(logs)
+            self._logs = logs
+        return LoggingHandler(logger_provider=self._logs)
+
+    def trace(self, name: str, *, session_id: str, user_id: str) -> Any:
+        return self._native.trace(name, session_id=session_id, user_id=user_id)
+
+    def shutdown(self) -> None:
+        self._native.shutdown()
+        if self._logs is not None:
+            self._logs.shutdown()

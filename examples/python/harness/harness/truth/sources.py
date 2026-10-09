@@ -59,6 +59,26 @@ class Target:
     scenario: str
 
 
+#: Captures no truth describes, with the reason: a mode for every producer, or one producer's mode. Each is
+#: left out of every derived document's fixture list and reported as uncovered, so "this has no truth" is one
+#: statement both sides read - `message_truth::truth::reason_without_truth` is the same rule on the Rust side.
+#:
+#: A mode is not uncoverable in itself: `claude-code/logs` is covered, because that CLI's log records carry a
+#: span per model call. Whether a channel can be held to the per-call truth is a fact about the producer.
+UNCOVERED_MODES = {
+    "legacy": "a pre-catalog capture with no cassette or script",
+    # This dialect logs one event per model call but attaches every record to the turn's span, so the truth's
+    # per-call checks have nothing to key on. The goldens hold the conversation; the declaration of what the
+    # channel cannot carry is the rubric's to write, and this entry goes when it lands.
+    "autogen/logs": "the channel reports no span per model call, so the per-call truth has nothing to key on",
+}
+
+
+def uncovered(producer: str, mode: str) -> str | None:
+    """Why no truth describes this producer's mode, if none may."""
+    return UNCOVERED_MODES.get(f"{producer}/{mode}") or UNCOVERED_MODES.get(mode)
+
+
 def fixtures_of(producer: str, scenario: str) -> list[str]:
     root = FIXTURES / producer
     if not root.is_dir():
@@ -66,7 +86,7 @@ def fixtures_of(producer: str, scenario: str) -> list[str]:
     return [
         f"{producer}/{mode.name}/{scenario}"
         for mode in sorted(root.iterdir())
-        if (mode / scenario).is_dir()
+        if (mode / scenario).is_dir() and uncovered(producer, mode.name) is None
     ]
 
 
@@ -256,6 +276,7 @@ SCENARIO_TOOLS = {
     "streaming": ("get_weather",),
     "error": ("book_flight",),
     "mcp_tools": ("calculate",),
+    "trailing_tool": ("get_weather",),
 }
 #: The tools the provider runs itself that each scenario enables; the Responses API is the one that
 #: offers them.

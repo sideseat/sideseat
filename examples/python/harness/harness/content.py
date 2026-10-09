@@ -37,6 +37,12 @@ STREAMING = "Check the weather in Rome for the next day and tell me what to wear
 
 STRUCTURED = "Plan a two-day trip to Vienna."
 
+#: A turn that ends on a tool result: the agent runs the tool and stops, so nothing re-sends what the tool
+#: returned. What a producer's telemetry does with the last result of a conversation is only visible here.
+TRAILING_TOOL = (
+    "Look up the weather in Oslo for tomorrow. Report only the tool's result, verbatim."
+)
+
 REASONING = (
     "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a "
     "pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest "

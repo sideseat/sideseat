@@ -13,7 +13,8 @@ The suite is the project in the current directory. Its ``pyproject.toml`` declar
     integrations = ["strands"]      # what ``--sideseat`` passes to sideseat.init
     default-model = "sonnet"
 
-and the directory holds ``native.py`` (``configure(native)``), ``models.py`` (``build(model)``), and
+and the directory holds ``native.py`` (``configure(native)``), ``models.py`` (``build(model)``), a
+``logs.py`` where the suite declares the ``logs`` mode, and
 ``scenarios/<name>.py`` modules each defining ``run(run)``.
 """
 
@@ -36,7 +37,7 @@ from harness import models
 from harness.catalog import CATALOG
 from harness.env import load_env
 from harness.run import Run
-from harness.telemetry import NativeTelemetry, SdkTelemetry, Telemetry
+from harness.telemetry import LogsTelemetry, NativeTelemetry, SdkTelemetry, Telemetry
 
 
 @dataclass
@@ -46,6 +47,9 @@ class Suite:
     integrations: list[str]
     default_model: str
     service_name: str
+    #: The telemetry modes this suite has a program for. `native` and `sdk` are every suite's; a suite whose
+    #: producer reports through its own log records declares `logs` and writes a `logs.py` beside `native.py`.
+    modes: tuple[str, ...]
 
     @classmethod
     def load(cls, root: Path) -> Suite:
@@ -61,6 +65,7 @@ class Suite:
             integrations=list(table.get("integrations", [table["producer"]])),
             default_model=table.get("default-model", models.DEFAULT),
             service_name=table.get("service-name", table["producer"]),
+            modes=tuple(table.get("modes", ("native", "sdk"))),
         )
 
     def scenarios(self) -> list[str]:
@@ -91,6 +96,11 @@ def main(argv: list[str] | None = None) -> None:
         "--sideseat", action="store_true", help="configure telemetry with SideSeat"
     )
     parser.add_argument(
+        "--logs",
+        action="store_true",
+        help="configure the producer's logging channel alone (suites that declare the `logs` mode)",
+    )
+    parser.add_argument(
         "--model", default=suite.default_model, help="model alias (see --list)"
     )
     parser.add_argument("--list", action="store_true", help="list scenarios and models")
@@ -116,8 +126,19 @@ def main(argv: list[str] | None = None) -> None:
 
     model = models.resolve(args.model)
     telemetry: Telemetry
+    if args.sideseat and args.logs:
+        raise SystemExit("--sideseat and --logs are two modes; choose one")
     if args.sideseat:
         telemetry = SdkTelemetry(suite.integrations)
+    elif args.logs:
+        if "logs" not in suite.modes:
+            raise SystemExit(
+                f"{suite.producer} declares no `logs` mode; add it to `modes` in "
+                "[tool.sideseat-example] and write a logs.py beside native.py"
+            )
+        logs = LogsTelemetry(suite.service_name)
+        suite.module("logs").configure(logs)
+        telemetry = logs
     else:
         native = NativeTelemetry(suite.service_name)
         suite.module("native").configure(native)

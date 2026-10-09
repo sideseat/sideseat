@@ -542,6 +542,13 @@ pub(super) fn reason_without_truth(label: &str) -> Option<&'static str> {
     if mode == Some("legacy") {
         return Some("a pre-catalog capture with no cassette or script");
     }
+    // One producer's logging channel, not the mode in itself: `claude-code/logs` is covered, because that
+    // CLI's records carry a span per model call.
+    if (producer, mode) == ("autogen", Some("logs")) {
+        return Some(
+            "the channel reports no span per model call, so the per-call truth has nothing to key on",
+        );
+    }
     if scenario == Some("canonical") {
         return Some("a pre-catalog capture whose emitting program is not in the repository");
     }

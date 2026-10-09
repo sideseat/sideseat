@@ -1,0 +1,786 @@
+{
+  "label": "autogen/logs/multi_agent",
+  "request_count": 1,
+  "span_count": 44,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/autogen ack/span-17": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create group_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-26": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create group_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-37": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create group_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-18": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-22": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-25": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-36": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-43": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create researcher_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen create writer_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-32": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-20": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "bf0f3bc5d2c12cfc",
+          "tool_name": "get_weather",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-24": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "22e79bdcae801e54",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-28": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-31": {
+      "message_count": 3,
+      "role_sequence": [
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "bf0f3bc5d2c12cfc",
+          "tool_name": "get_weather",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "22e79bdcae801e54",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-39": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-42": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-6": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process researcher_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-12": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process researcher_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-15": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen process researcher_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-41": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process writer_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-13": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process writer_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-30": {
+      "message_count": 3,
+      "role_sequence": [
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "bf0f3bc5d2c12cfc",
+          "tool_name": "get_weather",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "22e79bdcae801e54",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/autogen process writer_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-34": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish group_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish group_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-29": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish group_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-40": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-19": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-23": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-27": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-38": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-44": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish output_topic_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish researcher_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen publish writer_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-T/span-33": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/autogen send RoundRobinGroupChatManager_3b434961-718f-44e9-8e24-ee3fa255a1d7.(3b434961-718f-44e9-8e24-ee3fa255a1d7)-A/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/create_agent researcher/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/create_agent writer/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool get_weather/span-21": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/invoke_agent researcher/span-16": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "bf0f3bc5d2c12cfc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "22e79bdcae801e54",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent writer/span-35": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list from the researcher's findings.",
+          "content_digest": "b186ab36ca9cadcb",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "bf0f3bc5d2c12cfc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "22e79bdcae801e54",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list from the researcher's findings.",
+          "content_digest": "b186ab36ca9cadcb",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "autogen-multi_agent": {
+      "message_count": 7,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "bf0f3bc5d2c12cfc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "22e79bdcae801e54",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+          "content_digest": "8d16288579af14b0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list from the researcher's findings.",
+          "content_digest": "b186ab36ca9cadcb",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "system",
+      "assistant",
+      "assistant",
+      "tool",
+      "system",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You write the final packing list from the researcher's findings.",
+        "content_digest": "b186ab36ca9cadcb",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "This is a deterministic local response.",
+        "content_digest": "cabe67b517eb819b",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}.",
+        "content_digest": "8d16288579af14b0",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "22e79bdcae801e54",
+        "observation_type": "span"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You research weather with the tool, then hand off to the writer.",
+        "content_digest": "e23249b8caa6a5ce",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "bf0f3bc5d2c12cfc",
+        "tool_name": "get_weather",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

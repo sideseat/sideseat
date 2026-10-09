@@ -2,7 +2,30 @@
   "$schema": "../../rules.schema.json",
   "id": "autogen",
   "doc": "The AutoGen dialect. Its messages arrive as typed objects - a type name per shape - which is why the table below is a fragment: the same vocabulary is written at five different selection points.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "autogen.logged_messages",
+      "doc": "The request a logged model call was sent, as the provider's own chat messages: a conversation re-listed in order on every call, so a repeat inside it restates an earlier turn rather than being a second one.",
+      "match": {
+        "event": "messages"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "autogen.logged_response",
+      "doc": "The provider's response object on the same event: what the model produced, each choice an emission of its own.",
+      "match": {
+        "event": "response"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    }
+  ],
   "detect": [
     {
       "id": "autogen.detect",
@@ -65,6 +88,92 @@
           }
         }
       ]
+    },
+    {
+      "id": "autogen.logged_request",
+      "doc": "The request a logged model call was sent: the provider's own chat messages, each read as the message it is. The event's members arrive as its attributes, so this reads `messages` exactly as a span attribute holding the same array would be read.",
+      "source": {
+        "event": {
+          "names": [
+            "LLMCall",
+            "LLMStreamStart"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "priority": 1340,
+      "alternatives": [
+        {
+          "id": "messages",
+          "doc": "One message per element, in the order the request held them.",
+          "select": "$",
+          "each": true,
+          "where": {
+            "path": "$.role",
+            "exists": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "autogen.logged_response",
+      "doc": "What the model answered, from the provider's response object the event carries: its choices' messages, which the OpenAI vocabulary reads whole - text, refusals and tool calls alike.",
+      "source": {
+        "event": {
+          "names": [
+            "LLMCall",
+            "LLMStreamEnd"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "response"
+      },
+      "parse": "json",
+      "emit": "message",
+      "priority": 1341,
+      "alternatives": [
+        {
+          "id": "choices",
+          "doc": "One message per choice.",
+          "select": "$.choices",
+          "each": true,
+          "descend": "message",
+          "lift": [
+            {
+              "from": "parent",
+              "members": [
+                "finish_reason"
+              ],
+              "on_conflict": "keep_target"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "autogen.logged_tool_run",
+      "doc": "A tool this dialect ran, logged as one event holding the name, the arguments and the value returned. Claimed rather than read: a request of the same conversation re-sends both sides - the call under the id the provider gave it, and the result against that id - so reading this copy too would show each twice, and this one carries no id to collapse them by. Claimed so the record is accounted for rather than left looking like a conversation nothing read.\n\nThe corpus shows no result this loses: the dialect logs a request even for a turn that ends on a tool result, since its agent asks the model again before stopping (`trailing_tool`). A dialect that stopped without that request would carry its last result only here, and reading it would then need the call id binding this copy lacks.",
+      "source": {
+        "event": {
+          "names": [
+            "ToolCall"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "tool_name"
+      },
+      "parse": "text",
+      "raw_where": {
+        "non_blank": true
+      },
+      "emit": "claim",
+      "priority": 1342
     },
     {
       "id": "autogen.message",
@@ -162,6 +271,62 @@
           "then_fragment": "autogen.message"
         }
       ]
+    }
+  ],
+  "message_events": [
+    {
+      "id": "autogen.message_event.llm_call",
+      "name": "LLMCall",
+      "doc": "This dialect's structured event for a complete model call: the request's messages and the provider's response in one record. A container - its readings are the conversation, so emitting the record itself would report the whole event as one message.",
+      "raw": "replace"
+    },
+    {
+      "id": "autogen.message_event.llm_stream_start",
+      "name": "LLMStreamStart",
+      "doc": "The request of a streamed call, logged before the stream opens; its response arrives as `LLMStreamEnd`.",
+      "raw": "replace"
+    },
+    {
+      "id": "autogen.message_event.llm_stream_end",
+      "name": "LLMStreamEnd",
+      "doc": "The response of a streamed call. It carries no messages, because the request was logged as `LLMStreamStart`.",
+      "raw": "replace"
+    },
+    {
+      "id": "autogen.message_event.tool_call",
+      "name": "ToolCall",
+      "doc": "A tool this dialect ran, with the arguments it was given and the value it returned.",
+      "raw": "replace"
+    }
+  ],
+  "log_events": [
+    {
+      "id": "autogen.log_event.llm_call",
+      "name": "LLMCall",
+      "name_from": "body:type",
+      "payload": "body_members",
+      "doc": "This dialect logs each event through Python's `logging`, so a record's body is the event's JSON and its `type` member is the only place the kind is written - the record carries no `event_name` field and no attribute holding one."
+    },
+    {
+      "id": "autogen.log_event.llm_stream_start",
+      "name": "LLMStreamStart",
+      "name_from": "body:type",
+      "payload": "body_members",
+      "doc": "As `LLMCall`."
+    },
+    {
+      "id": "autogen.log_event.llm_stream_end",
+      "name": "LLMStreamEnd",
+      "name_from": "body:type",
+      "payload": "body_members",
+      "doc": "As `LLMCall`."
+    },
+    {
+      "id": "autogen.log_event.tool_call",
+      "name": "ToolCall",
+      "name_from": "body:type",
+      "payload": "body_members",
+      "doc": "As `LLMCall`."
     }
   ],
   "fragments": {

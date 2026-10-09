@@ -272,6 +272,11 @@ class Suite:
     language: str
     manifest: dict[str, Any]
 
+    def modes(self) -> tuple[str, ...]:
+        """The telemetry modes this suite has a program for; every suite has `native` and `sdk`."""
+        declared = self.manifest.get("modes") or ("native", "sdk")
+        return tuple(declared)
+
     def sample(self, *args: str) -> list[str]:
         """The ``sample`` command, run in :attr:`root`."""
         if self.language == "javascript":
@@ -450,6 +455,8 @@ def capture_one(
     arguments = [scenario]
     if mode == "sdk":
         arguments.append("--sideseat")
+    if mode == "logs":
+        arguments.append("--logs")
     if model:
         arguments += ["--model", model]
     command = suite.sample(*arguments)
@@ -613,7 +620,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "scenario", nargs="*", help="scenarios to capture; default: all of them"
     )
-    parser.add_argument("--mode", choices=("native", "sdk", "both"), default="both")
+    # `both` is the pair every suite has; `logs` is captured on its own, since a suite that declares it has
+    # a third program rather than a variation of the first two.
+    parser.add_argument(
+        "--mode", choices=("native", "sdk", "logs", "both"), default="both"
+    )
     parser.add_argument("--model", help="model alias passed to the suite")
     parser.add_argument(
         "--forward", help="also send every request to this SideSeat server"
@@ -660,6 +671,13 @@ def main(argv: list[str] | None = None) -> None:
         export_content()
     scenarios = args.scenario or scenarios_of(suite)
     modes = ("native", "sdk") if args.mode == "both" else (args.mode,)
+    # A mode a suite has no program for would run its `native` program and be recorded under another
+    # mode's name, which is a fixture describing a run that never happened.
+    undeclared = [mode for mode in modes if mode not in suite.modes()]
+    if undeclared:
+        raise SystemExit(
+            f"[capture] {args.producer} declares modes {list(suite.modes())}, not {undeclared}"
+        )
     failed = []
     for scenario in scenarios:
         for mode in modes:

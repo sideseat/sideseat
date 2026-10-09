@@ -1,0 +1,12 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwic3RyZWFtIjpmYWxzZSwibWVzc2FnZXMiOlt7ImNvbnRlbnQiOiJZb3UgYXJlIGEgY29uY2lzZSB0cmF2ZWwgYXNzaXN0YW50LiBVc2UgdGhlIHRvb2xzIGZvciB3ZWF0aGVyIGFuZCBib29raW5ncyBpbnN0ZWFkIG9mIGd1ZXNzaW5nLCBhbmQgYW5zd2VyIGluIGF0IG1vc3QgdGhyZWUgc2VudGVuY2VzLiIsInJvbGUiOiJzeXN0ZW0ifSx7InJvbGUiOiJ1c2VyIiwibmFtZSI6InVzZXIiLCJjb250ZW50IjoiSW4gb25lIHNlbnRlbmNlLCB3aGF0IGlzIEt5b3RvIGJlc3Qga25vd24gZm9yPyJ9XX0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1/chat/completions",
+   "request_sha256": "01da509e798914cf392b9cd25e6fc9c6d40c48e414885bd21195a0da570f6c4d"
+  }
+ ]
+}

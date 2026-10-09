@@ -21,7 +21,6 @@ from harness.truth.sources import Underivable
 
 #: Fixtures no truth describes on purpose: hand-written shapes, and captures of APIs no catalog
 #: scenario exercises.
-UNCOVERED_MODES = {"legacy": "a pre-catalog capture with no cassette or script"}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -111,8 +110,10 @@ def _fixtures_without_truth(covered: set[tuple[str, str]]) -> list[tuple[str, st
             for scenario in sorted(s for s in mode.iterdir() if s.is_dir()):
                 if (producer.name, scenario.name) in covered:
                     continue
-                if mode.name in UNCOVERED_MODES:
-                    reason = UNCOVERED_MODES[mode.name]
+                if (
+                    declared := sources.uncovered(producer.name, mode.name)
+                ) is not None:
+                    reason = declared
                 elif scenario.name == "canonical":
                     reason = "a pre-catalog capture whose emitting program is not in the repository"
                 else:

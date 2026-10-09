@@ -22,13 +22,13 @@ def assistant(
     **options: Any,
 ) -> AssistantAgent:
     # Reflection sends tool results back to the model, so the answer is the model's, not the
-    # tool's raw output.
+    # tool's raw output. A scenario that must end on a tool result turns it off.
     return AssistantAgent(
         "assistant",
         model_client=llm,
         system_message=system,
         tools=list(tools),
-        reflect_on_tool_use=bool(tools),
+        reflect_on_tool_use=options.pop("reflect_on_tool_use", bool(tools)),
         max_tool_iterations=5,
         **options,
     )

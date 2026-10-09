@@ -773,6 +773,12 @@ fn no_declared_rule_is_dead_across_the_corpus() {
     /// captured - and the rest are shapes the captured runs never produced.
     const UNREACHED: &[(&str, &str)] = &[
         (
+            "autogen.logged_tool_run",
+            "a claim emits nothing by design: it takes the logged execution off the table because a request \
+             of the same conversation re-sends both sides with the provider's ids, which is the copy the \
+             views show",
+        ),
+        (
             "haystack.agent_tools",
             "Haystack 3.3 serialises an Agent's tool list as JSON objects rather than Python repr, so no capture holds the repr shape",
         ),

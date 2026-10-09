@@ -232,7 +232,31 @@ _synthetic/<sample>/                        hand-written shapes no producer emit
 ```
 
 A producer is a framework or provider (`strands`, `openai-agents`, `bedrock`) or an SDK conformance
-program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured the telemetry:
+program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured the telemetry.
+
+Most producers have two modes, `native` and `sdk`, and a few have a third, `logs`: the producer's own
+**logging channel**, with nothing else instrumented, for a producer that reports a conversation through
+structured log records rather than through span attributes. A logs-mode capture is judged by this rule:
+
+> A logs-mode capture is compared with its native pair on the **conversation facts both channels carry**,
+> not on span structure. The logging channel of a producer that logs model calls carries a call's messages
+> and its response; where it carries no agent or tool spans, span counts, trace counts and tool executions
+> are not comparable and are not compared.
+>
+> What is compared: for every fact the native mode's views show that the logs mode's channel can carry -
+> the user turns, the system instruction, the assistant's text and the model's tool calls - the two
+> reconstruct identically, in the same order.
+>
+> What the logs mode cannot carry is a **declared** `not_exported` for that mode, with the reason, and the
+> absence probe proves each one against the capture's own payloads. A fact that is neither compared nor
+> declared fails the suite. So "the logs channel carries less" is a statement the corpus proves, never a
+> comparison that was skipped.
+
+Until those declarations exist, a logs-mode fixture is not listed in its scenario's truth: `autogen/logs/*`
+reconstructs its conversations correctly - the goldens show every turn, each tool call under the provider's
+id and each result against it - and the truth's **per-call** checks cannot be satisfied by the channel,
+because its records attach to the turn's span rather than to a span per model call, so several calls share
+one. That is the channel's shape, not a parsing defect, and it is the declaration the rubric owes.
 
 | Mode | Telemetry configured by |
 | --- | --- |
@@ -285,8 +309,9 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `agno/native@0.1.34` | openinference-instrumentation-agno 0.1.34 / agno 3.1.1 / filetype 1.2.0 / opentelemetry-sdk 1.45.0, released 2026-05-18; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
 | `agno/sdk` | SideSeat Python 2.0.0 / Agno 3.1.0 / Anthropic 1.11.0 (Bedrock) / OpenInference Agno instrumentor 1.0.13 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 12 |
 | `anthropic/sdk` | SideSeat Python 2.0.0 / Anthropic 1.11.0 (AnthropicBedrock) / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.13.7; SDK only, because native Logfire 5.1.1 abandons the span of every Anthropic 1.11 call made without tools (it JSON-encodes the SDK's `Omit` sentinel), which the SideSeat integration repairs | 9 | 9 |
-| `autogen/native` | AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenAI 3.24.0 / OpenInference AutoGen instrumentor 0.1.21 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup, against the harness's deterministic fake-openai endpoint; no `files` (AgentChat messages carry no documents) or `reasoning` (its chat client reads no reasoning from Chat Completions) | 9 | 11 |
-| `autogen/sdk` | SideSeat Python 2.0.0 / AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenAI 3.24.0 / OpenInference AutoGen instrumentor 0.1.21 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, against fake-openai | 9 | 12 |
+| `autogen/logs` | The same releases, and AutoGen's own structured events as OTLP log records with no span instrumentation: `autogen_core` logs one event per model call and per tool run, each event's JSON body naming its kind, so the conversation arrives as records rather than as span attributes. Its spans carry no messages, and it reports no span per model call, which is why the per-call truth has nothing to key on | 10 | 11 |
+| `autogen/native` | AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenAI 3.24.0 / OpenInference AutoGen instrumentor 0.1.21 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup, against the harness's deterministic fake-openai endpoint; no `files` (AgentChat messages carry no documents) or `reasoning` (its chat client reads no reasoning from Chat Completions) | 10 | 12 |
+| `autogen/sdk` | SideSeat Python 2.0.0 / AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenAI 3.24.0 / OpenInference AutoGen instrumentor 0.1.21 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, against fake-openai | 10 | 13 |
 | `azure-openai/native` | OpenAI 3.24.0 (`AzureOpenAI`, Chat Completions on a deployment route, and the Responses API for `reasoning`) / OpenInference OpenAI instrumentor 0.1.63 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup, against the harness's fake OpenAI server because Bedrock credentials cannot reach Azure; the instrumentor writes `__REDACTED__` in place of a base64 image over its 32,000-character default, so `files` carries the image as a placeholder | 9 | 9 |
 | `azure-openai/native@0.1.45` | openinference-instrumentation-openai 0.1.45 / openai 3.24.0 / opentelemetry-sdk 1.45.0, released 2026-04-22; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
 | `azure-openai/sdk` | SideSeat Python 2.0.0 / OpenAI 3.24.0 (`AzureOpenAI`) / OpenInference OpenAI instrumentor 0.1.63 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, against the harness's fake OpenAI server | 9 | 9 |

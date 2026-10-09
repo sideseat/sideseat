@@ -14,6 +14,9 @@ dependencies = [
 [tool.sideseat-example]
 producer = "autogen"
 integrations = ["autogen"]
+# A third mode beside `native` and `sdk`: `autogen_core` logs one structured event per model call, so the
+# conversation can arrive as OTLP log records with nothing else instrumented. See logs.py.
+modes = ["native", "sdk", "logs"]
 # The OpenInference AgentChat instrumentor records model requests only from AutoGen's OpenAI
 # clients, so the suite runs one against the harness's deterministic local OpenAI endpoint.
 default-model = "fake-openai"

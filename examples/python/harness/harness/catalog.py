@@ -60,6 +60,12 @@ CATALOG: dict[str, ScenarioSpec] = {
             "A tool the provider runs itself, such as web search, beside the answer.",
             core=False,
         ),
+        ScenarioSpec(
+            "trailing_tool",
+            "A turn that ends on a tool result: the model calls a tool and the conversation stops there, "
+            "so no later request re-sends what the tool returned.",
+            core=False,
+        ),
     )
 }
 
