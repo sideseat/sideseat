@@ -15,6 +15,30 @@ make --no-print-directory secret-scan-staged
 
 staged() { git diff --cached --name-only --diff-filter=ACMR -- "$@"; }
 
+# A staged file identical to one of its own earlier versions undoes every commit to it since: in a shared tree that
+# is almost always a working copy saved before someone else's commit landed, which a whole-file commit then puts
+# back without a word. A deliberate restore says so with SIDESEAT_ALLOW_RESTORE=1.
+if [ "${SIDESEAT_ALLOW_RESTORE:-}" != 1 ] && git rev-parse -q --verify HEAD >/dev/null; then
+    restored=()
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        blob="$(git rev-parse ":$file")"
+        [ "$blob" != "$(git rev-parse -q --verify "HEAD:$file" 2>/dev/null || true)" ] || continue
+        while IFS= read -r commit; do
+            if [ "$(git rev-parse -q --verify "$commit:$file" 2>/dev/null || true)" = "$blob" ]; then
+                restored+=("$file (its content at $(git rev-parse --short "$commit"))")
+                break
+            fi
+        done < <(git log --format=%H -n 30 HEAD -- "$file" | tail -n +2)
+    done < <(git diff --cached --name-only --diff-filter=M)
+    if [ ${#restored[@]} -gt 0 ]; then
+        echo "[pre-commit] these files would go back to an earlier version, undoing later commits to them:" >&2
+        printf '  %s\n' "${restored[@]}" >&2
+        echo "[pre-commit] rebase the working copy onto HEAD; a deliberate restore sets SIDESEAT_ALLOW_RESTORE=1" >&2
+        exit 1
+    fi
+fi
+
 # Formatting is checked on the staged blobs, not the working copies: in a shared tree a commit built from a
 # private index can stage one agent's hunks of a file that also holds another agent's unformatted work in
 # progress, and the working copy says nothing about what is committed. Each blob is piped through its formatter
