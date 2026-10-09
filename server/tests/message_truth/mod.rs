@@ -23,6 +23,7 @@
 
 mod absence;
 mod adversarial;
+mod authored;
 mod checks;
 mod consistency;
 mod explain;

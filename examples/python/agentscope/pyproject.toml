@@ -25,6 +25,14 @@ values = ["tool_use"]
 reason = "the signature of reasoning the model withheld the text of: AgentScope's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds"
 scenarios = ["error", "files", "multi_turn", "session"]
 
+# Text AgentScope writes into the conversation itself, not the model: the exit message `Agent._next_action`
+# returns once the required structured output is generated. Proven per capture by the rubric: verbatim in
+# AgentScope's payload, in no model response, and carried by every later request.
+[[tool.sideseat-example.truth.framework_authored]]
+text = "The required structured output is generated."
+source = "agentscope 2.0.9, agentscope/agent/_agent.py:3571 (Agent._next_action)"
+scenarios = ["structured_output"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

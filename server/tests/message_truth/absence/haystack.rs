@@ -292,7 +292,7 @@ fn any_value_json(value: &AnyValue) -> Value {
     }
 }
 
-pub(super) fn collapse_whitespace(text: &str) -> String {
+pub(in super::super) fn collapse_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 

@@ -181,6 +181,33 @@ def test_encrypted_reasoning_with_no_text_at_all_is_not_required() -> None:
     assert any(gap["reason"] == "reasoning_text_omitted" for gap in builder.gaps)
 
 
+def test_a_framework_text_ends_the_turn_and_is_refused_if_the_model_said_it() -> None:
+    framework = derive.Framework.of(
+        {
+            "framework_authored": [
+                {
+                    "text": "Done here.",
+                    "source": "framework.py:1",
+                    "scenarios": ["chat"],
+                }
+            ]
+        }
+    )
+    options = derive.Options(framework=framework)
+    builder = derive.assemble(
+        "p", "chat", [model_call(wire.text_part("Hello."))], options=options
+    )
+    (authored,) = [f for f in builder.facts if f["evidence"] == "framework"]
+    assert authored["value"] == {"text": "Done here."} and "call" not in authored
+    assert builder.conversations[0]["sequence"][-1] == authored["id"]
+    with pytest.raises(ValueError, match="in the model's response"):
+        derive.assemble(
+            "p", "chat", [model_call(wire.text_part("Done here."))], options=options
+        )
+    with pytest.raises(ValueError, match="needs a text, a source and scenarios"):
+        derive.Framework.of({"framework_authored": [{"text": "Done here."}]})
+
+
 def test_calculator_evaluates_arithmetic_only() -> None:
     assert derive.calculate("(17 * 23) + 4") == 395
     with pytest.raises(ValueError):

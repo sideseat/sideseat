@@ -341,6 +341,11 @@ class Framework:
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
     #: telemetry leaves it out.
     unexported: dict[str, Any] = field(default_factory=dict)
+    #: Text the framework writes into the conversation itself rather than the model: each ``{text, source,
+    #: scenarios}``, ``source`` citing the line of the framework that writes it. It becomes a fact resting on
+    #: ``framework`` evidence, ending the scenario's last turn, which the rubric proves per capture: verbatim in
+    #: the producer's own payload, in no model response, and carried by every later request.
+    framework_authored: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -359,7 +364,18 @@ class Framework:
             },
             unexported=dict(table.get("unexported", {})),
             text_answer_action=dict(table.get("text_answer_action", {})),
+            framework_authored=tuple(
+                _authored(entry) for entry in table.get("framework_authored", ())
+            ),
         )
+
+    def authored(self, scenario: str) -> list[str]:
+        """The texts the framework writes itself in this scenario."""
+        return [
+            entry["text"]
+            for entry in self.framework_authored
+            if scenario in entry["scenarios"]
+        ]
 
     def actions(self, name: str, arguments: Any) -> list[tuple[str, Any]] | None:
         """The actions a plan call lists, or ``None`` when the call is not a plan.
@@ -781,8 +797,55 @@ def assemble(
                 "prompt_without_model_call",
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
+    for text in framework.authored(scenario):
+        _framework_text(builder, text)
     unexported.apply(builder, framework)
     return builder
+
+
+def _authored(entry: dict[str, Any]) -> dict[str, Any]:
+    """One declared framework text, refused unless it states its text, its source and its scenarios."""
+    if not (
+        isinstance(entry.get("text"), str)
+        and entry["text"]
+        and isinstance(entry.get("source"), str)
+        and entry["source"]
+        and isinstance(entry.get("scenarios"), list)
+        and entry["scenarios"]
+    ):
+        raise ValueError(
+            f"a framework_authored entry needs a text, a source and scenarios: {entry!r}"
+        )
+    return entry
+
+
+def _framework_text(builder: Builder, text: str) -> None:
+    """A text the framework writes itself, ending the turn the scenario's last call answered.
+
+    No model said it, so a response of the scenario holding it - as text, reasoning or inside a tool call's
+    arguments - refuses the declaration: that text is the model's, and already a fact.
+    """
+    for fact in builder.facts:
+        if fact.get("call") is not None and text in json.dumps(
+            fact["value"], ensure_ascii=False
+        ):
+            raise ValueError(
+                f"{text!r} is in the model's response {fact['id']}, so the framework did not write it"
+            )
+    last = next((c for c in reversed(builder.calls) if c["outcome"] == "success"), None)
+    if last is None:
+        raise ValueError(f"{text!r} ends no turn: the scenario has no successful call")
+    conversation = next(
+        c for c in builder.conversations if c["id"] == last["conversation"]
+    )
+    builder.fact(
+        conversation,
+        "text",
+        "assistant",
+        "framework",
+        {"text": text},
+        require=_conversation_requirement("exact"),
+    )
 
 
 def _text_action_arguments(text: str, action: dict[str, str]) -> dict[str, Any]:

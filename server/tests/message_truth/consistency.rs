@@ -148,10 +148,27 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                 fact.id, fact.kind, fact.role
             ));
         }
-        if !["wire", "wire-echo", "script", "program"].contains(&fact.evidence.as_str()) {
+        if !["wire", "wire-echo", "script", "program", "framework"]
+            .contains(&fact.evidence.as_str())
+        {
             bad(format!(
                 "{} rests on unknown evidence {}",
                 fact.id, fact.evidence
+            ));
+        }
+        // What a framework writes itself is an assistant text of no call, owed by the conversation
+        // (`authored`).
+        if fact.evidence == "framework"
+            && (fact.kind != "text"
+                || fact.call.is_some()
+                || fact
+                    .require
+                    .as_ref()
+                    .is_none_or(|r| r.anchor != "conversation"))
+        {
+            bad(format!(
+                "{} rests on the framework's own writing but is not a conversation's assistant text",
+                fact.id
             ));
         }
         if let Some(call) = &fact.call {
