@@ -326,7 +326,10 @@ The decoded value becomes messages through:
   cases (`then_fragment`, naming `<asset-id>.<fragment>`) and add local ones (`extra_cases`). `also` readings all
   contribute; `fallback` readings all contribute where nothing else in the rule built anything;
 - `sections`: the raw text split on `split_on` into `[TAG]` sections, each routed by its tag to a role, before
-  any parsing;
+  any parsing. A route may also claim a section by its place in the producer's sequence (`position`: `first`,
+  `last` or `not_last`, counted before any section is left out), and may restore literal text the producer puts
+  around a section in the request it sends but leaves out of the carrier (`wrap_text`, with `before`, `after` and
+  a required `because` saying where the producer adds it - never text taken from data);
 - `compose`: one message assembled from several attributes;
 - `elements` for an array read in passes, `walk` to apply the readings at every node of a bounded tree walk,
   `branch_set` for sub-rules with a local order, and `tool_repr` for a language's `repr` of tool schemas.
@@ -1516,9 +1519,19 @@ What to do with a section whose tag matches.
 | `id` (required) | string | This clause's own name, unique within the rule or fragment that holds it. |
 | `doc` | string |  |
 | `tag_prefix` | string | The tag prefix this route claims. Absent means "any section not claimed above". |
+| `position` | [`SectionPosition`](#sectionposition) or null | Where in the carrier a section this route claims sits: its place among the sections the carrier is split into, before any is left out as cut, as stated elsewhere or as blank - the producer's sequence, not what remains of it. Absent: anywhere. With a `tag_prefix`, both must hold. |
 | `role` (required) | string | The role the emitted message carries. |
 | `block` | [`SectionBlock`](#sectionblock) or null | Build a content block instead of putting the body under `content`. |
 | `skip_where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | Drop the section entirely when every one of these holds, tested against `{"capture": <tag remainder>, "body": <section body>}`. |
+| `wrap_text` | [`WrapText`](#wraptext) or null | Literal text the producer puts around the section's body in the request it sends but leaves out of the carrier, restored around the body this route emits. Never from data, and stated with where the producer adds it (`because`), since it is text the carrier does not hold. `skip_where` still sees the body as the carrier holds it. |
+
+### `SectionPosition`
+
+A section's place in its carrier's sequence of sections.
+
+- `"first"`: The carrier's first section.
+- `"last"`: The carrier's last section.
+- `"not_last"`: Every section but the last.
 
 ### `SectionBlock`
 
@@ -1529,6 +1542,17 @@ A block built from a section, carrying what the tag captured.
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `type` (required) | string |  |
 | `capture_as` | string | The member the tag's remainder becomes - an id that pairs this section with a call. |
+
+### `WrapText`
+
+The literal text a producer adds around a section when it sends it, which its carrier leaves out.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string |  |
+| `because` (required) | string | Where the producer adds the text, and what shows it is constant: required, because the emitted message then holds bytes the carrier does not. |
+| `before` | string | The text before the body. |
+| `after` | string | The text after the body. |
 
 ### `MemberRequirements`
 

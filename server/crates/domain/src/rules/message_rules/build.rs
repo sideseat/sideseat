@@ -506,20 +506,26 @@ pub(super) fn sectioned(
         None => raw.split(spec.split_on.as_str()).collect(),
     };
     // A carrier shorter than its stated length was cut, and only its last section can be the cut one.
-    if let Some(witness) = &spec.truncated_unless_length
+    let cut = if let Some(witness) = &spec.truncated_unless_length
         && let Some(stated) =
             attribute(&witness.source).and_then(|v| v.trim().parse::<usize>().ok())
         && witness.counts.length_of(raw) < stated
     {
         sections.pop();
-    }
+        true
+    } else {
+        false
+    };
     let carried: Vec<&str> = spec
         .skip_sections_equal_to
         .iter()
         .filter_map(attribute)
         .map(|value| value.trim())
         .collect();
-    for section in sections {
+    // A route's `position` is the section's place in the producer's sequence, so it is counted before any
+    // section is left out below; a cut final section still counts as the last.
+    let count = sections.len() + usize::from(cut);
+    for (index, section) in sections.into_iter().enumerate() {
         if carried.contains(&section.trim()) {
             continue;
         }
@@ -532,6 +538,11 @@ pub(super) fn sectioned(
         let matched = spec
             .routes
             .iter()
+            .filter(|route| {
+                route
+                    .position
+                    .is_none_or(|position| position.holds(index, count))
+            })
             .find_map(|route| match &route.tag_prefix {
                 Some(prefix) => tag
                     .and_then(|t| t.strip_prefix(prefix.as_str()))
@@ -551,6 +562,10 @@ pub(super) fn sectioned(
                 continue;
             }
         }
+        let body = match &route.wrap_text {
+            Some(wrap) => std::borrow::Cow::Owned(format!("{}{body}{}", wrap.before, wrap.after)),
+            None => std::borrow::Cow::Borrowed(body),
+        };
         let mut message = serde_json::Map::new();
         message.insert("role".to_string(), json!(route.role));
         match &route.block {
@@ -691,5 +706,156 @@ mod section_option_tests {
         );
         // A section of whitespace alone holds no turn.
         assert!(bodies("[user]\n \n", &spec, &[]).is_empty());
+    }
+
+    /// The route each section took, and its role.
+    fn routed(raw: &str, spec: &SectionsSpec, attrs: &[(&str, &str)]) -> Vec<(String, String)> {
+        let attrs: HashMap<String, String> = attrs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        sectioned(raw, spec, &attrs)
+            .into_iter()
+            .map(|(route, message)| {
+                (
+                    route,
+                    message["content"].as_str().expect("text").to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// **A route may claim a section by its place in the carrier**: reminders a request embeds in its user turn
+    /// are every section but the last, and the last is the system turn it appends. The place is the producer's,
+    /// counted before any section is left out, so a cut final section still counts as the last, and so does a
+    /// blank one.
+    #[test]
+    fn a_route_claims_a_section_by_its_place_in_the_carrier() {
+        let pair = |route: &str, body: &str| (route.to_string(), body.to_string());
+        let positioned = spec(serde_json::json!({"routes": [
+            {"id": "embedded", "position": "not_last", "role": "user"},
+            {"id": "appended", "role": "system"}
+        ]}));
+        assert_eq!(
+            routed("a\n\nb\n\nc", &positioned, &[]),
+            [
+                pair("embedded", "a"),
+                pair("embedded", "b"),
+                pair("appended", "c")
+            ]
+        );
+        assert_eq!(
+            routed("a", &positioned, &[]),
+            [pair("appended", "a")],
+            "one section is the last"
+        );
+        assert_eq!(
+            routed("a\n\n", &positioned, &[]),
+            [pair("embedded", "a")],
+            "a blank last section is still the last"
+        );
+        let mut cut = positioned.clone();
+        cut.truncated_unless_length =
+            serde_json::from_value(serde_json::json!({"source": "attr:len", "counts": "chars"}))
+                .expect("a length witness");
+        assert_eq!(
+            routed("a\n\nb\n\nc", &cut, &[("len", "500")]),
+            [pair("embedded", "a"), pair("embedded", "b")],
+            "the cut section is left out and still counts as the last"
+        );
+
+        let ends = spec(serde_json::json!({"routes": [
+            {"id": "first", "position": "first", "role": "system"},
+            {"id": "last", "position": "last", "role": "user"},
+            {"id": "middle", "role": "assistant"}
+        ]}));
+        assert_eq!(
+            routed("a\n\nb\n\nc", &ends, &[]),
+            [pair("first", "a"), pair("middle", "b"), pair("last", "c")]
+        );
+        assert_eq!(
+            routed("a", &ends, &[]),
+            [pair("first", "a")],
+            "the first route that holds wins"
+        );
+        // With a tag, both must hold.
+        let tagged = spec(serde_json::json!({"routes": [
+            {"id": "user_first", "tag_prefix": "USER", "position": "first", "role": "user"}
+        ]}));
+        assert_eq!(
+            routed("[USER]\na\n\n[USER]\nb", &tagged, &[]),
+            [pair("user_first", "a")]
+        );
+    }
+
+    /// **A route restores the literal text its producer adds around a section** and leaves out of the carrier;
+    /// what the route skips is still asked of the body as the carrier holds it.
+    #[test]
+    fn a_route_restores_the_literal_text_its_producer_adds_around_a_section() {
+        let wrapped = spec(serde_json::json!({"routes": [{
+            "id": "reminder",
+            "role": "user",
+            "wrap_text": {"because": "the probe producer wraps every reminder", "before": "<r>\n", "after": "\n</r>"},
+            "skip_where": {"path": "$.body", "starts_with": "<r>"}
+        }]}));
+        assert_eq!(
+            bodies("one\n\ntwo", &wrapped, &[]),
+            ["<r>\none\n</r>", "<r>\ntwo\n</r>"]
+        );
+        assert!(
+            bodies("<r>already", &wrapped, &[]).is_empty(),
+            "skip_where sees the carrier's body, not the restored one"
+        );
+        let before_only =
+            spec_with_wrap(serde_json::json!({"because": "a prefix", "before": "> "}));
+        assert_eq!(bodies("quoted", &before_only, &[]), ["> quoted"]);
+    }
+
+    fn spec_with_wrap(wrap: serde_json::Value) -> SectionsSpec {
+        spec(serde_json::json!({"routes": [{"id": "r", "role": "user", "wrap_text": wrap}]}))
+    }
+
+    /// The grammar refuses a route that would claim every section before others, a `wrap_text` that adds
+    /// nothing, and one without its reason; a positioned route is no default, so routes may follow it.
+    #[test]
+    fn section_routes_are_refused_where_they_say_nothing_or_hide_a_route() {
+        let compiles = |routes: serde_json::Value| {
+            let asset = serde_json::json!({"id": "t", "messages": [{
+                "id": "t.sections", "read": {"attribute": "probe.text"}, "parse": "text",
+                "sections": {"split_on": "\n\n", "routes": routes},
+                "emit": "message", "priority": 1
+            }]});
+            crate::rules::message_rules::compile(
+                &crate::rules::assets::ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                    "t.json".to_string(),
+                    serde_json::to_vec(&asset).expect("the probe serialises"),
+                )]))
+                .expect("the probe parses"),
+            )
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+        };
+        compiles(serde_json::json!([
+            {"id": "embedded", "position": "not_last", "role": "user"},
+            {"id": "rest", "role": "system"}
+        ]))
+        .expect("a positioned route before the default");
+        for (why, routes) in [
+            (
+                "a default before another route",
+                serde_json::json!([{"id": "all", "role": "system"}, {"id": "dead", "role": "user"}]),
+            ),
+            (
+                "a wrap that adds nothing",
+                serde_json::json!([{"id": "r", "role": "user", "wrap_text": {"because": "nothing"}}]),
+            ),
+            (
+                "a wrap without its reason",
+                serde_json::json!([{"id": "r", "role": "user", "wrap_text": {"because": " ", "before": "<r>"}}]),
+            ),
+        ] {
+            let refused = compiles(routes).expect_err(why);
+            assert!(refused.contains("t.sections"), "{why}: {refused}");
+        }
     }
 }

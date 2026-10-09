@@ -3011,6 +3011,17 @@
           ],
           "default": null
         },
+        "position": {
+          "description": "Where in the carrier a section this route claims sits: its place among the sections the carrier is\nsplit into, before any is left out as cut, as stated elsewhere or as blank - the producer's sequence,\nnot what remains of it. Absent: anywhere. With a `tag_prefix`, both must hold.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SectionPosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "role": {
           "description": "The role the emitted message carries.",
           "type": "string"
@@ -3029,12 +3040,43 @@
         "skip_where": {
           "description": "Drop the section entirely when every one of these holds, tested against\n`{\"capture\": <tag remainder>, \"body\": <section body>}`.\n\nPredicates rather than a fused pair. It was `capture_lacks_prefix` **and** `body_starts_with`,\nwhich is one producer's policy in the shape of a field - the weakest feature in the vocabulary by\nits own test. What it expresses is unchanged and still narrow on purpose: a dialect writes each\ntool result twice, once as the text the model saw tagged with the call id and once as raw\nstructured telemetry tagged with the tool's name, and emitting both shows every result twice. The\nconditions stay conjunctive so that if the id prefix ever changes, an unrecognised section reaches\nthe feed unlinked rather than vanishing from it.",
           "$ref": "#/$defs/Expr_ValuePredicate"
+        },
+        "wrap_text": {
+          "description": "Literal text the producer puts around the section's body in the request it sends but leaves out of the\ncarrier, restored around the body this route emits. Never from data, and stated with where the producer\nadds it (`because`), since it is text the carrier does not hold. `skip_where` still sees the body as\nthe carrier holds it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WrapText"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "role"
+      ]
+    },
+    "SectionPosition": {
+      "description": "A section's place in its carrier's sequence of sections.",
+      "oneOf": [
+        {
+          "description": "The carrier's first section.",
+          "type": "string",
+          "const": "first"
+        },
+        {
+          "description": "The carrier's last section.",
+          "type": "string",
+          "const": "last"
+        },
+        {
+          "description": "Every section but the last.",
+          "type": "string",
+          "const": "not_last"
+        }
       ]
     },
     "SectionBlock": {
@@ -3064,6 +3106,37 @@
       "additionalProperties": false,
       "required": [
         "type"
+      ]
+    },
+    "WrapText": {
+      "description": "The literal text a producer adds around a section when it sends it, which its carrier leaves out.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "because": {
+          "description": "Where the producer adds the text, and what shows it is constant: required, because the emitted message\nthen holds bytes the carrier does not.",
+          "type": "string"
+        },
+        "before": {
+          "description": "The text before the body.",
+          "type": "string",
+          "default": ""
+        },
+        "after": {
+          "description": "The text after the body.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "because"
       ]
     },
     "MemberRequirements": {

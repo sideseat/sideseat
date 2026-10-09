@@ -796,6 +796,11 @@ pub struct SectionRoute {
     /// The tag prefix this route claims. Absent means "any section not claimed above".
     #[serde(default)]
     pub tag_prefix: Option<String>,
+    /// Where in the carrier a section this route claims sits: its place among the sections the carrier is
+    /// split into, before any is left out as cut, as stated elsewhere or as blank - the producer's sequence,
+    /// not what remains of it. Absent: anywhere. With a `tag_prefix`, both must hold.
+    #[serde(default)]
+    pub position: Option<SectionPosition>,
     /// The role the emitted message carries.
     pub role: String,
     /// Build a content block instead of putting the body under `content`.
@@ -813,6 +818,54 @@ pub struct SectionRoute {
     /// the feed unlinked rather than vanishing from it.
     #[serde(default, rename = "skip_where")]
     pub skip_when: ValueCondition,
+    /// Literal text the producer puts around the section's body in the request it sends but leaves out of the
+    /// carrier, restored around the body this route emits. Never from data, and stated with where the producer
+    /// adds it (`because`), since it is text the carrier does not hold. `skip_where` still sees the body as
+    /// the carrier holds it.
+    #[serde(default)]
+    pub wrap_text: Option<WrapText>,
+}
+
+/// A section's place in its carrier's sequence of sections.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum SectionPosition {
+    /// The carrier's first section.
+    First,
+    /// The carrier's last section.
+    Last,
+    /// Every section but the last.
+    NotLast,
+}
+
+impl SectionPosition {
+    /// Whether the section at `index` of `count` sits here.
+    pub fn holds(self, index: usize, count: usize) -> bool {
+        match self {
+            Self::First => index == 0,
+            Self::Last => index + 1 == count,
+            Self::NotLast => index + 1 < count,
+        }
+    }
+}
+
+/// The literal text a producer adds around a section when it sends it, which its carrier leaves out.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct WrapText {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Where the producer adds the text, and what shows it is constant: required, because the emitted message
+    /// then holds bytes the carrier does not.
+    pub because: String,
+    /// The text before the body.
+    #[serde(default)]
+    pub before: String,
+    /// The text after the body.
+    #[serde(default)]
+    pub after: String,
 }
 
 /// A block built from a section, carrying what the tag captured.

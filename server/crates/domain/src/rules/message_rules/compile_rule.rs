@@ -714,13 +714,24 @@ pub(super) fn compile_rule(
         if let Some(position) = sections
             .routes
             .iter()
-            .position(|route| route.tag_prefix.is_none())
+            .position(|route| route.tag_prefix.is_none() && route.position.is_none())
             && position + 1 < sections.routes.len()
         {
             return Err(inexpressible(
-                "a route with no `tag_prefix` claims every section, so the routes after it can \
-                     never match",
+                "a route with no `tag_prefix` and no `position` claims every section, so the routes \
+                     after it can never match",
             ));
+        }
+        for route in &sections.routes {
+            if let Some(wrap) = &route.wrap_text
+                && (wrap.because.trim().is_empty()
+                    || (wrap.before.is_empty() && wrap.after.is_empty()))
+            {
+                return Err(inexpressible(
+                    "a route's `wrap_text` adds nothing, or does not say where the producer adds it - \
+                         text the carrier does not hold is restored only with its reason",
+                ));
+            }
         }
     }
     if let Some(compose) = compose {
