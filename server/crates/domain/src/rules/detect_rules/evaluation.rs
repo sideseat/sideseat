@@ -132,6 +132,13 @@ impl DetectPlan {
                             push(key, format!("containing `{value}`"), found);
                         }
                     }
+                    span_conditions::SpanAtom::SpanAttrStartsWith { key, prefix } => {
+                        if let Some(found) = ctx.span_attrs.get(key)
+                            && !found.starts_with(prefix.as_str())
+                        {
+                            push(key, format!("starting with `{prefix}`"), found);
+                        }
+                    }
                     span_conditions::SpanAtom::ResourceAttrContains { key, value } => {
                         if let Some(found) = ctx.resource_attrs.get(key)
                             && !found.contains(value.as_str())

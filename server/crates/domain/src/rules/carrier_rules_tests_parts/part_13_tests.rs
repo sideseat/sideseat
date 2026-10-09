@@ -318,3 +318,78 @@ fn a_predicate_is_judged_at_the_polarity_it_sits_at() {
         assert!(defect(value.clone()).is_some(), "{why}: accepted - {value}");
     }
 }
+
+/// **An attribute answers `starts_with`**, three-valued like every value test: true where its value begins with
+/// the prefix, false where it does not, and unknown where the attribute is absent, so a negation does not hold
+/// there. An empty prefix is refused, and the analysis knows what it implies and excludes.
+#[test]
+fn an_attribute_answers_starts_with_in_three_values() {
+    use crate::rules::expr::Truth;
+    use crate::rules::span_conditions::{self, Readable, SpanAtom, SpanSubject};
+    let lowered = |condition: serde_json::Value| {
+        let condition: crate::rules::schema::SpanWhere =
+            serde_json::from_value(condition).expect("the condition parses");
+        span_conditions::lower(&condition, Readable::SPAN_AND_SCOPE)
+    };
+    let prefix =
+        lowered(serde_json::json!({"source": "attr:probe.delta", "starts_with": "[USER]"}))
+            .expect("an attribute answers starts_with");
+    let truth = |value: Option<&str>| {
+        let attrs: std::collections::HashMap<String, String> = value
+            .map(|text| ("probe.delta".to_string(), text.to_string()))
+            .into_iter()
+            .collect();
+        let subject = SpanSubject {
+            span_name: "probe",
+            attrs: &attrs,
+            scope_name: None,
+            scope_version: None,
+            resource: None,
+            marks: 0,
+        };
+        prefix.eval(&mut |atom| atom.eval(&subject))
+    };
+    assert_eq!(truth(Some("[USER]\nhello")), Truth::True);
+    assert_eq!(
+        truth(Some("[TOOL RESULT: t1]\n[USER] quoted")),
+        Truth::False,
+        "only where it begins"
+    );
+    assert_eq!(
+        truth(None),
+        Truth::Unknown,
+        "absent is unknown, so `not` over it does not hold"
+    );
+
+    let refused = lowered(serde_json::json!({"source": "attr:probe.delta", "starts_with": ""}))
+        .map(|lowered| {
+            span_conditions::positive_atoms(&lowered)
+                .iter()
+                .any(|atom| atom.defect().is_some())
+        });
+    assert_eq!(refused.ok(), Some(true), "an empty prefix is a defect");
+
+    let atom = |prefix: &str| SpanAtom::SpanAttrStartsWith {
+        key: "probe.delta".to_string(),
+        prefix: prefix.to_string(),
+    };
+    let equals = |value: &str| SpanAtom::SpanAttrEquals {
+        key: "probe.delta".to_string(),
+        value: value.to_string(),
+    };
+    assert!(
+        atom("[USER]\n").implies(&atom("[USER]")),
+        "a longer prefix implies a shorter"
+    );
+    assert!(equals("[USER]\nhi").implies(&atom("[USER]")));
+    assert!(atom("[USER]").implies(&SpanAtom::SpanAttrExists {
+        key: "probe.delta".to_string()
+    }));
+    assert!(!atom("[USER]").implies(&atom("[USER]\n")));
+    assert!(
+        atom("[USER]").excludes(&atom("[TOOL")),
+        "two prefixes neither of which begins the other"
+    );
+    assert!(equals("[TOOL RESULT]").excludes(&atom("[USER]")));
+    assert!(!atom("[USER]").excludes(&atom("[US")));
+}

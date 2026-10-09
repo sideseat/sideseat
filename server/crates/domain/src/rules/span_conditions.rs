@@ -14,6 +14,9 @@ use std::collections::HashMap;
 use super::expr::{AtomDefect, Expr, Truth};
 use super::schema::{ConditionSource, SpanCondition, SpanWhere};
 
+mod version_range;
+use version_range::lower_version;
+
 /// One question about a span, as evaluated.
 ///
 /// Singular: two values of one key are `any` of two atoms, two keys `all` of two, and the difference is written
@@ -34,6 +37,8 @@ pub enum SpanAtom {
     SpanAttrEqualsIgnoreAsciiCase { key: String, value: String },
     /// This attribute's value contains this substring.
     SpanAttrContains { key: String, value: String },
+    /// This attribute's value begins with this.
+    SpanAttrStartsWith { key: String, prefix: String },
     /// This attribute's text parses as JSON. Unknown where the attribute is absent.
     SpanAttrParsesJson { key: String },
     /// This span carries this mark. Total: a span's stored marks are the answers to every declared condition, so
@@ -138,6 +143,11 @@ impl SpanAtom {
             Self::SpanAttrContains { key, value } => {
                 value_test(subject.attrs.get(key).map(String::as_str), &|found| {
                     found.contains(value.as_str())
+                })
+            }
+            Self::SpanAttrStartsWith { key, prefix } => {
+                value_test(subject.attrs.get(key).map(String::as_str), &|found| {
+                    found.starts_with(prefix.as_str())
                 })
             }
             Self::SpanAttrParsesJson { key } => {
@@ -249,6 +259,10 @@ impl SpanAtom {
                 "starts_with",
                 "an empty prefix, which every instrumentation scope's name begins with",
             ),
+            Self::SpanAttrStartsWith { prefix, .. } if prefix.is_empty() => defect(
+                "starts_with",
+                "an empty prefix, which every present value begins with",
+            ),
             Self::SpanAttrContains { value, .. } | Self::ResourceAttrContains { value, .. }
                 if value.is_empty() =>
             {
@@ -275,6 +289,7 @@ impl SpanAtom {
             | Self::SpanAttrEquals { key, .. }
             | Self::SpanAttrEqualsIgnoreAsciiCase { key, .. }
             | Self::SpanAttrContains { key, .. }
+            | Self::SpanAttrStartsWith { key, .. }
             | Self::SpanAttrParsesJson { key }
             | Self::SpanAttrJsonMember { key, .. } => Some(key),
             _ => None,
@@ -307,6 +322,20 @@ impl SpanAtom {
                     value: other_value,
                 },
             ) => key == other_key && value != other_value,
+            (
+                Self::SpanAttrEquals { key, value },
+                Self::SpanAttrStartsWith {
+                    key: other_key,
+                    prefix,
+                },
+            ) => key == other_key && !value.starts_with(prefix.as_str()),
+            (
+                Self::SpanAttrStartsWith { key, prefix: a },
+                Self::SpanAttrStartsWith {
+                    key: other_key,
+                    prefix: b,
+                },
+            ) => key == other_key && !a.starts_with(b.as_str()) && !b.starts_with(a.as_str()),
             _ => false,
         }
     }
@@ -351,7 +380,23 @@ impl SpanAtom {
                 | Self::SpanAttrEquals {
                     key: mine,
                     value: mine_value,
+                }
+                | Self::SpanAttrStartsWith {
+                    key: mine,
+                    prefix: mine_value,
                 } => mine == key && mine_value.contains(value.as_str()),
+                _ => false,
+            },
+            // A value that is, or begins with, a longer text begins with every prefix of it.
+            Self::SpanAttrStartsWith { key, prefix } => match self {
+                Self::SpanAttrEquals {
+                    key: mine,
+                    value: mine_value,
+                }
+                | Self::SpanAttrStartsWith {
+                    key: mine,
+                    prefix: mine_value,
+                } => mine == key && mine_value.starts_with(prefix.as_str()),
                 _ => false,
             },
             Self::ResourceAttrContains { key, value } => match self {
@@ -717,6 +762,10 @@ fn lower_atom(
             Source::Scope => Expr::Atom(SpanAtom::ScopeNameStartsWith {
                 prefix: prefix.clone(),
             }),
+            Source::Attr(key) => Expr::Atom(SpanAtom::SpanAttrStartsWith {
+                key: key.clone(),
+                prefix: prefix.clone(),
+            }),
             _ => unanswerable("starts_with")?,
         });
     }
@@ -775,59 +824,6 @@ fn lower_atom(
         }));
     }
     Ok(Expr::all(atoms).expect("at least one test was counted"))
-}
-
-/// A version range, alone in its atom and over the scope's version, with bounds that parse and leave room.
-fn lower_version(
-    atom: &SpanCondition,
-    range: &super::schema::VersionRange,
-    tests: usize,
-    readable: Readable,
-) -> Result<SpanExpr, ConditionDefect> {
-    let refuse = |why: &str| Err(ConditionDefect(why.to_string()));
-    if tests > 1 {
-        return refuse(
-            "a version range is asked alone: another test beside it reads the version as text",
-        );
-    }
-    let source = match &atom.source {
-        ConditionSource::One(one) => parse_source(&one.0, readable)?,
-        _ => return refuse("a version range reads one source"),
-    };
-    if !matches!(source, Source::ScopeVersion) {
-        return refuse(
-            "a version range reads `scope.version` only: a version written in an attribute is a value another rule \
-             could read as text, which would let a version decide something without a version test",
-        );
-    }
-    if range.because.trim().is_empty() {
-        return refuse("a version range states `because`: why no shape test can say this");
-    }
-    let bound = |text: &Option<String>| match text {
-        None => Ok(None),
-        Some(text) => super::versions::Version::parse_bound(range.scheme, text)
-            .map(Some)
-            .ok_or_else(|| {
-                ConditionDefect(format!("`{text}` is not a version in the declared scheme"))
-            }),
-    };
-    let at_least = bound(&range.at_least)?;
-    let below = bound(&range.below)?;
-    match (&at_least, &below) {
-        (None, None) => refuse(
-            "a version range names at least one bound; without one it holds for every version",
-        ),
-        (Some(low), Some(high)) if low.compare(high).is_none_or(std::cmp::Ordering::is_ge) => {
-            refuse(
-                "a version range's `at_least` is not below its `below`, so no version is inside it",
-            )
-        }
-        _ => Ok(Expr::Atom(SpanAtom::ScopeVersionIn {
-            scheme: range.scheme,
-            at_least,
-            below,
-        })),
-    }
 }
 
 /// Whether every span `narrower` holds for, `wider` holds for too - sound, and deliberately incomplete.

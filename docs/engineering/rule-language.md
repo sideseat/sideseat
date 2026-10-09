@@ -89,7 +89,7 @@ An atom names a `source` and the tests asked of the value it selects:
 | `equals` | is exactly this text | `span_name`, `attr:<key>`, `scope.name` |
 | `equals_ignore_case` | is this text, ignoring ASCII case | `attr:<key>` |
 | `one_of` | is one of these texts | `span_name`, `attr:<key>`, `scope.name` |
-| `starts_with` | begins with this text (for `attr_keys`, some key does) | `span_name`, `attr_keys`, `scope.name` |
+| `starts_with` | begins with this text (for `attr_keys`, some key does) | `span_name`, `attr:<key>`, `attr_keys`, `scope.name` |
 | `contains` | contains this text | `attr:<key>`, `resource:<key>` |
 | `contains_ignore_case` | contains this text, ignoring case | `span_name`, `attr:<key>` |
 | `parses` | parses in the named encoding (`json`); false where it does not, so a value cut short by a length limit does not hold | `attr:<key>` |
