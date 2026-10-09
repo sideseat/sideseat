@@ -167,6 +167,11 @@ impl<H> Clone for RawExport<H> {
 
 /// The export's message length, from the first five bytes of its body - the gRPC frame's flag and length - read
 /// before the message itself, with the body that remains, those bytes first.
+///
+/// The body that remains ends with that frame: an export is one message, and a second one is an error, not more
+/// bytes to decode. tonic reads past a unary call's message while it waits for the end of the stream, so a stream
+/// that began with an empty message could otherwise carry messages up to the decoding limit past the five bytes it
+/// was admitted for.
 async fn frame_length<B>(body: B) -> (usize, axum::body::Body)
 where
     B: tonic::codegen::Body<Data = Bytes> + Send + 'static,
@@ -193,7 +198,42 @@ where
     let read = futures::stream::once(async move { Ok(prefix.freeze()) })
         .chain(futures::stream::iter(failure.map(Err)))
         .chain(data);
-    (length, axum::body::Body::from_stream(read))
+    (
+        length,
+        axum::body::Body::from_stream(one_frame(read, length)),
+    )
+}
+
+/// `stream`, cut at `length` bytes: anything after them is an error, and ends it.
+fn one_frame<S, E>(
+    stream: S,
+    length: usize,
+) -> impl futures::Stream<Item = Result<Bytes, StdError>> + Send
+where
+    S: futures::Stream<Item = Result<Bytes, E>> + Send + 'static,
+    E: Into<StdError> + Send + 'static,
+{
+    stream.scan((0usize, false), move |(passed, ended), chunk| {
+        let item = if *ended {
+            None
+        } else {
+            match chunk {
+                Err(error) => Some(Err(error.into())),
+                Ok(chunk) if chunk.len() > length.saturating_sub(*passed) => {
+                    // The rest of the stream is not read: the frame was all the export was admitted for.
+                    *ended = true;
+                    Some(Err(StdError::from(
+                        "an OTLP export carries one message; the stream continued past it",
+                    )))
+                }
+                Ok(chunk) => {
+                    *passed += chunk.len();
+                    Some(Ok(chunk))
+                }
+            }
+        };
+        futures::future::ready(item)
+    })
 }
 
 impl<H: RawExportHandler> NamedService for RawExport<H> {
@@ -260,11 +300,15 @@ where
             };
             let mut grpc = Grpc::new(RawCodec::<H::Response, H::Request>::default())
                 .apply_max_message_size_config(max_decoding, max_encoding);
-            let response = grpc
-                .unary(ExportSvc(inner), http::Request::from_parts(parts, body))
-                .await;
-            drop(admitted);
-            Ok(response)
+            // On a task of its own that holds the bytes, as HTTP's answer does (`admission::answered_holding`).
+            let answer = async move {
+                grpc.unary(ExportSvc(inner), http::Request::from_parts(parts, body))
+                    .await
+            };
+            Ok(super::admission::answered_holding(admitted, answer, || {
+                Status::internal("the export failed").into_http()
+            })
+            .await)
         })
     }
 }
@@ -409,6 +453,47 @@ mod tests {
             .expect("the call is infallible");
         assert_eq!(response.status(), http::StatusCode::OK);
         assert!(spy.0.lock().expect("spy").is_some(), "served once it fits");
+        assert_eq!(admission.in_flight(), 0, "released once answered");
+    }
+
+    /// An export is one message: a stream that continues past its first frame is refused before anything after
+    /// that frame is read or decoded, so the bytes it was admitted for are the bytes it can make the server hold.
+    #[tokio::test]
+    async fn a_second_message_in_an_export_is_refused_not_decoded() {
+        let payload = export().encode_to_vec();
+        let admission = Arc::new(super::super::admission::IngestAdmission::new(1 << 20));
+        let spy = Arc::new(Spy(Mutex::new(None)));
+        let mut service = RawExport {
+            inner: Arc::clone(&spy),
+            max_decoding_message_size: Some(1 << 20),
+            max_encoding_message_size: Some(1 << 20),
+            admission: Arc::clone(&admission),
+        };
+        let mut body = frame(&[]);
+        body.extend_from_slice(&frame(&payload));
+        let response = service
+            .call(
+                http::Request::builder()
+                    .uri(Spy::PATH)
+                    .header(http::header::CONTENT_TYPE, "application/grpc")
+                    .body(axum::body::Body::from_stream(futures::stream::iter([
+                        Ok::<_, std::io::Error>(Bytes::from(body[..5].to_vec())),
+                        Ok(Bytes::from(body[5..].to_vec())),
+                    ])))
+                    .expect("a well-formed request"),
+            )
+            .await
+            .expect("the call is infallible");
+        let status = response
+            .headers()
+            .get(Status::GRPC_STATUS)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        assert!(
+            status.as_deref().is_some_and(|code| code != "0"),
+            "a two-message export was answered {status:?}"
+        );
+        assert!(spy.0.lock().expect("spy").is_none(), "the handler ran");
         assert_eq!(admission.in_flight(), 0, "released once answered");
     }
 

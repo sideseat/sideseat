@@ -163,3 +163,69 @@ async fn an_export_over_the_body_limit_is_refused_unread() {
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     assert!(!probe.read.load(Ordering::SeqCst));
 }
+
+/// With the budget held whole, an export without a declared length is refused before its body is polled: a
+/// client that withholds its first chunk is answered at once, and a compressed body is not decompressed first.
+#[tokio::test]
+async fn with_the_budget_held_whole_an_unlengthed_export_is_refused_unread() {
+    let admission = Arc::new(IngestAdmission::new(100));
+    let app = router(Arc::clone(&admission), Arc::new(AtomicUsize::new(0)));
+    let probe = Probe {
+        read: Arc::new(AtomicBool::new(false)),
+    };
+    let held = admission.try_admit(100).expect("the whole budget");
+    assert!(admission.exhausted());
+    let response = app
+        .oneshot(export(probe.body(10), None))
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(!probe.read.load(Ordering::SeqCst), "the body was read");
+    drop(held);
+}
+
+/// A client that goes away mid-export leaves its bytes held until the export is done with them: the export is
+/// still being persisted, and releasing them would admit another in its place while the first is resident.
+#[tokio::test]
+async fn a_client_that_goes_away_leaves_its_bytes_held_until_the_export_is_done() {
+    let admission = Arc::new(IngestAdmission::new(100));
+    let started = Arc::new(tokio::sync::Notify::new());
+    let finish = Arc::new(tokio::sync::Notify::new());
+    let app = {
+        let (started, finish) = (Arc::clone(&started), Arc::clone(&finish));
+        Router::new()
+            .route(
+                "/traces",
+                post(move |_body: Bytes| {
+                    let (started, finish) = (Arc::clone(&started), Arc::clone(&finish));
+                    async move {
+                        started.notify_one();
+                        finish.notified().await;
+                        StatusCode::OK
+                    }
+                }),
+            )
+            .layer(axum::middleware::from_fn_with_state(
+                Arc::clone(&admission),
+                admit_http,
+            ))
+    };
+    let client = tokio::spawn(app.oneshot(export(Body::from(vec![0u8; 40]), Some(40))));
+    started.notified().await;
+    assert_eq!(admission.in_flight(), 40);
+    client.abort();
+    let _ = client.await;
+    assert_eq!(
+        admission.in_flight(),
+        40,
+        "the bytes went with the connection while the export was still running"
+    );
+    finish.notify_one();
+    for _ in 0..1_000 {
+        if admission.in_flight() == 0 {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(admission.in_flight(), 0, "released once the export is done");
+}

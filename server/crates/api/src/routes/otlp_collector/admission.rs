@@ -8,6 +8,10 @@
 //!
 //! An export larger than the whole budget is admitted only when nothing else is in flight, so the largest body
 //! the routes accept is never refused for good, and the bytes held never exceed the budget or that one body.
+//!
+//! The bytes are held by the work, not by the connection: an admitted export is answered by a task of its own that
+//! keeps them until it finishes, so a client that disconnects mid-export cannot release them while the export is
+//! still being persisted - which would admit another in its place, the first still resident.
 
 use std::sync::Arc;
 
@@ -78,6 +82,42 @@ impl IngestAdmission {
     pub fn in_flight(&self) -> usize {
         self.budget - self.permits.available_permits()
     }
+
+    /// Whether the budget is held whole, so any export would be refused: checked before a body without a declared
+    /// length is read at all, so a refused one is not read - or decompressed - first.
+    pub fn exhausted(&self) -> bool {
+        self.permits.available_permits() == 0
+    }
+}
+
+/// Run `answer` on a task of its own that holds `held` until it finishes, and wait for it.
+///
+/// Dropping the returned future - the client went away - leaves the task running and the bytes held until the
+/// export is done with them. A panic in the answer is a 500, as an unwinding handler is.
+pub(super) async fn answered_holding<T, F>(
+    held: T,
+    answer: F,
+    failed: impl FnOnce() -> F::Output,
+) -> F::Output
+where
+    T: Send + 'static,
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    match tokio::spawn(async move {
+        let answered = answer.await;
+        drop(held);
+        answered
+    })
+    .await
+    {
+        Ok(answered) => answered,
+        Err(_) => failed(),
+    }
+}
+
+fn failed() -> Response {
+    StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
 /// The HTTP answer to an export the budget cannot hold.
@@ -126,9 +166,10 @@ pub async fn admit_http(
         let Some(admitted) = admission.try_admit(length) else {
             return busy();
         };
-        let response = next.run(request).await;
-        drop(admitted);
-        return response;
+        return answered_holding(admitted, next.run(request), failed).await;
+    }
+    if admission.exhausted() {
+        return busy();
     }
     let (parts, body) = request.into_parts();
     let mut stream = body.into_data_stream();
@@ -163,9 +204,7 @@ pub async fn admit_http(
         1 => Body::from(chunks.pop().expect("one chunk")),
         _ => Body::from(chunks.concat()),
     };
-    let response = next.run(Request::from_parts(parts, body)).await;
-    drop(held);
-    response
+    answered_holding(held, next.run(Request::from_parts(parts, body)), failed).await
 }
 
 #[cfg(test)]

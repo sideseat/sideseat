@@ -121,6 +121,9 @@ of clients is slowed rather than dropped, and the memory the server spends on ex
 number of clients sending them. An export larger than the whole budget is accepted when nothing else is in flight,
 so any export within the 64 MB body limit is eventually taken.
 
+The bytes stay counted until the export is stored, even if the client disconnects first: the server finishes an
+export it has started. A gRPC export is one message; a request that carries a second is refused.
+
 Raise the budget on a host with memory to spare and many concurrent exporters; lower it to keep a small host
 inside its memory.
 
