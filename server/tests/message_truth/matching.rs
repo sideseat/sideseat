@@ -49,6 +49,9 @@ pub(super) fn shared_span(
         .position(|c| c.id == call_id)
         .ok_or_else(|| format!("no call {call_id}"))?;
     let call = &truth.calls[position];
+    if !call.succeeded() || call.outputs.is_empty() {
+        return Err(format!("{call_id} produced no output"));
+    }
     let spanless: BTreeSet<&str> = truth
         .gaps
         .iter()

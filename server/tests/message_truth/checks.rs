@@ -21,8 +21,12 @@ pub(super) struct Scope<'a> {
     pub kind: ViewKind,
     pub blocks: Vec<Placed<'a>>,
     pub facts: Vec<&'a Fact>,
-    /// Restrict a fact's blocks to its home trace (every scope but a span's).
+    /// Restrict a fact's blocks to its home trace (every scope but a span's and a split-off trace's).
     pub by_trace: bool,
+    /// A trace the producer started for a call (`trace_not_propagated`), checked as a view of its own: what
+    /// the call was sent is owed there once, in order, on the call's span. Its obligations are named
+    /// `<subject>@<trace label>`.
+    pub split: Option<&'a super::propagation::SplitTrace>,
 }
 
 /// What the assignment found for one scope: fact id -> its block's position in `scope.blocks`.
@@ -49,9 +53,9 @@ pub(super) struct Context<'a> {
     /// shown on: those of the later calls whose requests handed it back, and for a tool call the span that
     /// ran it - a span of no model call that records that call and no other.
     pub off_span_homes: BTreeMap<String, BTreeSet<String>>,
-    /// The facts sent to a call the producer started a new trace for (`trace_not_propagated`) whose homes
-    /// all lie outside any session, so the session view cannot hold them (`propagation::split`).
-    pub sessionless: BTreeSet<String>,
+    /// The traces the producer started for calls (`trace_not_propagated`), each checked as a view of its own,
+    /// and the facts only their raw carriers hold (`propagation::split`).
+    pub splits: super::propagation::Splits,
     /// What this fixture's recorded requests account for in its views (`requests`).
     pub accounted: super::requests::Accounted,
     /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
@@ -75,7 +79,7 @@ impl<'a> Context<'a> {
             home_traces: BTreeMap::new(),
             sent_spans: BTreeMap::new(),
             off_span_homes: BTreeMap::new(),
-            sessionless: BTreeSet::new(),
+            splits: super::propagation::Splits::default(),
             accounted,
             trace_label: BTreeMap::new(),
         };
@@ -123,20 +127,7 @@ impl<'a> Context<'a> {
                 context.home_trace.insert(fact.id.as_str(), trace);
             }
         }
-        // A trace the producer started for a call is one more home of what that call was sent: owed once there
-        // as in every home, and attributed to that call's span.
-        let split = super::propagation::split(truth, recon, matching, |fact| {
-            let span = matching.span_showing(context.home_call(fact)?)?;
-            let generation = &recon.generations[span];
-            Some((generation.trace.clone(), generation.span.clone()))
-        });
-        for (fact, traces) in split.homes {
-            context.home_traces.entry(fact).or_default().extend(traces);
-        }
-        for (fact, spans) in split.spans {
-            context.sent_spans.entry(fact).or_default().extend(spans);
-        }
-        context.sessionless = split.sessionless;
+        context.splits = super::propagation::split(truth, recon, matching);
         let recorded = truth.requests.get(&recon.fixture);
         let off_span: Vec<&Fact> = truth
             .facts
@@ -295,12 +286,22 @@ pub(super) fn check_placement(context: &Context<'_>, out: &mut Vec<Violation>) {
     let mut digests: BTreeMap<String, BTreeMap<ViewKind, BTreeSet<String>>> = BTreeMap::new();
     for scope in scopes(context) {
         let assigned = assign(context, &scope);
-        for (fact, shown) in report_assignment(context, &scope, &assigned, out) {
-            digests.entry(fact).or_default().insert(scope.kind, shown);
+        let start = out.len();
+        let shown = report_assignment(context, &scope, &assigned, out);
+        // A split-off trace's view is checked beside the conversation's views of the same kind, not as one.
+        if scope.split.is_none() {
+            for (fact, shown) in shown {
+                digests.entry(fact).or_default().insert(scope.kind, shown);
+            }
         }
         check_reasoning_kind(&scope, out);
         super::order::check(context, &scope, &assigned, out);
         super::explain::check(context, &scope, &assigned, out);
+        if let Some(split) = scope.split {
+            for violation in &mut out[start..] {
+                violation.subject = format!("{}@{}", violation.subject, split.label);
+            }
+        }
     }
     // The same fact, the same blocks: what a span shows is what its trace, session and feed show.
     for (fact, by_view) in &digests {
@@ -324,7 +325,7 @@ pub(super) fn check_placement(context: &Context<'_>, out: &mut Vec<Violation>) {
     }
 }
 
-fn scopes<'a>(context: &Context<'a>) -> Vec<Scope<'a>> {
+fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
     let recon = context.recon;
     let truth = context.truth;
     let mut scopes = Vec::new();
@@ -341,9 +342,15 @@ fn scopes<'a>(context: &Context<'a>) -> Vec<Scope<'a>> {
         else {
             continue;
         };
-        let facts = call
-            .outputs
+        // The calls recorded on this span too (`call_span_not_exported`): their parts are owed here, once and in
+        // order, like its own call's.
+        let sharing = truth
+            .calls
             .iter()
+            .filter(|c| context.matching.shared.get(&c.id) == Some(&index));
+        let facts = std::iter::once(call)
+            .chain(sharing)
+            .flat_map(|c| &c.outputs)
             .filter_map(|id| context.fact(id))
             .filter(|f| context.asserted_in(f, "span"))
             .collect();
@@ -358,6 +365,7 @@ fn scopes<'a>(context: &Context<'a>) -> Vec<Scope<'a>> {
                 .collect(),
             facts,
             by_trace: false,
+            split: None,
         });
     }
     let every_trace_in_a_session = recon
@@ -365,26 +373,42 @@ fn scopes<'a>(context: &Context<'a>) -> Vec<Scope<'a>> {
         .iter()
         .filter(|v| v.kind == ViewKind::Trace)
         .all(|v| recon.session_of_trace.contains_key(&v.key));
+    let splits = &context.splits;
+    let split_off = |trace: &str| splits.traces.iter().any(|t| t.trace == trace);
+    // What a split-off trace's view owes, which the conversation's views leave to it: what only its raw
+    // carriers hold, and what is at home there - its call's answer.
+    let left_to_split = |f: &Fact| {
+        splits.only_there.contains(&f.id)
+            || context
+                .home_trace
+                .get(f.id.as_str())
+                .is_some_and(|t| split_off(t))
+    };
     for kind in [ViewKind::Trace, ViewKind::Session, ViewKind::Feed] {
-        let blocks: Vec<Placed<'a>> = recon
+        let all: Vec<Placed<'a>> = recon
             .views
             .iter()
             .enumerate()
             .filter(|(_, v)| v.kind == kind)
             .flat_map(|(vi, v)| v.blocks.iter().enumerate().map(move |(i, b)| (vi, i, b)))
             .collect();
+        let blocks = all
+            .iter()
+            .copied()
+            .filter(|(_, _, b)| kind == ViewKind::Session || !split_off(&b.trace))
+            .collect();
         let facts = truth
             .facts
             .iter()
             .filter(|f| context.asserted_in(f, kind.name()))
+            .filter(|f| !left_to_split(f))
             .filter(|f| {
                 // A session view exists only for a trace that belongs to a session.
                 kind != ViewKind::Session
-                    || (!context.sessionless.contains(&f.id)
-                        && match context.home_trace.get(f.id.as_str()) {
-                            Some(trace) => recon.session_of_trace.contains_key(trace),
-                            None => every_trace_in_a_session,
-                        })
+                    || match context.home_trace.get(f.id.as_str()) {
+                        Some(trace) => recon.session_of_trace.contains_key(trace),
+                        None => every_trace_in_a_session,
+                    }
             })
             .collect();
         scopes.push(Scope {
@@ -392,7 +416,32 @@ fn scopes<'a>(context: &Context<'a>) -> Vec<Scope<'a>> {
             blocks,
             facts,
             by_trace: true,
+            split: None,
         });
+        if kind == ViewKind::Session {
+            continue;
+        }
+        for split in &splits.traces {
+            scopes.push(Scope {
+                kind,
+                blocks: all
+                    .iter()
+                    .copied()
+                    .filter(|(_, _, b)| b.trace == split.trace)
+                    .collect(),
+                facts: truth
+                    .facts
+                    .iter()
+                    .filter(|f| context.asserted_in(f, kind.name()))
+                    .filter(|f| {
+                        split.history.contains(&f.id)
+                            || context.home_trace.get(f.id.as_str()) == Some(&split.trace)
+                    })
+                    .collect(),
+                by_trace: false,
+                split: Some(split),
+            });
+        }
     }
     scopes
 }
@@ -787,10 +836,21 @@ fn report_other_home_traces(
         return;
     };
     let assigned_trace = scope.blocks[at].2.trace.as_str();
-    let held: BTreeSet<&str> = scope
-        .blocks
+    // The traces the capture has, from its spans and trace views, not from the blocks that survived: a trace
+    // whose view lost everything still owes what it was sent.
+    let held: BTreeSet<&str> = context
+        .recon
+        .generations
         .iter()
-        .map(|(_, _, b)| b.trace.as_str())
+        .map(|g| g.trace.as_str())
+        .chain(
+            context
+                .recon
+                .views
+                .iter()
+                .filter(|v| v.kind == ViewKind::Trace)
+                .map(|v| v.key.as_str()),
+        )
         .collect();
     let kind = fact.kind.as_str();
     for trace in traces.iter().filter(|t| t.as_str() != assigned_trace) {

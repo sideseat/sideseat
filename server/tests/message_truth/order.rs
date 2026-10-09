@@ -197,7 +197,10 @@ pub(super) fn check(
             .map(|&k| (scope.blocks[k].0, scope.blocks[k].1))
     };
     let mut seen = BTreeSet::new();
-    for (assertion, subject, before, after) in constraints(context, scope.kind == ViewKind::Feed) {
+    // A split-off trace's portion of the feed is one span's record - what its call was sent, then its answer -
+    // listed oldest first, as the span lists it.
+    let feed = scope.kind == ViewKind::Feed && scope.split.is_none();
+    for (assertion, subject, before, after) in constraints(context, feed) {
         let violated = before.iter().filter_map(|b| at(b)).any(|(view, early)| {
             after
                 .iter()
@@ -213,7 +216,7 @@ pub(super) fn check(
             ));
         }
     }
-    if matches!(scope.kind, ViewKind::Trace | ViewKind::Session) {
+    if !feed && scope.kind != ViewKind::Span {
         check_sequence(context, scope, assigned, out);
     }
 }

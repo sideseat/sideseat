@@ -8,8 +8,9 @@ use crate::message_truth::matching::{Matching, outputs, shared_span, shown_in, s
 use crate::message_truth::recon::Recon;
 use crate::message_truth::truth::Truth;
 
-/// `call_span_not_exported` holds where no span of the capture is a model call - had the producer written one,
-/// the call could have its own - and the call answers a tool round on the span it shares (`shared_span`).
+/// `call_span_not_exported` holds where no span of the capture is a model call - typed so by the reading, or
+/// marked so in the raw payloads by a published convention; had the producer written one, the call could have
+/// its own - and the call answers a tool round on the span it shares (`shared_span`).
 /// That span shows every asserted output of the call. No other span but one enclosing it shows any of them as
 /// its output, as the reconstruction reads them, and no raw carrier under the run's span holds them: a span of
 /// its own, typed or not, would carry the response - a text, or a message holding a tool call's arguments. Anything else is refused: a model-call span, another span with the output, a call that answers no
@@ -23,6 +24,9 @@ pub(super) fn prove_call_span(
 ) -> Proof {
     if let Some(generation) = recon.generations.iter().find(|g| g.typed) {
         return Proof::Present(format!("{} is a model-call span", generation.label));
+    }
+    if let Some(at) = raw_model_call_span(&recon.paths) {
+        return Proof::Present(format!("{at} is a model-call span in the raw payloads"));
     }
     let Some(call) = truth.calls.iter().find(|c| c.id == call_id) else {
         return Proof::Unprovable(format!("no call {call_id}"));
@@ -100,6 +104,36 @@ pub(super) fn prove_call_span(
         }
     }
     Proof::Absent
+}
+
+/// A raw span the published conventions mark as a model call, whatever the reading made of it: OpenInference's
+/// `LLM` kind, a GenAI operation that calls a model, or a requested model stated.
+fn raw_model_call_span(paths: &[std::path::PathBuf]) -> Option<String> {
+    use opentelemetry_proto::tonic::common::v1::any_value::Value;
+    const MODEL_OPERATIONS: &[&str] = &["chat", "text_completion", "generate_content"];
+    for path in paths {
+        let request = crate::decode_request(path);
+        for span in request
+            .resource_spans
+            .iter()
+            .flat_map(|r| &r.scope_spans)
+            .flat_map(|s| &s.spans)
+        {
+            let marked = span.attributes.iter().any(|kv| {
+                let text = match kv.value.as_ref().and_then(|v| v.value.as_ref()) {
+                    Some(Value::StringValue(s)) => s.as_str(),
+                    _ => "",
+                };
+                matches!(kv.key.as_str(), "gen_ai.request.model" | "llm.model_name")
+                    || (kv.key == "openinference.span.kind" && text == "LLM")
+                    || (kv.key == "gen_ai.operation.name" && MODEL_OPERATIONS.contains(&text))
+            });
+            if marked {
+                return Some(format!("span {:?}", span.name));
+            }
+        }
+    }
+    None
 }
 
 /// Every raw span under `root`, as hex: its children, theirs, and so on.
@@ -251,6 +285,15 @@ mod tests {
             proof(&truth, "call-002", &own, &haystack),
             Proof::Present(_)
         ));
+        // The raw search finds a model-call span where a convention marks one - Spring AI's OpenInference
+        // `LLM` spans - and none in CrewAI's capture.
+        let spring = crate::discover_fixtures()
+            .into_iter()
+            .find(|(label, _)| label == "spring-ai/sdk/streaming")
+            .map(|(_, paths)| paths)
+            .expect("a capture with model-call spans");
+        assert!(raw_model_call_span(&spring).is_some());
+        assert_eq!(raw_model_call_span(&paths), None);
         let mut typed = recon.clone();
         typed.generations[0].typed = true;
         assert!(matches!(

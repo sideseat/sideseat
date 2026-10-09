@@ -201,3 +201,124 @@ fn a_trace_the_producer_split_off_explains_only_its_own_copies() {
         |v| v.ends_with(":fact-001"),
     );
 }
+
+#[test]
+fn the_run_s_span_owes_a_shared_call_s_parts_once_and_in_order() {
+    // The agent span CrewAI records the whole run on shows the call answering the tool round: duplicated, or
+    // ahead of the tool calls it answers, in that span's own view only, it is still caught.
+    let (truth, recon, baseline) = baseline("crewai/sdk/tool_use");
+    let (answer, first_call) = (fact(&truth, "fact-010"), fact(&truth, "fact-002"));
+    let run = recon.generations[elsewhere_span(&truth, &recon)]
+        .span
+        .clone();
+    let mut twice = recon.clone();
+    let &(v, b) = locate(answer, &twice)
+        .iter()
+        .find(|&&(v, _)| twice.views[v].kind == ViewKind::Span && twice.views[v].key == run)
+        .expect("the run's span view shows the answer");
+    let copy = twice.views[v].blocks[b].clone();
+    twice.views[v].blocks.insert(b + 1, copy);
+    caught(
+        &added(&truth, &twice, &baseline),
+        "the answer twice on the run's span",
+        |v| v.starts_with("text.duplicated:fact-010"),
+    );
+    let mut early = recon.clone();
+    for view in early
+        .views
+        .iter_mut()
+        .filter(|v| v.kind == ViewKind::Span && v.key == run)
+    {
+        if let (Some(a), Some(c)) = (
+            first_shown(&view.blocks, answer),
+            first_shown(&view.blocks, first_call),
+        ) {
+            let block = view.blocks.remove(a);
+            view.blocks.insert(c, block);
+        }
+    }
+    caught(
+        &added(&truth, &early, &baseline),
+        "the answer ahead of its tool calls on the run's span",
+        |v| v.starts_with("order."),
+    );
+}
+
+#[test]
+fn a_split_off_trace_is_checked_as_a_view_of_its_own() {
+    // Spring AI's split-off trace owes what its call was sent in order and on that call's span; the
+    // conversation's own trace still owes everything, even when its whole view is lost.
+    let (truth, recon, baseline) = baseline("spring-ai/sdk/streaming");
+    let (prompt, call_a) = (fact(&truth, "fact-001"), fact(&truth, "fact-003"));
+    let result = fact(&truth, "fact-005");
+    let moved = recon
+        .generations
+        .iter()
+        .find(|g| g.ancestors.is_empty() && g.typed)
+        .map(|g| g.trace.clone())
+        .expect("the split-off call's span");
+    let in_moved = |recon: &mut Recon, edit: &dyn Fn(&mut Vec<Block>)| {
+        for view in recon.views.iter_mut().filter(|v| v.kind == ViewKind::Trace) {
+            if view.key == moved {
+                edit(&mut view.blocks);
+            }
+        }
+    };
+    // The conversation's trace view emptied: its facts are missing there, whatever the split-off trace shows.
+    let mut lost = recon.clone();
+    for view in lost
+        .views
+        .iter_mut()
+        .filter(|v| v.kind == ViewKind::Trace && v.key != moved)
+    {
+        view.blocks.clear();
+    }
+    caught(
+        &added(&truth, &lost, &baseline),
+        "the conversation's trace view lost",
+        |v| v.starts_with("user_text.missing:fact-001") && !v.contains('@'),
+    );
+    // The split-off trace's tool calls after the result they produced.
+    let mut late = recon.clone();
+    in_moved(&mut late, &|blocks| {
+        if let (Some(c), Some(r)) = (first_shown(blocks, call_a), first_shown(blocks, result)) {
+            let block = blocks.remove(c);
+            blocks.insert(r, block);
+        }
+    });
+    caught(
+        &added(&truth, &late, &baseline),
+        "a call after its result in the split-off trace",
+        |v| v.starts_with("order.") && v.ends_with("@trace-2"),
+    );
+    // The split-off trace's prompt shown on another span than its call's.
+    let mut elsewhere = recon.clone();
+    in_moved(&mut elsewhere, &|blocks| {
+        if let Some(at) = first_shown(blocks, prompt) {
+            blocks[at].span = "another-span".into();
+        }
+    });
+    caught(
+        &added(&truth, &elsewhere, &baseline),
+        "the prompt on another span in the split-off trace",
+        |v| v == "attribution.span:fact-001@trace-2",
+    );
+    // The conversation's first tool call attributed to the run's root span, which never produced it.
+    let root = recon
+        .generations
+        .iter()
+        .find(|g| !g.typed && g.ancestors.is_empty())
+        .map(|g| g.span.clone())
+        .expect("the run's root span");
+    let mut parent = recon.clone();
+    for (v, b) in locate(call_a, &parent) {
+        if parent.views[v].kind == ViewKind::Trace && parent.views[v].blocks[b].trace != moved {
+            parent.views[v].blocks[b].span = root.clone();
+        }
+    }
+    caught(
+        &added(&truth, &parent, &baseline),
+        "a tool call on the run's root span",
+        |v| v == "attribution.span:fact-003",
+    );
+}

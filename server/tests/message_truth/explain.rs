@@ -328,6 +328,24 @@ fn check_attribution(
         {
             continue;
         }
+        // A split-off trace shows what its call was sent on that call's span, and nowhere else.
+        if let Some(split) = scope.split.filter(|s| s.history.contains(fact_id)) {
+            let block = scope.blocks[at].2;
+            if block.span != split.span {
+                let shown_on = recon
+                    .generations
+                    .iter()
+                    .find(|g| g.span == block.span)
+                    .map_or("an unknown span", |g| g.label.as_str());
+                out.push(Violation::new(
+                    ViolationView::from(scope.kind),
+                    "attribution.span",
+                    fact_id,
+                    format!("shown on {shown_on}, not the span of {}", split.call),
+                ));
+            }
+            continue;
+        }
         // A part its producing span does not carry (`output_not_exported`, proven) is owed off that span:
         // on the span of a later call that was handed it back, or for a tool call on the span that ran it,
         // or one enclosing either, and nowhere else. Where neither is known no span can be named for it.
@@ -378,7 +396,7 @@ fn check_attribution(
             ));
         }
     }
-    if scope.kind != ViewKind::Feed {
+    if scope.kind != ViewKind::Feed || scope.split.is_some() {
         return;
     }
     // Once per fixture: the feed is a single view.
