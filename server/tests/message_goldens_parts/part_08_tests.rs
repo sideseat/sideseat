@@ -90,7 +90,8 @@ fn attach_log_messages(paths: &[PathBuf], rows: &mut [(String, MessageSpanRow)])
 ///
 /// The last turn is the answer, and in every one of them the answer exists **only** in a log record, so a
 /// replay that ignored logs loses it. That is what makes the check below falsifiable rather than a restatement
-/// of the golden.
+/// of the golden. A fixture of one span owes the turns in its span view too; one whose conversation spans
+/// several (`MULTI_SPAN_LOG_FIXTURES`) owes them in the views that show the whole conversation.
 const LOG_FIXTURES: &[(&str, &[&str])] = &[
     (
         "_synthetic/log_events_before_span",
@@ -108,7 +109,17 @@ const LOG_FIXTURES: &[(&str, &[&str])] = &[
         "_synthetic/log_inference_details",
         &["Translate 'hello' to French.", "Bonjour."],
     ),
+    (
+        "_synthetic/quoted_steps_on_two_carriers",
+        &[
+            "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+            "Pack light layers for the sun and an umbrella for the rain.",
+        ],
+    ),
 ];
+
+/// Log fixtures whose conversation spans several spans, each span view showing its own part of it.
+const MULTI_SPAN_LOG_FIXTURES: &[&str] = &["_synthetic/quoted_steps_on_two_carriers"];
 
 fn contents(view: &GoldenView) -> Vec<String> {
     view.messages.iter().map(|m| m.content.clone()).collect()
@@ -130,8 +141,12 @@ fn log_carried_messages_reach_every_view_exactly_once() {
         let rows = rows_for(paths);
         let golden = build_golden(label, paths, &rows).golden;
         let answer = turns.last().expect("a conversation ends in an answer");
-        let views = golden
-            .span_views
+        let span_views = if MULTI_SPAN_LOG_FIXTURES.contains(label) {
+            BTreeMap::new()
+        } else {
+            golden.span_views.clone()
+        };
+        let views = span_views
             .iter()
             .chain(&golden.trace_views)
             .chain(&golden.session_views)

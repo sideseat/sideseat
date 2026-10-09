@@ -38,12 +38,13 @@
     },
     {
       "id": "google-adk.request_content",
-      "doc": "A turn of the request a model call received, in the request's order. ADK for Go writes the whole request as events at request time, so a later trace re-sends an earlier trace's turns under the later trace's time: the replay is recognised by its place in the replayed prefix, never by its time.",
+      "doc": "A turn of the request a model call received, in the request's order. ADK for Go writes the whole request as events at request time, so a later trace re-sends an earlier trace's turns under the later trace's time: the replay is recognised by its place in the replayed prefix, never by its time. Each event is one message of the request, so two at different places are two messages - as in `llm_request`, which lists the same request: ADK quotes every earlier agent step behind the same preamble, and read as one occurrence that preamble's copies would be matched to the wrong messages of the other carrier.",
       "match": {
         "event": "google_adk.request_content"
       },
       "facts": {
         "preset": "snapshot",
+        "position_proves_distinct_occurrence": true,
         "carrier_holds_span_input": true,
         "carrier_replays_across_traces": true
       },

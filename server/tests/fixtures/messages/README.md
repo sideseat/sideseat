@@ -260,7 +260,7 @@ one. That is the channel's shape, not a parsing defect, and it is the declaratio
 
 | Mode | Telemetry configured by |
 | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 33 | 33 |
+| `_synthetic` | hand-written shapes, no SDK | 34 | 34 |
 | `adk-go/native` | Google ADK for Go 1.8.0 / Google GenAI for Go 1.57.0 / OpenTelemetry Go 1.47.0 on Go 1.27.1, ADK's telemetry on the application's tracer and logger providers with message content captured, against the harness's fake Gemini server; the conversation is only in GenAI log events, each holding the model API's whole message | 11 | 11 |
 | `adk-go/sdk` | The same under SideSeat's OpenTelemetry recipe for Go (`sideseat.framework` on the resource) | 11 | 11 |
 | `adk-java/native` | Google ADK for Java 1.11.0 (ADK's Claude model on the Anthropic Java SDK 2.15.0's Bedrock backend, Claude Sonnet 5.5) / ADK's own tracing on the global OpenTelemetry Java 1.66.0 SDK on Temurin 25; the suite leaves the model's thinking blocks out of the responses ADK sees, because ADK's Claude model converts only text and tool use; no `streaming`, `reasoning`, `files` or `mcp_tools`, which ADK's Claude model does not support, and a failed booking is the tool's result, because ADK's function tool replaces any exception with a fixed message | 7 | 7 |
@@ -444,6 +444,7 @@ one. That is the channel's shape, not a parsing defect, and it is the declaratio
 | `pydantic-ai/sdk` | SideSeat Python 2.0.0 / Pydantic AI 2.53.0 / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 11 | 11 |
 | `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `python/sdk` | SideSeat Python 2.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `quoted_steps_on_two_carriers/legacy` | ADK's request on two carriers - the `call_llm` span's `llm_request` attribute and the `generate_content` span's `gen_ai.user.message` log records - quoting each earlier agent step behind the same preamble, the answer only in a log record | each step keeps its own preamble from one carrier, in the request's order: the two carriers must agree that a position is an occurrence, or the preambles are matched to the wrong messages |
 | `resent_history/legacy` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
 | `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |

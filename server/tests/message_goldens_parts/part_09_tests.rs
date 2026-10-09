@@ -407,3 +407,52 @@ fn assert_composed_scope(label: &str, view_name: &str, scope: &Scope, rows: &[In
         );
     }
 }
+
+/// ADK lists one request twice - its `call_llm` span's `llm_request` attribute and its `generate_content` span's
+/// `gen_ai.user.message` log events - and quotes each earlier agent step behind the same preamble. Each step keeps
+/// its own preamble, from one carrier, in the order the request sent them. Read as one occurrence in one carrier
+/// and as several in the other, the copies were matched to the wrong messages: three preambles survived from the
+/// attribute and the steps from the events, and the view grouped the preambles ahead of the instruction.
+#[test]
+fn a_request_listed_on_two_carriers_keeps_each_quoted_step_with_its_preamble() {
+    let label = "_synthetic/quoted_steps_on_two_carriers";
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| l == label)
+        .expect("the two-carrier request");
+    let built = build_golden(label, &paths, &rows_for(&paths));
+    let (_, _, rows) = built
+        .invariants
+        .iter()
+        .find(|(_, scope, _)| matches!(scope, Scope::Trace { .. }))
+        .expect("the trace view");
+    let users: Vec<&InvariantRow> = rows.iter().filter(|r| r.role == "user").collect();
+    let texts: Vec<&str> = users.iter().map(|r| r.content.as_str()).collect();
+    let steps: Vec<usize> = (0..users.len())
+        .filter(|&i| texts[i].starts_with("[researcher]"))
+        .collect();
+    assert_eq!(steps.len(), 4, "four quoted steps: {texts:#?}");
+    for &at in &steps {
+        let (step, preamble) = (users[at], at.checked_sub(1).map(|i| users[i]));
+        assert!(
+            preamble.is_some_and(|p| p.content.starts_with("For context:")
+                && p.span_id == step.span_id
+                && p.carrier == step.carrier),
+            "step {at} is not preceded by its own preamble, from its own carrier: {texts:#?}"
+        );
+    }
+    // Without the occurrence the event carrier proves, four preambles in one trace are a duplicate: the check
+    // that caught the split still holds the line.
+    let mut unproven = rows.clone();
+    for row in unproven
+        .iter_mut()
+        .filter(|r| r.carrier.starts_with("event:"))
+    {
+        row.carrier_proves_occurrence = false;
+    }
+    let caught = std::panic::catch_unwind(|| assert_no_duplicates(label, "trace", &unproven));
+    assert!(
+        caught.is_err(),
+        "unproven repeats passed the duplicate check"
+    );
+}
