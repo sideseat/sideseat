@@ -1,14 +1,14 @@
 {
  "format": "sideseat.truth/3",
- "producer": "genkit-go",
- "scenario": "structured_output",
+ "producer": "otel-genai",
+ "scenario": "file_references",
  "fixtures": [
-  "genkit-go/native/structured_output",
-  "genkit-go/sdk/structured_output"
+  "otel-genai/native/file_references",
+  "otel-genai/sdk/file_references"
  ],
  "source": {
   "kind": "fake-script",
-  "surface": "fake-gemini",
+  "surface": "fake-openai",
   "path": "examples/python/harness/harness/fakes/script.py",
   "sha256": "94f6ae65f4a96826a8cd26e1deb046fe6acb487c5cc1db44542f197331fff8b2"
  },
@@ -22,24 +22,24 @@
    "attempt": 1,
    "outcome": "success",
    "conversation": "conv-1",
-   "api": "gemini.generate_content",
+   "api": "openai.chat",
    "streamed": false,
    "status": 200,
    "model": null,
-   "response_model": "gemini-flash-latest",
+   "response_model": null,
    "response_id": null,
-   "stop_reason": "STOP",
+   "stop_reason": "stop",
    "finish": "stop",
    "usage": {
     "input": 40,
-    "output": 38,
+    "output": 12,
     "cache_read": null,
     "cache_write": null,
     "reasoning": null,
     "input_includes_cache": true
    },
    "outputs": [
-    "fact-002"
+    "fact-004"
    ]
   }
  ],
@@ -47,12 +47,14 @@
   {
    "id": "conv-1",
    "sequence": [
-    "fact-003",
+    "fact-005",
     "fact-001",
-    "fact-002"
+    "fact-002",
+    "fact-003",
+    "fact-004"
    ],
    "final_answers": [
-    "fact-002"
+    "fact-004"
    ]
   }
  ],
@@ -64,7 +66,7 @@
    "conversation": "conv-1",
    "evidence": "script",
    "value": {
-    "text": "Plan a two-day trip to Vienna."
+    "text": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence."
    },
    "require": {
     "anchor": "conversation",
@@ -79,12 +81,58 @@
   },
   {
    "id": "fact-002",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "image",
+    "media_type": null,
+    "source": "url",
+    "reference": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "reference"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "file",
+    "media_type": null,
+    "source": "file_id",
+    "reference": "file-e7e46a97f937"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "reference"
+   }
+  },
+  {
+   "id": "fact-004",
    "kind": "text",
    "role": "assistant",
    "conversation": "conv-1",
    "evidence": "script",
    "value": {
-    "text": "{\"city\":\"Vienna\",\"days\":[\"Sch\\u00f6nbrunn Palace and the Naschmarkt\",\"St. Stephen's Cathedral and the Prater\"],\"budget_eur\":600}"
+    "text": "The image shows the Eiffel Tower; the document is a one-page task description."
    },
    "require": {
     "anchor": "model_call",
@@ -95,12 +143,12 @@
      "feed"
     ],
     "cardinality": "exactly_once",
-    "match": "json"
+    "match": "exact"
    },
    "call": "call-001"
   },
   {
-   "id": "fact-003",
+   "id": "fact-005",
    "kind": "system",
    "role": "system",
    "conversation": "conv-1",
@@ -119,8 +167,8 @@
     "match": "exact"
    },
    "fixtures": [
-    "genkit-go/native/structured_output",
-    "genkit-go/sdk/structured_output"
+    "otel-genai/native/file_references",
+    "otel-genai/sdk/file_references"
    ]
   }
  ],
@@ -149,18 +197,18 @@
   }
  ],
  "requests": {
-  "genkit-go/native/structured_output": {
-   "transcript": "server/tests/fixtures/messages/genkit-go/native/structured_output/model-requests.json",
+  "otel-genai/native/file_references": {
+   "transcript": "server/tests/fixtures/messages/otel-genai/native/file_references/model-requests.json",
    "calls": {
     "call-001": {
-     "api": "gemini.generate_content",
+     "api": "openai.responses",
      "system": [
       {
        "part": {
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new_fact": "fact-003"
+       "new_fact": "fact-005"
       }
      ],
      "messages": [
@@ -170,9 +218,29 @@
         {
          "part": {
           "type": "text",
-          "text": "Plan a two-day trip to Vienna."
+          "text": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence."
          },
          "new_fact": "fact-001"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "image",
+          "media_type": null,
+          "source": "url",
+          "reference": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg"
+         },
+         "new_fact": "fact-002"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "file",
+          "media_type": null,
+          "source": "file_id",
+          "reference": "file-e7e46a97f937"
+         },
+         "new_fact": "fact-003"
         }
        ]
       }
@@ -182,18 +250,18 @@
    },
    "unpaired_requests": []
   },
-  "genkit-go/sdk/structured_output": {
-   "transcript": "server/tests/fixtures/messages/genkit-go/sdk/structured_output/model-requests.json",
+  "otel-genai/sdk/file_references": {
+   "transcript": "server/tests/fixtures/messages/otel-genai/sdk/file_references/model-requests.json",
    "calls": {
     "call-001": {
-     "api": "gemini.generate_content",
+     "api": "openai.responses",
      "system": [
       {
        "part": {
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new_fact": "fact-003"
+       "new_fact": "fact-005"
       }
      ],
      "messages": [
@@ -203,9 +271,29 @@
         {
          "part": {
           "type": "text",
-          "text": "Plan a two-day trip to Vienna."
+          "text": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence."
          },
          "new_fact": "fact-001"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "image",
+          "media_type": null,
+          "source": "url",
+          "reference": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg"
+         },
+         "new_fact": "fact-002"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "file",
+          "media_type": null,
+          "source": "file_id",
+          "reference": "file-e7e46a97f937"
+         },
+         "new_fact": "fact-003"
         }
        ]
       }

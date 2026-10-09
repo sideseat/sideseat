@@ -828,3 +828,58 @@ fn a_canonical_citation_names_its_source_and_only_an_unknown_one_carries_raw() {
         serde_json::json!({"kind": "url", "source": "https://a", "page": 2})
     ));
 }
+
+fn named_media_rule(extra: serde_json::Value) -> serde_json::Value {
+    let mut media = serde_json::json!({
+        "kind_of": {"path": "$.modality", "map": {"image": "image"}},
+        "media_type": "$.mime_type",
+        "missing_media_type": "omit",
+        "data": "$.uri",
+        "source": {"literal": "url"},
+    });
+    media
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    serde_json::json!({
+        "id": "probe.named",
+        "at": "provider_formats",
+        "priority": 1,
+        "where": {"path": "$.type", "one_of": ["uri"]},
+        "media": media,
+    })
+}
+
+/// A part that states no media type is of the kind it names; a stated media type is the stronger fact.
+#[test]
+fn a_named_kind_answers_only_where_no_media_type_is_stated() {
+    let plan = plan_from(named_media_rule(serde_json::json!({})));
+    let read = |block: serde_json::Value| plan.normalize(&block, ChainPosition::ProviderFormats);
+    let named = read(serde_json::json!({"type": "uri", "modality": "image", "uri": "https://a/b"}));
+    assert_eq!(
+        named.as_ref().map(|b| b["type"].clone()),
+        Some(serde_json::json!("image"))
+    );
+    let typed = read(
+        serde_json::json!({"type": "uri", "modality": "image", "uri": "https://a/b.pdf",
+        "mime_type": "application/pdf"}),
+    );
+    assert_eq!(
+        typed.as_ref().map(|b| b["type"].clone()),
+        Some(serde_json::json!("document"))
+    );
+    let unmapped =
+        read(serde_json::json!({"type": "uri", "modality": "hologram", "uri": "https://a/b"}));
+    assert_eq!(
+        unmapped.as_ref().map(|b| b["type"].clone()),
+        Some(serde_json::json!("file"))
+    );
+    refused(
+        named_media_rule(serde_json::json!({"kind": "image"})),
+        "both `kind` and `kind_of`",
+    );
+    refused(
+        named_media_rule(serde_json::json!({"kind_of": {"path": "$.modality", "map": {}}})),
+        "media.kind_of.map",
+    );
+}

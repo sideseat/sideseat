@@ -1,0 +1,240 @@
+{
+  "label": "otel-genai/native/file_references",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat gpt-6.1-sol/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence.",
+          "content_digest": "f9d27a38ada493b6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"source\":\"url\",\"data\":\"https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg\"}",
+          "content_digest": "4cd78c0f0aea2eba",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"source\":\"file_id\",\"data\":\"file-e7e46a97f937\"}",
+          "content_digest": "68ecfaf4b83be6c9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The image shows the Eiffel Tower; the document is a one-page task description.",
+          "content_digest": "1de18e62b9ef1715",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/file-references/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence.",
+          "content_digest": "f9d27a38ada493b6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"source\":\"url\",\"data\":\"https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg\"}",
+          "content_digest": "4cd78c0f0aea2eba",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"source\":\"file_id\",\"data\":\"file-e7e46a97f937\"}",
+          "content_digest": "68ecfaf4b83be6c9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The image shows the Eiffel Tower; the document is a one-page task description.",
+          "content_digest": "1de18e62b9ef1715",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "otel-genai-file_references": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence.",
+          "content_digest": "f9d27a38ada493b6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"source\":\"url\",\"data\":\"https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg\"}",
+          "content_digest": "4cd78c0f0aea2eba",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"source\":\"file_id\",\"data\":\"file-e7e46a97f937\"}",
+          "content_digest": "68ecfaf4b83be6c9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The image shows the Eiffel Tower; the document is a one-page task description.",
+          "content_digest": "1de18e62b9ef1715",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user",
+      "user",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The image shows the Eiffel Tower; the document is a one-page task description.",
+        "content_digest": "1de18e62b9ef1715",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe the linked image in one sentence, then summarise the uploaded document in one sentence.",
+        "content_digest": "f9d27a38ada493b6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"source\":\"url\",\"data\":\"https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg\"}",
+        "content_digest": "4cd78c0f0aea2eba",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"source\":\"file_id\",\"data\":\"file-e7e46a97f937\"}",
+        "content_digest": "68ecfaf4b83be6c9",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

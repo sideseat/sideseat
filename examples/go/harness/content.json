@@ -463,6 +463,11 @@
       "core": false
     },
     {
+      "name": "file_references",
+      "summary": "An image by URL and a PDF by the id an upload gave it: attachments without their bytes.",
+      "core": false
+    },
+    {
       "name": "citations",
       "summary": "An answer drawn from a document sent with citations enabled, citing the passages it used.",
       "core": false

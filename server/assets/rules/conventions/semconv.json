@@ -762,7 +762,7 @@
     },
     {
       "id": "semconv.uri_part",
-      "doc": "The conventions' reference part: a `uri` with an optional `mime_type`. Logfire writes an inline image this way, as a `data:` URI, so it was kept as an unknown block; the media type comes from the declaration, the URI, or the bytes.",
+      "doc": "The conventions' reference part: a `uri` with an optional `mime_type`. Logfire writes an inline image this way, as a `data:` URI, so it was kept as an unknown block; the media type comes from the declaration, the URI, or the bytes. A URL with no type is still a reference to the modality the part names, so it is kept without one rather than declined.",
       "at": "before_provider_formats",
       "priority": 61,
       "where": {
@@ -780,6 +780,7 @@
         ]
       },
       "media": {
+        "kind_of": {"path": "$.modality", "map": {"image": "image", "video": "video", "audio": "audio", "document": "document"}},
         "media_type": {
           "first_of": [
             "$.mime_type",
@@ -787,8 +788,17 @@
           ],
           "mode": "usable"
         },
+        "missing_media_type": "omit",
         "data": "$.uri"
       }
+    },
+    {
+      "id": "semconv.file_part",
+      "doc": "The conventions' reference to a file the provider already holds, by the id its upload returned. The request states neither the bytes nor, often, the type: the modality says what it is, and without one it is a file.",
+      "at": "before_provider_formats",
+      "priority": 64,
+      "where": {"all": [{"path": "$.type", "one_of": ["file"]}, {"path": "$.file_id", "kind": "string"}]},
+      "media": {"kind_of": {"path": "$.modality", "map": {"image": "image", "video": "video", "audio": "audio", "document": "document"}}, "media_type": "$.mime_type", "missing_media_type": "omit", "data": "$.file_id", "source": {"literal": "file_id"}}
     },
     {
       "id": "semconv.tool_call_response_parts",

@@ -155,7 +155,17 @@ pub(super) fn media_block(block: &JsonValue, spec: &MediaBlock) -> Option<JsonVa
     if media_type.is_none() && spec.missing_media_type == MissingMediaType::Decline {
         return None;
     }
-    let kind: &str = match spec.kind {
+    // The media type is the stronger fact: a producer may label a PDF's part an image, but its bytes are a
+    // document. The named kind answers only for a reference that states no type.
+    let named = spec
+        .kind_of
+        .as_ref()
+        .filter(|_| media_type.is_none())
+        .and_then(|of| {
+            let value = query(block, &of.path).into_iter().next()?.as_str()?;
+            of.map.get(value).copied()
+        });
+    let kind: &str = match spec.kind.or(named) {
         Some(kind) => kind.into(),
         None => crate::sideml::content::mime_to_content_type(media_type.as_deref().unwrap_or("")),
     };

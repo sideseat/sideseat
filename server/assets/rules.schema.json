@@ -4046,6 +4046,17 @@
             }
           ]
         },
+        "kind_of": {
+          "description": "The kind of a block that states no media type, read from a member that names it - the conventions'\n`modality` - through a closed, non-empty map. A stated media type is the stronger fact and decides; a\nvalue the map does not hold leaves the kind to it, and to `file` without one. Refused beside `kind`,\nwhich states the kind outright.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaKindOf"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "media_type": {
           "$ref": "#/$defs/FirstUsable_ValueSource"
         },
@@ -4088,6 +4099,34 @@
         "video",
         "document",
         "file"
+      ]
+    },
+    "MediaKindOf": {
+      "description": "A member naming a media block's kind, and what each of its values means.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "path": {
+          "type": "string"
+        },
+        "map": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/MediaKind"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "map"
       ]
     },
     "MissingMediaType": {

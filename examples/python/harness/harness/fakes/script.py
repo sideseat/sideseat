@@ -45,6 +45,8 @@ ANSWERS = {
     content.REASONING: "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), "
     "5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
     content.FILES: "The image is a photograph; the document is a one-page task description.",
+    content.FILE_REFERENCES: "The image shows the Eiffel Tower; the document is a one-page task "
+    "description.",
     content.MCP: "The result is 395.",
     content.SERVER_TOOLS: "The Louvre opens at 9 am and closes at 6 pm every day except Tuesday, "
     "when it is closed.",
@@ -297,6 +299,11 @@ def _rainy(result: Result, city: str) -> bool:
     return city in result.text and (
         "rain" in result.text and "10% chance" not in result.text
     )
+
+
+def file_id(data: bytes) -> str:
+    """The id a fake provider gives an upload: derived from its bytes, so the same file keeps it."""
+    return f"file-{digest(data.hex())}"
 
 
 def digest(value: Any) -> str:

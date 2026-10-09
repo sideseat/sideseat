@@ -1858,6 +1858,7 @@ Bytes, or a reference to them. The block's kind and whether it is a reference ar
 | --- | --- | --- |
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `kind` | [`MediaKind`](#mediakind) or null | The block's kind, where the format states it rather than leaving it to the media type: an image part is an image whatever its bytes are labelled. Absent, the kind is derived from the media type, and a block with none is a `file`. |
+| `kind_of` | [`MediaKindOf`](#mediakindof) or null | The kind of a block that states no media type, read from a member that names it - the conventions' `modality` - through a closed, non-empty map. A stated media type is the stronger fact and decides; a value the map does not hold leaves the kind to it, and to `file` without one. Refused beside `kind`, which states the kind outright. |
 | `media_type` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
 | `media_type_default` | string | The media type when no source states one. |
 | `missing_media_type` | [`MissingMediaType`](#missingmediatype) | What a block whose media type is stated nowhere becomes. |
@@ -1871,6 +1872,16 @@ Bytes, or a reference to them. The block's kind and whether it is a reference ar
 A media block's canonical kind, spelled as the SideML block type.
 
 Written as one of `"image"`, `"audio"`, `"video"`, `"document"`, `"file"`.
+
+### `MediaKindOf`
+
+A member naming a media block's kind, and what each of its values means.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `path` (required) | string |  |
+| `map` (required) | map of text to [`MediaKind`](#mediakind) |  |
 
 ### `MissingMediaType`
 

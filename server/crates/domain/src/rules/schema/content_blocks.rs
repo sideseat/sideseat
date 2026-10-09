@@ -472,6 +472,12 @@ pub struct MediaBlock {
     /// block with none is a `file`.
     #[serde(default)]
     pub kind: Option<MediaKind>,
+    /// The kind of a block that states no media type, read from a member that names it - the conventions'
+    /// `modality` - through a closed, non-empty map. A stated media type is the stronger fact and decides; a
+    /// value the map does not hold leaves the kind to it, and to `file` without one. Refused beside `kind`,
+    /// which states the kind outright.
+    #[serde(default)]
+    pub kind_of: Option<MediaKindOf>,
     #[serde(default)]
     pub media_type: FirstOf<ValueSource, true>,
     /// The media type when no source states one.
@@ -491,6 +497,19 @@ pub struct MediaBlock {
     /// How closely a vision model is asked to look at an image.
     #[serde(default)]
     pub detail: FirstOf<ValueSource, true>,
+}
+
+/// A member naming a media block's kind, and what each of its values means.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct MediaKindOf {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    #[cfg_attr(test, schemars(with = "String"))]
+    pub path: JsonPath,
+    pub map: BTreeMap<String, MediaKind>,
 }
 
 /// A media block's canonical kind, spelled as the SideML block type.

@@ -50,6 +50,11 @@ CATALOG: dict[str, ScenarioSpec] = {
         ScenarioSpec("reasoning", "Adaptive thinking before the answer.", core=False),
         ScenarioSpec("files", "An image and a PDF in the user turn.", core=False),
         ScenarioSpec(
+            "file_references",
+            "An image by URL and a PDF by the id an upload gave it: attachments without their bytes.",
+            core=False,
+        ),
+        ScenarioSpec(
             "citations",
             "An answer drawn from a document sent with citations enabled, citing the passages it used.",
             core=False,

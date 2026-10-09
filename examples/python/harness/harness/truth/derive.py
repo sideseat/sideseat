@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from harness import content
+from harness.fakes import script
 from harness.truth import unexported
 from harness.truth.wire import ModelCall
 
@@ -49,6 +50,7 @@ PROMPTS: dict[str, list[tuple[str, ...]]] = {
     "reasoning": [(content.REASONING,)],
     "files": [(content.FILES,)],
     "citations": [(content.CITATIONS,)],
+    "file_references": [(content.FILE_REFERENCES,)],
     "multi_agent": [(content.MULTI_AGENT,)],
     "mcp_tools": [(content.MCP,)],
     "server_tools": [(content.SERVER_TOOLS,)],
@@ -255,6 +257,27 @@ def media_facts(scenario: str = "files") -> list[dict[str, Any]]:
             }
         )
     return values
+
+
+def reference_facts() -> list[dict[str, Any]]:
+    """The ``file_references`` attachments: where each one is, since none carries its bytes.
+
+    The request names the uploaded PDF only as a file, so the fact does not say it is a document.
+    """
+    return [
+        {
+            "modality": "image",
+            "media_type": None,
+            "source": "url",
+            "reference": content.IMAGE_URL,
+        },
+        {
+            "modality": "file",
+            "media_type": None,
+            "source": "file_id",
+            "reference": script.file_id((ASSETS / "task.pdf").read_bytes()),
+        },
+    ]
 
 
 def _usage(call: ModelCall) -> dict[str, Any] | None:
@@ -502,6 +525,16 @@ def assemble(
                     "script",
                     media,
                     require=_conversation_requirement("digest"),
+                )
+        if scenario == "file_references":
+            for media in reference_facts():
+                builder.fact(
+                    conversation,
+                    "user_media",
+                    "user",
+                    "script",
+                    media,
+                    require=_conversation_requirement("reference"),
                 )
         state["turn_calls"] = 0
         if state["initial"]:

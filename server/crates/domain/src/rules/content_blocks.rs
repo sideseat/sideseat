@@ -178,6 +178,14 @@ impl ContentBlockPlan {
                 {
                     Some("text.citations.from, its cases, or a citation case's source")
                 }
+                r if r
+                    .media
+                    .as_ref()
+                    .and_then(|m| m.kind_of.as_ref())
+                    .is_some_and(|of| of.map.is_empty()) =>
+                {
+                    Some("media.kind_of.map")
+                }
                 r if r.text.as_ref().is_some_and(|t| t.text.is_empty()) => Some("text.text"),
                 r if r.refusal.as_ref().is_some_and(|t| t.message.is_empty()) => {
                     Some("refusal.message")
@@ -310,6 +318,19 @@ impl ContentBlockPlan {
                         defect,
                     });
                 }
+            }
+            // `kind` states the kind outright, so a named one beside it would never be read.
+            if rule
+                .media
+                .as_ref()
+                .is_some_and(|m| m.kind.is_some() && m.kind_of.is_some())
+            {
+                return Err(ContentBlockCompileError::Predicate {
+                    rule: rule.id.clone(),
+                    defect: "declares both `kind` and `kind_of`; `kind` states the kind outright, so the \
+                             named one would never be read"
+                        .to_string(),
+                });
             }
             let ids = rule
                 .tool_use

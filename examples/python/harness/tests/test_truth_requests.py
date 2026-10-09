@@ -9,10 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from harness import fakes, transcript
+from harness import content, fakes, transcript
+from harness.fakes import openai as fake_openai
+from harness.fakes import script
 from harness.truth import derive
 from harness.truth.requests import decode_request
-from harness.truth.wire import DecodeError
+from harness.truth.wire import DecodeError, ModelCall, text_part
 
 PNG = b"\x89PNG\r\n\x1a\nfake"
 
@@ -184,6 +186,29 @@ def test_a_responses_attachment_without_its_bytes_is_a_reference() -> None:
     }
     with pytest.raises(DecodeError):
         decode_request("POST", "/v1/responses", json.dumps(empty).encode())
+
+
+def test_a_referenced_attachment_is_owed_by_where_it_is() -> None:
+    image, document = derive.reference_facts()
+    assert (image["source"], image["reference"]) == ("url", content.IMAGE_URL)
+    # The fake gives an upload the id its bytes derive, so the truth knows it without the upload.
+    pdf = (derive.ASSETS / "task.pdf").read_bytes()
+    form = (
+        b'--b\r\nContent-Disposition: form-data; name="file"; filename="task.pdf"\r\n'
+        b"Content-Type: application/pdf\r\n\r\n" + pdf + b"\r\n--b--\r\n"
+    )
+    uploaded = fake_openai.uploaded_file("multipart/form-data; boundary=b", form)
+    assert (document["source"], document["reference"]) == ("file_id", uploaded["id"])
+    answer = ModelCall(
+        api="openai.responses",
+        status=200,
+        parts=[text_part(script.ANSWERS[content.FILE_REFERENCES])],
+        finish="stop",
+    )
+    builder = derive.assemble("p", "file_references", [answer])
+    owed = [f for f in builder.facts if f["kind"] == "user_media"]
+    assert [f["value"] for f in owed] == [image, document]
+    assert {f["require"]["match"] for f in owed} == {"reference"}
 
 
 def test_gemini_inline_data_names_the_modality_every_other_api_does() -> None:

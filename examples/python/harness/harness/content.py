@@ -53,6 +53,13 @@ FILES = (
     "Describe the image in one sentence, then summarise the document in one sentence."
 )
 
+#: Attachments sent by reference rather than as bytes: an image by its URL and a document by the id an
+#: upload gave it, so a reconstruction can show only where each one is.
+FILE_REFERENCES = "Describe the linked image in one sentence, then summarise the uploaded document in one sentence."
+
+#: The image the ``file_references`` scenario links to. Only a live provider would fetch it.
+IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg"
+
 #: Answered from a document sent with citations enabled: a provider that cites returns the passages its
 #: answer rests on beside the answer.
 CITATIONS = "Using only the attached document, say in one sentence what it asks the reader to do."

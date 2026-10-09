@@ -431,7 +431,7 @@ def uploaded_file(content_type: str, body: bytes) -> dict[str, Any]:
         elif name:
             fields[name] = payload.decode()
     return {
-        "id": f"file-{script.digest(data.hex())}",
+        "id": script.file_id(data),
         "object": "file",
         "bytes": len(data),
         "created_at": CREATED,

@@ -14,7 +14,7 @@
   "kind": "fake-script",
   "surface": "fake-gemini",
   "path": "examples/python/harness/harness/fakes/script.py",
-  "sha256": "93c1ff4615b4b5e7d2c323132e4e216afb96b17f425aefe8d88e37293b3dd860"
+  "sha256": "94f6ae65f4a96826a8cd26e1deb046fe6acb487c5cc1db44542f197331fff8b2"
  },
  "generator": "examples/python/harness: python -m harness truth",
  "topology": "linear",

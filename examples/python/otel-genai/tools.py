@@ -18,6 +18,7 @@ from typing import Any
 from models import OpenAIModel
 from opentelemetry.util.genai.handler import TelemetryHandler, get_telemetry_handler
 from opentelemetry.util.genai.types import (
+    FilePart,
     InputMessage,
     MessagePart,
     Modality,
@@ -196,10 +197,18 @@ def _content(value: Any) -> list[MessagePart]:
         if kind in ("input_text", "output_text"):
             parts.append(TextPart(content=block["text"]))
         elif kind == "input_image":
-            # A data URL is an inline blob of the image modality.
+            # A data URL is an inline blob of the image modality; any other URL is a reference to one.
             image = image_from_url(block["image_url"])
             if image is not None:
                 parts.append(image)
+        elif kind == "input_file" and block.get("file_id"):
+            # A file the provider already holds, named by the id its upload returned: the request says
+            # neither its media type nor its bytes.
+            parts.append(
+                FilePart(
+                    mime_type=None, modality=Modality.DOCUMENT, file_id=block["file_id"]
+                )
+            )
         elif kind == "input_file":
             document = image_from_url(block["file_data"], modality=Modality.DOCUMENT)
             if document is not None:
