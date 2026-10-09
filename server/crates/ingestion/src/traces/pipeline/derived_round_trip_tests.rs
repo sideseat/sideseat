@@ -333,7 +333,6 @@ async fn every_derived_span_column_survives_the_store() {
         span.gen_ai_usage_total_tokens.to_string(),
         "0".into(),
     );
-    drop(check);
     // The finish reasons as the message row states them, beside the span row's list.
     assert_eq!(
         row.finish_reasons
