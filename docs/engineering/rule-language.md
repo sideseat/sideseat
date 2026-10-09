@@ -265,6 +265,13 @@ compiles:
 }
 ```
 
+The cases of one position are tried in priority order, and the first that recognises a block answers. A case
+whose `where` requires the block's top-level `type` to be one of some strings - an `equals` or a `one_of` on
+`$.type`, in a conjunction or in every branch of a disjunction - is asked only of blocks whose `type` is one of
+them; every other case is asked of every block. The order is unchanged, so the answer is the one the full walk
+gives, which the corpus equivalence test holds on every block the corpus asks about. A discriminating `type`
+test is therefore also what makes a case cheap.
+
 ## Span fields
 
 Each stored field has exactly one resolver in the whole corpus, in `vocabulary/span-fields-*.json`: a list of

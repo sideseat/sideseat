@@ -15,7 +15,10 @@ use std::collections::BTreeMap;
 
 use super::message_rules::{predicate_defect, predicates_hold, query};
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod corpus_record;
 mod forms;
+mod type_index;
 use super::schema::{
     ChainPosition, ContentBlockRule, IdSource, MissingMediaType, ResultContent, RuleFile,
     TransformedSource, ValueSource,
@@ -118,6 +121,8 @@ pub struct ContentBlockPlan {
     before: Vec<ContentBlockRule>,
     providers: Vec<ContentBlockRule>,
     after: Vec<ContentBlockRule>,
+    /// Each position's cases by the block `type` they require, in the order of the four lists above.
+    by_type: [type_index::TypeIndex; 4],
 }
 
 impl ContentBlockPlan {
@@ -411,6 +416,12 @@ impl ContentBlockPlan {
                 });
             }
         }
+        plan.by_type = [
+            type_index::TypeIndex::build(&plan.envelopes),
+            type_index::TypeIndex::build(&plan.before),
+            type_index::TypeIndex::build(&plan.providers),
+            type_index::TypeIndex::build(&plan.after),
+        ];
         if let Some(rule) = plan.first_endlessly_mapping_case() {
             return Err(ContentBlockCompileError::SelfRebuildingContent { rule });
         }
@@ -475,12 +486,9 @@ impl ContentBlockPlan {
         at: ChainPosition,
         consult_envelopes: bool,
     ) -> Option<JsonValue> {
-        let cases = match at {
-            ChainPosition::MessageEnvelope => &self.envelopes,
-            ChainPosition::BeforeProviderFormats => &self.before,
-            ChainPosition::ProviderFormats => &self.providers,
-            ChainPosition::AfterProviderFormats => &self.after,
-        };
+        #[cfg(any(test, feature = "test-support"))]
+        corpus_record::record(block, Some(at), consult_envelopes);
+        let (cases, index) = self.position(at);
         // First match wins for an **unwrap**, whether or not its member normalises. Its condition is that the
         // member is *there*, so a matching unwrap has claimed the block - and answering nothing then means "the
         // chain cannot read what was inside", which is the retired readers' behaviour and leaves the *original*
@@ -502,10 +510,21 @@ impl ContentBlockPlan {
             );
             return None;
         };
-        for rule in cases
-            .iter()
-            .filter(|rule| predicates_hold(block, &rule.require))
-        {
+        // Only the cases the block's `type` can satisfy, in declaration order, so the case that answers is the
+        // one the full walk would reach first (`content_blocks::type_index`).
+        let asked = index.candidates(block).iter().map(|&case| &cases[case]);
+        self.first_answer(block, asked, consult_envelopes)
+    }
+
+    /// The first of these cases, in the order given, that recognises the block and builds an answer - or the
+    /// unwrap that claims it and answers nothing.
+    fn first_answer<'r>(
+        &self,
+        block: &JsonValue,
+        cases: impl Iterator<Item = &'r ContentBlockRule>,
+        consult_envelopes: bool,
+    ) -> Option<JsonValue> {
+        for rule in cases.filter(|rule| predicates_hold(block, &rule.require)) {
             match built(self, block, rule, consult_envelopes) {
                 Some(out) => return Some(out),
                 None if rule.unwrap.is_some() => return None,
@@ -515,6 +534,16 @@ impl ContentBlockPlan {
         None
     }
 
+    /// The cases at this position, and their index by `type`.
+    fn position(&self, at: ChainPosition) -> (&[ContentBlockRule], &type_index::TypeIndex) {
+        match at {
+            ChainPosition::MessageEnvelope => (&self.envelopes, &self.by_type[0]),
+            ChainPosition::BeforeProviderFormats => (&self.before, &self.by_type[1]),
+            ChainPosition::ProviderFormats => (&self.providers, &self.by_type[2]),
+            ChainPosition::AfterProviderFormats => (&self.after, &self.by_type[3]),
+        }
+    }
+
     /// The blocks a message content block stands for, where a declared splice or provider run recognises it.
     ///
     /// Consulted before a message's content is normalised, block by block, and never by the single-block
@@ -522,10 +551,17 @@ impl ContentBlockPlan {
     pub fn expand<'b>(&self, block: &'b JsonValue) -> Option<Expansion<'b>> {
         // The first envelope case that recognises the block decides, whatever its form, so neither form can
         // reach past a higher-ranked envelope that claims the same block.
-        let rule = self
-            .envelopes
+        #[cfg(any(test, feature = "test-support"))]
+        corpus_record::record(block, None, true);
+        let rule = self.by_type[0]
+            .candidates(block)
             .iter()
+            .map(|&case| &self.envelopes[case])
             .find(|rule| predicates_hold(block, &rule.require))?;
+        Self::expansion(block, rule)
+    }
+
+    fn expansion<'b>(block: &'b JsonValue, rule: &ContentBlockRule) -> Option<Expansion<'b>> {
         if let Some(spec) = &rule.provider_run {
             return forms::provider_run(block, spec).map(Expansion::Built);
         }
