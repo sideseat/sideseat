@@ -4,6 +4,19 @@
   "doc": "The Bedrock Converse content blocks: untyped, each recognised by the one member that names it. Strands and every Converse instrumentation write them. Ranked in the order the members are tried, because a block holding two of them is read as the first.",
   "content_blocks": [
     {
+      "id": "bedrock.citations_content",
+      "doc": "Converse's answer drawn from a document sent with citations enabled: the model's text under `citationsContent.content`, one text block per passage it wrote, beside the citations supporting it. Read nowhere, the block was one unknown block and the model's answer left the conversation. The citations stay in the stored block until the text form carries them.",
+      "at": "message_envelope",
+      "priority": 25,
+      "where": {
+        "path": "$.citationsContent.content",
+        "kind": "array"
+      },
+      "splice": {
+        "from": "$.citationsContent.content"
+      }
+    },
+    {
       "id": "bedrock.text",
       "at": "provider_formats",
       "priority": 3000,

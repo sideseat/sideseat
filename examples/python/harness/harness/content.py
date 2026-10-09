@@ -53,6 +53,10 @@ FILES = (
     "Describe the image in one sentence, then summarise the document in one sentence."
 )
 
+#: Answered from a document sent with citations enabled: a provider that cites returns the passages its
+#: answer rests on beside the answer.
+CITATIONS = "Using only the attached document, say in one sentence what it asks the reader to do."
+
 MULTI_AGENT = (
     "Research the weather in Barcelona for the next two days, then write a one-paragraph packing "
     "list based on it."

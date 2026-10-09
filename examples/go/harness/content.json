@@ -463,6 +463,11 @@
       "core": false
     },
     {
+      "name": "citations",
+      "summary": "An answer drawn from a document sent with citations enabled, citing the passages it used.",
+      "core": false
+    },
+    {
       "name": "multi_agent",
       "summary": "Agents that hand work to each other: handoff, swarm, or graph.",
       "core": false

@@ -256,10 +256,18 @@ Every slice follows the same discipline:
 | S4 | Anthropic server tools, citations, `search_result`, document sources, `container_upload`, MCP and compaction blocks | extend fake-anthropic; capture the anthropic suites offline | me + rubric |
 | S5 | OpenAI hosted-tool and custom-tool items, annotations, `input_image` by file id; Chat Completions message `refusal` / `audio` | extend fake-openai (`/v1/responses` exists); capture the openai and openai-agents suites | me + rubric |
 | S6 | Gemini code execution, `fileData` camelCase, `function_response.parts`, `thought_signature`, server tool invocations, transcription | extend fake-gemini; capture google-genai, vertex-ai and adk | me + rubric |
-| S7 | Bedrock `citationsContent`, `searchResult`, document text/content sources, `toolResult` media | live Bedrock Converse; citations on Claude to be confirmed at capture. s3 and guardrails are skipped, because they need AWS writes | me |
+| S7 | Bedrock `citationsContent`, `searchResult`, document text/content sources, `toolResult` media | live Bedrock Converse; citations on Claude confirmed by the S7a capture. s3 and guardrails are skipped, because they need AWS writes | me |
 | S8 | Mistral chunks | needs a fake Mistral server, or is parked | me, if approved |
 | S9 | Gemini Interactions, OpenAI Decisions | waits for an instrumentation; record in `docs/engineering/integration-landscape.md` | me |
 | S10 | Content-block type index | none, corpus equivalence | rule-language track |
+
+**S7 open items.** S7a moved ahead of S5, because a cited answer's text fell to an unknown block. It reads
+`citationsContent` as its text; the citations themselves join the text form's citations member with S3b. Still open:
+
+- A document's `text` source. With citations enabled, Converse reads a document's `bytes` as a PDF and refuses a
+  `txt` document sent that way ("The PDF specified was not valid"), so a plain-text document must use `source.text`.
+  No request decoder or content-block case reads that source yet.
+- `searchResult`, a document's `content` source, and media inside a `toolResult`.
 
 **Order of value:**
 1. S1 is visible text lost today, with captures in hand.

@@ -47,17 +47,21 @@ PROMPTS: dict[str, list[tuple[str, ...]]] = {
     "structured_output": [(content.STRUCTURED,)],
     "reasoning": [(content.REASONING,)],
     "files": [(content.FILES,)],
+    "citations": [(content.CITATIONS,)],
     "multi_agent": [(content.MULTI_AGENT,)],
     "mcp_tools": [(content.MCP,)],
     "server_tools": [(content.SERVER_TOOLS,)],
     "trailing_tool": [(content.TRAILING_TOOL,)],
 }
 
-#: Attachments of the ``files`` scenario's user turn.
-MEDIA = (
-    ("image", "image/jpeg", "img.jpg"),
-    ("document", "application/pdf", "task.pdf"),
-)
+#: Attachments of each scenario's user turn, by scenario.
+MEDIA = {
+    "files": (
+        ("image", "image/jpeg", "img.jpg"),
+        ("document", "application/pdf", "task.pdf"),
+    ),
+    "citations": (("document", "application/pdf", "task.pdf"),),
+}
 
 
 def topology(scenario: str) -> str:
@@ -242,9 +246,9 @@ def _conversation_requirement(match: str) -> dict[str, Any]:
     }
 
 
-def media_facts() -> list[dict[str, Any]]:
+def media_facts(scenario: str = "files") -> list[dict[str, Any]]:
     values = []
-    for modality, media_type, name in MEDIA:
+    for modality, media_type, name in MEDIA.get(scenario, ()):
         raw = (ASSETS / name).read_bytes()
         values.append(
             {
@@ -487,8 +491,8 @@ def assemble(
             # A framework may wrap the application's prompt in a template of its own.
             require=_conversation_requirement("contains"),
         )
-        if scenario == "files":
-            for media in media_facts():
+        if scenario in MEDIA:
+            for media in media_facts(scenario):
                 builder.fact(
                     conversation,
                     "user_media",

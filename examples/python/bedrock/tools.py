@@ -89,5 +89,13 @@ def converse(
 
 
 def answer(message: dict[str, Any]) -> str:
-    """The text of an assistant message. Current Claude models may lead with a reasoning block."""
-    return "".join(block.get("text", "") for block in message["content"])
+    """The text of an assistant message. Current Claude models may lead with a reasoning block, and an
+    answer that cites a document holds its cited passages in ``citationsContent`` blocks."""
+    return "".join(
+        block.get("text", "")
+        + "".join(
+            part.get("text", "")
+            for part in (block.get("citationsContent") or {}).get("content") or []
+        )
+        for block in message["content"]
+    )

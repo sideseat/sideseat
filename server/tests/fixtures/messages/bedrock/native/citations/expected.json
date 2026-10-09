@@ -1,0 +1,288 @@
+{
+  "label": "bedrock/native/citations",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-2": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Using only the attached document, say in one sentence what it asks the reader to do.",
+          "content_digest": "867f3530710e8202",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The document asks the reader to",
+          "content_digest": "38ffdb56e5241105",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "write a poem",
+          "content_digest": "a00f15e304dc0224",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "; its remaining pages contain only page numbers.",
+          "content_digest": "9f6f0a7ff29bcc47",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/citations/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Using only the attached document, say in one sentence what it asks the reader to do.",
+          "content_digest": "867f3530710e8202",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The document asks the reader to",
+          "content_digest": "38ffdb56e5241105",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "write a poem",
+          "content_digest": "a00f15e304dc0224",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "; its remaining pages contain only page numbers.",
+          "content_digest": "9f6f0a7ff29bcc47",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "bedrock-citations": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Using only the attached document, say in one sentence what it asks the reader to do.",
+          "content_digest": "867f3530710e8202",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The document asks the reader to",
+          "content_digest": "38ffdb56e5241105",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "write a poem",
+          "content_digest": "a00f15e304dc0224",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "; its remaining pages contain only page numbers.",
+          "content_digest": "9f6f0a7ff29bcc47",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "assistant",
+      "user",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The document asks the reader to",
+        "content_digest": "38ffdb56e5241105",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "write a poem",
+        "content_digest": "a00f15e304dc0224",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "; its remaining pages contain only page numbers.",
+        "content_digest": "9f6f0a7ff29bcc47",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Using only the attached document, say in one sentence what it asks the reader to do.",
+        "content_digest": "867f3530710e8202",
+        "observation_type": "span"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+        "content_digest": "d3b2efa81a0d83fc",
+        "tool_name": "task",
+        "observation_type": "span"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

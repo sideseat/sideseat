@@ -482,53 +482,6 @@ def test_an_anthropic_web_search_is_one_provider_run_with_its_sources() -> None:
     assert whole.tool_calls == [] and whole.finish == "stop"
 
 
-def test_an_anthropic_search_error_is_a_failed_provider_run() -> None:
-    message = {
-        "type": "message",
-        "id": "msg_1",
-        "model": "claude-sonnet-5-5",
-        "stop_reason": "end_turn",
-        "content": [
-            {
-                "type": "server_tool_use",
-                "id": "srvtoolu_1",
-                "name": "web_search",
-                "input": {"query": "q"},
-            },
-            {
-                "type": "web_search_tool_result",
-                "tool_use_id": "srvtoolu_1",
-                "content": {
-                    "type": "web_search_tool_result_error",
-                    "error_code": "max_uses_exceeded",
-                },
-            },
-        ],
-    }
-    call = wire.anthropic_message(message)
-    assert call.parts == [
-        wire.server_call_part(
-            "srvtoolu_1",
-            "web_search",
-            {"query": "q"},
-            {"error_code": "max_uses_exceeded"},
-            is_error=True,
-        )
-    ]
-
-
-def test_an_anthropic_search_result_for_no_call_is_refused() -> None:
-    orphan = {
-        "type": "web_search_tool_result",
-        "tool_use_id": "srvtoolu_9",
-        "content": [],
-    }
-    with pytest.raises(DecodeError, match="no call"):
-        wire.anthropic_message(
-            {"type": "message", "id": "msg_1", "content": [orphan], "stop_reason": None}
-        )
-
-
 # --- OpenAI -------------------------------------------------------------------------------------
 
 

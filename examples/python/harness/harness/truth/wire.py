@@ -310,6 +310,15 @@ def converse(value: dict[str, Any]) -> ModelCall:
                 raise DecodeError(
                     f"unknown Converse reasoning block: {list(reasoning)}"
                 )
+        elif "citationsContent" in block:
+            # An answer drawn from a document sent with citations enabled: the model's text beside the
+            # passages it cites. The text is the answer.
+            for generated in block["citationsContent"].get("content") or []:
+                if not isinstance(generated.get("text"), str):
+                    raise DecodeError(
+                        f"unknown Converse cited content: {list(generated)}"
+                    )
+                parts.append(text_part(generated["text"]))
         else:
             raise DecodeError(f"unknown Converse content block: {list(block)}")
     stop = value.get("stopReason")

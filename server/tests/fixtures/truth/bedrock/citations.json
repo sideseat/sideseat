@@ -1,0 +1,260 @@
+{
+ "format": "sideseat.truth/3",
+ "producer": "bedrock",
+ "scenario": "citations",
+ "fixtures": [
+  "bedrock/native/citations",
+  "bedrock/sdk/citations"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/bedrock/cassettes/citations.json",
+  "sha256": "0ea8d2b15b07c361181c6fd8465724877de94fc117c501852f955c60827c6b72",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 8785,
+    "output": 48,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-004",
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Using only the attached document, say in one sentence what it asks the reader to do."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "document",
+    "media_type": "application/pdf",
+    "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
+    "bytes": 13207
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "The document asks the reader to write a poem; its remaining pages contain only page numbers.",
+    "segments": [
+     "The document asks the reader to ",
+     "write a poem",
+     "; its remaining pages contain only page numbers."
+    ]
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "bedrock/native/citations",
+    "bedrock/sdk/citations"
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ],
+ "requests": {
+  "bedrock/native/citations": {
+   "transcript": "server/tests/fixtures/messages/bedrock/native/citations/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-004"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Using only the attached document, say in one sentence what it asks the reader to do."
+         },
+         "new_fact": "fact-001"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "document",
+          "media_type": "application/pdf",
+          "size": 13207,
+          "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
+          "name": "task"
+         },
+         "new_fact": "fact-002"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "bedrock/sdk/citations": {
+   "transcript": "server/tests/fixtures/messages/bedrock/sdk/citations/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-004"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Using only the attached document, say in one sentence what it asks the reader to do."
+         },
+         "new_fact": "fact-001"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "document",
+          "media_type": "application/pdf",
+          "size": 13207,
+          "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
+          "name": "task"
+         },
+         "new_fact": "fact-002"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
+}

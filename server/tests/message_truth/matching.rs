@@ -39,13 +39,28 @@ pub(super) fn outputs<'a>(recon: &'a Recon, generation: &Generation) -> Vec<&'a 
 }
 
 fn shown_in(fact: &Fact, blocks: &[&Block]) -> bool {
-    blocks.iter().any(|b| shows_on_span(fact, b) != Shows::No)
+    blocks.iter().any(|b| shows_on_span(fact, b) != Shows::No) || shown_in_segments(fact, blocks)
 }
 
 fn shown_exactly(fact: &Fact, blocks: &[&Block]) -> bool {
     blocks
         .iter()
         .any(|b| matches!(shows_on_span(fact, b), Shows::Yes | Shows::Assigned(_)))
+        || shown_in_segments(fact, blocks)
+}
+
+/// An answer the provider returned as several text blocks - split around a citation, say - shown as those
+/// blocks: its segments as consecutive output blocks, one each, as the view checks accept it.
+fn shown_in_segments(fact: &Fact, blocks: &[&Block]) -> bool {
+    let Some(segments) = fact.value.get("segments").and_then(|s| s.as_array()) else {
+        return false;
+    };
+    segments.len() >= 2
+        && blocks.windows(segments.len()).any(|run| {
+            run.iter()
+                .zip(segments)
+                .all(|(b, s)| b.is("assistant", "text") && b.text() == s.as_str())
+        })
 }
 
 /// Whether a block of a generation's own output shows the fact as that span can: withheld reasoning whose
@@ -658,5 +673,65 @@ fn describe(values: &[&Option<String>]) -> String {
         "states none".to_string()
     } else {
         stated.join(" / ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn text(role: &str, text: &str) -> Block {
+        let content = json!({"type": "text", "text": text});
+        Block {
+            role: role.to_string(),
+            kind: "text".to_string(),
+            content: content.clone(),
+            tool_use_id: None,
+            trace: "t".to_string(),
+            span: "s".to_string(),
+            output: true,
+            finish: None,
+            media_sha256: None,
+            digest: content.to_string(),
+            identity: content.to_string(),
+            carrier: String::new(),
+            position: String::new(),
+        }
+    }
+
+    fn answer(segments: &[&str]) -> Fact {
+        serde_json::from_value(json!({
+            "id": "fact-003", "kind": "text", "role": "assistant", "conversation": "conv-1",
+            "evidence": "wire", "value": {"text": segments.concat(), "segments": segments},
+            "require": {"anchor": "model_call", "views": ["span"], "cardinality": "exactly_once",
+                "match": "exact"}
+        }))
+        .expect("a fact")
+    }
+
+    #[test]
+    fn a_segmented_answer_is_shown_only_by_every_segment_in_order_and_adjacent() {
+        let fact = answer(&["The document asks ", "write a poem", "."]);
+        let shown = |texts: &[(&str, &str)]| {
+            let blocks: Vec<Block> = texts.iter().map(|(role, t)| text(role, t)).collect();
+            let blocks: Vec<&Block> = blocks.iter().collect();
+            (shown_in(&fact, &blocks), shown_exactly(&fact, &blocks))
+        };
+        let a = ("assistant", "The document asks ");
+        let b = ("assistant", "write a poem");
+        let c = ("assistant", ".");
+        assert_eq!(shown(&[a, b, c]), (true, true));
+        // A missing segment, a reordered pair, an extra block between, or another role's block is not it.
+        assert_eq!(shown(&[a, b]), (false, false));
+        assert_eq!(shown(&[b, a, c]), (false, false));
+        assert_eq!(shown(&[a, ("assistant", " "), b, c]), (false, false));
+        assert_eq!(shown(&[a, ("user", "write a poem"), c]), (false, false));
+        // The whole answer in one block is shown as before.
+        assert_eq!(
+            shown(&[("assistant", "The document asks write a poem.")]),
+            (true, true)
+        );
     }
 }
