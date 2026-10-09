@@ -844,16 +844,19 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
 
 
 def gate(result: dict, only: str | None = None) -> int:
-    """Fail the run when a signal is above its ceiling. With `only`, that signal alone is judged.
+    """Fail the run when a signal is above its ceiling, or when the run is not the one the ceilings describe.
 
-    One signal at a time is how the gate is meant to run: DuckDB's residue - its indexes and metadata - cannot
-    be attributed to a table, so it is spread over the signals by rows, and a corpus that holds a million metric
-    points therefore moves the figure for traces. Measuring one signal per run leaves nothing to share.
+    Every signal is judged, on the whole corpus: `only` - a run of one signal's corpus - is refused rather than
+    judged, since DuckDB's residue is spread over the signals by rows and a run without the others charges the
+    one it holds a different share (see below).
     """
     ceilings = json.loads(CEILING.read_text())[result["mode"]]
-    if only:
-        ceilings = {only: ceilings[only]}
     failures = []
+    if only:
+        failures.append(
+            f"gating measures the whole corpus, every signal; --signal {only} loaded {only} alone, which "
+            f"charges it all of the store's residue. Drop --signal, or drop --gate to measure one signal."
+        )
     # The ceilings were taken on one invocation: the whole pinned corpus with the derived metric load. DuckDB
     # cannot attribute its residue - indexes, block tails, metadata - to a table, so the report spreads it over
     # the signals by rows: measuring a different set of rows charges every signal a different share, and the

@@ -129,10 +129,11 @@ footprint-storage-distributed: ## Measure and gate stored bytes per signal (Clic
 # counters because allocators may retain freed pages.
 footprint: ## Enforce memory footprint ceilings, locally and under enforced container limits
 	@# Every gate runs and reports, and the target fails if any did: the process gates, the enforced limits, then the
-	@# allocation tests, whose counters are process-global, so they run one at a time.
+	@# allocation tests, whose counters are process-global, so they run one at a time - with the invariants beside
+	@# them, among them that the allocator runs on the purge policy the memory figures are stated under.
 	$(call run-with-disk-guard,status=0; scripts/perf/footprint-gates.sh || status=1; \
 		scripts/perf/footprint-gates.sh container || status=1; \
-		cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1 || status=1; \
+		cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --include-ignored --nocapture --test-threads=1 || status=1; \
 		exit $$status)
 
 test-web: ## Run web tests

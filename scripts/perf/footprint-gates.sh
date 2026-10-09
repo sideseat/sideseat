@@ -313,6 +313,27 @@ for path in sorted(Path(fixture).glob("*.pb")):
 if not any(ranges for _, ranges in requests):
     sys.exit("the fixture carries no span ids to rewrite")
 
+def rejected_spans(answer):
+    """`partial_success.rejected_spans` (field 1 of field 1) of an ExportTraceServiceResponse, or 0."""
+    for f1, s1, e1 in fields(answer, 0, len(answer)):
+        if f1 != 1:
+            continue
+        at = s1
+        while at < e1:
+            key, at = varint(answer, at)
+            if key >> 3 == 1 and key & 7 == 0:
+                value, at = varint(answer, at)
+                return value
+            if key & 7 == 2:
+                length, at = varint(answer, at)
+                at += length
+            elif key & 7 == 0:
+                _, at = varint(answer, at)
+            else:
+                sys.exit(f"unsupported protobuf wire type {key & 7} in a response")
+    return 0
+
+
 lock = threading.Lock()
 posted = open(work / "posted", "a")
 
@@ -345,12 +366,18 @@ def loader(number):
                     headers={"Content-Type": "application/x-protobuf"},
                 )
                 response = connection.getresponse()
-                response.read()
+                answer = response.read()
             except (OSError, http.client.HTTPException) as error:
                 refuse(f"loader {number}: request failed: {error!r}")
                 return
             if response.status != 200:
                 refuse(f"loader {number} got HTTP {response.status}")
+                return
+            # A 200 can still refuse spans: OTLP answers them in `partial_success`, and a post whose spans were
+            # rejected is not the load the rate counts.
+            rejected = rejected_spans(answer)
+            if rejected:
+                refuse(f"loader {number}: the server rejected {rejected} spans of an export")
                 return
             with lock:
                 posted.write("x\n")
@@ -445,7 +472,7 @@ esac
 # opposite direction from the low-rate false pass guarded below. The 0.75 factor leaves room for request latency,
 # while the mandatory achieved-rate floor still rejects a host that does not reach the stated regime.
 steady_ingest() {
-  local rate="$1" open="$2"
+  local rate="$1" open="$2" fraction="${3:-$RATE_FRACTION}"
   local pace stop="$WORK/stop" reading start loader
   pace="$(awk -v loaders="$LOADERS" -v spans="$SPANS_PER_PASS" -v reqs="$REQUESTS" -v target="$rate" \
     'BEGIN { if (target > 0 && reqs > 0) printf "%.6f", 0.75 * loaders * spans / (reqs * target); else print 0 }')"
@@ -465,6 +492,9 @@ steady_ingest() {
     sleep "$SAMPLE_INTERVAL_SECS"
   done
   ELAPSED=$(( $(date +%s) - start ))
+  # Counted when the window closes, not after the loaders are stopped: an export that completes afterwards is not
+  # load the samples saw, and counting it paired a rate with memory readings from a different interval.
+  POSTED="$(wc -l <"$WORK/posted" | tr -d ' ')"
   touch "$stop"
   # The loader **by pid**, never a bare `wait`.
   #
@@ -484,7 +514,6 @@ steady_ingest() {
   MAX_CHARGED="$(largest "${charged[@]}")"
   MEDIAN_RSS="$(median "${rss[@]}")"
   MAX_RSS="$(largest "${rss[@]}")"
-  POSTED="$(wc -l <"$WORK/posted" | tr -d ' ')"
   # Average spans per request across the fixture: the requests are not uniform, so this is an average by
   # construction and is reported as an achieved rate rather than asserted as one.
   ACHIEVED="$(awk -v posted="$POSTED" -v spans="$SPANS_PER_PASS" -v reqs="$REQUESTS" -v secs="$ELAPSED" \
@@ -492,13 +521,13 @@ steady_ingest() {
   # Below the rate the figure is stated at, it describes a different workload - so this is a failed
   # *measurement*, not a passed gate. A system at 300 MB under 2 500 spans/s can be at 500 MB under 5 000, so the
   # floor is just below the target rather than at half of it.
-  MIN_RATE="$(awk -v target="$rate" -v frac="$RATE_FRACTION" 'BEGIN { printf "%.0f", target * frac }')"
+  MIN_RATE="$(awk -v target="$rate" -v frac="$fraction" 'BEGIN { printf "%.0f", target * frac }')"
   case "$MIN_RATE" in
-    '' | *[!0-9]*) fail "could not compute a rate floor from target=$rate fraction=$RATE_FRACTION" ;;
+    '' | *[!0-9]*) fail "could not compute a rate floor from target=$rate fraction=$fraction" ;;
   esac
   # And a floor of zero is no floor, however it was arrived at. Refused rather than reported, because a gate that
   # admits everything while claiming a threshold is worse than an absent gate.
-  [ "$MIN_RATE" -gt 0 ] || fail "the computed rate floor is 0, which enforces nothing (target=$rate fraction=$RATE_FRACTION)"
+  [ "$MIN_RATE" -gt 0 ] || fail "the computed rate floor is 0, which enforces nothing (target=$rate fraction=$fraction)"
 
   # A 503 here is admission, `BufferFull` or a rate limit - the server protecting itself, a legitimate answer,
   # and not load. Reported as a failure of the *measurement*, because the figure taken while the server was
@@ -616,7 +645,7 @@ echo "[footprint] image $IMAGE on $(docker info -f '{{.OperatingSystem}} {{.Arch
 # the claim here; surviving the limit at the rate is.
 FAILURES=0
 limited_run() {
-  local label="$1" limit="$2" cores="$3" rate="$4" open="$5"
+  local label="$1" limit="$2" cores="$3" rate="$4" open="$5" fraction="${6:-$RATE_FRACTION}"
   CONTAINER="sideseat-footprint-$$-$label"
   echo "[footprint] $label: limit $(mb "$limit") MB, $cores cores, $rate spans/s"
   # `--memory-swap` equal to `--memory`: no swap, so the limit is on memory rather than on memory plus disk.
@@ -630,7 +659,7 @@ limited_run() {
   settle_idle
   echo "[footprint] $label idle: charged $(mb "$IDLE_CHARGED") MB; RSS $(mb "$IDLE_RSS") MB (ungated)"
   prime
-  steady_ingest "$rate" "$open"
+  steady_ingest "$rate" "$open" "$fraction"
   local state events stat
   state="$(docker inspect -f '{{.State.Running}} {{.State.OOMKilled}} {{.State.ExitCode}}' "$CONTAINER")"
   events="$(docker exec "$CONTAINER" cat /sys/fs/cgroup/memory.events 2>/dev/null | tr '\n' ' ' || true)"
@@ -659,7 +688,8 @@ limited_run() {
 # The ingest ceiling as a hard limit, with every core the Docker host has: more cores is more worker threads,
 # allocator arenas and DuckDB threads, so this is the heavier side of the claim.
 limited_run ceiling "$INGEST_MEMORY_CEILING_BYTES" "$HOST_CORES" "$TARGET_SPANS_PER_SECOND" "$THROUGHPUT_OPEN"
-# The target host: one core and 2 GB for the server and its embedded backend, at the target rate.
-limited_run target-host "$TARGET_HOST_MEMORY_BYTES" "$TARGET_HOST_CORES" "$TARGET_HOST_SPANS_PER_SECOND" "$TARGET_OPEN"
+# The target host: one core and 2 GB for the server and its embedded backend, at the target rate. That rate is a
+# minimum the host must sustain, not the rate a memory figure is stated at, so its floor is the rate itself.
+limited_run target-host "$TARGET_HOST_MEMORY_BYTES" "$TARGET_HOST_CORES" "$TARGET_HOST_SPANS_PER_SECOND" "$TARGET_OPEN" 1
 [ "$FAILURES" -eq 0 ] || exit 1
 echo "[footprint] the server held both enforced limits at their rates"
