@@ -418,8 +418,10 @@ fn truth_violation_ledger_is_well_formed() {
 /// the truth gained since the base - content a request carried that the truth then learned to state - is
 /// an obligation the base never imposed; and a request entry whose request part - the one its subject
 /// names, or the call's whole request - the base did not send, because the fixture's transcript was
-/// recorded or re-recorded since with other content there; and an entry about a subject the base recorded
-/// as missing in the same view, which is that defect changing form as its content starts to be shown. All still need a triaged backlog issue, which
+/// recorded or re-recorded since with other content there; an entry about a subject the base recorded
+/// as missing in the same view, which is that defect changing form as its content starts to be shown; and a
+/// request entry about a call the base could not tie to a span (`call.unmatched`), whose request no check
+/// could reach until the call was found. All still need a triaged backlog issue, which
 /// `truth_violation_ledger_is_well_formed` enforces.
 fn regressions(
     entries: &[ledger::Entry],
@@ -440,6 +442,33 @@ fn regressions(
 /// The facts an entry is about: its subject, or both ends of an order entry (`fact-009 before fact-003`).
 fn entry_facts(entry: &ledger::Entry) -> Vec<&str> {
     entry.subject.split(" before ").collect()
+}
+
+/// The added request entries about a call the base recorded as `call.unmatched` and the current ledger no
+/// longer does. The request check runs only on a call tied to its span, so the base said nothing about that
+/// call's request; the entries are what the call's defect is now that it is found, in the same fixture.
+fn unreached_requests(base: &[ledger::Entry], current: &[ledger::Entry]) -> BTreeSet<String> {
+    let unmatched = |entries: &[ledger::Entry]| -> BTreeSet<(String, String)> {
+        entries
+            .iter()
+            .filter(|e| e.view == ViolationView::Call.name() && e.assertion == "call.unmatched")
+            .map(|e| (e.fixture.clone(), e.subject.clone()))
+            .collect()
+    };
+    let found: BTreeSet<(String, String)> = unmatched(base)
+        .difference(&unmatched(current))
+        .cloned()
+        .collect();
+    current
+        .iter()
+        .filter(|e| e.view == ViolationView::Request.name())
+        .filter(|e| {
+            e.subject
+                .split_once(':')
+                .is_some_and(|(call, _)| found.contains(&(e.fixture.clone(), call.to_string())))
+        })
+        .map(|e| e.id.clone())
+        .collect()
 }
 
 /// The added entries that are the same defect as one the base recorded, changing form 1:1 as its content
@@ -673,13 +702,14 @@ fn truth_violation_ledger_only_shrinks_against_main() {
     };
     let current_entries = ledger::load().entries;
     let changes_of_form = changes_of_form(&base_entries, &current_entries);
+    let unreached = unreached_requests(&base_entries, &current_entries);
     let added = regressions(
         &current_entries,
         &before,
         |family| registry.contains(&format!("\"{family}\"")),
         |fixture| fixtures_at_base.contains(fixture),
         |entry| {
-            if changes_of_form.contains(&entry.id) {
+            if changes_of_form.contains(&entry.id) || unreached.contains(&entry.id) {
                 return false;
             }
             if entry.view == ViolationView::Request.name() {
@@ -827,6 +857,33 @@ fn a_defect_changing_form_from_missing_is_not_a_new_one() {
     // A per-trace obligation keeps its scope: `fact-010@trace-2` missing admits nothing about `fact-010`.
     let scoped = [entry("trace", "system.missing", "fact-010@trace-2")];
     assert!(changes_of_form(&scoped, std::slice::from_ref(&leaked)).is_empty());
+}
+
+#[test]
+fn a_request_no_check_reached_is_a_baseline_once_its_call_is_found() {
+    let entry = |view: &str, assertion: &str, subject: &str| ledger::Entry {
+        id: format!("p/native/s:{view}:{assertion}:{subject}"),
+        fixture: "p/native/s".to_string(),
+        view: view.to_string(),
+        assertion: assertion.to_string(),
+        subject: subject.to_string(),
+        fingerprint: String::new(),
+        reason: "a test entry".to_string(),
+        issue: "rule-language-program#rv3/request.missing/p".to_string(),
+        introduced: String::new(),
+    };
+    let base = [entry("call", "call.unmatched", "call-002")];
+    let missing = entry("request", "request.missing", "call-002:m0.1");
+    let extra = entry("request", "request.extra", "call-002:in3:system/text");
+    let other_call = entry("request", "request.missing", "call-003:m0.1");
+    // The call is found now: what its request lacks is admitted, another call's is not.
+    let found = unreached_requests(&base, &[missing.clone(), extra.clone(), other_call.clone()]);
+    assert_eq!(
+        found,
+        BTreeSet::from([missing.id.clone(), extra.id.clone()])
+    );
+    // Still unmatched: nothing reached its request, so nothing about it is admitted on that ground.
+    assert!(unreached_requests(&base, &[base[0].clone(), missing.clone()]).is_empty());
 }
 
 /// Prints one fixture's views and violations, for triaging a ledger entry:

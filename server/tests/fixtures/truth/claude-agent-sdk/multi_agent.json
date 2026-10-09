@@ -895,6 +895,36 @@
    "reason": "tool_not_deterministic",
    "detail": "SubagentHandback is not one of the shared deterministic tools",
    "subject": "fact-007"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: the Claude Agent SDK's llm_request span records no response content when the model calls tools, and its tool spans and the next request carry them",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: the Claude Agent SDK's llm_request span records no response content when the model calls tools, and its tool spans and the next request carry them",
+   "subject": "fact-003"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: the Claude Agent SDK's llm_request span records no response content when the model calls tools, and its tool spans and the next request carry them",
+   "subject": "fact-005"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: the Claude Agent SDK's llm_request span records no response content when the model calls tools, and its tool spans and the next request carry them",
+   "subject": "fact-006"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "the tool calls of a response that only calls tools, on the call's own span: the Claude Agent SDK's llm_request span records no response content when the model calls tools, and its tool spans and the next request carry them",
+   "subject": "fact-007"
   }
  ],
  "requests": {

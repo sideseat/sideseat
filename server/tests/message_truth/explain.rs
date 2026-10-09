@@ -328,12 +328,12 @@ fn check_attribution(
         {
             continue;
         }
-        // A part its producing span does not carry (`output_not_exported`, proven) is owed off that span,
-        // where a later request handed it back: on the span of a call that was sent it, or one enclosing
-        // that, and nowhere else. Without a request transcript no span can be named for it.
+        // A part its producing span does not carry (`output_not_exported`, proven) is owed off that span:
+        // on the span of a later call that was handed it back, or for a tool call on the span that ran it,
+        // or one enclosing either, and nowhere else. Where neither is known no span can be named for it.
         let off_span = context.owed_off_span(fact);
         let sent = if off_span {
-            context.replayed_spans.get(fact_id)
+            context.off_span_homes.get(fact_id)
         } else {
             context.sent_spans.get(fact_id)
         };

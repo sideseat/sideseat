@@ -45,9 +45,10 @@ pub(super) struct Context<'a> {
     pub home_traces: BTreeMap<String, BTreeSet<String>>,
     /// The spans a fact a request re-sent may be shown on: those of the calls that were sent it.
     pub sent_spans: BTreeMap<String, BTreeSet<String>>,
-    /// For a response part its producing span does not carry (`output_not_exported`), the spans of the
-    /// later calls whose requests handed it back: the only spans it can be shown on.
-    pub replayed_spans: BTreeMap<String, BTreeSet<String>>,
+    /// For a response part its producing span does not carry (`output_not_exported`), the spans it can be
+    /// shown on: those of the later calls whose requests handed it back, and for a tool call the span that
+    /// ran it - a span of no model call that records that call and no other.
+    pub off_span_homes: BTreeMap<String, BTreeSet<String>>,
     /// What this fixture's recorded requests account for in its views (`requests`).
     pub accounted: super::requests::Accounted,
     /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
@@ -70,7 +71,7 @@ impl<'a> Context<'a> {
             home_trace: BTreeMap::new(),
             home_traces: BTreeMap::new(),
             sent_spans: BTreeMap::new(),
-            replayed_spans: BTreeMap::new(),
+            off_span_homes: BTreeMap::new(),
             accounted,
             trace_label: BTreeMap::new(),
         };
@@ -118,34 +119,58 @@ impl<'a> Context<'a> {
                 context.home_trace.insert(fact.id.as_str(), trace);
             }
         }
-        if let Some(recorded) = truth.requests.get(&recon.fixture) {
-            let off_span: Vec<&Fact> = truth
-                .facts
-                .iter()
-                .filter(|f| context.owed_off_span(f))
+        let recorded = truth.requests.get(&recon.fixture);
+        let off_span: Vec<&Fact> = truth
+            .facts
+            .iter()
+            .filter(|f| context.owed_off_span(f))
+            .collect();
+        for fact in off_span {
+            let mut homes: BTreeSet<String> = recorded
+                .into_iter()
+                .flat_map(|r| &r.calls)
+                .filter(|(_, request)| {
+                    request
+                        .messages
+                        .iter()
+                        .flat_map(|m| m.parts.iter())
+                        .any(|o| o.replay_of.as_deref() == Some(fact.id.as_str()))
+                })
+                .filter_map(|(call, _)| matching.span_of.get(call))
+                .map(|&s| recon.generations[s].span.clone())
                 .collect();
-            for fact in off_span {
-                let spans: BTreeSet<String> = recorded
-                    .calls
+            let ran = fact.kind == "tool_call";
+            if ran {
+                // The span that ran the call: no model call's, and recording that call and no other.
+                let untyped: BTreeSet<&str> = recon
+                    .generations
                     .iter()
-                    .filter(|(_, request)| {
-                        request
-                            .messages
-                            .iter()
-                            .flat_map(|m| m.parts.iter())
-                            .any(|o| o.replay_of.as_deref() == Some(fact.id.as_str()))
-                    })
-                    .filter_map(|(call, _)| matching.span_of.get(call))
-                    .map(|&s| recon.generations[s].span.clone())
+                    .filter(|g| !g.typed)
+                    .map(|g| g.span.as_str())
                     .collect();
-                context.replayed_spans.insert(fact.id.clone(), spans);
+                homes.extend(
+                    recon
+                        .views
+                        .iter()
+                        .filter(|v| v.kind == ViewKind::Span && untyped.contains(v.key.as_str()))
+                        .filter(|v| {
+                            let calls: Vec<&Block> =
+                                v.blocks.iter().filter(|b| b.kind == "tool_use").collect();
+                            matches!(calls[..], [only] if shows(fact, only, None) != Shows::No)
+                        })
+                        .map(|v| v.key.clone()),
+                );
+            }
+            // Neither a transcript nor a run to say where it belongs: no span can be named for it.
+            if recorded.is_some() || ran {
+                context.off_span_homes.insert(fact.id.clone(), homes);
             }
         }
         context
     }
 
     /// A response part its producing span does not carry (`output_not_exported`, proven): owed by the
-    /// conversation views only, where a later request handed it back.
+    /// conversation views only (`off_span_homes`).
     pub fn owed_off_span(&self, fact: &Fact) -> bool {
         fact.call.is_some() && fact.require.is_some() && !self.asserted_in(fact, "span")
     }

@@ -83,13 +83,18 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         .collect();
 
     let mut candidates: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
+    let mut by_meta: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
+    let proven = |reason: &str| -> BTreeSet<&str> {
+        truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == reason)
+            .filter_map(|g| g.subject.as_deref())
+            .collect()
+    };
     // A response proven absent from the telemetry has no span to find.
-    let unexported: BTreeSet<&str> = truth
-        .gaps
-        .iter()
-        .filter(|g| g.reason == "call_not_exported")
-        .filter_map(|g| g.subject.as_deref())
-        .collect();
+    let unexported = proven("call_not_exported");
+    let off_span = proven("output_not_exported");
     for call in truth
         .calls
         .iter()
@@ -113,6 +118,15 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
                     .collect()
             })
             .unwrap_or_default();
+        if signature.iter().all(|f| off_span.contains(f.id.as_str())) {
+            let found = if pinned.is_empty() {
+                by_metadata(recon, call, &gen_outputs)
+            } else {
+                pinned
+            };
+            by_meta.insert(call.id.clone(), found);
+            continue;
+        }
         let any: BTreeSet<usize> = if pinned.is_empty() {
             (0..recon.generations.len())
                 .filter(|&i| signature.iter().any(|f| shown_in(f, &gen_outputs[i])))
@@ -202,6 +216,7 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         out.push(Violation::new(ViolationView::Call, assertion, call, detail));
     }
 
+    assign_by_metadata(recon, &by_meta, &mut matching, out);
     match_failed_attempts(truth, recon, &gen_outputs, &mut matching, out);
 
     // What is left: typed generation spans that spoke but recorded no asserted call.
@@ -257,6 +272,116 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         }
     }
     matching
+}
+
+/// Whether a span states the call's finish: its normalised category, or the provider's own word. A word no
+/// table knows agrees only with the same word, never with another unknown one.
+fn finish_agrees(call: &Call, generation: &Generation) -> bool {
+    let words = [call.finish.as_deref(), call.stop_reason.as_deref()];
+    generation.finish.iter().any(|f| {
+        words.iter().flatten().any(|w| {
+            match (
+                FinishReason::from_str_normalized(w),
+                FinishReason::from_str_normalized(f),
+            ) {
+                (Some(a), Some(b)) => a == b,
+                _ => w.eq_ignore_ascii_case(f),
+            }
+        })
+    })
+}
+
+/// Ties each call whose span is proven to carry none of its response (`output_not_exported` on every output)
+/// to the one span its metadata names. The weakest evidence the rubric accepts, so it is never a guess: a call
+/// with no candidate, or more than one, or whose only candidate is another such call's too, is left unmatched
+/// - nothing is eliminated to make it unique - and a span another call's output already claimed is no candidate.
+fn assign_by_metadata(
+    recon: &Recon,
+    by_meta: &BTreeMap<String, BTreeSet<usize>>,
+    matching: &mut Matching,
+    out: &mut Vec<Violation>,
+) {
+    let taken: BTreeSet<usize> = matching.span_of.values().copied().collect();
+    let free = |spans: &BTreeSet<usize>| -> BTreeSet<usize> { spans - &taken };
+    let label = |spans: &BTreeSet<usize>| {
+        spans
+            .iter()
+            .map(|&s| recon.generations[s].label.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for (call, spans) in by_meta {
+        let spans = free(spans);
+        let rivals: Vec<&str> = by_meta
+            .iter()
+            .filter(|(other, theirs)| *other != call && !free(theirs).is_disjoint(&spans))
+            .map(|(other, _)| other.as_str())
+            .collect();
+        let detail = match (spans.len(), rivals.is_empty()) {
+            (1, true) => {
+                let span = *spans.iter().next().expect("one candidate");
+                matching.span_of.insert(call.clone(), span);
+                continue;
+            }
+            (0, _) => {
+                out.push(Violation::new(
+                    ViolationView::Call,
+                    "call.unmatched",
+                    call,
+                    "its span carries none of its response, and no generation span that recorded \
+                     nothing states its finish and output count"
+                        .to_string(),
+                ));
+                continue;
+            }
+            (_, true) => format!(
+                "its span carries none of its response, and {} spans that recorded nothing state its \
+                 finish and output count: {}",
+                spans.len(),
+                label(&spans)
+            ),
+            (_, false) => format!(
+                "its span carries none of its response, and the spans its finish and output count name \
+                 ({}) are also named by {}",
+                label(&spans),
+                rivals.join(", ")
+            ),
+        };
+        out.push(Violation::new(
+            ViolationView::Call,
+            "call.ambiguous",
+            call,
+            detail,
+        ));
+    }
+}
+
+/// The spans that could have recorded a call whose span carries none of its response: typed generation spans
+/// that recorded nothing of their own, ended as the call did, and counted the output tokens it produced. The
+/// metadata stands in for the output only because none is shown; a span that shows anything is another
+/// call's, and a call with no output count is found by nothing.
+fn by_metadata(recon: &Recon, call: &Call, gen_outputs: &[Vec<&Block>]) -> BTreeSet<usize> {
+    let Some(produced) = call
+        .usage
+        .as_ref()
+        .and_then(|u| u.output)
+        .filter(|&n| n > 0)
+    else {
+        return BTreeSet::new();
+    };
+    recon
+        .generations
+        .iter()
+        .enumerate()
+        .filter(|(i, g)| {
+            g.typed
+                && !g.failed
+                && gen_outputs[*i].is_empty()
+                && g.output == produced
+                && finish_agrees(call, g)
+        })
+        .map(|(i, _)| i)
+        .collect()
 }
 
 /// Typed generation spans, when any candidate is one: a framework span re-listing a response as its
@@ -470,17 +595,7 @@ pub(super) fn check_metadata(
             // with `STOP`, and a span stating `stop` reports exactly what the wire said.
             // A word no table knows agrees only with the same word, never with another unknown one.
             let words = [Some(finish), call.stop_reason.as_deref()];
-            let agrees = generation.finish.iter().any(|f| {
-                words.iter().flatten().any(|w| {
-                    match (
-                        FinishReason::from_str_normalized(w),
-                        FinishReason::from_str_normalized(f),
-                    ) {
-                        (Some(a), Some(b)) => a == b,
-                        _ => w.eq_ignore_ascii_case(f),
-                    }
-                })
-            });
+            let agrees = finish_agrees(call, generation);
             let stated_finish: Vec<&str> = generation.finish.iter().map(String::as_str).collect();
             if !agrees
                 && (!generation.finish.is_empty()

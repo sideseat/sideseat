@@ -662,3 +662,64 @@ fn reasoning_owed_unsigned_on_its_span_differs_from_its_conversation_copy_only_b
         "a span block unlike the conversation's is not caught: {new:?}"
     );
 }
+
+#[test]
+fn a_call_whose_span_carries_none_of_its_response_is_found_by_its_metadata_alone() {
+    // The Claude Agent SDK's llm_request span records nothing of a response that only calls tools
+    // (`output_not_exported` on each call): the span is found by what it does state - its finish and its
+    // output count - and only while it states them and shows nothing else.
+    let (truth, recon, baseline) = baseline("claude-agent-sdk/sdk/tool_use");
+    assert!(
+        !baseline
+            .iter()
+            .any(|v| v.contains(":call.unmatched:call-001")),
+        "the call is found: {baseline:?}"
+    );
+    let span = |recon: &Recon| {
+        let matching = super::matching::match_calls(&truth, recon, &mut Vec::new());
+        matching.span_of.get("call-001").copied()
+    };
+    let at = span(&recon).expect("the call has a span");
+
+    let mut counted = recon.clone();
+    counted.generations[at].output += 1;
+    let new = added(&truth, &counted, &baseline);
+    assert!(
+        new.contains("call.unmatched:call-001"),
+        "another output count is not this call's: {new:?}"
+    );
+
+    let mut spoke = recon.clone();
+    let key = spoke.generations[at].span.clone();
+    let trace = spoke.generations[at].trace.clone();
+    let view = spoke
+        .views
+        .iter_mut()
+        .find(|v| v.kind == ViewKind::Span && v.key == key)
+        .expect("the span's view");
+    view.blocks.push(text_block(
+        "assistant",
+        "An answer of its own.",
+        &trace,
+        &key,
+        true,
+    ));
+    assert_eq!(
+        span(&spoke),
+        None,
+        "a span that shows an answer is another call's"
+    );
+
+    // Two silent spans stating the same finish and count: neither is the call's, and nothing picks one.
+    let mut twin = recon.clone();
+    let mut copy = twin.generations[at].clone();
+    copy.span = "a-second-silent-span".into();
+    copy.label = format!("{}/twin", copy.label);
+    twin.generations.push(copy);
+    assert_eq!(span(&twin), None, "an ambiguous call is not matched");
+    let new = added(&truth, &twin, &baseline);
+    assert!(
+        new.contains("call.ambiguous:call-001"),
+        "two candidates are not reported: {new:?}"
+    );
+}

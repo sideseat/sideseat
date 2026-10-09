@@ -318,6 +318,40 @@ def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() ->
         )
 
 
+def test_a_tool_calling_round_missing_from_its_span_is_owed_off_it() -> None:
+    """`tool_calling_round_output` owes the tool calls of a response that only calls tools off the span that
+    produced it, each with an `output_not_exported` gap; a response with text keeps its calls on its span."""
+    framework = derive.Framework.of(
+        {"unexported": {"tool_calling_round_output": "records no tool-only response"}}
+    )
+    calls = [
+        model_call(
+            wire.tool_call_part("a", "get_weather", {"city": "Tokyo", "days": 1}),
+            wire.tool_call_part("b", "get_precipitation", {"city": "Paris"}),
+            finish="tool_use",
+        ),
+        model_call(
+            wire.text_part("Checking Rome too."),
+            wire.tool_call_part("c", "get_weather", {"city": "Rome", "days": 1}),
+            finish="tool_use",
+        ),
+        model_call(wire.text_part("Pack an umbrella for Tokyo.")),
+    ]
+    builder = derive.assemble(
+        "p", "tool_use", calls, options=derive.Options(framework=framework)
+    )
+    by_id = {f["value"]["id"]: f for f in facts_by_kind(builder, "tool_call")}
+    assert all(f["require"] is not None for f in by_id.values())
+    assert [
+        (g["fact"], g["reason"], g["subject"])
+        for g in builder.gaps
+        if g["reason"] == "output_not_exported"
+    ] == [
+        ("tool_call", "output_not_exported", by_id["a"]["id"]),
+        ("tool_call", "output_not_exported", by_id["b"]["id"]),
+    ]
+
+
 def test_unexported_parallel_tool_results_withdraw_all_but_the_first() -> None:
     """`parallel_tool_results` withdraws the results of every tool call of a response but the first, each
     with a `not_exported` gap the rubric proves; the first result, and a lone call's, stay asserted."""

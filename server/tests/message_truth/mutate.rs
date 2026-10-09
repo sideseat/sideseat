@@ -701,7 +701,7 @@ pub(super) fn rewrite_ids_consistently(truth: &mut Truth, recon: &mut Recon) -> 
     true
 }
 
-fn text_block(role: &str, text: &str, trace: &str, span: &str, output: bool) -> Block {
+pub(super) fn text_block(role: &str, text: &str, trace: &str, span: &str, output: bool) -> Block {
     let mut block = Block {
         role: role.into(),
         kind: "text".into(),

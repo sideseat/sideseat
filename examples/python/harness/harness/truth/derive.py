@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from harness import content
+from harness.truth import unexported
 from harness.truth.wire import ModelCall
 
 FORMAT = "sideseat.truth/3"
@@ -216,11 +217,6 @@ class Builder:
             self.gaps.append(entry)
 
 
-def _withheld(part: dict[str, Any]) -> bool:
-    """Reasoning the model signed and withheld the text of: an empty text, not an unknown one."""
-    return part["text"] == "" and bool(part["signed"]) and not part["redacted"]
-
-
 #: Why an encrypted reasoning item with no text is not yet owed, naming the work that will owe it.
 _UNTEXTED_PENDING = (
     "the provider returned an encrypted reasoning item with no text at all; how it is shown waits on "
@@ -304,7 +300,9 @@ class Framework:
     #: (``signature_not_exported``); ``reasoning_output`` - that reasoning missing from the span that
     #: produced it, a later request re-sending it (``output_not_exported``); ``reasoning_span_signature``
     #: - that reasoning's signature missing from the span that produced it, another carrier holding it
-    #: (``span_signature_not_exported``); ``parallel_tool_results`` - the results of every tool call but the
+    #: (``span_signature_not_exported``); ``tool_calling_round_output`` - the tool calls of a response that
+    #: only calls tools, missing from the span that produced it, other carriers holding them
+    #: (``output_not_exported``); ``parallel_tool_results`` - the results of every tool call but the
     #: first of one response, where the producer records only the first of the turn's tool messages
     #: (``not_exported``; it withdraws them); ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
@@ -627,7 +625,7 @@ def assemble(
                     else "presence"
                     if part["redacted"]
                     else "signed"
-                    if _withheld(part)
+                    if unexported.withheld(part)
                     else None
                 )
                 fact = builder.fact(
@@ -744,168 +742,8 @@ def assemble(
                 "prompt_without_model_call",
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
-    _unexported(builder, framework)
+    unexported.apply(builder, framework)
     return builder
-
-
-#: Call metadata a producer may state wrongly with the right value in no payload.
-METADATA = ("model", "response_model", "response_id", "finish")
-UNEXPORTED = frozenset(
-    {
-        "tool_call_ids",
-        "tool_calling_rounds",
-        "reasoning_kind",
-        "withheld_reasoning",
-        "reasoning_signature",
-        "reasoning_output",
-        "reasoning_span_signature",
-        "parallel_tool_results",
-        "media",
-        *METADATA,
-    }
-)
-
-
-def _unexported(builder: Builder, framework: Framework) -> None:
-    """The suite's declared telemetry omissions as absence gaps, which the rubric proves or refuses."""
-    unknown = set(framework.unexported) - UNEXPORTED
-    if unknown:
-        raise ValueError(f"unknown unexported content {sorted(unknown)}")
-
-    def declared(content: str) -> tuple[str, list[str]] | None:
-        """The reason and the capture modes it holds for (all when none are named)."""
-        entry = framework.unexported.get(content)
-        if isinstance(entry, dict):
-            if "scenarios" in entry and builder.scenario not in entry["scenarios"]:
-                return None
-            modes = entry.get("modes", {})
-            if isinstance(modes, dict):
-                modes = modes.get(builder.scenario, [])
-            return entry["reason"], list(modes)
-        return (entry, []) if entry else None
-
-    def gap(
-        fact: str, reason: str, detail: tuple[str, list[str]], subject: str
-    ) -> None:
-        entry: dict[str, Any] = {
-            "fact": fact,
-            "reason": reason,
-            "detail": detail[0],
-            "subject": subject,
-        }
-        if detail[1]:
-            entry["modes"] = detail[1]
-        if entry not in builder.gaps:
-            builder.gaps.append(entry)
-
-    facts = {fact["id"]: fact for fact in builder.facts}
-    for field_name in METADATA:
-        if not (detail := declared(field_name)):
-            continue
-        entry = framework.unexported[field_name]
-        limited = entry.get("values") if isinstance(entry, dict) else None
-        for record in builder.calls:
-            value = record.get(field_name)
-            if record["outcome"] != "success" or value is None:
-                continue
-            if limited is None or value in limited:
-                gap(field_name, "metadata_not_exported", detail, record["id"])
-    if detail := declared("reasoning_kind"):
-        for fact in builder.facts:
-            if (
-                fact["kind"] == "reasoning"
-                and fact["value"].get("text")
-                and fact["require"] is not None
-            ):
-                gap("reasoning", "kind_not_exported", detail, fact["id"])
-    if detail := declared("withheld_reasoning"):
-        for fact in builder.facts:
-            if fact["kind"] == "reasoning" and _withheld(fact["value"]):
-                fact["require"] = None
-                gap("reasoning", "not_exported", detail, fact["id"])
-    if detail := declared("reasoning_output"):
-        # Only a call a later call of its conversation follows: the claim is that the next request's
-        # history re-sends what the call's own output left out, and nothing re-sends the last call's.
-        followed = {
-            record["id"]
-            for record in builder.calls
-            if any(
-                later["conversation"] == record["conversation"]
-                and builder.calls.index(later) > builder.calls.index(record)
-                for later in builder.calls
-            )
-        }
-        # The last call's has no next request to re-send it, so no payload holds it at all.
-        unsent = (
-            f"{detail[0]}; the last turn's is re-sent by no request, so no payload holds it",
-            detail[1],
-        )
-        for fact in builder.facts:
-            if not (
-                fact["kind"] == "reasoning"
-                and _withheld(fact["value"])
-                and fact["require"] is not None
-            ):
-                continue
-            if fact.get("call") in followed:
-                gap("reasoning", "output_not_exported", detail, fact["id"])
-            else:
-                fact["require"] = None
-                gap("reasoning", "not_exported", unsent, fact["id"])
-    if detail := declared("reasoning_span_signature"):
-        for fact in builder.facts:
-            if (
-                fact["kind"] == "reasoning"
-                and _withheld(fact["value"])
-                and fact["require"] is not None
-            ):
-                gap("reasoning", "span_signature_not_exported", detail, fact["id"])
-    if detail := declared("reasoning_signature"):
-        for fact in builder.facts:
-            if (
-                fact["kind"] == "reasoning"
-                and _withheld(fact["value"])
-                and fact["require"] is not None
-            ):
-                gap("reasoning", "signature_not_exported", detail, fact["id"])
-    if detail := declared("tool_calling_rounds"):
-        for record in builder.calls:
-            outputs = [facts[output] for output in record["outputs"]]
-            if outputs and all(fact["kind"] == "tool_call" for fact in outputs):
-                gap("response", "call_not_exported", detail, record["id"])
-    if detail := declared("parallel_tool_results"):
-        # The first call's result is exported, so it stays owed; the absence search proves each later one
-        # against every payload of the capture.
-        for record in builder.calls:
-            calls = [
-                facts[output]["value"].get("id")
-                for output in record["outputs"]
-                if facts[output]["kind"] == "tool_call"
-            ]
-            later = {id for id in calls[1:] if isinstance(id, str)}
-            for fact in builder.facts:
-                if (
-                    fact["kind"] == "tool_result"
-                    and fact["value"].get("call_id") in later
-                    and fact["require"] is not None
-                ):
-                    fact["require"] = None
-                    gap("tool_result", "not_exported", detail, fact["id"])
-    if detail := declared("media"):
-        entry = framework.unexported["media"]
-        modalities = entry.get("modalities") if isinstance(entry, dict) else None
-        for fact in builder.facts:
-            if (
-                fact["kind"] == "user_media"
-                and fact["require"] is not None
-                and (modalities is None or fact["value"].get("modality") in modalities)
-            ):
-                fact["require"] = None
-                gap("user_media", "not_exported", detail, fact["id"])
-    if detail := declared("tool_call_ids"):
-        for fact in builder.facts:
-            if fact["kind"] == "tool_call" and isinstance(fact["value"].get("id"), str):
-                gap("tool_call", "id_not_exported", detail, fact["id"])
 
 
 def _text_action_arguments(text: str, action: dict[str, str]) -> dict[str, Any]:

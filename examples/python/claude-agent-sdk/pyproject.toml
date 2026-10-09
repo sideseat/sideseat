@@ -17,6 +17,8 @@ integrations = ["claude-agent-sdk"]
 [tool.sideseat-example.truth.unexported]
 media = "the attachments the user sent: the telemetry names an attachment by the file it was read from (`[Image: source: <path>]`), never by its bytes"
 
+tool_calling_round_output = "the tool calls of a response that only calls tools, on the call's own span: the Claude Agent SDK's llm_request span records no response content when the model calls tools, and its tool spans and the next request carry them"
+
 [tool.sideseat-example.truth.unexported.withheld_reasoning]
 reason = "reasoning the model signed and withheld the text of: the Claude Agent SDK's telemetry exports no reasoning part for it, and no payload holds one"
 scenarios = ["reasoning"]
