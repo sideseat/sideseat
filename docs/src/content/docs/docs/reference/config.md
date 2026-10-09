@@ -189,6 +189,12 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `memory_cache.max_entries` | number | Max in-memory cache entries |
 | `memory_cache.eviction_policy` | string | `tinylfu` or `lru` |
 
+PostgreSQL must flush a commit before it returns, because SideSeat acknowledges an export once its transaction
+has committed. The server, the database and SideSeat's login role must run with `fsync = on`, and with
+`synchronous_commit` set to `on`, `local`, `remote_write` or `remote_apply` - not `off`. SideSeat checks both on
+its own connections when it starts and refuses to start otherwise, naming the setting, rather than acknowledge
+exports a crash could lose.
+
 ### Update
 
 | Field | Type | Description |

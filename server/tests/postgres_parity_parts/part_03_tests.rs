@@ -172,3 +172,102 @@ async fn the_deleted_trace_sweep_schedule_behaves_identically() {
     })
     .await;
 }
+
+/// A server whose commits return before they are flushed is refused at startup, naming the setting: an OTLP 200
+/// would rest on a transaction a crash can lose. `synchronous_commit = off` set on the database - a default the
+/// server's own configuration does not show - and `fsync = off` on the server are each refused, and the same
+/// server is accepted once they are restored. The suite runs one scenario at a time, so changing them is safe.
+#[tokio::test]
+async fn a_server_that_does_not_flush_its_commits_is_refused() {
+    let url = match std::env::var(URL_ENV) {
+        Ok(url) if !url.is_empty() => url,
+        _ => {
+            eprintln!("skipping PostgreSQL commit durability: {URL_ENV} is not set");
+            return;
+        }
+    };
+    let admin = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&url)
+        .await
+        .expect("connect as the owner");
+    let database: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(&admin)
+        .await
+        .expect("database");
+    let config = PostgresConfig {
+        url: url.clone(),
+        max_connections: 2,
+        min_connections: 1,
+        acquire_timeout_secs: 10,
+        idle_timeout_secs: 60,
+        max_lifetime_secs: 600,
+        statement_timeout_secs: 30,
+    };
+    let clock = || -> Arc<dyn sideseat_ports::clock::Clock> {
+        Arc::new(sideseat_server::runtime::clock::SystemClock)
+    };
+    let scenarios = [
+        (
+            format!("ALTER DATABASE \"{database}\" SET synchronous_commit = off"),
+            format!("ALTER DATABASE \"{database}\" RESET synchronous_commit"),
+            "synchronous_commit = off",
+            "synchronous_commit",
+        ),
+        (
+            "ALTER SYSTEM SET fsync = off".to_string(),
+            "ALTER SYSTEM RESET fsync".to_string(),
+            "fsync = off",
+            "fsync",
+        ),
+    ];
+    for (set, reset, named, setting) in scenarios {
+        sqlx::raw_sql(&set)
+            .execute(&admin)
+            .await
+            .expect("misconfigure");
+        sqlx::query("SELECT pg_reload_conf()")
+            .execute(&admin)
+            .await
+            .expect("reload");
+        // A reload is asynchronous: wait until a new session sees the setting.
+        for _ in 0..50 {
+            let seen: String = sqlx::query_scalar(&format!("SELECT current_setting('{setting}')"))
+                .fetch_one(
+                    &sqlx::postgres::PgPoolOptions::new()
+                        .max_connections(1)
+                        .connect(&url)
+                        .await
+                        .expect("a new session"),
+                )
+                .await
+                .expect("setting");
+            if seen == "off" {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        let refused = PostgresService::init(&config, clock()).await;
+        // Restored before anything is asserted, so a failure here cannot leave the server misconfigured.
+        sqlx::raw_sql(&reset)
+            .execute(&admin)
+            .await
+            .expect("restore");
+        sqlx::query("SELECT pg_reload_conf()")
+            .execute(&admin)
+            .await
+            .expect("reload");
+        let error = match refused {
+            Ok(_) => panic!("a server with {named} was accepted"),
+            Err(error) => error.to_string(),
+        };
+        assert!(error.contains(named), "{error}");
+    }
+    for _ in 0..50 {
+        if PostgresService::init(&config, clock()).await.is_ok() {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!("the restored server was still refused");
+}

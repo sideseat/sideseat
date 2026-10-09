@@ -9,6 +9,7 @@
 //!
 //! All schema definitions and migrations are managed here.
 
+mod durability;
 mod error;
 pub mod migrations;
 mod repositories;
@@ -209,6 +210,11 @@ impl PostgresService {
             Some(POSTGRES_RUNTIME_ROLE),
         )
         .await?;
+
+        // Both pools write - the runtime pool for exports and staging, the maintenance pool for retention and
+        // repair - so both are held to commits that are durable when they return.
+        durability::check(&pool).await?;
+        durability::check(&runtime_pool).await?;
 
         tracing::debug!(
             max_connections,
