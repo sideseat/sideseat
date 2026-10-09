@@ -5,7 +5,7 @@
   "carriers": [
     {
       "id": "autogen.logged_messages",
-      "doc": "The request a logged model call was sent, as the provider's own chat messages: a conversation re-listed in order on every call, so a repeat inside it restates an earlier turn rather than being a second one.",
+      "doc": "The request a logged model call was sent, as the provider's own chat messages: a conversation re-listed in order on every call, so a repeat inside it restates an earlier turn rather than being a second one. Known and uncovered: it does not declare `carrier_replays_across_traces`, so a request that re-sends turns of an earlier trace in the same session is not stripped of them by the session view's prefix scan. No capture shows it - the logged session scenario runs no tool, and its second trace does not re-send the first's turns - so the fact is left undeclared rather than declared without evidence.",
       "match": {
         "event": "messages"
       },
