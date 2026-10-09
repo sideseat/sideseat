@@ -167,7 +167,7 @@ mod tests {
         });
         let sources = BTreeMap::from([(
             "producers/probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
+            serde_json::to_vec(&asset).map_err(|e| e.to_string())?,
         )]);
         let assets = ParsedAssets::parse(&sources).map_err(|e| e.to_string())?;
         Ruleset::build(&assets)
