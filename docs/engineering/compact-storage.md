@@ -281,7 +281,9 @@ A record is written before the rows derived from it and lives as long as a row n
 `otel_raw_pending` is the reconciliation queue. Every version records its **origin** - `received` (the body as it
 arrived), `fenced` (the received export re-encoded without spans the ingest's deletion fences refused) or `deleted`
 (rewritten after a deletion took some of what it held) - so "byte for byte" is a claim only about the first, and a
-re-derivation can tell the two apart.
+re-derivation can tell the two apart. Every version keeps the record's `received_at`, a repair included, so a record
+replays at one instant. ClickHouse keeps the records in one partition: it resolves `FINAL` a partition at a time, and
+partitioned by receipt month, a record's versions in two months were two latest versions.
 
 Keeping the record and its rows agreeing is a protocol, not an invariant one statement can hold, because nothing is
 atomic across the record, the rows and the tombstones:

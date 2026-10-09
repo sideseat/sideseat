@@ -227,6 +227,95 @@ async fn a_correction_written_after_a_later_one_stays_superseded_on_both_backend
     );
 }
 
+/// Versions of one record received in two months read back as one latest version on both backends, by id, by its
+/// traces and in replay. ClickHouse resolves `FINAL` a partition at a time, and the records were partitioned by
+/// receipt month, so each month's version was a latest one: a record a deletion rewrote read back with its removed
+/// content beside the rewrite. Two first deliveries of one body straddling a month still write two versions.
+#[tokio::test]
+async fn a_record_whose_versions_span_two_months_reads_back_once() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_raw_months").await;
+
+    let january = Utc.with_ymd_and_hms(2026, 1, 31, 23, 0, 0).unwrap();
+    let february = Utc.with_ymd_and_hms(2026, 2, 1, 1, 0, 0).unwrap();
+    let first = RawRecordRow {
+        received_at: january,
+        // Within the table's time to live, whatever the receipt.
+        signal_until: Utc::now(),
+        ..raw_row("raw-months", 1, &["trace-months"], b"received in january")
+    };
+    let rewrite = RawRecordRow {
+        received_at: february,
+        origin: RawOrigin::Deleted,
+        version: 3,
+        trace_ids: Vec::new(),
+        record: b"rewritten in february".to_vec(),
+        ..first.clone()
+    };
+    let project = ProjectId::from(PROJECT);
+    let mut answers = Vec::new();
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_raw_records(std::slice::from_ref(&first))
+            .await
+            .expect("first version");
+        repo.append_raw_records(std::slice::from_ref(&rewrite))
+            .await
+            .expect("rewrite");
+        repo.insert_spans(vec![NormalizedSpan {
+            timestamp_start: Utc::now(),
+            ingested_at: Some(Utc::now()),
+            ..span_of("trace-months", "span-months", "raw-months")
+        }])
+        .await
+        .expect("a span naming the record");
+        let latest: Vec<(i64, String)> = repo
+            .get_raw_records(&project, &["raw-months".to_string()])
+            .await
+            .expect("latest")
+            .into_iter()
+            .map(|row| {
+                (
+                    row.version,
+                    String::from_utf8_lossy(&row.record).into_owned(),
+                )
+            })
+            .collect();
+        let survivors: Vec<String> = repo
+            .survivor_raw_records(&project, &["trace-months".to_string()])
+            .await
+            .expect("survivors")
+            .into_iter()
+            .map(|record| String::from_utf8_lossy(&record).into_owned())
+            .collect();
+        // One record at a time, as a replay pages through them.
+        let mut replay = Vec::new();
+        let mut after = None;
+        loop {
+            let page = repo
+                .raw_records_page(&project, after.clone(), 1)
+                .await
+                .expect("replay page");
+            let Some(row) = page.into_iter().next() else {
+                break;
+            };
+            after = Some((row.received_at, row.raw_id.clone()));
+            replay.push(String::from_utf8_lossy(&row.record).into_owned());
+        }
+        answers.push((latest, survivors, replay));
+    }
+    let expected = (
+        vec![(3, "rewritten in february".to_string())],
+        vec!["rewritten in february".to_string()],
+        vec!["rewritten in february".to_string()],
+    );
+    assert_eq!(answers, vec![expected.clone(), expected]);
+}
+
 /// A record found through its traces' spans on a two-shard cluster, each project on its own shard. Both tables are
 /// `Distributed` there, and a plain `IN` over one inside a read of the other is refused
 /// (`distributed_product_mode = deny`), so the read failed on every cluster of more than one shard.
@@ -294,5 +383,114 @@ async fn survivor_records_are_read_across_a_two_shard_cluster() {
             vec![project.as_bytes().to_vec()],
             "{project}: its own record"
         );
+    }
+}
+
+/// The configuration a test service of `database` runs with: single-node, or distributed on the test cluster.
+fn layout_config(url: &str, database: &str, distributed: bool) -> ClickhouseConfig {
+    ClickhouseConfig {
+        url: url.to_string(),
+        database: database.to_string(),
+        user: std::env::var(USER_ENV).ok(),
+        password: std::env::var(PASSWORD_ENV).ok(),
+        timeout_secs: 30,
+        compression: false,
+        async_insert: false,
+        wait_for_async_insert: true,
+        cluster: distributed.then(|| REPLICATED_CLUSTER.to_string()),
+        distributed,
+        insert_quorum: 0,
+    }
+}
+
+/// Whether a service of `config` refuses to start for a partitioned raw-record table, naming the layout.
+async fn refuses_partitioned_raw_records(config: &ClickhouseConfig) -> bool {
+    match ClickhouseService::init(
+        config,
+        std::sync::Arc::new(sideseat_server::runtime::clock::SystemClock),
+    )
+    .await
+    {
+        Ok(_) => false,
+        Err(error) => {
+            let message = error.to_string();
+            assert!(
+                message.contains("partitioned by `toYYYYMM(received_at)`")
+                    && message.contains("drop the configured database"),
+                "the refusal names the layout and the reset: {message}"
+            );
+            true
+        }
+    }
+}
+
+/// A store created while the raw records were partitioned by receipt month is at the supported version, so the
+/// version check accepts it, and it reads a record's versions in two months as two latest ones. It is refused at
+/// startup instead, with the reset named, as a store at another version is.
+#[tokio::test]
+async fn a_store_with_month_partitioned_raw_records_is_refused_at_startup() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+    let database = "sideseat_parity_raw_layout";
+    let _created = clickhouse_backend(&url, database).await;
+    let client = raw_client(&url, database);
+    for statement in [
+        "CREATE TABLE otel_raw_months AS otel_raw ENGINE = ReplacingMergeTree(version) \
+         PARTITION BY toYYYYMM(received_at) ORDER BY (project_id, raw_id)",
+        "DROP TABLE otel_raw SYNC",
+        "RENAME TABLE otel_raw_months TO otel_raw",
+    ] {
+        client.query(statement).execute().await.expect(statement);
+    }
+    assert!(
+        refuses_partitioned_raw_records(&layout_config(&url, database, false)).await,
+        "a store with month-partitioned raw records started"
+    );
+}
+
+/// The same refusal on a cluster, where the partitioned table is each shard's local one - through the shard that
+/// created the store, and through the other, which holds no version row of its own and would otherwise create the
+/// schema around the table it already has.
+#[tokio::test]
+async fn a_two_shard_store_with_month_partitioned_raw_records_is_refused_at_startup() {
+    let Ok(url) = std::env::var(TWO_SHARD_URL_ENV) else {
+        eprintln!(
+            "clickhouse two-shard: skipped - set {TWO_SHARD_URL_ENV} (or run \
+             `make test-clickhouse-two-shard`)"
+        );
+        return;
+    };
+    let database = "sideseat_two_shard_raw_layout";
+    let _created = replicated_backend_at(&url, database).await;
+    let user = std::env::var(USER_ENV).ok();
+    let password = std::env::var(PASSWORD_ENV).ok();
+    let client = raw_client_at(&url, database, &user, &password);
+    for statement in [
+        format!(
+            "CREATE TABLE otel_raw_local_months ON CLUSTER {REPLICATED_CLUSTER} AS otel_raw_local \
+             ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{database}/otel_raw_months', \
+             '{{replica}}', version) PARTITION BY toYYYYMM(received_at) ORDER BY (project_id, raw_id)"
+        ),
+        format!("DROP TABLE otel_raw_local ON CLUSTER {REPLICATED_CLUSTER} SYNC"),
+        format!(
+            "RENAME TABLE otel_raw_local_months TO otel_raw_local ON CLUSTER {REPLICATED_CLUSTER}"
+        ),
+    ] {
+        client.query(&statement).execute().await.expect(&statement);
+    }
+    assert!(
+        refuses_partitioned_raw_records(&layout_config(&url, database, true)).await,
+        "a cluster store with month-partitioned raw records started"
+    );
+    match std::env::var("SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_SECOND_URL") {
+        Ok(second) => assert!(
+            refuses_partitioned_raw_records(&layout_config(&second, database, true)).await,
+            "the store started through the shard that did not create it"
+        ),
+        Err(_) => eprintln!(
+            "clickhouse two-shard: the second shard's URL is unset, so only the first is checked"
+        ),
     }
 }

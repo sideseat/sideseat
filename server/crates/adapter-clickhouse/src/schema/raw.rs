@@ -3,7 +3,11 @@
 //!
 //! `ReplacingMergeTree(version)`: every write of a record - a repair, a rewrite after a deletion, a record
 //! restored by the reconciler - is a version of the same `(project_id, raw_id)`, and the merge keeps the latest,
-//! which is also what `FINAL` reads. The lifecycle is `server/specs/RawRecordOwnership.tla`. The time to live is
+//! which is also what `FINAL` reads. Not partitioned: the client resolves `FINAL` one partition at a time
+//! (`do_not_merge_across_partitions_select_final`), so a record's versions must share one, and a partition by
+//! receipt month split them whenever two first deliveries of one body straddled a month or a version carried
+//! another receipt - each month's version was then a latest one, the content a deletion removed among them. No
+//! read prunes by receipt, and expiry is by row (`signal_until`), so the months bought nothing. The lifecycle is `server/specs/RawRecordOwnership.tla`. The time to live is
 //! the latest of its rows': `signal_until` is the latest span start the record carries, and the span rows
 //! expire 90 days after their own start, so no row can outlive its record; `hold_until` holds it like them.
 //! The trace index lives exactly as long as the record version that wrote it.
@@ -44,8 +48,7 @@ pub fn raw_tables(config: &ClickhouseConfig) -> Vec<String> {
         return vec![
             format!(
                 "CREATE TABLE IF NOT EXISTS otel_raw ({COLUMNS}) \
-                 ENGINE = ReplacingMergeTree(version) PARTITION BY toYYYYMM(received_at) \
-                 ORDER BY (project_id, raw_id) {TTL}"
+                 ENGINE = ReplacingMergeTree(version) ORDER BY (project_id, raw_id) {TTL}"
             ),
             format!(
                 "CREATE TABLE IF NOT EXISTS otel_raw_traces ({TRACE_COLUMNS}) \
@@ -63,7 +66,7 @@ pub fn raw_tables(config: &ClickhouseConfig) -> Vec<String> {
         format!(
             "CREATE TABLE IF NOT EXISTS otel_raw_local ON CLUSTER {cluster} ({COLUMNS}) \
              ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_raw', '{{replica}}', version) \
-             PARTITION BY toYYYYMM(received_at) ORDER BY (project_id, raw_id) {TTL}"
+             ORDER BY (project_id, raw_id) {TTL}"
         ),
         // Sharded by project like the span table, so a project's records and its spans share a shard.
         format!(

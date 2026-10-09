@@ -455,9 +455,37 @@ impl ClickhouseService {
         } else {
             None
         };
-        match check(found, schema::SCHEMA_VERSION).map_err(ClickhouseError::UnsupportedSchema)? {
+        let decision =
+            check(found, schema::SCHEMA_VERSION).map_err(ClickhouseError::UnsupportedSchema)?;
+        // Whichever the decision: on a cluster the version row is the shard's own, so a shard other than the one
+        // that created the store finds none and would create - keeping, through `IF NOT EXISTS`, a table it holds.
+        self.refuse_partitioned_raw_records().await?;
+        match decision {
             SchemaCheck::Current => Ok(()),
             SchemaCheck::Create => self.apply_initial_schema().await,
+        }
+    }
+
+    /// Refuse a store whose raw records are partitioned, as one created before they stopped being is: the client
+    /// resolves `FINAL` a partition at a time, so such a store reads a record's versions in two partitions as two
+    /// latest ones (`schema::raw_tables`).
+    async fn refuse_partitioned_raw_records(&self) -> Result<(), ClickhouseError> {
+        let partitioned: Vec<(String, String)> = self
+            .client
+            .query(
+                "SELECT name, partition_key FROM system.tables \
+                 WHERE database = currentDatabase() AND name IN ('otel_raw', 'otel_raw_local') \
+                   AND partition_key != ''",
+            )
+            .fetch_all()
+            .await
+            .map_err(ClickhouseError::from)?;
+        match partitioned.into_iter().next() {
+            Some((table, partition_key)) => Err(ClickhouseError::IncompatibleLayout {
+                table,
+                partition_key,
+            }),
+            None => Ok(()),
         }
     }
 

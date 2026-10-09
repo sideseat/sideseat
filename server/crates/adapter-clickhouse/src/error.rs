@@ -14,6 +14,18 @@ pub enum ClickhouseError {
     #[error("Connection error: {0}")]
     Connection(String),
 
+    /// A store at the supported version whose layout this build does not read correctly: one created before the
+    /// layout changed within the version. Refused, as another version is, rather than read wrongly.
+    #[error(
+        "the store's {table} is partitioned by `{partition_key}`, a layout this build does not read correctly: \
+         a record's versions in two partitions each read as its latest. It does not change a store's layout. To \
+         start fresh, drop the configured database. Nothing is deleted automatically."
+    )]
+    IncompatibleLayout {
+        table: String,
+        partition_key: String,
+    },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -86,6 +98,9 @@ impl From<ClickhouseError> for DataError {
                 Self::unsupported_schema("clickhouse", refusal)
             }
             ClickhouseError::Connection(msg) => Self::Config(msg),
+            refusal @ ClickhouseError::IncompatibleLayout { .. } => {
+                Self::Config(refusal.to_string())
+            }
             ClickhouseError::Io(e) => Self::Io(e),
             ClickhouseError::Timeout { timeout_secs } => Self::Timeout {
                 backend: "clickhouse",

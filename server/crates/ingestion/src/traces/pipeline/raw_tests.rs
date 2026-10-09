@@ -221,6 +221,16 @@ fn a_repair_is_the_union_two_versions_up() {
     let written = HashSet::from([key(1, 2)]);
     assert!(!draft.covers(&latest, &written));
 
+    // Repaired by an ingest received a month later: still the record received when it was.
+    let later = at + chrono::TimeDelta::days(31);
+    let repair = draft
+        .repair_row(&request, Some(&latest), &written, later, None)
+        .unwrap();
+    assert_eq!(repair.version, later.timestamp_micros());
+    assert_eq!(
+        repair.received_at, latest.received_at,
+        "a repair keeps the record's receipt, so its versions share one partition and one replay position"
+    );
     let repair = draft
         .repair_row(&request, Some(&latest), &written, at, None)
         .unwrap();

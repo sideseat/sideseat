@@ -206,6 +206,7 @@ case "$scenario" in
     wait_for_http "http://127.0.0.1:$CH_SHARD_PORT_2/ping" 90 "$CH_SHARD_2_CONTAINER" 30
 
     SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_URL="http://127.0.0.1:$CH_SHARD_PORT_1" \
+      SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_SECOND_URL="http://127.0.0.1:$CH_SHARD_PORT_2" \
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
       cargo test --locked -p sideseat-server --test clickhouse_parity two_shard -- --test-threads=1 --nocapture

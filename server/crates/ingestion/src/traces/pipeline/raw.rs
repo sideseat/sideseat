@@ -199,6 +199,13 @@ impl RawDraft {
         let mut row = self.row(request, &union, at, hold_until)?;
         let floor = latest.map_or(0, |latest| latest.version.saturating_add(2));
         row.version = row.version.max(floor);
+        // A version is the record's, received when the record was: the repair is a later write of it, not a
+        // later receipt. Stamped with its own receipt, a repair moved the record's replay to the repair's
+        // instant, and on ClickHouse, when the records were partitioned by receipt month, it was a second latest
+        // version beside the one it replaced.
+        if let Some(latest) = latest {
+            row.received_at = latest.received_at;
+        }
         Ok(row)
     }
 

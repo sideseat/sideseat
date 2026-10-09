@@ -183,7 +183,8 @@ pub async fn append(client: &Client, records: &[RawRecordRow]) -> Result<(), Cli
 }
 
 /// The latest version of each requested record. `FINAL` merges the versions the way the engine will, and the
-/// ordering tie-break is the same as DuckDB's: the highest version, the last written.
+/// ordering tie-break is the same as DuckDB's: the highest version, the last written. The table has one
+/// partition, so `FINAL` sees every version of a record together (`crate::schema::raw_tables`).
 pub async fn get(
     client: &Client,
     project_id: &ProjectId,
