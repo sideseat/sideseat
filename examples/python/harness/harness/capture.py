@@ -272,6 +272,13 @@ class Suite:
     language: str
     manifest: dict[str, Any]
 
+    def model_for(self, scenario: str, requested: str | None) -> str | None:
+        """The model alias the suite runs ``scenario`` on, or ``None`` for its default."""
+        from harness import models
+
+        pinned = self.manifest.get("scenario-models") or {}
+        return models.scenario_model(pinned, scenario, requested)
+
     def modes(self) -> tuple[str, ...]:
         """The telemetry modes this suite has a program for; every suite has `native` and `sdk`."""
         declared = self.manifest.get("modes") or ("native", "sdk")
@@ -416,7 +423,7 @@ def scenarios_of(suite: Suite) -> list[str]:
 
 
 def uses_fake_model(suite: Suite, model: str | None) -> bool:
-    """Whether the suite runs a ``fake-*`` model: ``--model``, or the suite's default."""
+    """Whether the suite runs a ``fake-*`` model: ``model``, or the suite's default."""
     from harness import models
 
     alias = model or suite.manifest.get("default-model", models.DEFAULT)
@@ -438,6 +445,7 @@ def capture_one(
     from harness.proxy import ModelProxy, client_environment
 
     cassette = suite.root / "cassettes" / f"{scenario}.json"
+    model = suite.model_for(scenario, model)
     # A fake model is deterministic and local: there is no traffic to record or replay.
     deterministic = uses_fake_model(suite, model)
     if not record and not deterministic and not cassette.exists():

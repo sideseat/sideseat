@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from harness import capture, catalog, content, models, tooling
+from harness.fakes import anthropic as fake_anthropic
 from harness.fakes import google_genai as fake_gemini
 from harness.fakes import openai as fake_openai
 from harness.scrub import PLACEHOLDER_USER
@@ -223,7 +224,9 @@ def _cassette_of(target: Target) -> Path | None:
         )
         return path if path.exists() else None
     suite = capture.suites().get(target.producer)
-    if suite is None or capture.uses_fake_model(suite, None):
+    if suite is None or capture.uses_fake_model(
+        suite, suite.model_for(target.scenario, None)
+    ):
         return None
     path = suite.root / "cassettes" / f"{target.scenario}.json"
     return path if path.exists() else None
@@ -240,8 +243,9 @@ def _build(target: Target) -> dict[str, Any]:
     if target.scenario not in derive.PROMPTS:
         raise Underivable(f"{target.scenario!r} is not a catalog scenario")
     fixtures = fixtures_of(target.producer, target.scenario)
-    if capture.uses_fake_model(suite, None):
-        surface = models.resolve(suite.manifest["default-model"]).surface
+    model = suite.model_for(target.scenario, None)
+    if capture.uses_fake_model(suite, model):
+        surface = models.resolve(model or suite.manifest["default-model"]).surface
         return fake(
             target, surface, fixtures, Framework.of(suite.manifest.get("truth"))
         )
@@ -432,6 +436,81 @@ class _OpenAiResponses(_OpenAiChat):
             )
 
 
+class _Anthropic:
+    """The Messages API requests the Anthropic client sends a fake Claude, modelled."""
+
+    def __init__(self, scenario: str, model: str) -> None:
+        self.scenario, self.model = scenario, model
+        self.messages: list[dict[str, Any]] = []
+
+    def user(self, text: str) -> None:
+        self.messages.append({"role": "user", "content": text})
+
+    def call(self) -> tuple[dict[str, Any], ModelCall]:
+        body: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": 1024,
+            "messages": self.messages,
+        }
+        tools: list[dict[str, Any]] = [
+            {"name": name, "input_schema": schema}
+            for name, schema in _tool_schemas(self.scenario).items()
+        ]
+        # The direct release of each tool the provider runs itself.
+        tools += [
+            {"type": f"{tool}_20250305", "name": tool}
+            for tool in SCENARIO_HOSTED_TOOLS.get(self.scenario, ())
+        ]
+        if tools:
+            body["tools"] = tools
+        if self.scenario == "structured_output":
+            schema = content.TripPlan.model_json_schema()
+            body["output_config"] = {
+                "format": {"type": "json_schema", "schema": schema}
+            }
+        if self.scenario == "reasoning":
+            body["thinking"] = {"type": "adaptive"}
+        message = fake_anthropic.message(body)
+        streamed = self.scenario == "streaming"
+        if streamed:
+            payload = _sse([event for _, event in fake_anthropic.events_of(message)])
+        else:
+            payload = json.dumps(message).encode()
+        call = decode(_interaction("/v1/messages", payload, streamed))
+        assert call is not None
+        return body, call
+
+    def answer(self, call: ModelCall) -> None:
+        blocks: list[dict[str, Any]] = []
+        for part in call.parts:
+            if part["type"] == "text":
+                blocks.append({"type": "text", "text": part["text"]})
+            elif part["type"] == "tool_call":
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": part["id"],
+                        "name": part["name"],
+                        "input": part["arguments"],
+                    }
+                )
+        self.messages.append({"role": "assistant", "content": blocks})
+        if call.tool_calls:
+            self.messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": part["id"],
+                            "content": _result_text(part["name"], part["arguments"]),
+                        }
+                        for part in call.tool_calls
+                    ],
+                }
+            )
+
+
 class _Gemini:
     """The generateContent requests the Google Gen AI SDK sends a fake Gemini model, modelled."""
 
@@ -533,6 +612,8 @@ def fake_calls(surface: str, scenario: str) -> list[ModelCall]:
             session = _OpenAiResponses(scenario, model)
         elif surface == "fake-openai":
             session = _OpenAiChat(scenario, model)
+        elif surface == "fake-anthropic":
+            session = _Anthropic(scenario, model)
         else:
             raise Underivable(f"no request model for {surface}")
         for prompt in group:

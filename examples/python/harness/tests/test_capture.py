@@ -9,9 +9,11 @@ import pytest
 from harness.capture import (
     METRIC_SIGNALS,
     Pins,
+    Suite,
     _Recorder,
     anonymise,
     recorded_prefix,
+    uses_fake_model,
 )
 
 
@@ -216,3 +218,26 @@ def test_the_pinned_attachment_directory_is_not_taken_for_a_span_id() -> None:
     raw = b"/claude-504/-x/a7ad154d-40ab-4873-8951-05668b1b8aa8/images/1.jpg"
 
     assert b"/00000000-0000-0000-0000-000000000000/images/" in anonymise(raw, Pins())
+
+
+def test_a_scenario_pinned_to_a_model_runs_on_it_whatever_is_requested() -> None:
+    # A scenario only one model can run keeps it; every other scenario takes the requested model, or
+    # none, which is the suite's default.
+    from harness import models
+
+    suite = Suite(
+        Path("."),
+        "python",
+        {
+            "producer": "p",
+            "default-model": "sonnet",
+            "scenario-models": {"server_tools": "fake-anthropic"},
+        },
+    )
+    assert suite.model_for("server_tools", None) == "fake-anthropic"
+    assert suite.model_for("server_tools", "haiku") == "fake-anthropic"
+    assert suite.model_for("chat", "haiku") == "haiku"
+    assert suite.model_for("chat", None) is None
+    assert uses_fake_model(suite, suite.model_for("server_tools", None))
+    assert not uses_fake_model(suite, suite.model_for("chat", None))
+    assert models.scenario_model({}, "server_tools", None) is None

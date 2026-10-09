@@ -525,3 +525,19 @@ def test_committed_truths_are_internally_consistent() -> None:
         assert document["model_calls"] == sum(
             c["outcome"] == "success" for c in calls.values()
         )
+
+
+@pytest.mark.parametrize("scenario", ["chat", "tool_use", "streaming", "server_tools"])
+def test_a_fake_claudes_answers_are_modelled_as_the_client_requests_them(
+    scenario: str,
+) -> None:
+    calls = sources.fake_calls("fake-anthropic", scenario)
+    assert calls[-1].finish == "stop" and not calls[-1].tool_calls
+    if scenario == "server_tools":
+        (call,) = calls
+        searched, answer = call.parts
+        query, found = script.SEARCHES[content.SERVER_TOOLS]
+        assert searched["type"] == "server_tool_call"
+        assert searched["arguments"] == {"query": query}
+        assert searched["result"] == {"sources": found}
+        assert answer == wire.text_part(script.ANSWERS[content.SERVER_TOOLS])

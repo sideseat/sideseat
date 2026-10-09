@@ -157,14 +157,17 @@ def replay(
         command = [str(executable(environment, "sample")), *arguments]
         workdir = suite.root
     try:
-        if uses_fake_model(suite, None):
+        model = suite.model_for(scenario, None)
+        if uses_fake_model(suite, model):
             if suite.language != "python":
                 # A Python suite starts its fake in-process; a suite in another language is pointed at one.
                 from harness import fakes
                 from harness.clients import FAKE_PATHS
                 from harness.models import resolve
 
-                surface = resolve(suite.manifest.get("default-model", "")).surface
+                surface = resolve(
+                    model or suite.manifest.get("default-model", "")
+                ).surface
                 run_env[f"{surface.upper().replace('-', '_')}_URL"] = (
                     fakes.start(surface) + FAKE_PATHS[surface]
                 )

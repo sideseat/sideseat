@@ -7,6 +7,7 @@ All live models run on Amazon Bedrock, so one set of AWS credentials runs every 
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 
@@ -66,6 +67,18 @@ def resolve(alias: str) -> Model:
     except KeyError:
         known = ", ".join(MODELS)
         raise SystemExit(f"unknown model {alias!r}; choose one of: {known}") from None
+
+
+def scenario_model(
+    pinned: Mapping[str, str], scenario: str, requested: str | None
+) -> str | None:
+    """The model alias a suite runs a scenario on, or ``None`` for the suite's default.
+
+    A scenario the suite's models cannot run - a tool a provider runs itself, which Bedrock does not
+    serve - is pinned to the model that can in the manifest's ``scenario-models``, and the pin wins
+    over a requested ``--model``. Every other scenario runs on the requested model, else the default.
+    """
+    return pinned.get(scenario) or requested
 
 
 def region() -> str:

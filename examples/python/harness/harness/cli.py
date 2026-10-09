@@ -12,6 +12,7 @@ The suite is the project in the current directory. Its ``pyproject.toml`` declar
     producer = "strands"            # fixture producer name
     integrations = ["strands"]      # what ``--sideseat`` passes to sideseat.init
     default-model = "sonnet"
+    scenario-models = { server_tools = "fake-anthropic" }   # optional: a scenario only that model runs
 
 and the directory holds ``native.py`` (``configure(native)``), ``models.py`` (``build(model)``), a
 ``logs.py`` where the suite declares the ``logs`` mode, and
@@ -46,6 +47,8 @@ class Suite:
     producer: str
     integrations: list[str]
     default_model: str
+    #: Scenarios the suite's models cannot run, each with the model that can.
+    scenario_models: dict[str, str]
     service_name: str
     #: The telemetry modes this suite has a program for. `native` and `sdk` are every suite's; a suite whose
     #: producer reports through its own log records declares `logs` and writes a `logs.py` beside `native.py`.
@@ -64,6 +67,7 @@ class Suite:
             producer=table["producer"],
             integrations=list(table.get("integrations", [table["producer"]])),
             default_model=table.get("default-model", models.DEFAULT),
+            scenario_models=dict(table.get("scenario-models") or {}),
             service_name=table.get("service-name", table["producer"]),
             modes=tuple(table.get("modes", ("native", "sdk"))),
         )
@@ -101,7 +105,8 @@ def main(argv: list[str] | None = None) -> None:
         help="configure the producer's logging channel alone (suites that declare the `logs` mode)",
     )
     parser.add_argument(
-        "--model", default=suite.default_model, help="model alias (see --list)"
+        "--model",
+        help="model alias (see --list); a scenario the manifest pins in `scenario-models` keeps its own",
     )
     parser.add_argument("--list", action="store_true", help="list scenarios and models")
     args = parser.parse_args(argv)
@@ -124,7 +129,12 @@ def main(argv: list[str] | None = None) -> None:
             f"{suite.producer} has no scenario {missing}; available: {available}"
         )
 
-    model = models.resolve(args.model)
+    def model_of(scenario: str) -> models.Model:
+        alias = models.scenario_model(suite.scenario_models, scenario, args.model)
+        return models.resolve(alias or suite.default_model)
+
+    for name in selected:
+        model_of(name)  # an unknown alias stops the run before any telemetry starts
     telemetry: Telemetry
     if args.sideseat and args.logs:
         raise SystemExit("--sideseat and --logs are two modes; choose one")
@@ -148,6 +158,7 @@ def main(argv: list[str] | None = None) -> None:
     failures: list[str] = []
     try:
         for name in selected:
+            model = model_of(name)
             print(
                 f"\n=== {suite.producer} / {name} ({telemetry.mode}, {model.alias}) ==="
             )
