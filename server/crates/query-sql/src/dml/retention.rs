@@ -170,6 +170,20 @@ pub fn retention_selected_traces(limit: i64) -> DmlStatement {
     )
 }
 
+/// Delete the search terms of every selected logical span identity, before its revisions.
+///
+/// A term row that outlives its span is matched against whatever is stored under that identity next: a span
+/// reusing an expired identity was excluded by a `NOT` term its predecessor held, before exact verification could
+/// see it, and every later correction deleted only its own revision's terms, so the stale ones stayed.
+pub fn retention_delete_selected_span_terms() -> DmlStatement {
+    retention_statement(
+        "DELETE FROM span_terms \
+         WHERE (project_id, trace_id, span_id) \
+               IN (SELECT project_id, trace_id, span_id FROM _retention_batch)",
+        Vec::new(),
+    )
+}
+
 /// Delete every physical revision of every selected logical span identity.
 pub fn retention_delete_selected_spans() -> DmlStatement {
     retention_statement(
@@ -229,52 +243,72 @@ pub fn retention_delete_expired_metrics_for_project(
     )
 }
 
-/// Delete one oldest page of expired DuckDB logs.
-pub fn retention_delete_expired_logs(
-    cutoff: DateTime<Utc>,
-    now: DateTime<Utc>,
-    limit: i64,
-) -> DmlStatement {
-    retention_statement(
-        "DELETE FROM otel_logs \
-         WHERE rowid IN ( \
-             SELECT rowid FROM otel_logs \
-             WHERE timestamp < ? \
-               AND (hold_until IS NULL OR hold_until < ?) \
-             ORDER BY timestamp ASC, log_digest ASC, ordinal ASC \
-             LIMIT ? \
-         )",
-        vec![
-            QueryValue::String(cutoff.to_rfc3339()),
-            QueryValue::String(now.to_rfc3339()),
-            QueryValue::Int64(limit),
-        ],
+/// One oldest page of expired DuckDB logs, optionally of one project: the identities and their row ids, in a
+/// total order, so the two statements of a page select the same records within their transaction.
+fn expired_log_page(project_scoped: bool) -> String {
+    let project = if project_scoped {
+        "project_id = ? AND "
+    } else {
+        ""
+    };
+    format!(
+        "SELECT rowid, project_id, log_digest, ordinal FROM otel_logs \
+         WHERE {project}timestamp < ? \
+           AND (hold_until IS NULL OR hold_until < ?) \
+         ORDER BY timestamp ASC, project_id ASC, log_digest ASC, ordinal ASC \
+         LIMIT ?"
     )
 }
 
-/// Delete one oldest page of expired DuckDB logs for one project.
-pub fn retention_delete_expired_logs_for_project(
-    project_id: &str,
+fn expired_log_values(
+    project_id: Option<&str>,
+    cutoff: DateTime<Utc>,
+    now: DateTime<Utc>,
+    limit: i64,
+) -> Vec<QueryValue> {
+    project_id
+        .map(|project| QueryValue::String(project.to_string()))
+        .into_iter()
+        .chain([
+            QueryValue::String(cutoff.to_rfc3339()),
+            QueryValue::String(now.to_rfc3339()),
+            QueryValue::Int64(limit),
+        ])
+        .collect()
+}
+
+/// Delete the search terms of one oldest page of expired DuckDB logs, before the page itself
+/// ([`retention_delete_expired_logs`], same arguments, same transaction): terms left behind are search rows no
+/// record owns.
+pub fn retention_delete_expired_log_terms(
+    project_id: Option<&str>,
     cutoff: DateTime<Utc>,
     now: DateTime<Utc>,
     limit: i64,
 ) -> DmlStatement {
     retention_statement(
-        "DELETE FROM otel_logs \
-         WHERE rowid IN ( \
-             SELECT rowid FROM otel_logs \
-             WHERE project_id = ? \
-               AND timestamp < ? \
-               AND (hold_until IS NULL OR hold_until < ?) \
-             ORDER BY timestamp ASC, log_digest ASC, ordinal ASC \
-             LIMIT ? \
-         )",
-        vec![
-            QueryValue::String(project_id.to_string()),
-            QueryValue::String(cutoff.to_rfc3339()),
-            QueryValue::String(now.to_rfc3339()),
-            QueryValue::Int64(limit),
-        ],
+        format!(
+            "DELETE FROM log_terms WHERE (project_id, log_digest, ordinal) IN (\
+             SELECT project_id, log_digest, ordinal FROM ({}) page)",
+            expired_log_page(project_id.is_some())
+        ),
+        expired_log_values(project_id, cutoff, now, limit),
+    )
+}
+
+/// Delete one oldest page of expired DuckDB logs, optionally of one project.
+pub fn retention_delete_expired_logs(
+    project_id: Option<&str>,
+    cutoff: DateTime<Utc>,
+    now: DateTime<Utc>,
+    limit: i64,
+) -> DmlStatement {
+    retention_statement(
+        format!(
+            "DELETE FROM otel_logs WHERE rowid IN (SELECT rowid FROM ({}) page)",
+            expired_log_page(project_id.is_some())
+        ),
+        expired_log_values(project_id, cutoff, now, limit),
     )
 }
 

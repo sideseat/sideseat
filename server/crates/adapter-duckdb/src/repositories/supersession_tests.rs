@@ -190,3 +190,34 @@ async fn the_marker_names_the_windows_winner_for_any_history() {
         );
     }
 }
+
+/// A write reads what it can change, not the identity's history: after fifty corrections a revision that arrives
+/// in order reads the winner alone, and one that lands between two stored revisions reads from the one before it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_write_reads_only_the_revisions_it_can_change() {
+    let (_temp, service) = service().await;
+    for at in 1..=50_i64 {
+        service
+            .write(|conn| crate::repositories::span::insert_batch(conn, &[span("s", at * 1_000)]))
+            .expect("write");
+    }
+    let conn = service.conn();
+    let read = |since_us: i64| {
+        let mut instants: Vec<i64> =
+            crate::repositories::keyed::span_revisions(&conn, &[identity("s")], since_us)
+                .expect("revisions")
+                .remove(&identity("s"))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|revision| revision.ingested_us)
+                .collect();
+        instants.sort_unstable();
+        instants
+    };
+    assert_eq!(read(60_000), vec![50_000]);
+    assert_eq!(
+        read(25_500),
+        (25..=50).map(|at| at * 1_000).collect::<Vec<_>>()
+    );
+    assert_eq!(read(i64::MIN).len(), 50);
+}

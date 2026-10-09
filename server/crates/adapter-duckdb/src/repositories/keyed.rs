@@ -28,16 +28,23 @@ pub(crate) struct StoredRevision {
     pub superseded_us: Option<i64>,
 }
 
-/// Every stored revision of each of these span identities, read through the `span_id` index.
+/// The stored revisions of these span identities that a write of revisions ingested at or after `since_us` can
+/// change, read through the `span_id` index: every revision followed at or after that instant, or by nothing -
+/// the winner.
 ///
-/// A write needs them all, not only the latest: a revision that arrives out of order lands between two stored
-/// ones and changes which instant the earlier one is superseded at (`supersession::plan`). An identity has as many
-/// as it was delivered with different content - almost always one.
+/// That is all `supersession::plan` needs, not the whole history: a new revision lands after the stored ones
+/// before it, so only a revision whose follower is at or after the earliest new instant can change the instant
+/// it is superseded at, and only those after it can be what the new one is superseded at. Every older revision
+/// keeps its follower. So a write reads what it can change - the winner, for a revision that arrives in order -
+/// however often the identity was corrected before. `i64::MAX` reads the winner alone.
 pub(crate) fn span_revisions(
     conn: &Connection,
     identities: &[SpanIdentity],
+    since_us: i64,
 ) -> Result<HashMap<SpanIdentity, Vec<StoredRevision>>, DuckdbError> {
     let mut revisions: HashMap<SpanIdentity, Vec<StoredRevision>> = HashMap::new();
+    // A row read twice - its identity in two chunks - is kept once, by row id, in constant time.
+    let mut seen: std::collections::HashSet<i64> = std::collections::HashSet::new();
     for chunk in identities.chunks(KEYED_CHUNK) {
         let keys = distinct_keys(chunk.iter().map(|(_, _, span_id)| span_id.as_str()));
         let keyed = duckdb_keyed(
@@ -48,7 +55,8 @@ pub(crate) fn span_revisions(
         );
         let sql = format!(
             "SELECT keyed_rowid, project_id, trace_id, span_id, epoch_us(ingested_at), \
-             epoch_us(superseded_at) FROM {keyed} WHERE (project_id, trace_id, span_id) IN ({})",
+             epoch_us(superseded_at) FROM {keyed} WHERE (project_id, trace_id, span_id) IN ({}) \
+             AND (superseded_at IS NULL OR epoch_us(superseded_at) >= ?::BIGINT)",
             triples(chunk.len())
         );
         let mut values: Vec<duckdb::types::Value> = keys
@@ -60,6 +68,7 @@ pub(crate) fn span_revisions(
             values.push(duckdb::types::Value::Text(trace_id.clone()));
             values.push(duckdb::types::Value::Text(span_id.clone()));
         }
+        values.push(duckdb::types::Value::BigInt(since_us));
         let mut statement = conn.prepare(&sql)?;
         let rows = statement.query_map(duckdb::params_from_iter(values), |row| {
             Ok((
@@ -73,9 +82,8 @@ pub(crate) fn span_revisions(
         })?;
         for row in rows {
             let (identity, revision) = row?;
-            let stored = revisions.entry(identity).or_default();
-            if !stored.contains(&revision) {
-                stored.push(revision);
+            if seen.insert(revision.rowid) {
+                revisions.entry(identity).or_default().push(revision);
             }
         }
     }

@@ -352,3 +352,74 @@ async fn test_run_retention_cleans_both_spans_and_metrics() {
         .expect("Should query");
     assert_eq!(metric_count, 0);
 }
+
+fn term_rows(conn: &Connection, table: &str) -> i64 {
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get(0)
+    })
+    .expect("count terms")
+}
+
+/// An expired span's search terms go with it. Left behind, they were matched against the next span stored under
+/// the same identity: a search for `NOT prompt:alpha` excluded a span holding only `beta`.
+#[tokio::test]
+async fn expired_spans_take_their_search_terms() {
+    let (_temp_dir, analytics) = create_test_service().await;
+    let conn = analytics.conn();
+    insert_test_span(&conn, "trace-old", "span-old", "2020-01-01 00:00:00");
+    let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+    insert_test_span(&conn, "trace-new", "span-new", &recent);
+    conn.execute_batch(
+        "INSERT INTO span_terms VALUES
+           ('default', 'trace-old', 'span-old', 'prompt', 'alpha', '2020-01-01 00:00:00'),
+           ('default', 'trace-new', 'span-new', 'prompt', 'beta', now())",
+    )
+    .expect("terms");
+
+    let (deleted, _) = cleanup_by_time(&conn, 1, &no_intent).expect("cleanup");
+    assert_eq!(deleted, 1);
+    let left: Vec<String> = conn
+        .prepare("SELECT term FROM span_terms ORDER BY term")
+        .expect("prepare")
+        .query_map([], |row| row.get(0))
+        .expect("query")
+        .collect::<Result<_, _>>()
+        .expect("terms");
+    assert_eq!(
+        left,
+        vec!["beta".to_string()],
+        "the expired span's terms outlived it"
+    );
+}
+
+/// An expired log record's search terms go with it, page by page.
+#[tokio::test]
+async fn expired_logs_take_their_search_terms() {
+    let (_temp_dir, analytics) = create_test_service().await;
+    let conn = analytics.conn();
+    insert_governed_log(
+        &conn,
+        "default",
+        "digest-old",
+        "2020-01-01 00:00:00",
+        None,
+        10,
+    );
+    let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+    insert_governed_log(&conn, "default", "digest-new", &recent, None, 10);
+    conn.execute_batch(
+        "INSERT INTO log_terms VALUES
+           ('default', 'digest-old', 0, 'body', 'alpha', '2020-01-01 00:00:00'),
+           ('default', 'digest-new', 0, 'body', 'beta', now())",
+    )
+    .expect("terms");
+
+    let deleted = super::cleanup_logs_by_time(&conn, 1, Utc::now()).expect("cleanup");
+    assert_eq!(deleted, 1);
+    assert_eq!(
+        term_rows(&conn, "log_terms"),
+        1,
+        "the expired log's terms outlived it"
+    );
+    assert_eq!(signal_count(&conn, "otel_logs", "default"), 1);
+}

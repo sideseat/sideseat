@@ -365,7 +365,7 @@ fn write_span_backfill(
         }
         // The terms carry the winner's instant, as a write's do, so a later correction finds them.
         let identity: SpanIdentity = (project_id.to_string(), trace_id.clone(), span_id.clone());
-        let revisions = keyed::span_revisions(conn, std::slice::from_ref(&identity))?;
+        let revisions = keyed::span_revisions(conn, std::slice::from_ref(&identity), i64::MAX)?;
         let Some(winner) = revisions
             .get(&identity)
             .and_then(|stored| {

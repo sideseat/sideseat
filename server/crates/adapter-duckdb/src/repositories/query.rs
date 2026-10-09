@@ -468,6 +468,9 @@ pub fn delete_sessions(
         let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Duckdb, project_id, &trace_ids)
             .expect("non-empty trace set produces a raw enqueue");
         conn.execute(enqueue.sql(), duckdb_values(enqueue.params()).as_slice())?;
+        // The traces' search terms go with them, as a trace delete's do: a term outliving its span matches the
+        // next span stored under the same identity.
+        super::search::delete_for_traces(conn, project_id, &trace_ids)?;
         let values = duckdb_values(statement.params());
         conn.execute(statement.sql(), values.as_slice())?;
         let logs = dml::delete_logs_for_traces(

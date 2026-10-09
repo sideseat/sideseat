@@ -29,7 +29,12 @@ pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), D
                 )
             })
             .collect();
-        let stored = super::keyed::span_revisions(conn, &identities)?;
+        let since_us = spans
+            .iter()
+            .map(super::supersession::instant_of)
+            .min()
+            .unwrap_or(i64::MIN);
+        let stored = super::keyed::span_revisions(conn, &identities, since_us)?;
         let supersession = super::supersession::plan(spans, &stored);
         super::keyed::supersede_rows(conn, &supersession.updates)?;
         insert_spans(conn, target.table(), spans, &supersession.new)?;

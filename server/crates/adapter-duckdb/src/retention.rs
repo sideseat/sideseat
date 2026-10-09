@@ -670,8 +670,12 @@ fn delete_spans_with_query(
 
         // The records those rows name go to reconciliation in the same transaction as the delete.
         execute_statement(conn, &dml::raw::enqueue_raw_for_retention_batch())?;
-        // Removes every revision of each selected identity (events, links and messages are
-        // embedded in the span row).
+        // Its search terms first, while the batch names it; then every revision of each selected identity
+        // (events, links and messages are embedded in the span row).
+        execute_statement(
+            conn,
+            &dml::retention::retention_delete_selected_span_terms(),
+        )?;
         let rows = execute_statement(conn, &dml::retention::retention_delete_selected_spans())?;
 
         Ok(BatchOutcome {
@@ -812,18 +816,7 @@ pub fn cleanup_logs_by_time(
 ) -> Result<u64, DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = now - TimeDelta::minutes(minutes_i64);
-    let mut total_deleted = 0;
-    for _ in 0..MAX_METRICS_CLEANUP_BATCHES {
-        let deleted = execute_statement(
-            conn,
-            &dml::retention::retention_delete_expired_logs(cutoff, now, RETENTION_BATCH_SIZE),
-        )?;
-        if deleted == 0 {
-            break;
-        }
-        total_deleted += deleted;
-    }
-    Ok(total_deleted)
+    delete_expired_log_pages(conn, None, cutoff, now)
 }
 
 fn cleanup_project_logs_by_time(
@@ -834,17 +827,38 @@ fn cleanup_project_logs_by_time(
 ) -> Result<u64, DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = now - TimeDelta::minutes(minutes_i64);
+    delete_expired_log_pages(conn, Some(project_id), cutoff, now)
+}
+
+/// Delete expired logs a page at a time, each page's search terms with it in one transaction.
+fn delete_expired_log_pages(
+    conn: &Connection,
+    project_id: Option<&str>,
+    cutoff: chrono::DateTime<Utc>,
+    now: chrono::DateTime<Utc>,
+) -> Result<u64, DuckdbError> {
     let mut total_deleted = 0u64;
     for _ in 0..MAX_METRICS_CLEANUP_BATCHES {
-        let deleted = execute_statement(
-            conn,
-            &dml::retention::retention_delete_expired_logs_for_project(
-                project_id,
-                cutoff,
-                now,
-                RETENTION_BATCH_SIZE,
-            ),
-        )?;
+        let deleted = in_transaction(conn, |conn| {
+            execute_statement(
+                conn,
+                &dml::retention::retention_delete_expired_log_terms(
+                    project_id,
+                    cutoff,
+                    now,
+                    RETENTION_BATCH_SIZE,
+                ),
+            )?;
+            execute_statement(
+                conn,
+                &dml::retention::retention_delete_expired_logs(
+                    project_id,
+                    cutoff,
+                    now,
+                    RETENTION_BATCH_SIZE,
+                ),
+            )
+        })?;
         if deleted == 0 {
             break;
         }

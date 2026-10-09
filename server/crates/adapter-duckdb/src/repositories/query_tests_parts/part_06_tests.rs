@@ -231,3 +231,30 @@ async fn holds_and_project_deletion_reach_the_raw_tables() {
         assert_eq!(rows, 0, "{table} keeps rows of a deleted project");
     }
 }
+
+/// Deleting a session takes its spans' search terms with them, as deleting a trace does: a term outliving its span
+/// is matched against the next span stored under the same identity.
+#[tokio::test]
+async fn deleting_a_session_takes_its_spans_search_terms() {
+    let (_dir, service) = create_test_service().await;
+    let conn = service.conn();
+    insert_batch(
+        &conn,
+        &[NormalizedSpan {
+            session_id: Some("session-1".to_string()),
+            ..revision("span", "digest", 0)
+        }],
+    )
+    .expect("insert");
+    conn.execute_batch(
+        "INSERT INTO span_terms VALUES ('project', 'trace', 'span', 'prompt', 'alpha', now())",
+    )
+    .expect("terms");
+
+    let deleted = delete_sessions(&conn, "project", &["session-1".to_string()]).expect("delete");
+    assert_eq!(deleted, vec!["trace".to_string()]);
+    let terms: i64 = conn
+        .query_row("SELECT COUNT(*) FROM span_terms", [], |row| row.get(0))
+        .expect("count");
+    assert_eq!(terms, 0, "the session's span terms outlived it");
+}

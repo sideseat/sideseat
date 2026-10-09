@@ -261,7 +261,7 @@ async fn ingest_lookups_read_the_rows_they_name() {
             .map(|(trace, span, _)| (PROJECT.to_string(), trace.clone(), span.clone()))
             .collect();
         assert_eq!(
-            keyed::span_revisions(&conn, &wanted)
+            keyed::span_revisions(&conn, &wanted, i64::MIN)
                 .expect("revisions")
                 .len(),
             5
