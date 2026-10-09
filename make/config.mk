@@ -46,16 +46,17 @@ DISK_FREE_MIN_MB ?= 10000
 # Reclaiming starts well above the refusal reserve, so stale state goes before anything has to stop.
 DISK_RECLAIM_MB  ?= 25000
 
-# Run finite commands that can grow the Cargo target directory with checks before and after them. The
-# command runs in a subshell: one that starts with `cd` would otherwise leave the second check in a
-# directory without the Makefile.
+# Run finite commands that can grow the Cargo target directory with a check before them, which refuses to start
+# below the reserve, and one after, which reclaims and reports. The second does not turn a passing command into a
+# failure: on a machine where several builds share the disk the shortfall is rarely the command's alone, and the
+# next guarded step refuses to start anyway. The command runs in a subshell: one that starts with `cd` would
+# otherwise leave the second check in a directory without the Makefile.
 define run-with-disk-guard
 @$(MAKE) --no-print-directory disk-guard
-@command_status=0; guard_status=0; \
+@command_status=0; \
 	( $(1) ) || command_status=$$?; \
-	$(MAKE) --no-print-directory disk-guard || guard_status=$$?; \
-	[ "$$command_status" -eq 0 ] || exit "$$command_status"; \
-	exit "$$guard_status"
+	$(MAKE) --no-print-directory disk-guard || echo "[disk-guard] below the reserve after the step; the next guarded step will refuse to start"; \
+	exit "$$command_status"
 endef
 
 PLATFORMS        := darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64
