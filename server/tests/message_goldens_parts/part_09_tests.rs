@@ -47,6 +47,8 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         compared: usize,
         reordered: usize,
         reasoning_items: usize,
+        cited_texts: usize,
+        provider_runs: usize,
         disagreements: Vec<String>,
     }
     impl Oracle {
@@ -100,7 +102,15 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
                         Some(_) if is_responses_reasoning_item(value) => {
                             self.reasoning_items += 1;
                         }
-                        Some((_, disagreement)) => self.disagreements.push(disagreement),
+                        // The third and fourth, each checked way by way rather than by the value's shape: a cited
+                        // text that is the same text with its citations added, and a provider-run block the
+                        // retired readers kept as unknown that is now its own provider-executed call or result.
+                        // Any other difference on those shapes is still a disagreement.
+                        Some((_, disagreement)) => match stated_difference(value) {
+                            Some(Stated::CitedText) => self.cited_texts += 1,
+                            Some(Stated::ProviderRun) => self.provider_runs += 1,
+                            None => self.disagreements.push(disagreement),
+                        },
                         None => {}
                     }
                     for member in members.values() {
@@ -111,6 +121,142 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
             }
         }
     }
+
+    /// Which stated difference every way the value reads differently shows, if each does.
+    fn stated_difference(value: &serde_json::Value) -> Option<Stated> {
+        let mut stated = None;
+        for (_, declared, retired) in
+            sideseat_domain::sideml::test_support::content_chain_answers(value)
+        {
+            if declared == retired {
+                continue;
+            }
+            let declared = declared?;
+            let this = if cites_what_it_read(value, &declared, retired.as_ref()) {
+                Stated::CitedText
+            } else if runs_what_it_named(value, &declared, retired.as_ref()) {
+                Stated::ProviderRun
+            } else {
+                return None;
+            };
+            if stated.is_some_and(|seen| seen != this) {
+                return None;
+            }
+            stated = Some(this);
+        }
+        stated
+    }
+
+    /// The same text with its citations added: a Responses part reads as before plus `citations`, and a Converse
+    /// cited answer, which the retired readers kept as one opaque block or did not read, is the text it generated,
+    /// joined.
+    fn cites_what_it_read(
+        value: &serde_json::Value,
+        declared: &serde_json::Value,
+        retired: Option<&serde_json::Value>,
+    ) -> bool {
+        let Some(cited) = declared
+            .get("citations")
+            .and_then(serde_json::Value::as_array)
+        else {
+            return false;
+        };
+        if cited.is_empty()
+            || declared.get("type").and_then(serde_json::Value::as_str) != Some("text")
+        {
+            return false;
+        }
+        let mut without = declared.clone();
+        without
+            .as_object_mut()
+            .expect("a block")
+            .remove("citations");
+        if retired == Some(&without) {
+            return true;
+        }
+        let generated: Option<String> = value
+            .pointer("/citationsContent/content")
+            .and_then(serde_json::Value::as_array)
+            .map(|parts| {
+                parts
+                    .iter()
+                    .filter_map(|part| part.get("text").and_then(serde_json::Value::as_str))
+                    .collect()
+            });
+        generated.is_some_and(|text| {
+            without == serde_json::json!({"type": "text", "text": text})
+                && retired.is_none_or(|retired| {
+                    retired.get("type").and_then(serde_json::Value::as_str) != Some("text")
+                })
+        })
+    }
+
+    /// A block the retired readers kept as unknown - or, read as a singleton result, did not read at all - now the
+    /// provider-executed call it names, by its own id and name, or the result of the call its own id answers.
+    fn runs_what_it_named(
+        value: &serde_json::Value,
+        declared: &serde_json::Value,
+        retired: Option<&serde_json::Value>,
+    ) -> bool {
+        let field = |v: &serde_json::Value, key: &str| v.get(key).cloned();
+        retired.is_none_or(|retired| {
+            retired.get("type").and_then(serde_json::Value::as_str) == Some("unknown")
+        }) && declared.get("provider_executed") == Some(&serde_json::json!(true))
+            && match declared.get("type").and_then(serde_json::Value::as_str) {
+                Some("tool_use") => {
+                    field(declared, "id") == field(value, "id")
+                        && field(declared, "name") == field(value, "name")
+                }
+                Some("tool_result") => {
+                    field(declared, "tool_use_id") == field(value, "tool_use_id")
+                }
+                _ => false,
+            }
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Stated {
+        CitedText,
+        ProviderRun,
+    }
+
+    // The excuses see as much as the oracle: a citation that changes the text, or a provider run read under
+    // another call's id, is still a disagreement.
+    let page = serde_json::json!({"type": "output_text", "text": "Open at nine.",
+        "annotations": [{"type": "url_citation", "url": "https://a", "title": "A", "start_index": 0, "end_index": 4}]});
+    let cited = serde_json::json!({"type": "text", "text": "Open at nine.",
+        "citations": [{"kind": "url", "source": "https://a"}]});
+    let plain = serde_json::json!({"type": "text", "text": "Open at nine."});
+    assert!(cites_what_it_read(&page, &cited, Some(&plain)));
+    // A Responses part the retired readers did not read is not excused: only a Converse cited answer may be.
+    assert!(!cites_what_it_read(&page, &cited, None));
+    let mut dropped = cited.clone();
+    dropped["text"] = serde_json::json!("Open at");
+    assert!(!cites_what_it_read(&page, &dropped, Some(&plain)));
+    let converse = serde_json::json!({"citationsContent": {"content": [{"text": "write "}, {"text": "a poem"}]}});
+    let joined = serde_json::json!({"type": "text", "text": "write a poem",
+        "citations": [{"kind": "document", "source": "task"}]});
+    assert!(cites_what_it_read(&converse, &joined, None));
+    let mut short = joined.clone();
+    short["text"] = serde_json::json!("write a");
+    assert!(!cites_what_it_read(&converse, &short, None));
+    let call = serde_json::json!({"type": "server_tool_use", "id": "s1", "name": "web_search", "input": {}});
+    let unknown = serde_json::json!({"type": "unknown", "raw": call.clone()});
+    let run = serde_json::json!({"type": "tool_use", "id": "s1", "name": "web_search", "input": {},
+        "provider_executed": true});
+    assert!(runs_what_it_named(&call, &run, Some(&unknown)));
+    assert!(runs_what_it_named(&call, &run, None));
+    let mut other_id = run.clone();
+    other_id["id"] = serde_json::json!("s2");
+    assert!(!runs_what_it_named(&call, &other_id, Some(&unknown)));
+    let mut client_run = run.clone();
+    client_run
+        .as_object_mut()
+        .expect("a block")
+        .remove("provider_executed");
+    assert!(!runs_what_it_named(&call, &client_run, Some(&unknown)));
+    // A block the retired readers read as something else is not excused as a provider run.
+    assert!(!runs_what_it_named(&call, &run, Some(&plain)));
 
     /// A Responses API reasoning item: `type` reasoning beside the summary list the API always writes.
     fn is_responses_reasoning_item(value: &serde_json::Value) -> bool {
@@ -125,6 +271,8 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         compared: 0,
         reordered: 0,
         reasoning_items: 0,
+        cited_texts: 0,
+        provider_runs: 0,
         disagreements: Vec::new(),
     };
     let mut files = 0_usize;
@@ -208,6 +356,14 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
     assert!(
         oracle.reasoning_items > 0,
         "no captured Responses reasoning item: the stated difference covers nothing"
+    );
+    assert!(
+        oracle.cited_texts > 0,
+        "no captured cited text: the stated difference covers nothing"
+    );
+    assert!(
+        oracle.provider_runs > 0,
+        "no captured provider-run block: the stated difference covers nothing"
     );
     oracle.disagreements.sort();
     oracle.disagreements.dedup();

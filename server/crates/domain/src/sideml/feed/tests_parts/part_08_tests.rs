@@ -587,7 +587,7 @@ fn adk_multi_span_preserves_ordered_input_history_and_deduplicates() {
         .messages
         .iter()
         .filter(|m| {
-            matches!(&m.content, ContentBlock::Text { text } if text == "Previous answer from history")
+            matches!(&m.content, ContentBlock::Text { text, .. } if text == "Previous answer from history")
         })
         .count();
     assert_eq!(
@@ -604,10 +604,9 @@ fn adk_multi_span_preserves_ordered_input_history_and_deduplicates() {
     );
 
     // Final answer should be present (protected by gen_ai.choice + finish_reason)
-    let final_answer = result
-        .messages
-        .iter()
-        .any(|m| matches!(&m.content, ContentBlock::Text { text } if text == "The answer is 4"));
+    let final_answer = result.messages.iter().any(
+        |m| matches!(&m.content, ContentBlock::Text { text, .. } if text == "The answer is 4"),
+    );
     assert!(final_answer, "Final assistant answer should be present");
 
     // Verify no empty result
@@ -730,7 +729,7 @@ fn ordered_input_assistant_and_output_source_assistant_both_survive() {
 
     // The old response is a distinct earlier turn in ADK's ordered request snapshot.
     let old = result.messages.iter().any(|m| {
-        matches!(&m.content, ContentBlock::Text { text } if text == "Old response from history")
+        matches!(&m.content, ContentBlock::Text { text, .. } if text == "Old response from history")
     });
     assert!(
         old,
@@ -739,7 +738,7 @@ fn ordered_input_assistant_and_output_source_assistant_both_survive() {
 
     // "New response" should survive (output-source, has finish_reason → protected)
     let new = result.messages.iter().any(|m| {
-        matches!(&m.content, ContentBlock::Text { text } if text == "New response from this turn")
+        matches!(&m.content, ContentBlock::Text { text, .. } if text == "New response from this turn")
     });
     assert!(
         new,

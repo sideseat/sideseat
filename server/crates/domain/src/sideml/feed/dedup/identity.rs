@@ -81,6 +81,7 @@ impl MessageIdentity {
             name,
             content,
             is_error,
+            ..
         } = &block.content
         {
             let identity_hash = match tool_use_id {
@@ -235,7 +236,10 @@ pub(in crate::sideml::feed) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Ve
         std::collections::HashSet<Option<&PositionPath>>,
     > = HashMap::new();
     for block in blocks {
-        if let ContentBlock::ToolUse { id, name, input } = &block.content {
+        if let ContentBlock::ToolUse {
+            id, name, input, ..
+        } = &block.content
+        {
             let response = response_scope(block, compute_tool_call_hash(name, input));
             let id = id.as_deref().filter(|id| !id.is_empty());
             let position = crate::sideml::carrier::semantics_for_context(&block.carrier_context())
@@ -270,7 +274,10 @@ pub(in crate::sideml::feed) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Ve
         // bucket in the response map. Text does not carry an id, so `call_key` returns `Indistinct` in
         // any snapshot/state carrier - which keeps ADK's repeated "For context:" as one message rather
         // than becoming N.
-        if let ContentBlock::ToolUse { id, name, input } = &block.content {
+        if let ContentBlock::ToolUse {
+            id, name, input, ..
+        } = &block.content
+        {
             let shape = compute_tool_call_hash(name, input);
             let rank = record_position(
                 block,
@@ -311,7 +318,9 @@ pub(in crate::sideml::feed) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Ve
         .iter()
         .enumerate()
         .map(|(index, block)| match &block.content {
-            ContentBlock::ToolUse { id, name, input } => {
+            ContentBlock::ToolUse {
+                id, name, input, ..
+            } => {
                 let shape = compute_tool_call_hash(name, input);
                 lookup_position(
                     block,
@@ -406,7 +415,10 @@ fn apply_reused_execution_id_ordinals(
         }
     }
     for (index, block) in blocks.iter().enumerate() {
-        let ContentBlock::ToolUse { id, name, input } = &block.content else {
+        let ContentBlock::ToolUse {
+            id, name, input, ..
+        } = &block.content
+        else {
             continue;
         };
         let Some(id) = id.as_deref().filter(|id| !id.is_empty()) else {
@@ -495,6 +507,7 @@ fn apply_reused_execution_id_ordinals(
                 id: Some(id),
                 name,
                 input,
+                ..
             } if !id.is_empty() => {
                 let group = (block.trace_id.as_str(), compute_tool_call_hash(name, input));
                 let semantics =

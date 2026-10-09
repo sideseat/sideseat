@@ -16,16 +16,16 @@ fn make_block(
             id: Some("call_1".to_string()),
             name: "test".to_string(),
             input: serde_json::json!({}),
+            provider_executed: false,
         },
         "tool_result" => ContentBlock::ToolResult {
             tool_use_id: Some("call_1".to_string()),
             name: None,
             content: serde_json::json!("result"),
             is_error: false,
+            provider_executed: false,
         },
-        _ => ContentBlock::Text {
-            text: "test".to_string(),
-        },
+        _ => ContentBlock::text("test"),
     };
 
     BlockEntry {
@@ -125,16 +125,16 @@ pub(super) fn make_block_with_source(
             id: Some(format!("call_{counter}")),
             name: "test".to_string(),
             input: serde_json::json!({}),
+            provider_executed: false,
         },
         "tool_result" => ContentBlock::ToolResult {
             tool_use_id: Some(format!("call_{counter}")),
             name: None,
             content: serde_json::json!("result"),
             is_error: false,
+            provider_executed: false,
         },
-        _ => ContentBlock::Text {
-            text: format!("test_{counter}"),
-        },
+        _ => ContentBlock::text(format!("test_{counter}")),
     };
 
     BlockEntry {

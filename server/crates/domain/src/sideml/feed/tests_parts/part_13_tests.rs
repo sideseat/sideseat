@@ -169,7 +169,7 @@ fn a_span_view_preserves_replayed_assistant_context() {
         .messages
         .iter()
         .filter_map(|block| match &block.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -186,7 +186,7 @@ fn a_span_view_preserves_replayed_assistant_context() {
     let trace = process_spans(vec![row], &FeedOptions::new());
     assert!(
         !trace.messages.iter().any(
-            |block| matches!(&block.content, ContentBlock::Text { text } if text == "first answer")
+            |block| matches!(&block.content, ContentBlock::Text { text, .. } if text == "first answer")
         ),
         "trace reconstruction still collapses input history"
     );
@@ -852,7 +852,7 @@ fn a_choiceless_generation_does_not_promote_a_reply_an_earlier_generation_stated
         .messages
         .iter()
         .map(|block| match &block.content {
-            ContentBlock::Text { text } => (block.role, text.clone()),
+            ContentBlock::Text { text, .. } => (block.role, text.clone()),
             other => panic!("unexpected block {other:?}"),
         })
         .collect();
@@ -892,7 +892,7 @@ fn log_carried_messages_join_the_span_they_name() {
         .messages
         .iter()
         .map(|block| {
-            let ContentBlock::Text { text } = &block.content else {
+            let ContentBlock::Text { text, .. } = &block.content else {
                 panic!("text expected: {block:?}");
             };
             (block.role, text.clone())

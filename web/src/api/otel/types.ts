@@ -122,8 +122,20 @@ export type MessageCategory =
  * ContentBlock types matching server/crates/domain/src/sideml/types.rs
  * All 15 content block types for multimodal messages
  */
+// A source a text cites, in one shape for every provider. `text_start`/`text_end` are offsets into the text the
+// citation applies to, where the provider states them; an `unknown` citation carries the provider's own item.
+export interface Citation {
+  kind: "url" | "document" | "file" | "search_result" | "unknown";
+  source?: string;
+  title?: string;
+  text_start?: number;
+  text_end?: number;
+  cited_text?: string;
+  raw?: unknown;
+}
+
 export type ContentBlock =
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; citations?: Citation[] }
   | { type: "image"; media_type?: string; source: string; data: string; detail?: string }
   | { type: "audio"; media_type?: string; source: string; data: string }
   | { type: "document"; media_type?: string; name?: string; source: string; data: string }
@@ -131,7 +143,9 @@ export type ContentBlock =
   | { type: "file"; media_type?: string; name?: string; source: string; data: string }
   // `input` is any JSON value, not necessarily an object: the server's type is `JsonValue`, and a
   // provider that sends a bare array or string for a call's arguments is passed through unchanged.
-  | { type: "tool_use"; id?: string; name: string; input: unknown }
+  // `provider_executed` marks a tool the provider ran itself inside its response (a hosted web search, a code
+  // interpreter): the application never ran it, and its result is the response's own output.
+  | { type: "tool_use"; id?: string; name: string; input: unknown; provider_executed?: boolean }
   // `name` is present when the source reports the tool on the *result* - Gemini and Google ADK
   // identify a result by function name and emit no call id at all, so without this the client had
   // nothing to label those results with and fell back to guessing.
@@ -141,6 +155,7 @@ export type ContentBlock =
       name?: string;
       content: unknown;
       is_error?: boolean;
+      provider_executed?: boolean;
     }
   | { type: "tool_definitions"; tools: unknown[]; tool_choice?: unknown }
   | { type: "context"; data: unknown; context_type?: string }

@@ -6,6 +6,7 @@
 use serde_json::{Value as JsonValue, json};
 
 use super::types::ChatRole;
+use crate::rules::content_blocks::Expansion;
 use sideseat_core::utils::file_uri as files;
 
 mod canonical;
@@ -45,6 +46,14 @@ pub(crate) use tool_result::create_inner_content;
 /// - Nested content wrappers (message_content, reasoning_content)
 /// - Provider-specific formats (OpenAI, Anthropic, Bedrock, Gemini, Vercel)
 pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
+    normalize_content_in(&crate::rules::ruleset().content_blocks, content)
+}
+
+/// [`normalize_content`] over one plan's declared cases, so a test drives the real dispatch with a plan of its own.
+pub(crate) fn normalize_content_in(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    content: Option<&JsonValue>,
+) -> JsonValue {
     match content {
         None => json!([]),
         Some(JsonValue::String(s)) if s.is_empty() => json!([]),
@@ -57,12 +66,12 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
                 parsed @ (JsonValue::Object(_) | JsonValue::Array(_) | JsonValue::String(_)),
             ) = serde_json::from_str::<JsonValue>(s)
             {
-                return normalize_content(Some(&parsed));
+                return normalize_content_in(plan, Some(&parsed));
             }
             // Try Python repr format (common from Python SDKs like OpenAI Agents)
             // Python's str() uses single quotes: {'key': 'value', 'flag': True}
             if let Some(parsed) = try_parse_python_repr(s) {
-                return normalize_content(Some(&parsed));
+                return normalize_content_in(plan, Some(&parsed));
             }
             // If not valid JSON or Python repr, treat as plain text
             json!([{"type": "text", "text": s}])
@@ -77,13 +86,14 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
 
             let mut spliced = Vec::with_capacity(arr.len());
             splice_into(
+                plan,
                 arr.iter()
                     .filter(|v| !should_filter_placeholders || !is_sparse_array_placeholder(v)),
                 &mut spliced,
             );
             let blocks: Vec<JsonValue> = spliced
-                .into_iter()
-                .filter_map(normalize_content_block)
+                .iter()
+                .filter_map(|block| normalize_block_in(plan, block, true))
                 .filter(is_renderable_block)
                 .collect();
             json!(blocks)
@@ -93,10 +103,23 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
             if is_sparse_array_placeholder(obj) {
                 return json!([]);
             }
-            if let Some(members) = crate::rules::ruleset().content_blocks.splice(obj) {
-                return normalize_content(Some(&JsonValue::Array(members.clone())));
+            match plan.expand(obj) {
+                Some(Expansion::Members(members)) => {
+                    return normalize_content_in(plan, Some(&JsonValue::Array(members.clone())));
+                }
+                // Built blocks are canonical and are never expanded again: a provider run whose condition its own
+                // output satisfies would otherwise expand forever.
+                Some(Expansion::Built(blocks)) => {
+                    let blocks: Vec<JsonValue> = blocks
+                        .iter()
+                        .filter_map(|block| normalize_block_in(plan, block, true))
+                        .filter(is_renderable_block)
+                        .collect();
+                    return json!(blocks);
+                }
+                None => {}
             }
-            match normalize_content_block(obj) {
+            match normalize_block_in(plan, obj, true) {
                 Some(block) if is_renderable_block(&block) => json!([block]),
                 _ => json!([]),
             }
@@ -108,14 +131,23 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
     }
 }
 
-/// A message's content blocks, with every block a declared splice recognises replaced by its members, in order.
+/// A message's content blocks, with every block a declared splice recognises replaced by its members, and every
+/// provider-run item by its call and result, in order.
 ///
-/// Recursive, and bounded: a member is always strictly inside the block that held it.
-fn splice_into<'b>(blocks: impl Iterator<Item = &'b JsonValue>, out: &mut Vec<&'b JsonValue>) {
+/// Recursive, and bounded: a member is always strictly inside the block that held it, and the blocks a provider
+/// run builds are canonical, so they are not expanded again.
+fn splice_into<'b>(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    blocks: impl Iterator<Item = &'b JsonValue>,
+    out: &mut Vec<std::borrow::Cow<'b, JsonValue>>,
+) {
     for block in blocks {
-        match crate::rules::ruleset().content_blocks.splice(block) {
-            Some(members) => splice_into(members.iter(), out),
-            None => out.push(block),
+        match plan.expand(block) {
+            Some(Expansion::Members(members)) => splice_into(plan, members.iter(), out),
+            Some(Expansion::Built(built)) => {
+                out.extend(built.into_iter().map(std::borrow::Cow::Owned))
+            }
+            None => out.push(std::borrow::Cow::Borrowed(block)),
         }
     }
 }
@@ -184,6 +216,7 @@ fn is_sparse_array_placeholder(value: &JsonValue) -> bool {
 /// Unknown formats are handled based on structure:
 /// - Plain JSON objects without type → `{"type": "json", "data": ...}` (structured output)
 /// - Objects with unrecognized type → `{"type": "unknown", "raw": ...}` (preserved for debugging)
+#[cfg(any(test, feature = "test-support"))]
 pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
     normalize_block(block, true)
 }
@@ -264,10 +297,27 @@ pub(crate) fn normalize_block_in(
                 consult_envelopes,
             )
         })
+        .or_else(|| cited_text_fallback(block))
         // Universal media patterns (mime_type fields, nested self-named media)
         .or_else(|| try_media_fallback(block))
         // Finally, handle unknown formats
         .or_else(|| try_unknown_fallback(block))
+}
+
+/// Whether a SideML tool block says the provider ran the tool, which a rebuilt block keeps.
+fn provider_executed(block: &JsonValue) -> bool {
+    block
+        .get("provider_executed")
+        .and_then(JsonValue::as_bool)
+        .unwrap_or(false)
+}
+
+/// A text block whose provider citations no declared case read: its text, as the passthrough reads any other.
+fn cited_text_fallback(block: &JsonValue) -> Option<JsonValue> {
+    if block.get("type")?.as_str()? != "text" || block.get("citations").is_none() {
+        return None;
+    }
+    Some(json!({"type": "text", "text": block.get("text")?.as_str()?}))
 }
 
 /// Passthrough for already-normalized SideML content blocks.
@@ -285,7 +335,22 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
     // tool result, where no typed deserialisation strips unknown members.
     if block_type == "text" {
         let text = block.get("text")?.as_str()?;
-        return Some(json!({"type": "text", "text": text}));
+        return match block.get("citations").filter(|c| !c.is_null()) {
+            None => Some(json!({"type": "text", "text": text})),
+            // SideML's own citations stay with their text. A provider's, under the same member, are left to the
+            // declared cases that read them; `cited_text_fallback` keeps the text if none does.
+            Some(citations) => {
+                match serde_json::from_value::<Vec<super::Citation>>(citations.clone()) {
+                    Ok(canonical) if canonical.is_empty() => {
+                        Some(json!({"type": "text", "text": text}))
+                    }
+                    Ok(canonical) => {
+                        Some(json!({"type": "text", "text": text, "citations": canonical}))
+                    }
+                    Err(_) => None,
+                }
+            }
+        };
     }
     if block_type == "tool_result"
         && (block.get("tool_use_id").is_some() || block.get("content").is_some())
@@ -311,6 +376,9 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
                     .unwrap_or(false)
             ),
         );
+        if provider_executed(block) {
+            result.insert("provider_executed".to_string(), json!(true));
+        }
         return Some(JsonValue::Object(result));
     }
 
@@ -329,6 +397,9 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
         }
         call.insert("name".to_string(), name.clone());
         call.insert("input".to_string(), input);
+        if provider_executed(block) {
+            call.insert("provider_executed".to_string(), json!(true));
+        }
         return Some(JsonValue::Object(call));
     }
 

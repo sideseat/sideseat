@@ -1,0 +1,12 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJtYXhfdG9rZW5zIjoxNjAwMCwibWVzc2FnZXMiOlt7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IlNlYXJjaCB0aGUgd2ViIGZvciB0aGUgTG91dnJlJ3Mgb3BlbmluZyBob3VycywgdGhlbiBhbnN3ZXIgaW4gb25lIHNlbnRlbmNlLiJ9XSwibW9kZWwiOiJjbGF1ZGUtc29ubmV0LTUtNSIsInN5c3RlbSI6IllvdSBhcmUgYSBjb25jaXNlIHRyYXZlbCBhc3Npc3RhbnQuIFVzZSB0aGUgdG9vbHMgZm9yIHdlYXRoZXIgYW5kIGJvb2tpbmdzIGluc3RlYWQgb2YgZ3Vlc3NpbmcsIGFuZCBhbnN3ZXIgaW4gYXQgbW9zdCB0aHJlZSBzZW50ZW5jZXMuIiwidG9vbHMiOlt7InR5cGUiOiJ3ZWJfc2VhcmNoXzIwMjUwMzA1IiwibmFtZSI6IndlYl9zZWFyY2giLCJtYXhfdXNlcyI6MX1dfQ==",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1/messages",
+   "request_sha256": "287b3aa75dcc63cf3d9c62b06f51d0ad296c0f3732d85dfee16a13f9a3b1dacc"
+  }
+ ]
+}

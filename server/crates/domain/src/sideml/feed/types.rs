@@ -592,6 +592,7 @@ mod tests {
             entry_type: "text".to_string(),
             content: ContentBlock::Text {
                 text: "test".to_string(),
+                citations: Vec::new(),
             },
             role: ChatRole::User,
             trace_id: "trace1".to_string(),

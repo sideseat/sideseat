@@ -1,5 +1,6 @@
 import type { ContentBlock } from "@/api/otel/types";
 import { TextContent } from "./text-content";
+import { Citations } from "./citations";
 import { JsonContent } from "./json-content";
 import { ToolUseContent } from "./tool-use-content";
 import { ToolResultContent } from "./tool-result-content";
@@ -25,7 +26,12 @@ export interface ContentRendererProps {
 export function ContentRenderer({ block, markdownEnabled, projectId }: ContentRendererProps) {
   switch (block.type) {
     case "text":
-      return <TextContent text={block.text} markdownEnabled={markdownEnabled} />;
+      return (
+        <>
+          <TextContent text={block.text} markdownEnabled={markdownEnabled} />
+          <Citations citations={block.citations} />
+        </>
+      );
 
     case "image":
       return (
@@ -87,7 +93,13 @@ export function ContentRenderer({ block, markdownEnabled, projectId }: ContentRe
 
     case "tool_use":
       return (
-        <ToolUseContent id={block.id} name={block.name} input={block.input} showInlineHeader />
+        <ToolUseContent
+          id={block.id}
+          name={block.name}
+          input={block.input}
+          showInlineHeader
+          providerExecuted={block.provider_executed}
+        />
       );
 
     case "tool_result":
@@ -99,6 +111,7 @@ export function ContentRenderer({ block, markdownEnabled, projectId }: ContentRe
           toolName={block.name}
           showInlineHeader
           projectId={projectId}
+          providerExecuted={block.provider_executed}
         />
       );
 
@@ -134,6 +147,7 @@ export function ContentRenderer({ block, markdownEnabled, projectId }: ContentRe
 
 // Export all content components
 export { TextContent } from "./text-content";
+export { Citations } from "./citations";
 export { JsonContent } from "./json-content";
 export { ToolUseContent } from "./tool-use-content";
 export { ToolResultContent } from "./tool-result-content";

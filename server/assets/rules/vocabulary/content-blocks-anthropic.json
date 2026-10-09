@@ -219,6 +219,50 @@
       }
     },
     {
+      "id": "anthropic.server_tool_use",
+      "doc": "A tool Anthropic runs itself - a web search, a page fetch, code execution - called inside the response. The response goes on to answer, so no later request carries its result: the result is the response's own next block.",
+      "at": "provider_formats",
+      "priority": 2006,
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "server_tool_use"
+        ]
+      },
+      "tool_use": {
+        "id": "$.id",
+        "name": "$.name",
+        "input": "$.input",
+        "provider_executed": true
+      }
+    },
+    {
+      "id": "anthropic.web_search_tool_result",
+      "doc": "What a provider-run web search found: the result list, each entry a page with its title and URL beside the encrypted content a later turn sends back. Paired to its search by the call id.",
+      "at": "provider_formats",
+      "priority": 2011,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "web_search_tool_result"
+            ]
+          },
+          {
+            "path": "$.content",
+            "kind": "array"
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.tool_use_id",
+        "content": "$.content",
+        "content_as": "blocks",
+        "provider_executed": true
+      }
+    },
+    {
       "id": "anthropic.tool_result",
       "at": "provider_formats",
       "priority": 2010,

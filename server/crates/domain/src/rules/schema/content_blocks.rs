@@ -36,6 +36,8 @@ pub struct ContentBlockRule {
     #[serde(default)]
     pub splice: Option<SpliceSpec>,
     #[serde(default)]
+    pub provider_run: Option<ProviderRunSpec>,
+    #[serde(default)]
     pub refusal: Option<RefusalBlock>,
     #[serde(default)]
     pub redacted_thinking: Option<RedactedThinkingBlock>,
@@ -177,6 +179,10 @@ pub struct ToolUseBlock {
     /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
     #[serde(default)]
     pub input: FirstOf<ValueSource, true>,
+    /// The provider runs this tool itself, inside its response - a hosted web search, a code interpreter.
+    /// Stated by the case, because the shape a provider gives such a call is what says so.
+    #[serde(default)]
+    pub provider_executed: bool,
 }
 
 /// One place a call's id may come from.
@@ -230,6 +236,9 @@ pub struct ToolResultBlock {
     pub content_as: ResultContent,
     #[serde(default)]
     pub is_error: FirstOf<ValueSource, true>,
+    /// What a tool the provider ran itself produced, returned in the same response as its call.
+    #[serde(default)]
+    pub provider_executed: bool,
 }
 
 /// Structured data that is not prose.
@@ -254,6 +263,101 @@ pub struct TextBlock {
     pub doc: Option<String>,
     #[serde(default)]
     pub text: FirstOf<ValueSource, true>,
+    /// The sources the text cites, where the format states them beside it.
+    #[serde(default)]
+    pub citations: Option<CitationsSpec>,
+}
+
+/// Where a text's citations are and how each reads. Providers cite in shapes of their own - a web page, a span
+/// of an attached document, a search result - so each shape is a case, and every case builds the one SideML
+/// citation. A citation no case reads, or one naming no source, is kept as an `unknown` citation holding the
+/// provider's item, so a new shape is seen arriving rather than lost.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct CitationsSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The first member that is a list is the list of citations.
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    #[serde(default)]
+    pub from: FirstOf<JsonPath, false>,
+    /// Tried in order for each citation; the first whose `where` holds reads it. Not empty, and only the last
+    /// may leave out its `where`.
+    pub cases: Vec<CitationCase>,
+}
+
+/// One shape of citation, and where its members are.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct CitationCase {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The shape this case recognises.
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
+    /// What the citation points into.
+    pub kind: CitationKind,
+    /// Which one: the page's URL, the uploaded file's id, the attached document's name. Required: a citation
+    /// that names nothing it cites is not one.
+    #[serde(default)]
+    pub source: FirstOf<ValueSource, true>,
+    #[serde(default)]
+    pub title: FirstOf<ValueSource, true>,
+    /// Where in **this text** the citation applies, as offsets in the provider's own character unit, where the
+    /// format says. A citation stated on its own text block applies to the whole block and states no span; where
+    /// a passage sits in its source is not this.
+    #[serde(default)]
+    pub text_start: FirstOf<ValueSource, true>,
+    #[serde(default)]
+    pub text_end: FirstOf<ValueSource, true>,
+    /// The passage of the source the text rests on, where the provider quotes it.
+    #[serde(default)]
+    pub cited_text: FirstOf<ValueSource, true>,
+}
+
+/// What a citation points into, spelled as SideML writes it.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, strum::IntoStaticStr)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum CitationKind {
+    /// A web page, by URL.
+    Url,
+    /// A document sent with the request.
+    Document,
+    /// A file uploaded to the provider, by id.
+    File,
+    /// A search result the request supplied.
+    SearchResult,
+}
+
+/// A tool the provider ran itself, written as **one** item holding both the call and what it produced - a
+/// Responses API `web_search_call`, whose action is the call and whose sources are its result. It answers with
+/// two blocks, the provider-executed call and its result, so like a splice it is legal only at
+/// `message_envelope`.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ProviderRunSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// As a `tool_use` id: the first member holding a non-blank string, else a template.
+    #[serde(default)]
+    pub id: FirstOf<IdSource, true>,
+    /// Required: a run that names no tool is not recognised.
+    #[serde(default)]
+    pub name: FirstOf<ValueSource, true>,
+    #[serde(default)]
+    pub input: FirstOf<ValueSource, true>,
+    /// What the run produced, as a list of content blocks as `content_as: blocks` builds them. Absent, the item
+    /// holds no result yet and answers with the call alone.
+    #[serde(default)]
+    pub result: FirstOf<ValueSource, true>,
 }
 
 /// A model's own reasoning.

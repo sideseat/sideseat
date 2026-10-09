@@ -17,7 +17,63 @@
         ]
       },
       "text": {
-        "text": "$.text"
+        "text": "$.text",
+        "citations": {
+          "doc": "A Responses answer's annotations: the pages a provider-run search found that the text rests on, each over a span of the text.",
+          "from": "$.annotations",
+          "cases": [
+            {
+              "doc": "A page, over a span of the text.",
+              "where": {
+                "path": "$.type",
+                "one_of": [
+                  "url_citation"
+                ]
+              },
+              "kind": "url",
+              "source": "$.url",
+              "title": "$.title",
+              "text_start": "$.start_index",
+              "text_end": "$.end_index"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "openai.web_search_call",
+      "doc": "A web search the Responses API ran itself, written as one output item: its action is what it searched for, and the action's sources are what it found. Read as the provider-run call and its result.",
+      "at": "message_envelope",
+      "priority": 35,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "web_search_call"
+            ]
+          },
+          {
+            "path": "$.action",
+            "kind": "object"
+          }
+        ]
+      },
+      "provider_run": {
+        "id": "$.id",
+        "name": {
+          "path": "$.type",
+          "pipe": [
+            {
+              "map": {
+                "web_search_call": "web_search"
+              },
+              "closed": true
+            }
+          ]
+        },
+        "input": "$.action",
+        "result": "$.action.sources"
       }
     },
     {

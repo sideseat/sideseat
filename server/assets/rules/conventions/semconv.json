@@ -828,7 +828,7 @@
         {"path": "$.type", "one_of": ["server_tool_call"]},
         {"path": "$.server_tool_call", "kind": "object"}
       ]},
-      "tool_use": {"id": "$.id", "name": "$.name", "input": "$.server_tool_call"}
+      "tool_use": {"id": "$.id", "name": "$.name", "input": "$.server_tool_call", "provider_executed": true}
     },
     {
       "id": "semconv.server_tool_call_response_part",
@@ -839,7 +839,7 @@
         {"path": "$.type", "one_of": ["server_tool_call_response"]},
         {"path": "$.server_tool_call_response", "kind": "object"}
       ]},
-      "tool_result": {"tool_use_id": "$.id", "content": "$.server_tool_call_response", "content_as": "blocks"}
+      "tool_result": {"tool_use_id": "$.id", "content": "$.server_tool_call_response", "content_as": "blocks", "provider_executed": true}
     },
     {
       "id": "semconv.text_content_part",

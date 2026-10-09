@@ -75,7 +75,7 @@ fn texts(result: &FeedResult) -> Vec<String> {
         .messages
         .iter()
         .filter_map(|block| match &block.content {
-            crate::sideml::types::ContentBlock::Text { text } => Some(text.clone()),
+            crate::sideml::types::ContentBlock::Text { text, .. } => Some(text.clone()),
             _ => None,
         })
         .collect()

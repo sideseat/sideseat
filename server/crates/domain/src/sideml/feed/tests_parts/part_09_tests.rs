@@ -118,7 +118,7 @@ fn test_cross_trace_accumulated_history() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -284,7 +284,7 @@ fn test_cross_trace_strands_js_bundled_messages_deduped() {
         .messages
         .iter()
         .filter_map(|b| {
-            if let crate::sideml::types::ContentBlock::Text { text } = &b.content {
+            if let crate::sideml::types::ContentBlock::Text { text, .. } = &b.content {
                 Some(text.as_str())
             } else {
                 None
@@ -513,13 +513,13 @@ fn test_cross_trace_system_per_trace() {
     let has_thanks = result
         .messages
         .iter()
-        .any(|b| matches!(&b.content, ContentBlock::Text { text } if text == "Thanks"));
+        .any(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "Thanks"));
     assert!(has_thanks, "user('Thanks') should be present from trace2");
 
     let has_welcome = result
         .messages
         .iter()
-        .any(|b| matches!(&b.content, ContentBlock::Text { text } if text == "Welcome"));
+        .any(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "Welcome"));
     assert!(has_welcome, "asst('Welcome') should be present from trace2");
 }
 
@@ -595,13 +595,13 @@ fn test_cross_trace_adk_multi_span() {
     let has_how = result
         .messages
         .iter()
-        .any(|b| matches!(&b.content, ContentBlock::Text { text } if text == "How are you?"));
+        .any(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "How are you?"));
     assert!(has_how, "user('How are you?') from trace2 should survive");
 
     let has_fine = result
         .messages
         .iter()
-        .any(|b| matches!(&b.content, ContentBlock::Text { text } if text == "I am fine"));
+        .any(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "I am fine"));
     assert!(has_fine, "asst('I am fine') from trace2 should survive");
 }
 
@@ -676,7 +676,7 @@ fn test_cross_trace_retain_trace_view() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -778,7 +778,7 @@ fn test_cross_trace_same_timestamp_trace_ordering() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -882,7 +882,7 @@ fn test_cross_trace_system_prefix_transparent() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();

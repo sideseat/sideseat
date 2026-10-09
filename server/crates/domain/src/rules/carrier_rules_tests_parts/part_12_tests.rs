@@ -95,7 +95,29 @@ fn canonical_block_samples() -> Vec<crate::sideml::ContentBlock> {
     let x = || "x".to_string();
     let any = || serde_json::json!("x");
     vec![
-        B::Text { text: x() },
+        B::Text {
+            text: x(),
+            citations: vec![
+                crate::sideml::Citation {
+                    kind: crate::sideml::CitationKind::Url,
+                    source: Some(x()),
+                    title: Some(x()),
+                    text_start: Some(0),
+                    text_end: Some(1),
+                    cited_text: Some(x()),
+                    raw: None,
+                },
+                crate::sideml::Citation {
+                    kind: crate::sideml::CitationKind::Unknown,
+                    source: None,
+                    title: None,
+                    text_start: None,
+                    text_end: None,
+                    cited_text: None,
+                    raw: Some(any()),
+                },
+            ],
+        },
         B::Image {
             media_type: Some(x()),
             source: x(),
@@ -128,12 +150,14 @@ fn canonical_block_samples() -> Vec<crate::sideml::ContentBlock> {
             id: Some(x()),
             name: x(),
             input: any(),
+            provider_executed: true,
         },
         B::ToolResult {
             tool_use_id: Some(x()),
             name: Some(x()),
             content: any(),
             is_error: true,
+            provider_executed: true,
         },
         B::ToolDefinitions {
             tools: vec![any()],

@@ -182,6 +182,10 @@ fn every_predicate_set_in_the_schema_is_validated() {
     // `message_rules::predicate_sets`; the rest are separate domains, named so an exemption is a statement.
     const VALIDATED: &[(&str, &str)] = &[
         ("MessageRule::raw_where", "predicate_sets"),
+        (
+            "CitationCase::require",
+            "ContentBlockPlan::compile, beside the content-block rule's own condition",
+        ),
         ("OverlaySpec::witness", "predicate_sets"),
         ("OverlaySpec::require", "predicate_sets"),
         (

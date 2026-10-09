@@ -199,7 +199,9 @@ fn test_normalize_tool_call_role() {
     assert_eq!(msg.content.len(), 1);
 
     match &msg.content[0] {
-        ContentBlock::ToolUse { id, name, input } => {
+        ContentBlock::ToolUse {
+            id, name, input, ..
+        } => {
             assert_eq!(id, &Some("call_123".to_string()));
             assert_eq!(name, "get_weather");
             assert_eq!(input["city"], "New York");
@@ -222,7 +224,9 @@ fn test_normalize_tool_call_role_without_id() {
     assert_eq!(msg.content.len(), 1);
 
     match &msg.content[0] {
-        ContentBlock::ToolUse { id, name, input } => {
+        ContentBlock::ToolUse {
+            id, name, input, ..
+        } => {
             assert!(id.is_none());
             assert_eq!(name, "search");
             assert_eq!(input["query"], "rust programming");

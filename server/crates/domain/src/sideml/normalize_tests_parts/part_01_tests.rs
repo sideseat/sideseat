@@ -384,16 +384,19 @@ fn test_flatten_tool_blocks_preserves_order() {
             content: vec![
                 ContentBlock::Text {
                     text: "Before tools".to_string(),
+                    citations: Vec::new(),
                 },
                 ContentBlock::ToolUse {
                     id: Some("tool_1".to_string()),
                     name: "search".to_string(),
                     input: json!({"q": "test"}),
+                    provider_executed: false,
                 },
                 ContentBlock::ToolUse {
                     id: Some("tool_2".to_string()),
                     name: "fetch".to_string(),
                     input: json!({"url": "http://example.com"}),
+                    provider_executed: false,
                 },
             ],
             ..Default::default()
@@ -407,7 +410,7 @@ fn test_flatten_tool_blocks_preserves_order() {
     // Non-tool content should come FIRST (at its original position)
     assert!(matches!(
         result[0].sideml.content.first(),
-        Some(ContentBlock::Text { text }) if text == "Before tools"
+        Some(ContentBlock::Text { text, .. }) if text == "Before tools"
     ));
     // Tool blocks should follow in order
     assert!(matches!(
@@ -436,14 +439,17 @@ fn test_flatten_tool_blocks_text_after_tools() {
                     id: Some("tool_1".to_string()),
                     name: "search".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
                 ContentBlock::ToolUse {
                     id: Some("tool_2".to_string()),
                     name: "fetch".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
                 ContentBlock::Text {
                     text: "After tools".to_string(),
+                    citations: Vec::new(),
                 },
             ],
             ..Default::default()
@@ -466,7 +472,7 @@ fn test_flatten_tool_blocks_text_after_tools() {
     // Text should come LAST (at its original position)
     assert!(matches!(
         result[2].sideml.content.first(),
-        Some(ContentBlock::Text { text }) if text == "After tools"
+        Some(ContentBlock::Text { text, .. }) if text == "After tools"
     ));
 }
 
@@ -496,19 +502,23 @@ fn two_non_tool_groups_of_one_message_occupy_two_positions() {
             content: vec![
                 ContentBlock::Text {
                     text: "checking".to_string(),
+                    citations: Vec::new(),
                 },
                 ContentBlock::ToolUse {
                     id: Some("call_1".to_string()),
                     name: "lookup".to_string(),
                     input: json!({"q": "a"}),
+                    provider_executed: false,
                 },
                 ContentBlock::ToolUse {
                     id: Some("call_2".to_string()),
                     name: "lookup".to_string(),
                     input: json!({"q": "b"}),
+                    provider_executed: false,
                 },
                 ContentBlock::Text {
                     text: "checking".to_string(),
+                    citations: Vec::new(),
                 },
             ],
             ..Default::default()
@@ -555,12 +565,14 @@ fn a_call_and_a_result_in_one_message_are_split() {
                     id: Some("call_1".to_string()),
                     name: "search".to_string(),
                     input: json!({"q": "a"}),
+                    provider_executed: false,
                 },
                 ContentBlock::ToolResult {
                     tool_use_id: Some("call_0".to_string()),
                     name: Some("search".to_string()),
                     content: json!("earlier"),
                     is_error: false,
+                    provider_executed: false,
                 },
             ],
             ..Default::default()
@@ -609,19 +621,23 @@ fn text_between_two_tool_blocks_keeps_its_place() {
             content: vec![
                 ContentBlock::Text {
                     text: "first, the weather".to_string(),
+                    citations: Vec::new(),
                 },
                 ContentBlock::ToolUse {
                     id: Some("call_1".to_string()),
                     name: "weather".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
                 ContentBlock::Text {
                     text: "then the news".to_string(),
+                    citations: Vec::new(),
                 },
                 ContentBlock::ToolUse {
                     id: Some("call_2".to_string()),
                     name: "news".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
             ],
             ..Default::default()
@@ -633,7 +649,7 @@ fn text_between_two_tool_blocks_keeps_its_place() {
     let order: Vec<String> = result
         .iter()
         .map(|m| match m.sideml.content.first() {
-            Some(ContentBlock::Text { text }) => text.clone(),
+            Some(ContentBlock::Text { text, .. }) => text.clone(),
             Some(ContentBlock::ToolUse { name, .. }) => name.clone(),
             other => format!("{other:?}"),
         })
@@ -664,11 +680,13 @@ fn test_flatten_tool_blocks_single_tool_unchanged() {
             content: vec![
                 ContentBlock::Text {
                     text: "Here's the result".to_string(),
+                    citations: Vec::new(),
                 },
                 ContentBlock::ToolUse {
                     id: Some("tool_1".to_string()),
                     name: "search".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
             ],
             ..Default::default()
@@ -703,12 +721,14 @@ fn test_flatten_tool_blocks_multiple_tool_results() {
                     name: None,
                     content: json!({"result": "weather data"}),
                     is_error: false,
+                    provider_executed: false,
                 },
                 ContentBlock::ToolResult {
                     tool_use_id: Some("call_2".to_string()),
                     name: None,
                     content: json!({"result": "time data"}),
                     is_error: false,
+                    provider_executed: false,
                 },
             ],
             ..Default::default()
@@ -760,17 +780,20 @@ fn test_flatten_tool_blocks_mixed_tool_use_and_result() {
                     id: Some("call_1".to_string()),
                     name: "search".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
                 ContentBlock::ToolResult {
                     tool_use_id: Some("call_0".to_string()),
                     name: None,
                     content: json!("previous result"),
                     is_error: false,
+                    provider_executed: false,
                 },
                 ContentBlock::ToolUse {
                     id: Some("call_2".to_string()),
                     name: "fetch".to_string(),
                     input: json!({}),
+                    provider_executed: false,
                 },
             ],
             ..Default::default()

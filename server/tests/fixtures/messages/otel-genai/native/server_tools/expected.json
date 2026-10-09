@@ -37,8 +37,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
-          "content_digest": "1daf1e8f07b81611",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[292 chars]",
+          "content_digest": "5529d0750a1033b0",
           "tool_name": "web_search",
           "observation_type": "generation"
         },
@@ -46,8 +46,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
-          "content_digest": "0c00f202e7b99029",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}],\"provider_executed\":true}",
+          "content_digest": "8872315c71d0b55b",
           "observation_type": "generation"
         },
         {
@@ -102,8 +102,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
-          "content_digest": "1daf1e8f07b81611",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[292 chars]",
+          "content_digest": "5529d0750a1033b0",
           "tool_name": "web_search",
           "observation_type": "generation"
         },
@@ -111,8 +111,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
-          "content_digest": "0c00f202e7b99029",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}],\"provider_executed\":true}",
+          "content_digest": "8872315c71d0b55b",
           "observation_type": "generation"
         },
         {
@@ -160,8 +160,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
-          "content_digest": "1daf1e8f07b81611",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[292 chars]",
+          "content_digest": "5529d0750a1033b0",
           "tool_name": "web_search",
           "observation_type": "generation"
         },
@@ -169,8 +169,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
-          "content_digest": "0c00f202e7b99029",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}],\"provider_executed\":true}",
+          "content_digest": "8872315c71d0b55b",
           "observation_type": "generation"
         },
         {
@@ -217,8 +217,8 @@
         "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
-        "content_digest": "1daf1e8f07b81611",
+        "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[292 chars]",
+        "content_digest": "5529d0750a1033b0",
         "tool_name": "web_search",
         "observation_type": "generation"
       },
@@ -226,8 +226,8 @@
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
-        "content_digest": "0c00f202e7b99029",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}],\"provider_executed\":true}",
+        "content_digest": "8872315c71d0b55b",
         "observation_type": "generation"
       },
       {

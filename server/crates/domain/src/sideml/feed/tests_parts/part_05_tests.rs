@@ -556,7 +556,7 @@ fn test_regression_intermediate_assistant_text_filtered() {
         "Should be from GenAIChoice (final response)"
     );
     assert!(
-        matches!(&final_text.content, ContentBlock::Text { text } if text.contains("Final response")),
+        matches!(&final_text.content, ContentBlock::Text { text, .. } if text.contains("Final response")),
         "Should be the final response text"
     );
 

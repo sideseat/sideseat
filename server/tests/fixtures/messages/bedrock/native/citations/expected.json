@@ -57,7 +57,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "write a poem",
-          "content_digest": "a00f15e304dc0224",
+          "content_digest": "4c315687bca759fa",
           "finish_reason": "Stop",
           "observation_type": "span"
         },
@@ -133,7 +133,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "write a poem",
-          "content_digest": "a00f15e304dc0224",
+          "content_digest": "4c315687bca759fa",
           "finish_reason": "Stop",
           "observation_type": "span"
         },
@@ -202,7 +202,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "write a poem",
-          "content_digest": "a00f15e304dc0224",
+          "content_digest": "4c315687bca759fa",
           "finish_reason": "Stop",
           "observation_type": "span"
         },
@@ -245,7 +245,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "write a poem",
-        "content_digest": "a00f15e304dc0224",
+        "content_digest": "4c315687bca759fa",
         "finish_reason": "Stop",
         "observation_type": "span"
       },

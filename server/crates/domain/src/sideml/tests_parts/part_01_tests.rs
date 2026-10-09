@@ -151,6 +151,7 @@ fn test_finish_reason_camel_case_vercel_ai() {
 fn test_content_block_text_serialization() {
     let block = ContentBlock::Text {
         text: "Hello".to_string(),
+        citations: Vec::new(),
     };
     let json = serde_json::to_value(&block).unwrap();
     assert_eq!(json["type"], "text");
@@ -177,6 +178,7 @@ fn test_content_block_tool_use_serialization() {
         id: Some("tool_1".to_string()),
         name: "get_weather".to_string(),
         input: json!({"city": "NYC"}),
+        provider_executed: false,
     };
     let json = serde_json::to_value(&block).unwrap();
     assert_eq!(json["type"], "tool_use");

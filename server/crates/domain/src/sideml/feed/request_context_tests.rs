@@ -138,7 +138,7 @@ fn shown(result: &FeedResult) -> Vec<String> {
         .iter()
         .map(|block| {
             let content = match &block.content {
-                ContentBlock::Text { text } => text.clone(),
+                ContentBlock::Text { text, .. } => text.clone(),
                 ContentBlock::ToolUse { id, name, .. } => {
                     format!("call {name} {}", id.as_deref().unwrap_or("-"))
                 }

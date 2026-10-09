@@ -120,6 +120,9 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
             }
             let expected = &fact.value["value"];
             let content = &block.content["content"];
+            if matcher == "contains" && !provider_executed(block) {
+                return Shows::No;
+            }
             yes(if matcher == "contains" {
                 // A run that found nothing has no value to look for: the block answering the call by
                 // its id shows it when it says nothing was found. Without an id there is no pairing.
@@ -143,7 +146,9 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
 /// input, however the instrumentation encoded it - a payload re-shaped in an instrumentation's own words is
 /// the same call.
 fn provider_call_shows(value: &Value, block: &Block) -> Shows {
-    if !block.is("assistant", "tool_use") {
+    // A provider's run shown as one the application ran is the wrong call: the view would say the client
+    // executed a search it never did.
+    if !block.is("assistant", "tool_use") || !provider_executed(block) {
         return Shows::No;
     }
     let named = match (
@@ -162,6 +167,15 @@ fn provider_call_shows(value: &Value, block: &Block) -> Shows {
         Some(actual) => Shows::WithRewrittenId(actual.to_string()),
         None => Shows::WithRewrittenId(String::new()),
     }
+}
+
+/// Whether a tool block says the provider ran the tool inside its response.
+fn provider_executed(block: &Block) -> bool {
+    block
+        .content
+        .get("provider_executed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 /// The non-empty strings `value` holds at any depth.

@@ -554,6 +554,7 @@ fn prior_state(
             entry_type: "text".to_string(),
             content: ContentBlock::Text {
                 text: hash.to_string(),
+                citations: Vec::new(),
             },
             role,
             trace_id: "trace1".to_string(),

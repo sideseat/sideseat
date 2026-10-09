@@ -500,6 +500,7 @@ impl SectionDefect for super::content_blocks::ContentBlockCompileError {
             | E::UnwrapsWholeBlock { rule }
             | E::EmptyRequiredSelector { rule, .. }
             | E::SpliceOutsideMessageContent { rule, .. }
+            | E::RunOutsideMessageContent { rule, .. }
             | E::IdTemplate { rule, .. }
             | E::Source { rule, .. } => vec![rule],
             E::SharedPriority { first, second, .. } => vec![first, second],

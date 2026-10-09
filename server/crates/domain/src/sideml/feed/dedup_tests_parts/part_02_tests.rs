@@ -557,6 +557,7 @@ fn test_tool_result_no_tool_use_id_falls_back_to_content_hash() {
             name: None,
             content: serde_json::json!("same content"),
             is_error: false,
+            provider_executed: false,
         },
         ..make_tool_result_block("trace1", "span1", "", "unused", t0)
     };
@@ -568,6 +569,7 @@ fn test_tool_result_no_tool_use_id_falls_back_to_content_hash() {
             name: None,
             content: serde_json::json!("same content"),
             is_error: false,
+            provider_executed: false,
         },
         ..make_tool_result_block("trace1", "span2", "", "unused", t0)
     };
@@ -674,6 +676,7 @@ fn test_parallel_tool_calls_different_inputs_not_deduped() {
         id: Some("call_1".to_string()),
         name: "search".to_string(),
         input: serde_json::json!({"query": "cats"}),
+        provider_executed: false,
     };
 
     let mut tool2 = make_tool_use_block("trace1", "span1", "call_2", "search", t0);
@@ -681,6 +684,7 @@ fn test_parallel_tool_calls_different_inputs_not_deduped() {
         id: Some("call_2".to_string()),
         name: "search".to_string(),
         input: serde_json::json!({"query": "dogs"}),
+        provider_executed: false,
     };
 
     let span_timestamps = HashMap::from([(
@@ -859,7 +863,7 @@ fn test_full_tool_chain_ordering() {
     assert_eq!(result[3].role, ChatRole::Assistant);
     assert!(matches!(
         result[3].content,
-        ContentBlock::Text { ref text } if text == "Here are the cats"
+        ContentBlock::Text { ref text, .. } if text == "Here are the cats"
     ));
 }
 

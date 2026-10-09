@@ -90,13 +90,13 @@ fn test_regression_generation_span_history_user_filtered() {
 
     // Verify it's the current turn question
     assert!(
-        matches!(&user_messages[0].content, ContentBlock::Text { text } if text.contains("Current question")),
+        matches!(&user_messages[0].content, ContentBlock::Text { text, .. } if text.contains("Current question")),
         "Should be the current turn user message"
     );
 
     // Verify history user messages were filtered
     let has_history = result.messages.iter().any(
-        |b| matches!(&b.content, ContentBlock::Text { text } if text.contains("History question")),
+        |b| matches!(&b.content, ContentBlock::Text { text, .. } if text.contains("History question")),
     );
     assert!(
         !has_history,
@@ -487,7 +487,7 @@ fn test_regression_tool_use_flow_complete() {
     // Verify last message is assistant text
     let last = result.messages.last().unwrap();
     assert_eq!(last.role, ChatRole::Assistant, "Last should be assistant");
-    if let ContentBlock::Text { ref text } = last.content {
+    if let ContentBlock::Text { ref text, .. } = last.content {
         assert!(text.contains("sunny"), "Should contain weather response");
     } else {
         panic!("Last message should be text");
@@ -588,7 +588,7 @@ fn test_error_messages_leaf_only() {
         "Only leaf error should produce a block"
     );
     match &error_blocks[0].content {
-        ContentBlock::Text { text } => assert_eq!(text, "Leaf error"),
+        ContentBlock::Text { text, .. } => assert_eq!(text, "Leaf error"),
         _ => panic!("Expected Text content block"),
     }
 }
@@ -715,7 +715,7 @@ fn test_error_block_with_exception_type_and_message() {
     let error_blocks: Vec<_> = result.messages.iter().filter(|b| b.is_error).collect();
     assert_eq!(error_blocks.len(), 1);
     match &error_blocks[0].content {
-        ContentBlock::Text { text } => assert_eq!(text, "ValueError: bad input"),
+        ContentBlock::Text { text, .. } => assert_eq!(text, "ValueError: bad input"),
         _ => panic!("Expected Text content block"),
     }
 }
@@ -738,7 +738,7 @@ fn test_error_block_omits_stacktrace_when_summary_exists() {
     let error_blocks: Vec<_> = result.messages.iter().filter(|b| b.is_error).collect();
     assert_eq!(error_blocks.len(), 1);
     match &error_blocks[0].content {
-        ContentBlock::Text { text } => assert_eq!(text, "RuntimeError: crash"),
+        ContentBlock::Text { text, .. } => assert_eq!(text, "RuntimeError: crash"),
         _ => panic!("Expected Text content block"),
     }
 }
@@ -778,7 +778,7 @@ fn test_error_block_only_on_leaf_with_exception_fields() {
         "Only leaf error should produce block"
     );
     match &error_blocks[0].content {
-        ContentBlock::Text { text } => assert!(text.contains("child error")),
+        ContentBlock::Text { text, .. } => assert!(text.contains("child error")),
         _ => panic!("Expected Text content block"),
     }
 }
@@ -866,7 +866,7 @@ fn test_error_blocks_for_independent_leaf_spans() {
         "Only the span with exception fields should produce an error block"
     );
     match &error_blocks[0].content {
-        ContentBlock::Text { text } => assert!(text.contains("root exception")),
+        ContentBlock::Text { text, .. } => assert!(text.contains("root exception")),
         _ => panic!("Expected Text content block"),
     }
 }

@@ -1717,6 +1717,7 @@ block looks like.
 | `thinking` | [`ThinkingBlock`](#thinkingblock) or null |  |
 | `unwrap` | [`UnwrapSpec`](#unwrapspec) or null |  |
 | `splice` | [`SpliceSpec`](#splicespec) or null |  |
+| `provider_run` | [`ProviderRunSpec`](#providerrunspec) or null |  |
 | `refusal` | [`RefusalBlock`](#refusalblock) or null |  |
 | `redacted_thinking` | [`RedactedThinkingBlock`](#redactedthinkingblock) or null |  |
 | `unknown` | [`UnknownBlock`](#unknownblock) or null |  |
@@ -1740,6 +1741,7 @@ A model asking for a tool to be run.
 | `id` | [`FirstUsable_IdSource`](#firstusable_idsource) | Ordered: the first member holding a non-blank string, else a declared `template`; absent is reported as null, because a provider that omits an id has still made the call. |
 | `name` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Required: a nameless call names nothing to run, so the case does not recognise the block. |
 | `input` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the unused one present as `{}`, so "the first that resolves" would always pick the empty one. |
+| `provider_executed` | true or false | The provider runs this tool itself, inside its response - a hosted web search, a code interpreter. Stated by the case, because the shape a provider gives such a call is what says so. |
 
 ### `FirstUsable_IdSource`
 
@@ -1782,6 +1784,7 @@ What a tool returned.
 | `content` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain, so a selector naming the block itself (`$`) is refused, and so is a closed `map` with a literal the assembled chain never finishes normalising - checked by normalising every literal, so a literal this case recognises that maps on to one the chain finishes with is accepted. Nesting the telemetry itself drives is bounded at run time, the innermost levels kept as they stand. |
 | `content_as` | [`ResultContent`](#resultcontent) | How the selected content is shaped. |
 | `is_error` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
+| `provider_executed` | true or false | What a tool the provider ran itself produced, returned in the same response as its call. |
 
 ### `ResultContent`
 
@@ -1808,6 +1811,44 @@ Prose. Only a string is text.
 | --- | --- | --- |
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `text` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
+| `citations` | [`CitationsSpec`](#citationsspec) or null | The sources the text cites, where the format states them beside it. |
+
+### `CitationsSpec`
+
+Where a text's citations are and how each reads. Providers cite in shapes of their own - a web page, a span
+of an attached document, a search result - so each shape is a case, and every case builds the one SideML
+citation. A citation no case reads, or one naming no source, is kept as an `unknown` citation holding the
+provider's item, so a new shape is seen arriving rather than lost.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `from` | [`FirstPresent_string`](#firstpresent_string) | The first member that is a list is the list of citations. |
+| `cases` (required) | list of [`CitationCase`](#citationcase) | Tried in order for each citation; the first whose `where` holds reads it. Not empty, and only the last may leave out its `where`. |
+
+### `CitationCase`
+
+One shape of citation, and where its members are.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | The shape this case recognises. |
+| `kind` (required) | [`CitationKind`](#citationkind) | What the citation points into. |
+| `source` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Which one: the page's URL, the uploaded file's id, the attached document's name. Required: a citation that names nothing it cites is not one. |
+| `title` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
+| `text_start` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Where in **this text** the citation applies, as offsets in the provider's own character unit, where the format says. A citation stated on its own text block applies to the whole block and states no span; where a passage sits in its source is not this. |
+| `text_end` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
+| `cited_text` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | The passage of the source the text rests on, where the provider quotes it. |
+
+### `CitationKind`
+
+What a citation points into, spelled as SideML writes it.
+
+- `"url"`: A web page, by URL.
+- `"document"`: A document sent with the request.
+- `"file"`: A file uploaded to the provider, by id.
+- `"search_result"`: A search result the request supplied.
 
 ### `MediaBlock`
 
@@ -1893,6 +1934,21 @@ the block that held it. A member that is not a list leaves the block to the chai
 | --- | --- | --- |
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `from` | [`FirstPresent_string`](#firstpresent_string) | The first member that is present is the list, whether or not it is one. |
+
+### `ProviderRunSpec`
+
+A tool the provider ran itself, written as **one** item holding both the call and what it produced - a
+Responses API `web_search_call`, whose action is the call and whose sources are its result. It answers with
+two blocks, the provider-executed call and its result, so like a splice it is legal only at
+`message_envelope`.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `id` | [`FirstUsable_IdSource`](#firstusable_idsource) | As a `tool_use` id: the first member holding a non-blank string, else a template. |
+| `name` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Required: a run that names no tool is not recognised. |
+| `input` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
+| `result` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | What the run produced, as a list of content blocks as `content_as: blocks` builds them. Absent, the item holds no result yet and answers with the call alone. |
 
 ### `RefusalBlock`
 

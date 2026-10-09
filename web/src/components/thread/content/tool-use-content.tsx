@@ -1,5 +1,6 @@
 import { Wrench } from "lucide-react";
 import { JsonContent } from "./json-content";
+import { ProviderRunBadge } from "./provider-run-badge";
 
 interface ToolUseContentProps {
   id?: string;
@@ -11,17 +12,27 @@ interface ToolUseContentProps {
   input: unknown;
   /** Show inline header with tool name (for ContentRenderer use) */
   showInlineHeader?: boolean;
+  /** The provider ran the tool itself, inside its response. */
+  providerExecuted?: boolean;
 }
 
-export function ToolUseContent({ id, name, input, showInlineHeader = false }: ToolUseContentProps) {
+export function ToolUseContent({
+  id,
+  name,
+  input,
+  showInlineHeader = false,
+  providerExecuted = false,
+}: ToolUseContentProps) {
   return (
     <div className="space-y-2">
       {showInlineHeader && name && (
         <div className="flex items-center gap-2">
           <Wrench className="h-4 w-4 text-role-tool-call" />
           <span className="font-mono text-sm font-semibold text-role-tool-call">{name}</span>
+          {providerExecuted && <ProviderRunBadge />}
         </div>
       )}
+      {!showInlineHeader && providerExecuted && <ProviderRunBadge />}
       {id && <div className="text-xs text-muted-foreground font-mono">tool_call_id: {id}</div>}
       {name && <div className="text-xs text-muted-foreground font-mono">name: {name}</div>}
       <JsonContent data={input} />

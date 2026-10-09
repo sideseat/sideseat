@@ -32,7 +32,7 @@ pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
 
     // Hash based on block type and key content
     match block {
-        ContentBlock::Text { text } => {
+        ContentBlock::Text { text, .. } => {
             "text".hash(&mut hasher);
             text.trim().hash(&mut hasher); // Normalize whitespace
         }

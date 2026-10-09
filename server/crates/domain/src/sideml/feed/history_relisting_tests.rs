@@ -14,6 +14,7 @@ fn call(span: &str, observation_type: &str, attribute: &str, id: Option<&str>) -
             id: id.map(str::to_string),
             name: "get_weather".to_string(),
             input: serde_json::json!({"city": "Rome"}),
+            provider_executed: false,
         },
         role: ChatRole::Assistant,
         trace_id: "trace1".to_string(),
@@ -110,6 +111,7 @@ fn prompt(span: &str, observation_type: &str, attribute: &str) -> BlockEntry {
     block.entry_type = "text".to_string();
     block.content = ContentBlock::Text {
         text: "In one sentence, what is Kyoto best known for?".to_string(),
+        citations: Vec::new(),
     };
     block.role = ChatRole::User;
     block.tool_use_id = None;

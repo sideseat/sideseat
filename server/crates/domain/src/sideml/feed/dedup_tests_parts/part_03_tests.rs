@@ -403,6 +403,7 @@ fn a_part_only_a_re_sent_response_carries_is_kept() {
     };
     let text = |t: &str| ContentBlock::Text {
         text: t.to_string(),
+        citations: Vec::new(),
     };
     let kept = |blocks: Vec<BlockEntry>| {
         process_dedup(blocks, HashMap::new())
@@ -455,6 +456,7 @@ fn an_unsigned_copy_takes_the_rank_of_the_signed_block_it_copies() {
     };
     let text = |t: &str| ContentBlock::Text {
         text: t.to_string(),
+        citations: Vec::new(),
     };
     let blocks = vec![
         part("chat", 0, 0, reasoning(None), true),

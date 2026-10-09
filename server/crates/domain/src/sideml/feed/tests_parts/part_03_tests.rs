@@ -208,7 +208,9 @@ fn test_regression_empty_content_filtered() {
         "Empty content should be filtered. Found {} messages",
         result.messages.len()
     );
-    assert!(matches!(&result.messages[0].content, ContentBlock::Text { text } if text == "Hello"));
+    assert!(
+        matches!(&result.messages[0].content, ContentBlock::Text { text, .. } if text == "Hello")
+    );
 }
 
 // ----------------------------------------------------------------------------

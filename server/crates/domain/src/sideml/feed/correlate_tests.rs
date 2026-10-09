@@ -65,6 +65,7 @@ fn call(trace: &str, id: Option<&str>, name: &str, input: serde_json::Value) -> 
             id: id.map(str::to_owned),
             name: name.to_string(),
             input,
+            provider_executed: false,
         },
         ChatRole::Assistant,
     )
@@ -79,6 +80,7 @@ fn result(trace: &str, id: Option<&str>, name: Option<&str>, text: &str) -> Bloc
             name: name.map(str::to_owned),
             content: json!([{"type": "text", "text": text}]),
             is_error: false,
+            provider_executed: false,
         },
         ChatRole::Tool,
     )
@@ -239,6 +241,7 @@ fn repeated_delivery_reuses_the_same_correlated_call() {
         name: Some("lookup".to_string()),
         content: json!([{"type": "text", "text": "normalized answer-a"}]),
         is_error: false,
+        provider_executed: false,
     };
     let mut second = result("t1", None, Some("lookup"), "answer-b");
     second.span_id = "tool-span-b".to_string();

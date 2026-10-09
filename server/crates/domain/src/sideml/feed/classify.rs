@@ -110,15 +110,18 @@ mod tests {
                 id: Some("call_1".to_string()),
                 name: "test".to_string(),
                 input: serde_json::json!({}),
+                provider_executed: false,
             },
             "tool_result" => ContentBlock::ToolResult {
                 tool_use_id: Some("call_1".to_string()),
                 name: None,
                 content: serde_json::json!("result"),
                 is_error: false,
+                provider_executed: false,
             },
             _ => ContentBlock::Text {
                 text: "test".to_string(),
+                citations: Vec::new(),
             },
         };
 

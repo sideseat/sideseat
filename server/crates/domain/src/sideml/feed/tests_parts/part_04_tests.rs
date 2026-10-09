@@ -165,7 +165,7 @@ fn test_regression_session_history_in_event_loop_span() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -355,7 +355,7 @@ fn test_regression_chain_span_history_filtered() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -443,7 +443,7 @@ fn test_regression_nested_agent_span_history_filtered() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -501,7 +501,7 @@ fn test_regression_output_events_preserved() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -616,7 +616,7 @@ fn test_regression_multi_turn_session_history() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -694,11 +694,11 @@ fn test_regression_system_before_user_same_timestamp() {
 
     // Verify the content
     assert!(
-        matches!(&result.messages[0].content, ContentBlock::Text { text } if text.contains("helpful assistant")),
+        matches!(&result.messages[0].content, ContentBlock::Text { text, .. } if text.contains("helpful assistant")),
         "System message content mismatch"
     );
     assert!(
-        matches!(&result.messages[1].content, ContentBlock::Text { text } if text == "Hello"),
+        matches!(&result.messages[1].content, ContentBlock::Text { text, .. } if text == "Hello"),
         "User message content mismatch"
     );
 }
@@ -742,7 +742,7 @@ fn test_regression_gen_ai_choice_never_history() {
         "gen_ai.choice should not be filtered"
     );
     assert!(
-        matches!(&result.messages[0].content, ContentBlock::Text { text } if text == "LLM response"),
+        matches!(&result.messages[0].content, ContentBlock::Text { text, .. } if text == "LLM response"),
         "gen_ai.choice content should be preserved"
     );
 }
@@ -807,7 +807,7 @@ fn test_regression_gen_ai_assistant_message_can_be_history() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();

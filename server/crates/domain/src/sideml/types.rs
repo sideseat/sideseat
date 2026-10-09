@@ -6,6 +6,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
+pub use super::citation::{Citation, CitationKind};
+
 // ============================================================================
 // STRONGLY TYPED ENUMS
 // ============================================================================
@@ -184,6 +186,15 @@ fn serialize_signed<S: serde::Serializer>(
     serializer.serialize_bool(true)
 }
 
+/// A canonical text block's citations; a provider's own citation list under the same member is not one, and the
+/// text is read without it rather than refused - the vocabulary's citation cases are what read a provider's.
+fn canonical_citations<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<Citation>, D::Error> {
+    let value = JsonValue::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
 /// Unified content block types for multimodal messages.
 ///
 /// Uses custom deserialization to preserve unknown content block types.
@@ -192,8 +203,12 @@ fn serialize_signed<S: serde::Serializer>(
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
-    /// Plain text content
-    Text { text: String },
+    /// Plain text content, with the sources it cites where the provider stated them.
+    Text {
+        text: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        citations: Vec<Citation>,
+    },
 
     /// Image content (from image_url, inline_data, etc.)
     Image {
@@ -254,6 +269,10 @@ pub enum ContentBlock {
         name: String,
         /// Input as structured object (not stringified)
         input: JsonValue,
+        /// The provider ran the tool itself, inside the response - a web search, a code interpreter - so no
+        /// later request carries its result back: the result is the response's own output too.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        provider_executed: bool,
     },
 
     /// Tool result (response from tool execution)
@@ -270,6 +289,9 @@ pub enum ContentBlock {
         content: JsonValue,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         is_error: bool,
+        /// What a tool the provider ran itself produced, returned inside the same response as its call.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        provider_executed: bool,
     },
 
     /// Tool definitions (available tools for the model)
@@ -330,6 +352,8 @@ pub enum ContentBlock {
 enum KnownContentBlock {
     Text {
         text: String,
+        #[serde(default, deserialize_with = "canonical_citations")]
+        citations: Vec<Citation>,
     },
     Image {
         media_type: Option<String>,
@@ -363,6 +387,8 @@ enum KnownContentBlock {
         id: Option<String>,
         name: String,
         input: JsonValue,
+        #[serde(default)]
+        provider_executed: bool,
     },
     ToolResult {
         tool_use_id: Option<String>,
@@ -371,6 +397,8 @@ enum KnownContentBlock {
         content: JsonValue,
         #[serde(default)]
         is_error: bool,
+        #[serde(default)]
+        provider_executed: bool,
     },
     ToolDefinitions {
         tools: Vec<JsonValue>,
@@ -398,10 +426,30 @@ enum KnownContentBlock {
     },
 }
 
+impl ContentBlock {
+    /// A text block that cites nothing.
+    pub fn text(text: impl Into<String>) -> Self {
+        Self::Text {
+            text: text.into(),
+            citations: Vec::new(),
+        }
+    }
+
+    /// A call the application runs.
+    pub fn tool_use(id: Option<String>, name: impl Into<String>, input: JsonValue) -> Self {
+        Self::ToolUse {
+            id,
+            name: name.into(),
+            input,
+            provider_executed: false,
+        }
+    }
+}
+
 impl From<KnownContentBlock> for ContentBlock {
     fn from(known: KnownContentBlock) -> Self {
         match known {
-            KnownContentBlock::Text { text } => Self::Text { text },
+            KnownContentBlock::Text { text, citations } => Self::Text { text, citations },
             KnownContentBlock::Image {
                 media_type,
                 source,
@@ -453,17 +501,29 @@ impl From<KnownContentBlock> for ContentBlock {
                 source,
                 data,
             },
-            KnownContentBlock::ToolUse { id, name, input } => Self::ToolUse { id, name, input },
+            KnownContentBlock::ToolUse {
+                id,
+                name,
+                input,
+                provider_executed,
+            } => Self::ToolUse {
+                id,
+                name,
+                input,
+                provider_executed,
+            },
             KnownContentBlock::ToolResult {
                 tool_use_id,
                 name,
                 content,
                 is_error,
+                provider_executed,
             } => Self::ToolResult {
                 tool_use_id,
                 name,
                 content,
                 is_error,
+                provider_executed,
             },
             KnownContentBlock::ToolDefinitions { tools, tool_choice } => {
                 Self::ToolDefinitions { tools, tool_choice }
@@ -723,6 +783,7 @@ impl ChatMessage {
     pub fn with_text(self, text: &str) -> Self {
         self.with_content(vec![ContentBlock::Text {
             text: text.to_string(),
+            citations: Vec::new(),
         }])
     }
 

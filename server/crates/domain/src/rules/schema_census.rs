@@ -40,6 +40,15 @@ const UNUSED: &[(&str, &str)] = &[
          shipped asset declares one yet",
     ),
     (
+        "CitationKind=file",
+        "part of the closed set of things a citation points into; OpenAI's `file_citation` and Anthropic's document \
+         citations need it, and no captured telemetry carries one yet",
+    ),
+    (
+        "CitationKind=search_result",
+        "part of the closed set of citation kinds, as `file`",
+    ),
+    (
         "SpanCondition.member",
         "the member test of a JSON attribute; offered for a producer that writes a request's options as one \
          JSON payload, where a substring of the text would also match a value a prompt mentions. No shipped \

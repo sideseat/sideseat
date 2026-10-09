@@ -169,6 +169,7 @@ mod weight_tests {
             entry_type: "text".to_string(),
             content: ContentBlock::Text {
                 text: "hi".to_string(),
+                citations: Vec::new(),
             },
             role: ChatRole::User,
             trace_id: "t".to_string(),

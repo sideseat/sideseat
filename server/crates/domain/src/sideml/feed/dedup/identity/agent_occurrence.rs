@@ -34,7 +34,10 @@ pub(super) fn align_tool_ordinals_with_agent_invocations(
     let mut ranks_by_shape: HashMap<ShapeScope<'_>, std::collections::HashSet<u32>> =
         HashMap::new();
     for (index, block) in blocks.iter().enumerate() {
-        let ContentBlock::ToolUse { id, name, input } = &block.content else {
+        let ContentBlock::ToolUse {
+            id, name, input, ..
+        } = &block.content
+        else {
             continue;
         };
         if !is_generation_execution_anchor(block) {
@@ -70,7 +73,9 @@ pub(super) fn align_tool_ordinals_with_agent_invocations(
             continue;
         };
         let rank = match &block.content {
-            ContentBlock::ToolUse { id, name, input } => id
+            ContentBlock::ToolUse {
+                id, name, input, ..
+            } => id
                 .as_deref()
                 .filter(|id| !id.is_empty())
                 .and_then(|id| unique(ranks_by_id.get(&(block.trace_id.as_str(), top_agent, id))))

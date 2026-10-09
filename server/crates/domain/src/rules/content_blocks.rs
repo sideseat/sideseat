@@ -14,9 +14,11 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use super::message_rules::{predicate_defect, predicates_hold, query};
+
+mod forms;
 use super::schema::{
-    ChainPosition, ContentBlockRule, IdSource, MediaSource, MissingMediaType, ResultContent,
-    RuleFile, TransformedSource, ValueSource,
+    ChainPosition, ContentBlockRule, IdSource, MissingMediaType, ResultContent, RuleFile,
+    TransformedSource, ValueSource,
 };
 
 /// Why the content-block rules would not compile.
@@ -73,6 +75,14 @@ pub enum ContentBlockCompileError {
         rule: String,
         position: &'static str,
     },
+    #[error(
+        "content-block rule `{rule}` reads a provider-run item at `{position}`, but it answers with two blocks, \
+         which only a message's own content can hold - declare it at `message_envelope`"
+    )]
+    RunOutsideMessageContent {
+        rule: String,
+        position: &'static str,
+    },
     #[error("content-block rule `{rule}` declares the id template `{template}`, which {defect}")]
     IdTemplate {
         rule: String,
@@ -85,6 +95,14 @@ pub enum ContentBlockCompileError {
         path: String,
         defect: &'static str,
     },
+}
+
+/// What a message content block stands for in its message's list.
+pub enum Expansion<'b> {
+    /// A splice: the members the block holds, each normalised in its place.
+    Members(&'b Vec<JsonValue>),
+    /// A provider run: the canonical blocks built from it.
+    Built(Vec<JsonValue>),
 }
 
 /// The declared cases, in the order they are tried, split by where in the normalisation chain they sit.
@@ -121,6 +139,7 @@ impl ContentBlockPlan {
                 + usize::from(rule.thinking.is_some())
                 + usize::from(rule.unwrap.is_some())
                 + usize::from(rule.splice.is_some())
+                + usize::from(rule.provider_run.is_some())
                 + usize::from(rule.refusal.is_some())
                 + usize::from(rule.redacted_thinking.is_some())
                 + usize::from(rule.unknown.is_some());
@@ -143,6 +162,21 @@ impl ContentBlockPlan {
             let empty_required: Option<&'static str> = match rule {
                 r if r.tool_use.as_ref().is_some_and(|t| t.name.is_empty()) => {
                     Some("tool_use.name")
+                }
+                r if r.provider_run.as_ref().is_some_and(|t| t.name.is_empty()) => {
+                    Some("provider_run.name")
+                }
+                r if r
+                    .text
+                    .as_ref()
+                    .and_then(|t| t.citations.as_ref())
+                    .is_some_and(|c| {
+                        c.from.is_empty()
+                            || c.cases.is_empty()
+                            || c.cases.iter().any(|c| c.source.is_empty())
+                    }) =>
+                {
+                    Some("text.citations.from, its cases, or a citation case's source")
                 }
                 r if r.text.as_ref().is_some_and(|t| t.text.is_empty()) => Some("text.text"),
                 r if r.refusal.as_ref().is_some_and(|t| t.message.is_empty()) => {
@@ -237,8 +271,53 @@ impl ContentBlockPlan {
                     });
                 }
             }
-            if let Some(spec) = &rule.tool_use {
-                for (position, source) in spec.id.iter().enumerate() {
+            // A provider-run item answers with its call and result, which only a message's content list can hold.
+            if rule.provider_run.is_some() {
+                let position = match rule.at {
+                    ChainPosition::MessageEnvelope => None,
+                    ChainPosition::BeforeProviderFormats => Some("before_provider_formats"),
+                    ChainPosition::ProviderFormats => Some("provider_formats"),
+                    ChainPosition::AfterProviderFormats => Some("after_provider_formats"),
+                };
+                if let Some(position) = position {
+                    return Err(ContentBlockCompileError::RunOutsideMessageContent {
+                        rule: rule.id.clone(),
+                        position,
+                    });
+                }
+            }
+            // A citation case's condition decides which shape of citation it reads, as a rule's does a block; one
+            // without a condition reads every citation, so any case after it could never answer.
+            let cases: Vec<_> = rule
+                .text
+                .iter()
+                .flat_map(|t| &t.citations)
+                .flat_map(|c| &c.cases)
+                .collect();
+            for (position, case) in cases.iter().enumerate() {
+                let defect = predicate_defect(&case.require)
+                    .map(str::to_string)
+                    .or_else(|| {
+                        (case.require.is_empty() && position + 1 != cases.len()).then(|| {
+                            "a citation case with no `where` reads every citation, so a case after it \
+                             never answers"
+                                .to_string()
+                        })
+                    });
+                if let Some(defect) = defect {
+                    return Err(ContentBlockCompileError::Predicate {
+                        rule: rule.id.clone(),
+                        defect,
+                    });
+                }
+            }
+            let ids = rule
+                .tool_use
+                .iter()
+                .map(|t| &t.id)
+                .chain(rule.provider_run.iter().map(|r| &r.id));
+            for ids in ids {
+                for (position, source) in ids.iter().enumerate() {
                     let IdSource::Template(template) = source else {
                         continue;
                     };
@@ -250,7 +329,7 @@ impl ContentBlockPlan {
                             Some("has no placeholder, so every call it builds would share one id")
                         }
                         // A template always yields, so a source after it could never answer.
-                        Ok(_) if position + 1 != spec.id.len() => {
+                        Ok(_) if position + 1 != ids.len() => {
                             Some("is followed by another id source that it would always shadow")
                         }
                         Ok(_) => None,
@@ -415,23 +494,26 @@ impl ContentBlockPlan {
         None
     }
 
-    /// The list of blocks a message content block stands for, where a declared splice recognises it.
+    /// The blocks a message content block stands for, where a declared splice or provider run recognises it.
     ///
     /// Consulted before a message's content is normalised, block by block, and never by the single-block
-    /// chain: there a splice answers nothing and the block is left to the cases after it.
-    pub fn splice<'b>(&self, block: &'b JsonValue) -> Option<&'b Vec<JsonValue>> {
-        // The first envelope case that recognises the block decides, whatever its form, so a splice cannot
+    /// chain: there these forms answer nothing and the block is left to the cases after it.
+    pub fn expand<'b>(&self, block: &'b JsonValue) -> Option<Expansion<'b>> {
+        // The first envelope case that recognises the block decides, whatever its form, so neither form can
         // reach past a higher-ranked envelope that claims the same block.
-        let spec = self
+        let rule = self
             .envelopes
             .iter()
-            .find(|rule| predicates_hold(block, &rule.require))?
-            .splice
-            .as_ref()?;
+            .find(|rule| predicates_hold(block, &rule.require))?;
+        if let Some(spec) = &rule.provider_run {
+            return forms::provider_run(block, spec).map(Expansion::Built);
+        }
+        let spec = rule.splice.as_ref()?;
         spec.from
             .iter()
             .find_map(|path| query(block, path).into_iter().next())?
             .as_array()
+            .map(Expansion::Members)
     }
 
     pub fn rule_count(&self) -> usize {
@@ -549,6 +631,19 @@ fn rule_sources(rule: &ContentBlockRule) -> Vec<&ValueSource> {
     }
     if let Some(spec) = &rule.text {
         out.extend(&spec.text);
+        for case in spec.citations.iter().flat_map(|c| &c.cases) {
+            out.extend(
+                case.source
+                    .iter()
+                    .chain(&case.title)
+                    .chain(&case.text_start)
+                    .chain(&case.text_end)
+                    .chain(&case.cited_text),
+            );
+        }
+    }
+    if let Some(spec) = &rule.provider_run {
+        out.extend(spec.name.iter().chain(&spec.input).chain(&spec.result));
     }
     if let Some(spec) = &rule.thinking {
         out.extend(spec.text.iter().chain(&spec.signature));
@@ -650,7 +745,11 @@ fn built(
             .map(Cow::into_owned)
             .unwrap_or_else(|| json!({}));
         let id = call_id(block, &spec.id, name, &input);
-        return Some(json!({"type": "tool_use", "id": id, "name": name, "input": input}));
+        let mut call = json!({"type": "tool_use", "id": id, "name": name, "input": input});
+        if spec.provider_executed {
+            call["provider_executed"] = json!(true);
+        }
+        return Some(call);
     }
     if let Some(spec) = &rule.tool_result {
         let tool_use_id = member(block, &spec.tool_use_id, false);
@@ -684,6 +783,9 @@ fn built(
         }
         result.insert("content".to_string(), content);
         result.insert("is_error".to_string(), json!(is_error));
+        if spec.provider_executed {
+            result.insert("provider_executed".to_string(), json!(true));
+        }
         return Some(JsonValue::Object(result));
     }
     if let Some(spec) = &rule.json {
@@ -696,7 +798,14 @@ fn built(
         // Only a string is text. A structured value under the same member is a different shape, and the
         // case must fall through to whatever recognises it rather than stringifying it here.
         let text = member(block, &spec.text, false)?;
-        return Some(json!({"type": "text", "text": text.as_str()?}));
+        let mut out = json!({"type": "text", "text": text.as_str()?});
+        if let Some(citations) = &spec.citations {
+            let cited = forms::citations(block, citations);
+            if !cited.is_empty() {
+                out["citations"] = JsonValue::Array(cited);
+            }
+        }
+        return Some(out);
     }
     if let Some(spec) = &rule.thinking {
         // Neither member is required: a producer that names the block as reasoning has said what it is, and the
@@ -738,7 +847,7 @@ fn built(
         return crate::sideml::content::normalize_block_in(plan, inner, consult_envelopes);
     }
     if let Some(spec) = &rule.media {
-        return media_block(block, spec);
+        return forms::media_block(block, spec);
     }
     None
 }
@@ -791,92 +900,6 @@ impl Drop for NormalisationDepth {
     fn drop(&mut self) {
         NORMALISATION_DEPTH.with(|depth| depth.set(depth.get() - 1));
     }
-}
-
-/// A media block, or nothing where the case cannot say what the bytes are.
-fn media_block(block: &JsonValue, spec: &super::schema::MediaBlock) -> Option<JsonValue> {
-    let data = member(block, &spec.data, false)?;
-    let data = data.as_str()?;
-    let declared: Option<String> = member(block, &spec.media_type, false)
-        .and_then(|v| v.as_str().map(str::to_string))
-        .or_else(|| spec.media_type_default.clone());
-    let name = member(block, &spec.name, false).and_then(|v| v.as_str().map(str::to_string));
-    let detail = member(block, &spec.detail, false).and_then(|v| v.as_str().map(str::to_string));
-    let (source, referenced, payload): (&str, Option<&str>, &str) = match &spec.source {
-        // Both derived, because both are facts about the bytes rather than about the producer: the kind
-        // comes from the media type, and whether this is a reference or the content itself from the value.
-        MediaSource::Decoded => {
-            let (source, referenced) = crate::sideml::content::decode_media_source(data);
-            // A data URL's header has been read for the media type; the block holds the payload alone.
-            let payload = match data.split_once(',') {
-                Some((header, payload)) if source == "base64" && header.starts_with("data:") => {
-                    payload
-                }
-                _ => data,
-            };
-            (source, referenced, payload)
-        }
-        // The member's meaning is the format's: a stored reference is still recognised, because ingestion
-        // replaces inline bytes with one, but nothing else about the value is second-guessed.
-        MediaSource::ReferenceOr(otherwise) => {
-            let source = if sideseat_core::utils::file_uri::is_file_uri(data) {
-                "file"
-            } else {
-                otherwise.as_str()
-            };
-            (source, None, data)
-        }
-        MediaSource::Literal(source) => (source.as_str(), None, data),
-    };
-    // **One authority.** A stored reference carries the media type the bytes were stored under, and a
-    // declared one beside it could disagree - `media_type: image/png` against `#!B64!#application/pdf::HASH`
-    // produced an image block whose bytes a reader fetches as a PDF. The reference wins, because it is the
-    // *stored* fact and what a fetch will return; the disagreement is reported rather than refused, since
-    // refusing drops content over metadata.
-    let media_type: Option<String> = match referenced {
-        Some(stored) => {
-            if let Some(declared) = declared.as_deref().filter(|declared| *declared != stored) {
-                tracing::debug!(
-                    target: "sideseat::rules",
-                    declared,
-                    stored,
-                    "a media block's declared media type disagrees with its stored reference; the stored one \
-                     is what a reader will fetch"
-                );
-            }
-            Some(stored.to_string())
-        }
-        // The conventions make a blob's MIME type optional; without one, the bytes say what they are - asked
-        // only where the value's shape is the authority, and only when a missing type would decline.
-        None => declared.or_else(|| {
-            (spec.source == MediaSource::Decoded
-                && spec.missing_media_type == MissingMediaType::Decline)
-                .then(|| sideseat_core::utils::mime::detect_mime_type_from_base64(data.as_bytes()))
-                .flatten()
-                .map(str::to_string)
-        }),
-    };
-    if media_type.is_none() && spec.missing_media_type == MissingMediaType::Decline {
-        return None;
-    }
-    let kind: &str = match spec.kind {
-        Some(kind) => kind.into(),
-        None => crate::sideml::content::mime_to_content_type(media_type.as_deref().unwrap_or("")),
-    };
-    let mut result = serde_json::Map::new();
-    result.insert("type".to_string(), json!(kind));
-    if !(media_type.is_none() && spec.missing_media_type == MissingMediaType::Omit) {
-        result.insert("media_type".to_string(), json!(media_type));
-    }
-    result.insert("source".to_string(), json!(source));
-    result.insert("data".to_string(), json!(payload));
-    if let Some(name) = name {
-        result.insert("name".to_string(), json!(name));
-    }
-    if let Some(detail) = detail {
-        result.insert("detail".to_string(), json!(detail));
-    }
-    Some(JsonValue::Object(result))
 }
 
 /// What a tool returned, as a list of content blocks. See [`ResultContent::Blocks`].

@@ -81,7 +81,10 @@ fn test_langgraph_tool_calls_format() {
         .iter()
         .find(|b| matches!(b, ContentBlock::ToolUse { .. }));
     assert!(tool_use.is_some(), "Should have ToolUse content block");
-    if let ContentBlock::ToolUse { id, name, input } = tool_use.unwrap() {
+    if let ContentBlock::ToolUse {
+        id, name, input, ..
+    } = tool_use.unwrap()
+    {
         assert_eq!(name, "get_weather");
         assert_eq!(id.as_deref(), Some("call_langgraph_456"));
         assert_eq!(input, &json!({"city": "NYC"}));

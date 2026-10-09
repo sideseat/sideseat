@@ -336,11 +336,15 @@ pub(in crate::sideml::feed) fn append_error_messages(
                     name: Some(name).filter(|n| !n.is_empty()),
                     content: JsonValue::String(error_msg),
                     is_error: true,
+                    provider_executed: false,
                 },
             ),
             None => (
                 crate::sideml::types::ChatRole::Assistant,
-                ContentBlock::Text { text: error_msg },
+                ContentBlock::Text {
+                    text: error_msg,
+                    citations: Vec::new(),
+                },
             ),
         };
 
@@ -767,6 +771,7 @@ fn classify_blocks_with_history(
             id: Some(id),
             name,
             input,
+            ..
         } = &block.content
             && !id.is_empty()
         {
@@ -849,7 +854,9 @@ fn classify_blocks_with_history(
             ))
         });
         let is_current = match &block.content {
-            ContentBlock::ToolUse { id, name, input } => {
+            ContentBlock::ToolUse {
+                id, name, input, ..
+            } => {
                 let shape = super::dedup::compute_tool_call_hash(name, input);
                 let generation_start = span_start_of(block);
                 let completed_before = id

@@ -441,6 +441,21 @@
             "emit": "message",
             "also": [
               {
+                "id": "provider_runs",
+                "doc": "Each tool the provider ran itself inside the response - a web search - as the item that holds both what it asked for and what it found. Listed first so a search that leads the response is read before the answer. The also-cases read the output by kind, not by position, so a search between two messages would still be read before both: reading items in their own order is open.",
+                "select": "$.output[*]",
+                "where": {
+                  "path": "$.type",
+                  "one_of": [
+                    "web_search_call"
+                  ]
+                },
+                "wrap": {
+                  "role": "assistant",
+                  "content_from": "$"
+                }
+              },
+              {
                 "id": "calls",
                 "doc": "Each call the model asked for.",
                 "select": "$.output[*]",

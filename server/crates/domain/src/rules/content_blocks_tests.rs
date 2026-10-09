@@ -588,19 +588,23 @@ fn a_splice_outside_the_message_envelope_is_refused() {
 fn a_splice_yields_its_member_list_and_nothing_to_the_single_block_chain() {
     let plan = plan_from(splice_rule("message_envelope"));
     let block = serde_json::json!({"type": "text", "content": [{"text": "a"}, {"toolUse": {}}]});
+    let Some(crate::rules::content_blocks::Expansion::Members(members)) = plan.expand(&block)
+    else {
+        panic!("a splice expands into its members");
+    };
     assert_eq!(
-        plan.splice(&block),
-        Some(&vec![
+        members,
+        &vec![
             serde_json::json!({"text": "a"}),
             serde_json::json!({"toolUse": {}})
-        ])
+        ]
     );
     assert!(
         plan.normalize(&block, ChainPosition::MessageEnvelope)
             .is_none()
     );
     assert!(
-        plan.splice(&serde_json::json!({"type": "text", "content": "prose"}))
+        plan.expand(&serde_json::json!({"type": "text", "content": "prose"}))
             .is_none()
     );
 }
@@ -669,4 +673,158 @@ fn a_stored_reference_is_the_authority_on_its_media_type() {
         normalize("image/png", "https://example.com/a.png")["source"].as_str(),
         Some("url")
     );
+}
+
+fn provider_run_rule(at: &str, kind: &str) -> serde_json::Value {
+    serde_json::json!({
+        "id": "probe.run",
+        "at": at,
+        "priority": 1,
+        "where": {"path": "$.type", "one_of": [kind]},
+        "provider_run": {"id": "$.id", "name": "$.name", "input": "$.input", "result": "$.found"},
+    })
+}
+
+/// A provider-run item answers with its call and its result, both run by the provider, in a message's content.
+#[test]
+fn a_provider_run_is_its_call_and_result_in_the_message_content() {
+    let plan = plan_from(provider_run_rule("message_envelope", "search_call"));
+    let item = serde_json::json!({"type": "search_call", "id": "s1", "name": "search",
+        "input": {"q": "louvre"}, "found": ["https://a"]});
+    for content in [serde_json::json!([item.clone()]), item.clone()] {
+        let blocks = crate::sideml::content::normalize_content_in(&plan, Some(&content));
+        assert_eq!(
+            blocks,
+            serde_json::json!([
+                {"type": "tool_use", "id": "s1", "name": "search", "input": {"q": "louvre"},
+                 "provider_executed": true},
+                {"type": "tool_result", "tool_use_id": "s1", "content": [{"type": "json", "data": ["https://a"]}],
+                 "is_error": false, "provider_executed": true}
+            ])
+        );
+    }
+    // Without a result yet, the call alone.
+    let pending =
+        serde_json::json!({"type": "search_call", "id": "s2", "name": "search", "input": {}});
+    let blocks =
+        crate::sideml::content::normalize_content_in(&plan, Some(&serde_json::json!([pending])));
+    assert_eq!(blocks.as_array().map(Vec::len), Some(1));
+    // Never through the single-block chain.
+    assert!(
+        plan.normalize(&item, ChainPosition::MessageEnvelope)
+            .is_none()
+    );
+}
+
+/// The blocks a provider run builds are canonical and never expanded again, so a run whose condition its own
+/// output satisfies answers once instead of recursing without end.
+#[test]
+fn a_provider_run_that_matches_its_own_output_is_expanded_once() {
+    let plan = plan_from(provider_run_rule("message_envelope", "tool_use"));
+    let call = serde_json::json!({"type": "tool_use", "id": "c1", "name": "lookup", "input": {"a": 1}, "found": "x"});
+    for content in [serde_json::json!([call.clone()]), call.clone()] {
+        let blocks = crate::sideml::content::normalize_content_in(&plan, Some(&content));
+        assert_eq!(blocks.as_array().map(Vec::len), Some(2), "{blocks}");
+    }
+}
+
+#[test]
+fn a_provider_run_outside_the_message_envelope_is_refused() {
+    refused(
+        provider_run_rule("provider_formats", "search_call"),
+        "reads a provider-run item at `provider_formats`",
+    );
+}
+
+fn cited_rule(cases: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "id": "probe.cited",
+        "at": "provider_formats",
+        "priority": 1,
+        "where": {"path": "$.type", "one_of": ["answer"]},
+        "text": {"text": "$.text", "citations": {"from": "$.notes", "cases": cases}},
+    })
+}
+
+/// Each citation is read by the first case that recognises it; one no case reads, or one naming no source, is
+/// kept as `unknown` with the provider's item, so a new shape is seen arriving.
+#[test]
+fn citations_are_read_by_their_case_and_an_unread_one_is_kept_unknown() {
+    let plan = plan_from(cited_rule(serde_json::json!([
+        {"where": {"path": "$.type", "one_of": ["page"]}, "kind": "url", "source": "$.url",
+         "title": "$.title", "text_start": "$.from", "text_end": "$.to"}
+    ])));
+    let block = serde_json::json!({"type": "answer", "text": "Open at nine.", "notes": [
+        {"type": "page", "url": "https://a", "title": "A", "from": 0, "to": 13},
+        {"type": "page", "title": "no url"},
+        {"type": "shelf", "row": 3}
+    ]});
+    let read = plan
+        .normalize(&block, ChainPosition::ProviderFormats)
+        .expect("the text reads");
+    assert_eq!(
+        read["citations"],
+        serde_json::json!([
+            {"kind": "url", "source": "https://a", "title": "A", "text_start": 0, "text_end": 13},
+            {"kind": "unknown", "raw": {"type": "page", "title": "no url"}},
+            {"kind": "unknown", "raw": {"type": "shelf", "row": 3}}
+        ])
+    );
+    let block: crate::sideml::ContentBlock = serde_json::from_value(read).expect("canonical");
+    let crate::sideml::ContentBlock::Text { citations, .. } = block else {
+        panic!("a text block");
+    };
+    assert_eq!(citations.len(), 3);
+}
+
+#[test]
+fn citation_cases_must_exist_and_only_the_last_may_omit_its_condition() {
+    refused(cited_rule(serde_json::json!([])), "text.citations");
+    refused(
+        cited_rule(serde_json::json!([
+            {"kind": "url", "source": "$.url"},
+            {"where": {"path": "$.type", "one_of": ["page"]}, "kind": "document", "source": "$.title"}
+        ])),
+        "a case after it never answers",
+    );
+}
+
+/// SideML's own citations pass through with their text; a provider's own list under the same member does not
+/// pass as canonical, and the text is kept where no case reads it.
+#[test]
+fn only_canonical_citations_pass_through_and_a_provider_list_keeps_its_text() {
+    let canonical = serde_json::json!({"type": "text", "text": "t",
+        "citations": [{"kind": "url", "source": "https://a"}]});
+    assert_eq!(
+        crate::sideml::content::normalize_content_block(&canonical),
+        Some(canonical.clone())
+    );
+    let provider = serde_json::json!({"type": "text", "text": "t",
+        "citations": [{"type": "char_location", "document_index": 0}]});
+    assert_eq!(
+        crate::sideml::content::normalize_content_block(&provider),
+        Some(serde_json::json!({"type": "text", "text": "t"}))
+    );
+}
+
+/// A citation breaking SideML's invariants is not a canonical one: a known kind without a source, or one carrying
+/// a provider's item.
+#[test]
+fn a_canonical_citation_names_its_source_and_only_an_unknown_one_carries_raw() {
+    let read = |citation: serde_json::Value| {
+        serde_json::from_value::<crate::sideml::Citation>(citation).is_ok()
+    };
+    assert!(read(
+        serde_json::json!({"kind": "url", "source": "https://a"})
+    ));
+    assert!(read(
+        serde_json::json!({"kind": "unknown", "raw": {"type": "x"}})
+    ));
+    assert!(!read(serde_json::json!({"kind": "url"})));
+    assert!(!read(
+        serde_json::json!({"kind": "url", "source": "https://a", "raw": {}})
+    ));
+    assert!(!read(
+        serde_json::json!({"kind": "url", "source": "https://a", "page": 2})
+    ));
 }

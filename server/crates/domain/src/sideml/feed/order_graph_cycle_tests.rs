@@ -13,6 +13,7 @@ fn block(span: &str, text: &str) -> BlockEntry {
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
             text: text.to_string(),
+            citations: Vec::new(),
         },
         role: ChatRole::User,
         trace_id: "trace-1".to_string(),

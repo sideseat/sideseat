@@ -33,7 +33,7 @@ fn blank_text_is_removed_only_when_a_sibling_carries_the_message() {
     }));
     assert!(matches!(
         &standalone.content[..],
-        [ContentBlock::Text { text }] if text.is_empty()
+        [ContentBlock::Text { text, .. }] if text.is_empty()
     ));
 }
 
@@ -161,7 +161,7 @@ fn test_vercel_ai_content_takes_precedence_over_object() {
 
     // Content field should be used, not object
     match &message.content[0] {
-        ContentBlock::Text { text } => {
+        ContentBlock::Text { text, .. } => {
             assert_eq!(text, "Hello from content field");
         }
         other => panic!("Expected Text content block, got {:?}", other),
@@ -206,7 +206,7 @@ fn regression_langgraph_contents_field_with_message_content_wrapper() {
     );
 
     match &message.content[0] {
-        ContentBlock::Text { text } => {
+        ContentBlock::Text { text, .. } => {
             assert!(
                 text.contains("weather forecast"),
                 "Should extract text from message_content wrapper"
@@ -335,7 +335,7 @@ fn regression_openinference_reasoning_content_thinking() {
 
     // Second block should be text
     match &message.content[1] {
-        ContentBlock::Text { text } => {
+        ContentBlock::Text { text, .. } => {
             assert!(text.contains("Based on my analysis"));
         }
         other => panic!("Expected Text, got {:?}", other),
@@ -371,7 +371,7 @@ fn regression_unflatten_creates_nested_sparse_arrays() {
     assert_eq!(message.content.len(), 1, "Should filter both placeholders");
 
     match &message.content[0] {
-        ContentBlock::Text { text } => {
+        ContentBlock::Text { text, .. } => {
             assert_eq!(text, "Hello after two sparse indices");
         }
         other => panic!("Expected Text, got {:?}", other),
@@ -439,7 +439,7 @@ fn test_normalize_plain_data_doesnt_affect_messages() {
     assert_eq!(message.role, ChatRole::Assistant);
     assert_eq!(message.content.len(), 1);
     match &message.content[0] {
-        ContentBlock::Text { text } => assert_eq!(text, "Hello!"),
+        ContentBlock::Text { text, .. } => assert_eq!(text, "Hello!"),
         other => panic!("Expected Text, got {:?}", other),
     }
 
@@ -851,7 +851,7 @@ fn a_content_list_beside_flattened_content_keeps_the_reasoning() {
     assert!(
         matches!(
             &message.content[..],
-            [ContentBlock::Thinking { text, .. }, ContentBlock::Text { text: answer }]
+            [ContentBlock::Thinking { text, .. }, ContentBlock::Text { text: answer, .. }]
                 if text == "Pair the two slowest." && answer == "17 minutes."
         ),
         "{:?}",
@@ -875,7 +875,7 @@ fn a_choice_envelope_is_read_as_the_message_it_holds() {
     assert!(
         matches!(
             &message.content[..],
-            [ContentBlock::Text { text }, ContentBlock::ToolUse { id: Some(id), name, .. }]
+            [ContentBlock::Text { text, .. }, ContentBlock::ToolUse { id: Some(id), name, .. }]
                 if text == "Checking." && id == "call-1" && name == "get_weather"
         ),
         "{:?}",

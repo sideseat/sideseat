@@ -16,9 +16,7 @@ fn make_test_block(
         scope_name: None,
         position: PositionPath::default(),
         entry_type: "text".to_string(),
-        content: ContentBlock::Text {
-            text: text.to_string(),
-        },
+        content: ContentBlock::text(text),
         role,
         trace_id: trace_id.to_string(),
         span_id: span_id.to_string(),
@@ -69,11 +67,7 @@ fn make_tool_use_block(
         scope_name: None,
         position: PositionPath::default(),
         entry_type: "tool_use".to_string(),
-        content: ContentBlock::ToolUse {
-            id: Some(call_id.to_string()),
-            name: name.to_string(),
-            input: serde_json::json!({}),
-        },
+        content: ContentBlock::tool_use(Some(call_id.to_string()), name, serde_json::json!({})),
         role: ChatRole::Assistant,
         trace_id: trace_id.to_string(),
         span_id: span_id.to_string(),
@@ -131,6 +125,7 @@ fn make_tool_result_block(
             name: None,
             content: serde_json::json!(content),
             is_error: false,
+            provider_executed: false,
         },
         role: ChatRole::Tool,
         trace_id: trace_id.to_string(),
@@ -675,13 +670,13 @@ fn test_conversation_order() {
     assert_eq!(result[0].role, ChatRole::User);
     assert!(matches!(
         result[0].content,
-        ContentBlock::Text { ref text } if text == "Hello"
+        ContentBlock::Text { ref text, .. } if text == "Hello"
     ));
     assert_eq!(result[1].role, ChatRole::Assistant);
     assert_eq!(result[2].role, ChatRole::User);
     assert!(matches!(
         result[2].content,
-        ContentBlock::Text { ref text } if text == "Search for X"
+        ContentBlock::Text { ref text, .. } if text == "Search for X"
     ));
     assert_eq!(result[3].entry_type, "tool_use");
 }
@@ -935,6 +930,7 @@ fn test_tool_result_same_id_different_content_deduped() {
             name: None,
             content: serde_json::json!({"type": "content", "value": [{"type": "text", "text": "transformed result"}]}),
             is_error: false,
+            provider_executed: false,
         },
         span_id: "gen_span".to_string(),
         timestamp: t1,

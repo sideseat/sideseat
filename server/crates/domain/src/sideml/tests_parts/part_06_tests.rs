@@ -800,7 +800,7 @@ fn test_content_extraction_from_text_field() {
         !message.content.is_empty(),
         "Content should be extracted from 'text' field"
     );
-    if let ContentBlock::Text { text } = &message.content[0] {
+    if let ContentBlock::Text { text, .. } = &message.content[0] {
         assert_eq!(text, "Hello from text field");
     } else {
         panic!("Expected Text content block");

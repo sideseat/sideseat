@@ -67,7 +67,7 @@ fn test_regression_historical_context_not_leaked() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -609,7 +609,7 @@ fn test_regression_history_assistant_detection() {
         .iter()
         .filter(|m| {
             m.role == ChatRole::Assistant
-                && matches!(&m.content, ContentBlock::Text { text } if text == "Hi there!")
+                && matches!(&m.content, ContentBlock::Text { text, .. } if text == "Hi there!")
         })
         .collect();
 

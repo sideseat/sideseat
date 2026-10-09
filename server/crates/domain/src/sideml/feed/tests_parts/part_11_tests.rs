@@ -77,7 +77,7 @@ fn test_cross_trace_genuine_repeat_preserved() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -179,7 +179,7 @@ fn test_cross_trace_retain_genuine_repeat_trace_view() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -437,6 +437,7 @@ fn test_no_promotion_when_choice_exists() {
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
             text: "Previous response.".to_string(),
+            citations: Vec::new(),
         },
         role: ChatRole::Assistant,
         trace_id: "trace1".to_string(),
@@ -482,6 +483,7 @@ fn test_no_promotion_when_choice_exists() {
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
             text: "4".to_string(),
+            citations: Vec::new(),
         },
         role: ChatRole::Assistant,
         trace_id: "trace1".to_string(),

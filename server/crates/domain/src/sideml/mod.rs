@@ -46,6 +46,7 @@
 #[cfg(test)]
 mod aliases_oracle;
 pub mod carrier;
+pub(crate) mod citation;
 pub(crate) mod content;
 pub(crate) mod provenance;
 pub mod tools;
@@ -75,8 +76,8 @@ pub mod feed;
 // ============================================================================
 
 pub use types::{
-    CacheControl, ChatMessage, ChatRole, ContentBlock, FinishReason, JsonSchemaDetails,
-    ResponseFormat, ToolChoice,
+    CacheControl, ChatMessage, ChatRole, Citation, CitationKind, ContentBlock, FinishReason,
+    JsonSchemaDetails, ResponseFormat, ToolChoice,
 };
 
 pub use feed::{
@@ -113,13 +114,16 @@ pub mod test_support {
     /// The answer says whether the two differ only in **member order**: equal as JSON values, rendered
     /// differently. That is a difference a stored nested result would show, so it is reported, and kept apart
     /// so a caller can hold it to a stated list.
-    pub fn content_chain_disagreement(value: &serde_json::Value) -> Option<(bool, String)> {
-        let render = |answer: &Option<serde_json::Value>| {
-            answer
-                .as_ref()
-                .map(|value| serde_json::to_string(value).expect("a value serialises"))
-        };
-        let pairs = [
+    /// What the declared chain and the retired readers answer for a value at each way into the chain: the way's
+    /// name, the declared answer, and the retired one. For a test that excuses a stated difference by its shape.
+    pub fn content_chain_answers(
+        value: &serde_json::Value,
+    ) -> [(
+        &'static str,
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+    ); 3] {
+        [
             (
                 "message content block",
                 super::content::normalize_content_block(value),
@@ -135,7 +139,16 @@ pub mod test_support {
                 super::content::current_try_normalize_provider_format(value),
                 super::content::legacy_try_normalize_provider_format(value),
             ),
-        ];
+        ]
+    }
+
+    pub fn content_chain_disagreement(value: &serde_json::Value) -> Option<(bool, String)> {
+        let render = |answer: &Option<serde_json::Value>| {
+            answer
+                .as_ref()
+                .map(|value| serde_json::to_string(value).expect("a value serialises"))
+        };
+        let pairs = content_chain_answers(value);
         // Long strings shortened in the report only - a base64 payload would hide the member that differs.
         fn abbreviated(text: &str) -> String {
             let mut out = String::new();
@@ -482,6 +495,7 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
                     id,
                     name: name.to_string(),
                     input,
+                    provider_executed: false,
                 });
             }
         }
@@ -564,10 +578,10 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
 fn remove_blank_text_beside_visible_content(content: &mut Vec<ContentBlock>) {
     let has_visible_sibling = content
         .iter()
-        .any(|block| !matches!(block, ContentBlock::Text { text } if text.trim().is_empty()));
+        .any(|block| !matches!(block, ContentBlock::Text { text, .. } if text.trim().is_empty()));
     if has_visible_sibling {
         content.retain(
-            |block| !matches!(block, ContentBlock::Text { text } if text.trim().is_empty()),
+            |block| !matches!(block, ContentBlock::Text { text, .. } if text.trim().is_empty()),
         );
     }
 }
@@ -698,6 +712,7 @@ fn normalize_tool_call_message(raw: &JsonValue) -> ChatMessage {
         id: tool_call_id,
         name,
         input,
+        provider_executed: false,
     }];
 
     ChatMessage {

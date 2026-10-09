@@ -89,7 +89,7 @@ fn test_regression_tool_use_preserved_text_filtered() {
         "Should have 1 text (final response), intermediate filtered"
     );
     assert!(
-        matches!(&texts[0].content, ContentBlock::Text { text } if text.contains("results")),
+        matches!(&texts[0].content, ContentBlock::Text { text, .. } if text.contains("results")),
         "Should be final response, not intermediate text"
     );
 }
@@ -189,7 +189,7 @@ fn test_regression_multi_turn_tool_history_filtered() {
         .messages
         .iter()
         .filter_map(|m| match &m.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -227,7 +227,7 @@ fn test_regression_multi_turn_tool_history_filtered() {
         .iter()
         .filter(|b| b.role == ChatRole::User)
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();

@@ -419,6 +419,7 @@ fn tool_result_aliases<'a>(
             name,
             content,
             is_error,
+            ..
         } = &block.content
         else {
             continue;

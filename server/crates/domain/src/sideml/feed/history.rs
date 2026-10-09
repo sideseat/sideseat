@@ -608,7 +608,9 @@ fn hash_tool_result_text(content: &serde_json::Value) -> u64 {
 fn tool_call_identities(blocks: &[BlockEntry]) -> HashMap<(&str, &str), u64> {
     let mut identities = HashMap::new();
     for block in blocks {
-        if let ContentBlock::ToolUse { id, name, input } = &block.content
+        if let ContentBlock::ToolUse {
+            id, name, input, ..
+        } = &block.content
             && let Some(id) = id.as_deref().filter(|s| !s.is_empty())
         {
             identities.insert(
@@ -929,6 +931,7 @@ mod duplicate_key_tests {
             name: Some("lookup".to_string()),
             content: text.clone(),
             is_error: false,
+            provider_executed: false,
         };
         // The re-send: same answer to the same call, with a regenerated id and no tool name.
         let resent = ContentBlock::ToolResult {
@@ -936,6 +939,7 @@ mod duplicate_key_tests {
             name: None,
             content: text.clone(),
             is_error: false,
+            provider_executed: false,
         };
 
         // Their block identities differ, which is correct - that is what tells uncorrelated
@@ -961,6 +965,7 @@ mod duplicate_key_tests {
             name: Some("lookup".to_string()),
             content: serde_json::json!([{"type": "text", "text": "failed"}]),
             is_error: false,
+            provider_executed: false,
         };
         assert_ne!(key_of(&named), key_of(&different));
     }
@@ -976,6 +981,7 @@ mod duplicate_key_tests {
                 name: name.map(str::to_owned),
                 content: content.clone(),
                 is_error,
+                provider_executed: false,
             })
         };
         assert_ne!(hash(Some("lookup"), false), hash(Some("write"), false));

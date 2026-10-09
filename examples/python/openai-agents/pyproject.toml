@@ -13,6 +13,8 @@ dependencies = [
 producer = "openai-agents"
 integrations = ["openai-agents"]
 default-model = "gpt"
+# Bedrock serves no provider-run tools on bedrock-runtime, so the search runs against the local fake.
+scenario-models = { server_tools = "fake-openai" }
 
 [tool.uv]
 required-version = "==0.12.13"

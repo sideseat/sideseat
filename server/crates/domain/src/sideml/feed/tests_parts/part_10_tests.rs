@@ -90,7 +90,7 @@ fn test_cross_trace_prefix_subsequence_match() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -229,7 +229,7 @@ fn test_cross_trace_prefix_resets_per_span() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -393,7 +393,7 @@ fn test_cross_trace_repeated_content_safe() {
     let yes_count = result
         .messages
         .iter()
-        .filter(|b| matches!(&b.content, ContentBlock::Text { text } if text == "yes"))
+        .filter(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "yes"))
         .count();
     assert!(
         yes_count >= 2,
@@ -464,7 +464,7 @@ fn test_cross_trace_prefix_role_sensitive() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -547,7 +547,7 @@ fn test_cross_trace_prefix_mixed_source_event_survives() {
     let repeat_blocks: Vec<_> = result
         .messages
         .iter()
-        .filter(|b| matches!(&b.content, ContentBlock::Text { text } if text == "repeat"))
+        .filter(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "repeat"))
         .collect();
 
     assert_eq!(
@@ -558,7 +558,7 @@ fn test_cross_trace_prefix_mixed_source_event_survives() {
             .messages
             .iter()
             .filter_map(|b| match &b.content {
-                ContentBlock::Text { text } => Some((text.as_str(), b.source_type.as_str())),
+                ContentBlock::Text { text, .. } => Some((text.as_str(), b.source_type.as_str())),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -572,7 +572,7 @@ fn test_cross_trace_prefix_mixed_source_event_survives() {
         result
             .messages
             .iter()
-            .any(|b| matches!(&b.content, ContentBlock::Text { text } if text == "fresh")),
+            .any(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "fresh")),
         "New assistant output should remain"
     );
 }
@@ -679,7 +679,7 @@ fn test_cross_trace_prefix_occurrence_count_bounded() {
         .messages
         .iter()
         .filter_map(|b| match &b.content {
-            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Text { text, .. } => Some(text.as_str()),
             _ => None,
         })
         .collect();
@@ -753,7 +753,7 @@ fn test_cross_trace_strands_repeated_yes() {
     let yes_count = result
         .messages
         .iter()
-        .filter(|b| matches!(&b.content, ContentBlock::Text { text } if text == "yes"))
+        .filter(|b| matches!(&b.content, ContentBlock::Text { text, .. } if text == "yes"))
         .count();
     assert_eq!(yes_count, 2, "Both 'yes' should be preserved");
 }

@@ -5,6 +5,7 @@ import { TextContent } from "./text-content";
 import { MediaContent } from "./media-content";
 import { ContextContent } from "./context-content";
 import { RefusalContent } from "./refusal-content";
+import { ProviderRunBadge } from "./provider-run-badge";
 import type { ContentBlock } from "@/api/otel/types";
 import { type EmbeddedMedia, findEmbeddedMedia, inferSource } from "@/lib/media";
 
@@ -23,6 +24,8 @@ interface ToolResultContentProps {
   showInlineHeader?: boolean;
   /** Project ID for resolving file references */
   projectId?: string;
+  /** What a tool the provider ran itself produced, inside the same response. */
+  providerExecuted?: boolean;
 }
 
 /** Content block types that can be rendered inline */
@@ -97,6 +100,7 @@ export function ToolResultContent({
   toolCallIdInferred,
   showInlineHeader = false,
   projectId,
+  providerExecuted = false,
 }: ToolResultContentProps) {
   const Icon = isError ? AlertCircle : CornerDownRight;
 
@@ -117,8 +121,10 @@ export function ToolResultContent({
             {isError ? "Error" : "Result"}
           </span>
           {toolName && <span className="font-mono text-sm text-role-tool">{toolName}</span>}
+          {providerExecuted && <ProviderRunBadge />}
         </div>
       )}
+      {!showInlineHeader && providerExecuted && <ProviderRunBadge />}
       {toolCallId && (
         <div className="text-xs text-muted-foreground font-mono">
           tool_call_id: {toolCallId}

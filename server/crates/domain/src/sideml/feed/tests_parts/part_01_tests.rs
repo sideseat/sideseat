@@ -174,7 +174,9 @@ fn test_process_spans_simple_message() {
     assert_eq!(result.messages.len(), 1);
     assert_eq!(result.messages[0].role, ChatRole::User);
     // Content is now a single block
-    assert!(matches!(&result.messages[0].content, ContentBlock::Text { text } if text == "Hello"));
+    assert!(
+        matches!(&result.messages[0].content, ContentBlock::Text { text, .. } if text == "Hello")
+    );
 }
 
 #[test]
@@ -203,8 +205,12 @@ fn test_process_spans_flattening() {
     assert_eq!(result.messages[1].entry_index, 1);
 
     // Verify content
-    assert!(matches!(&result.messages[0].content, ContentBlock::Text { text } if text == "First"));
-    assert!(matches!(&result.messages[1].content, ContentBlock::Text { text } if text == "Second"));
+    assert!(
+        matches!(&result.messages[0].content, ContentBlock::Text { text, .. } if text == "First")
+    );
+    assert!(
+        matches!(&result.messages[1].content, ContentBlock::Text { text, .. } if text == "Second")
+    );
 }
 
 /// A name repeated with the **same** statement is one tool; a name repeated with a *different* one is two.
@@ -631,7 +637,9 @@ fn test_tool_use_extraction() {
     assert_eq!(block.tool_name, Some("search".to_string()));
 
     match &block.content {
-        ContentBlock::ToolUse { id, name, input } => {
+        ContentBlock::ToolUse {
+            id, name, input, ..
+        } => {
             assert_eq!(id, &Some("call_123".to_string()));
             assert_eq!(name, "search");
             assert_eq!(input.get("query").unwrap().as_str(), Some("test"));
@@ -682,8 +690,12 @@ fn test_sorting_by_timestamp_message_entry() {
 
     assert_eq!(result.messages.len(), 2);
     // Should be sorted by timestamp ASC
-    assert!(matches!(&result.messages[0].content, ContentBlock::Text { text } if text == "First"));
-    assert!(matches!(&result.messages[1].content, ContentBlock::Text { text } if text == "Second"));
+    assert!(
+        matches!(&result.messages[0].content, ContentBlock::Text { text, .. } if text == "First")
+    );
+    assert!(
+        matches!(&result.messages[1].content, ContentBlock::Text { text, .. } if text == "Second")
+    );
 }
 
 #[test]

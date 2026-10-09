@@ -2,6 +2,7 @@ import type { Block } from "@/api/otel/types";
 import {
   ContentRenderer,
   TextContent,
+  Citations,
   ToolUseContent,
   ToolResultContent,
   ThinkingContent,
@@ -220,11 +221,23 @@ export function renderBlockContent(
   if (structured !== undefined) return <JsonContent data={structured} />;
 
   if (entry_type === "text" && content.type === "text") {
-    return <TextContent text={content.text} markdownEnabled={markdownEnabled} />;
+    return (
+      <>
+        <TextContent text={content.text} markdownEnabled={markdownEnabled} />
+        <Citations citations={content.citations} />
+      </>
+    );
   }
 
   if (entry_type === "tool_use" && content.type === "tool_use") {
-    return <ToolUseContent id={content.id} name={content.name} input={content.input} />;
+    return (
+      <ToolUseContent
+        id={content.id}
+        name={content.name}
+        input={content.input}
+        providerExecuted={content.provider_executed}
+      />
+    );
   }
 
   if (entry_type === "tool_result" && content.type === "tool_result") {
@@ -236,6 +249,7 @@ export function renderBlockContent(
         toolCallIdInferred={block.tool_use_id_correlated}
         toolName={getToolResultName(block)}
         projectId={projectId}
+        providerExecuted={content.provider_executed}
       />
     );
   }

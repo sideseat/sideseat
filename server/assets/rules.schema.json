@@ -3622,6 +3622,16 @@
             }
           ]
         },
+        "provider_run": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderRunSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "refusal": {
           "anyOf": [
             {
@@ -3708,6 +3718,11 @@
         "input": {
           "description": "Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the\nunused one present as `{}`, so \"the first that resolves\" would always pick the empty one.",
           "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "provider_executed": {
+          "description": "The provider runs this tool itself, inside its response - a hosted web search, a code interpreter.\nStated by the case, because the shape a provider gives such a call is what says so.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -3834,6 +3849,11 @@
         },
         "is_error": {
           "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "provider_executed": {
+          "description": "What a tool the provider ran itself produced, returned in the same response as its call.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -3890,9 +3910,118 @@
         },
         "text": {
           "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "citations": {
+          "description": "The sources the text cites, where the format states them beside it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CitationsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false
+    },
+    "CitationsSpec": {
+      "description": "Where a text's citations are and how each reads. Providers cite in shapes of their own - a web page, a span\nof an attached document, a search result - so each shape is a case, and every case builds the one SideML\ncitation. A citation no case reads, or one naming no source, is kept as an `unknown` citation holding the\nprovider's item, so a new shape is seen arriving rather than lost.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "from": {
+          "description": "The first member that is a list is the list of citations.",
+          "$ref": "#/$defs/FirstPresent_string"
+        },
+        "cases": {
+          "description": "Tried in order for each citation; the first whose `where` holds reads it. Not empty, and only the last\nmay leave out its `where`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CitationCase"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cases"
+      ]
+    },
+    "CitationCase": {
+      "description": "One shape of citation, and where its members are.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "where": {
+          "description": "The shape this case recognises.",
+          "$ref": "#/$defs/Expr_ValuePredicate"
+        },
+        "kind": {
+          "description": "What the citation points into.",
+          "$ref": "#/$defs/CitationKind"
+        },
+        "source": {
+          "description": "Which one: the page's URL, the uploaded file's id, the attached document's name. Required: a citation\nthat names nothing it cites is not one.",
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "title": {
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "text_start": {
+          "description": "Where in **this text** the citation applies, as offsets in the provider's own character unit, where the\nformat says. A citation stated on its own text block applies to the whole block and states no span; where\na passage sits in its source is not this.",
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "text_end": {
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "cited_text": {
+          "description": "The passage of the source the text rests on, where the provider quotes it.",
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ]
+    },
+    "CitationKind": {
+      "description": "What a citation points into, spelled as SideML writes it.",
+      "oneOf": [
+        {
+          "description": "A web page, by URL.",
+          "type": "string",
+          "const": "url"
+        },
+        {
+          "description": "A document sent with the request.",
+          "type": "string",
+          "const": "document"
+        },
+        {
+          "description": "A file uploaded to the provider, by id.",
+          "type": "string",
+          "const": "file"
+        },
+        {
+          "description": "A search result the request supplied.",
+          "type": "string",
+          "const": "search_result"
+        }
+      ]
     },
     "MediaBlock": {
       "description": "Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.",
@@ -4077,6 +4206,36 @@
         "from": {
           "description": "The first member that is present is the list, whether or not it is one.",
           "$ref": "#/$defs/FirstPresent_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProviderRunSpec": {
+      "description": "A tool the provider ran itself, written as **one** item holding both the call and what it produced - a\nResponses API `web_search_call`, whose action is the call and whose sources are its result. It answers with\ntwo blocks, the provider-executed call and its result, so like a splice it is legal only at\n`message_envelope`.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "id": {
+          "description": "As a `tool_use` id: the first member holding a non-blank string, else a template.",
+          "$ref": "#/$defs/FirstUsable_IdSource"
+        },
+        "name": {
+          "description": "Required: a run that names no tool is not recognised.",
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "input": {
+          "$ref": "#/$defs/FirstUsable_ValueSource"
+        },
+        "result": {
+          "description": "What the run produced, as a list of content blocks as `content_as: blocks` builds them. Absent, the item\nholds no result yet and answers with the call alone.",
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
       "additionalProperties": false

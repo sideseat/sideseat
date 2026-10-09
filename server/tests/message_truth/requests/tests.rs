@@ -440,8 +440,8 @@ fn a_provider_run_call_is_shown_only_by_the_whole_values_it_searched_for() {
         seal: None,
     };
     let call = |input: Value| {
-        let content =
-            json!({"type": "tool_use", "id": "ws_1", "name": "web_search", "input": input});
+        let content = json!({"type": "tool_use", "id": "ws_1", "name": "web_search", "input": input,
+            "provider_executed": true});
         Block {
             role: "assistant".to_string(),
             kind: "tool_use".to_string(),
@@ -469,6 +469,10 @@ fn a_provider_run_call_is_shown_only_by_the_whole_values_it_searched_for() {
     // A longer query is another search.
     assert!(!shown(json!({"query": "Louvre opening hours tomorrow"})));
     assert!(!shown(json!({})));
+    // The same search shown as a call the application ran is not the provider's run.
+    let mut ran_by_client = call(json!({"query": "Louvre opening hours"}));
+    ran_by_client.content["provider_executed"] = json!(false);
+    assert_eq!(shows(&fact, &ran_by_client, None), Shows::No);
 }
 
 #[test]
@@ -486,7 +490,8 @@ fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
         seal: None,
     };
     let result_of = |call_id: &str, shown: Value| {
-        let content = json!({"type": "tool_result", "tool_use_id": call_id, "content": shown});
+        let content = json!({"type": "tool_result", "tool_use_id": call_id, "content": shown,
+            "provider_executed": true});
         Block {
             role: "tool".to_string(),
             kind: "tool_result".to_string(),
@@ -527,4 +532,8 @@ fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
     }
     // With no id to pair by, an empty expectation is no evidence at all.
     assert_eq!(shows(&fact(""), &result(""), None), Shows::No);
+    // A result shown as one the application's tool returned is not the provider's.
+    let mut returned = result("ws_1");
+    returned.content["provider_executed"] = json!(false);
+    assert_eq!(shows(&fact("ws_1"), &returned, None), Shows::No);
 }

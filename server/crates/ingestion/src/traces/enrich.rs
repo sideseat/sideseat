@@ -271,7 +271,7 @@ fn extract_content_preview(msg: &ChatMessage, max_len: usize, include_tools: boo
 
     for block in &msg.content {
         match block {
-            ContentBlock::Text { text } => {
+            ContentBlock::Text { text, .. } => {
                 return truncate_preview(text, max_len);
             }
             ContentBlock::Thinking { text, .. } => {
@@ -336,6 +336,7 @@ mod tests {
                 role,
                 content: vec![ContentBlock::Text {
                     text: content.to_string(),
+                    citations: Vec::new(),
                 }],
                 ..Default::default()
             },
@@ -465,6 +466,7 @@ mod tests {
             role: ChatRole::User,
             content: vec![ContentBlock::Text {
                 text: "This is a test".to_string(),
+                citations: Vec::new(),
             }],
             ..Default::default()
         };
@@ -482,6 +484,7 @@ mod tests {
             content: vec![
                 ContentBlock::Text {
                     text: "Look at this image".to_string(),
+                    citations: Vec::new(),
                 },
                 ContentBlock::Image {
                     media_type: Some("image/png".to_string()),
@@ -527,6 +530,7 @@ mod tests {
                 id: Some("call_123".to_string()),
                 name: "get_weather".to_string(),
                 input: serde_json::json!({"city": "London"}),
+                provider_executed: false,
             }],
             ..Default::default()
         };
@@ -551,6 +555,7 @@ mod tests {
                 name: None,
                 content: serde_json::json!("Sunny, 22°C"),
                 is_error: false,
+                provider_executed: false,
             }],
             ..Default::default()
         };
@@ -662,6 +667,7 @@ mod tests {
                     id: Some("call_1".to_string()),
                     name: name.to_string(),
                     input,
+                    provider_executed: false,
                 }],
                 ..Default::default()
             },
@@ -830,6 +836,7 @@ mod tests {
                 id: Some("call_1".to_string()),
                 name: "get_weather".to_string(),
                 input: serde_json::json!({"city": "London"}),
+                provider_executed: false,
             }],
             ..Default::default()
         };
