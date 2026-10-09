@@ -425,7 +425,13 @@ fn test_mlflow_session_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(
+        sideseat_domain::rules::ruleset(),
+        &mut span,
+        "",
+        &attrs,
+        &[],
+    );
 
     assert_eq!(span.session_id, Some("mlflow-session-123".to_string()));
 }
@@ -501,7 +507,13 @@ fn test_mlflow_user_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(
+        sideseat_domain::rules::ruleset(),
+        &mut span,
+        "",
+        &attrs,
+        &[],
+    );
 
     assert_eq!(span.user_id, Some("mlflow-user-456".to_string()));
 }

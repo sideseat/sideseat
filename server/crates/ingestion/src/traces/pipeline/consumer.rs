@@ -17,7 +17,16 @@ impl TracePipeline {
             staging,
             storage_governance: None,
             file_cache: FileExtractionCache::new(),
+            rules: sideseat_domain::rules::ruleset(),
         }
+    }
+
+    /// The same pipeline, extracting by `rules` instead of the embedded ruleset: for a test that needs a
+    /// declaration the shipped corpus does not hold, run through the code production runs.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn with_rules(mut self, rules: &'static sideseat_domain::rules::Ruleset) -> Self {
+        self.rules = rules;
+        self
     }
 
     pub fn with_storage_governance(

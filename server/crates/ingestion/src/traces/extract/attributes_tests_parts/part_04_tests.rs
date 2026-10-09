@@ -55,11 +55,14 @@ fn the_choice_event_is_the_first_finish_reason_source() {
                 schema_url: String::new(),
             }],
         };
-        crate::traces::extract::extract_attributes_batch(&request)
-            .into_iter()
-            .next()
-            .expect("one span")
-            .gen_ai_finish_reasons
+        crate::traces::extract::extract_attributes_batch(
+            &request,
+            sideseat_domain::rules::ruleset(),
+        )
+        .into_iter()
+        .next()
+        .expect("one span")
+        .gen_ai_finish_reasons
     };
 
     // An attribute source and the event disagreeing: the **event** wins, because it is the first declared
@@ -380,10 +383,13 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
                 schema_url: String::new(),
             }],
         };
-        let span = crate::traces::extract::extract_attributes_batch(&request)
-            .into_iter()
-            .next()
-            .expect("one span");
+        let span = crate::traces::extract::extract_attributes_batch(
+            &request,
+            sideseat_domain::rules::ruleset(),
+        )
+        .into_iter()
+        .next()
+        .expect("one span");
         (span.exception_type, span.exception_message)
     };
     let failed = |attributes| failed_with(attributes, "No seats: the booking system is offline.");
@@ -450,7 +456,13 @@ fn the_declared_metadata_field_reads_as_the_constant_it_replaced() {
             .and_then(|m| serde_json::from_str::<JsonValue>(m).ok())
             .unwrap_or(JsonValue::Null);
         let mut span = SpanData::default();
-        apply_span_fields(&mut span, "", &attrs, &[]);
+        apply_span_fields(
+            sideseat_domain::rules::ruleset(),
+            &mut span,
+            "",
+            &attrs,
+            &[],
+        );
         assert_eq!(span.metadata, retired, "{value:?}");
     }
 }
@@ -486,11 +498,14 @@ fn a_stop_reason_merged_into_the_parameters_is_the_last_finish_source() {
                 ..Default::default()
             }],
         };
-        crate::traces::extract::extract_attributes_batch(&request)
-            .into_iter()
-            .next()
-            .expect("one span")
-            .gen_ai_finish_reasons
+        crate::traces::extract::extract_attributes_batch(
+            &request,
+            sideseat_domain::rules::ruleset(),
+        )
+        .into_iter()
+        .next()
+        .expect("one span")
+        .gen_ai_finish_reasons
     };
     let parameters = kv(
         "llm.invocation_parameters",

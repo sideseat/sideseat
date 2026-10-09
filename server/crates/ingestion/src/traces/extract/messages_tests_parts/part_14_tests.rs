@@ -25,6 +25,7 @@ fn a_langchain_message_dict_reads_its_data_member() {
         &mut messages,
         &mut tools,
         SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
             name: "RunnableSequence",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.langchain"),
@@ -72,6 +73,7 @@ fn a_rendered_chat_prompt_is_read_as_its_messages() {
         &mut messages,
         &mut tools,
         SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
             name: "ChatPromptTemplate",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.langchain"),
@@ -127,6 +129,7 @@ fn a_llamaindex_request_preparation_span_contributes_no_messages() {
         &mut messages,
         &mut tools,
         SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
             name: "BedrockConverse._prepare_chat_with_tools",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.llama_index"),
@@ -169,6 +172,7 @@ fn an_openai_agents_request_is_read_from_its_items_unless_they_were_cut_short() 
             &mut messages,
             &mut tools,
             SpanExtraction {
+                rules: sideseat_domain::rules::ruleset(),
                 name: "Responses API with {gen_ai.request.model!r}",
                 attrs: &attrs,
                 scope_name: Some("logfire.openai_agents"),

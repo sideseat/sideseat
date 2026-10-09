@@ -318,7 +318,13 @@ fn test_user_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.userId", "user-67890")]);
 
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(
+        sideseat_domain::rules::ruleset(),
+        &mut span,
+        "",
+        &attrs,
+        &[],
+    );
 
     assert_eq!(
         span.user_id,
@@ -791,15 +797,24 @@ fn test_tool_execution_span_detection() {
         ("gen_ai.tool.name", "weather_forecast"),
         ("gen_ai.tool.call.id", "tooluse_abc123"),
     ]);
-    assert!(is_tool_execution_span(&attrs));
+    assert!(is_tool_execution_span(
+        sideseat_domain::rules::ruleset(),
+        &attrs
+    ));
 
     // Span without execute_tool is not a tool span
     let attrs = make_attrs(&[("gen_ai.operation.name", "chat")]);
-    assert!(!is_tool_execution_span(&attrs));
+    assert!(!is_tool_execution_span(
+        sideseat_domain::rules::ruleset(),
+        &attrs
+    ));
 
     // OpenInference tool span
     let attrs = make_attrs(&[("openinference.span.kind", "TOOL")]);
-    assert!(is_tool_execution_span(&attrs));
+    assert!(is_tool_execution_span(
+        sideseat_domain::rules::ruleset(),
+        &attrs
+    ));
 }
 
 #[test]

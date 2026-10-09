@@ -281,7 +281,13 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
 
     for (what, span_name, attrs) in cases {
         let mut span = SpanData::default();
-        let declared = apply_span_fields(&mut span, span_name, &attrs, &[]);
+        let declared = apply_span_fields(
+            sideseat_domain::rules::ruleset(),
+            &mut span,
+            span_name,
+            &attrs,
+            &[],
+        );
         let legacy = crate::traces::extract::attributes::token_readings_legacy(&attrs, span_name);
         let facet = |t: &crate::traces::extract::attributes::TokenReadings| {
             vec![

@@ -327,10 +327,17 @@ pub(crate) fn detect_framework(
     span_attrs: &HashMap<String, String>,
     resource_attrs: &HashMap<String, String>,
 ) -> String {
-    detect_framework_scoped(span_name, None, span_attrs, resource_attrs)
+    detect_framework_scoped(
+        sideseat_domain::rules::ruleset(),
+        span_name,
+        None,
+        span_attrs,
+        resource_attrs,
+    )
 }
 
 pub(crate) fn detect_framework_scoped(
+    rules: &sideseat_domain::rules::Ruleset,
     span_name: &str,
     scope_name: Option<&str>,
     span_attrs: &HashMap<String, String>,
@@ -342,7 +349,7 @@ pub(crate) fn detect_framework_scoped(
         span_attrs,
         resource_attrs,
     };
-    let plan = &sideseat_domain::rules::ruleset().detect;
+    let plan = &rules.detect;
     if let Some(rule) = plan.resolve(&ctx) {
         return rule.label.clone();
     }

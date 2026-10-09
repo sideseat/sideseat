@@ -493,7 +493,13 @@ fn test_semconv_conversation_id_populates_session() {
     // session_id is populated by apply_span_fields, not extract_genai.
     let attrs = make_attrs(&[("gen_ai.conversation.id", "conv-42")]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(
+        sideseat_domain::rules::ruleset(),
+        &mut span,
+        "",
+        &attrs,
+        &[],
+    );
     assert_eq!(span.session_id.as_deref(), Some("conv-42"));
 }
 

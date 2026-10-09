@@ -14,9 +14,11 @@ use sideseat_domain::observations::RawMessage;
 
 use crate::otlp::{any_value_to_json, any_value_to_string};
 
-/// What a rule may ask about the span an event belongs to.
-#[derive(Debug, Clone, Copy)]
+/// What a rule may ask about the span an event belongs to, and the rules that ask.
+#[derive(Clone, Copy)]
 pub(crate) struct EventSpan<'a> {
+    /// The ruleset the event is read by: the embedded one in production, a test's own where it injects one.
+    pub rules: &'a sideseat_domain::rules::Ruleset,
     pub name: &'a str,
     pub attrs: &'a HashMap<String, String>,
     /// The instrumentation scope that emitted the event: the span's, or the log record's.
@@ -29,9 +31,12 @@ impl<'a> EventSpan<'a> {
     ///
     /// Conservative by construction - a gate on the span's name or attributes cannot hold, and the event is
     /// not read as a tool span's - because the span may not have arrived and its row is not consulted.
+    ///
+    /// By the embedded ruleset: the log path is not given an injected one.
     pub(crate) fn unattached(scope: Option<&'a str>) -> Self {
         static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
         Self {
+            rules: sideseat_domain::rules::ruleset(),
             name: "",
             attrs: EMPTY.get_or_init(HashMap::new),
             scope,
@@ -45,10 +50,8 @@ impl<'a> EventSpan<'a> {
 /// Declared (`message_events`), not a list here: which events a producer writes messages on is the same kind
 /// of fact as which attributes it writes them on. As a Rust list it also made a new `when_event` rule a
 /// valid but *dead* declaration - the rule compiled, and the event was rejected before the plan was asked.
-pub(crate) fn is_message_event(event_name: &str) -> bool {
-    sideseat_domain::rules::ruleset()
-        .message_events
-        .contains_key(event_name)
+pub(crate) fn is_message_event(rules: &sideseat_domain::rules::Ruleset, event_name: &str) -> bool {
+    rules.message_events.contains_key(event_name)
 }
 
 /// Read one message event: its raw form and whatever the declared readings make of it.
@@ -61,7 +64,7 @@ pub(crate) fn read_message_event(
     time: DateTime<Utc>,
     span: EventSpan<'_>,
 ) -> Vec<RawMessage> {
-    if !is_message_event(name) {
+    if !is_message_event(span.rules, name) {
         return vec![];
     }
 
@@ -69,7 +72,7 @@ pub(crate) fn read_message_event(
     // event's raw form is a message as well: a container event's attributes *are* the messages inside it, so
     // emitting the container too would report the conversation twice, while an event carrying a reply and a
     // bundled tool result wants both.
-    let reading = sideseat_domain::rules::ruleset().messages.from_event(
+    let reading = span.rules.messages.from_event(
         name,
         attrs,
         span.name,
@@ -117,7 +120,7 @@ pub(crate) fn read_message_event(
         .collect();
     keyed.sort_unstable();
     if !owned.is_empty() {
-        let members = &sideseat_domain::rules::ruleset().message_members;
+        let members = &span.rules.message_members;
         let has_content = members
             .content_in_order()
             .any(|member| keyed.iter().any(|(key, _)| key.as_str() == member));

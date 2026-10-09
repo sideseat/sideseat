@@ -60,7 +60,7 @@ fn an_event_does_not_suppress_a_tool_span_s_own_attributes() {
         ("ai.toolCall.result", r#"{"temp":21}"#),
     ]);
     assert!(
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
         "name plus id makes this a tool execution span, which is what gated the lost block"
     );
 

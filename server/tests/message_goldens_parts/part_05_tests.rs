@@ -676,8 +676,7 @@ fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
                         // a genuinely dead one.
                         if !is_tool {
                             let observation =
-                                sideseat_ingestion::traces::extract::attributes::detect_observation_type(
-                                    &span.name, &attrs,
+                                sideseat_ingestion::traces::extract::attributes::detect_observation_type(sideseat_domain::rules::ruleset(), &span.name, &attrs,
                                 );
                             let generation = observation == ObservationType::Generation;
                             if read.is_empty() {

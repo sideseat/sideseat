@@ -240,7 +240,7 @@ fn crewai_empty_agent_snapshot_is_not_a_user_message() {
         "Assistant._execute_core",
         Utc::now(),
         ExtractionMode::PerCarrier,
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
     );
 
     assert!(
@@ -262,7 +262,7 @@ fn openai_agents_logfire_function_span_keeps_input_and_output() {
         ("gen_ai.system", "openai"),
     ]);
     assert!(
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
         "the SDK's function span must be classified as a tool execution"
     );
 

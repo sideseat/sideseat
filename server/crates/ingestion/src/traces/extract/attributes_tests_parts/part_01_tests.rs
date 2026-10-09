@@ -5,6 +5,11 @@ use sideseat_ports::types::{ObservationType, SpanCategory};
 
 use super::*;
 
+/// The embedded ruleset, which every classification here is asked by.
+fn rules() -> &'static sideseat_domain::rules::Ruleset {
+    sideseat_domain::rules::ruleset()
+}
+
 fn make_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs
         .iter()
@@ -23,8 +28,8 @@ pub(crate) fn extract_genai_as_production_does(
     attrs: &HashMap<String, String>,
     span_name: &str,
 ) {
-    let tokens = apply_span_fields(span, span_name, attrs, &[]);
-    extract_genai(span, attrs, span_name, &tokens);
+    let tokens = apply_span_fields(rules(), span, span_name, attrs, &[]);
+    extract_genai(rules(), span, attrs, span_name, &tokens);
 }
 
 #[test]
@@ -122,34 +127,43 @@ fn test_aws_bedrock_framework_detection_from_gen_ai_system_dotted() {
 #[test]
 fn test_categorize_span_agent_from_operation() {
     let attrs = make_attrs(&[("gen_ai.operation.name", "invoke_agent")]);
-    assert_eq!(categorize_span("test", &attrs), SpanCategory::Agent);
+    assert_eq!(
+        categorize_span(rules(), "test", &attrs),
+        SpanCategory::Agent
+    );
 
     let attrs2 = make_attrs(&[("gen_ai.operation.name", "execute_event_loop_cycle")]);
-    assert_eq!(categorize_span("test", &attrs2), SpanCategory::Agent);
+    assert_eq!(
+        categorize_span(rules(), "test", &attrs2),
+        SpanCategory::Agent
+    );
 }
 
 #[test]
 fn test_categorize_span_db() {
     let attrs = make_attrs(&[("db.system", "postgresql")]);
-    assert_eq!(categorize_span("test", &attrs), SpanCategory::DB);
+    assert_eq!(categorize_span(rules(), "test", &attrs), SpanCategory::DB);
 }
 
 #[test]
 fn test_categorize_span_from_semantic_kind() {
     let attrs = make_attrs(&[("openinference.span.kind", "CHAIN")]);
     assert_eq!(
-        categorize_span("RunnableSequence", &attrs),
+        categorize_span(rules(), "RunnableSequence", &attrs),
         SpanCategory::Chain
     );
 
     let attrs2 = make_attrs(&[("openinference.span.kind", "RETRIEVER")]);
-    assert_eq!(categorize_span("test", &attrs2), SpanCategory::Retriever);
+    assert_eq!(
+        categorize_span(rules(), "test", &attrs2),
+        SpanCategory::Retriever
+    );
 }
 
 #[test]
 fn test_categorize_span_http() {
     let attrs = make_attrs(&[("http.method", "GET")]);
-    assert_eq!(categorize_span("test", &attrs), SpanCategory::HTTP);
+    assert_eq!(categorize_span(rules(), "test", &attrs), SpanCategory::HTTP);
 }
 
 #[test]
@@ -157,7 +171,7 @@ fn test_categorize_span_rpc_not_llm() {
     // RPC spans should be HTTP even if they have GenAI attributes
     let attrs = make_attrs(&[("rpc.system", "aws-api"), ("gen_ai.operation.name", "chat")]);
     assert_eq!(
-        categorize_span("Bedrock Runtime.Converse", &attrs),
+        categorize_span(rules(), "Bedrock Runtime.Converse", &attrs),
         SpanCategory::HTTP,
         "RPC spans should be HTTP even with GenAI attributes"
     );
@@ -171,7 +185,7 @@ fn test_categorize_span_embedding_model_with_text_completion() {
         ("gen_ai.request.model", "amazon.titan-embed-text-v2:0"),
     ]);
     assert_eq!(
-        categorize_span("text_completion", &attrs),
+        categorize_span(rules(), "text_completion", &attrs),
         SpanCategory::Embedding,
         "Embedding models should be categorized as Embedding"
     );
@@ -180,13 +194,13 @@ fn test_categorize_span_embedding_model_with_text_completion() {
 #[test]
 fn test_categorize_span_llm() {
     let attrs = make_attrs(&[("gen_ai.operation.name", "chat")]);
-    assert_eq!(categorize_span("test", &attrs), SpanCategory::LLM);
+    assert_eq!(categorize_span(rules(), "test", &attrs), SpanCategory::LLM);
 }
 
 #[test]
 fn test_categorize_span_tool_from_operation() {
     let attrs = make_attrs(&[("gen_ai.operation.name", "execute_tool")]);
-    assert_eq!(categorize_span("test", &attrs), SpanCategory::Tool);
+    assert_eq!(categorize_span(rules(), "test", &attrs), SpanCategory::Tool);
 }
 
 #[test]
@@ -203,13 +217,13 @@ fn test_crewai_framework_detection() {
 fn test_detect_observation_type_agent() {
     let attrs = make_attrs(&[("gen_ai.agent.name", "Weather Forecaster")]);
     assert_eq!(
-        detect_observation_type("agent", &attrs),
+        detect_observation_type(rules(), "agent", &attrs),
         ObservationType::Agent
     );
 
     let attrs2 = make_attrs(&[("gen_ai.agent.id", "123")]);
     assert_eq!(
-        detect_observation_type("test", &attrs2),
+        detect_observation_type(rules(), "test", &attrs2),
         ObservationType::Agent
     );
 }
@@ -218,7 +232,7 @@ fn test_detect_observation_type_agent() {
 fn test_detect_observation_type_embedding() {
     let attrs = make_attrs(&[("gen_ai.operation.name", "embeddings")]);
     assert_eq!(
-        detect_observation_type("test", &attrs),
+        detect_observation_type(rules(), "test", &attrs),
         ObservationType::Embedding
     );
 }
@@ -227,7 +241,7 @@ fn test_detect_observation_type_embedding() {
 fn test_detect_observation_type_from_model() {
     let attrs = make_attrs(&[("gen_ai.request.model", "gpt-4")]);
     assert_eq!(
-        detect_observation_type("test", &attrs),
+        detect_observation_type(rules(), "test", &attrs),
         ObservationType::Generation
     );
 }
@@ -236,7 +250,7 @@ fn test_detect_observation_type_from_model() {
 fn test_detect_observation_type_from_name() {
     let attrs = HashMap::new();
     assert_eq!(
-        detect_observation_type("my-retriever-span", &attrs),
+        detect_observation_type(rules(), "my-retriever-span", &attrs),
         ObservationType::Retriever
     );
 }
@@ -245,7 +259,7 @@ fn test_detect_observation_type_from_name() {
 fn test_detect_observation_type_from_openinference() {
     let attrs = make_attrs(&[("openinference.span.kind", "AGENT")]);
     assert_eq!(
-        detect_observation_type("test", &attrs),
+        detect_observation_type(rules(), "test", &attrs),
         ObservationType::Agent
     );
 }
@@ -254,7 +268,7 @@ fn test_detect_observation_type_from_openinference() {
 fn test_detect_observation_type_generation() {
     let attrs = make_attrs(&[("gen_ai.operation.name", "chat")]);
     assert_eq!(
-        detect_observation_type("test", &attrs),
+        detect_observation_type(rules(), "test", &attrs),
         ObservationType::Generation
     );
 }
@@ -262,7 +276,7 @@ fn test_detect_observation_type_generation() {
 #[test]
 fn test_detect_observation_type_tool_from_operation() {
     let attrs = make_attrs(&[("gen_ai.operation.name", "execute_tool")]);
-    let obs = detect_observation_type("execute_tool weather_forecast", &attrs);
+    let obs = detect_observation_type(rules(), "execute_tool weather_forecast", &attrs);
     assert_eq!(obs, ObservationType::Tool);
 }
 
@@ -283,11 +297,11 @@ fn an_mcp_tool_call_outweighs_a_propagated_agent_name() {
         ]),
     ] {
         assert_eq!(
-            detect_observation_type("tools/call calculate", &attrs),
+            detect_observation_type(rules(), "tools/call calculate", &attrs),
             ObservationType::Tool
         );
         assert_eq!(
-            categorize_span("tools/call calculate", &attrs),
+            categorize_span(rules(), "tools/call calculate", &attrs),
             SpanCategory::Tool
         );
     }
@@ -304,18 +318,14 @@ fn traceloop_tool_kind_outweighs_the_owning_agent_name() {
     ]);
 
     assert_eq!(
-        detect_observation_type("get_weather.tool", &attrs),
+        detect_observation_type(rules(), "get_weather.tool", &attrs),
         ObservationType::Tool
     );
     assert_eq!(
-        categorize_span("get_weather.tool", &attrs),
+        categorize_span(rules(), "get_weather.tool", &attrs),
         SpanCategory::Tool
     );
-    assert!(
-        sideseat_domain::rules::ruleset()
-            .span_facts
-            .holds(SpanFact::ToolExecution, &attrs)
-    );
+    assert!(rules().span_facts.holds(SpanFact::ToolExecution, &attrs));
 }
 
 #[test]
@@ -326,8 +336,11 @@ fn traceloop_decorator_kinds_classify_from_their_explicit_attribute() {
         ("workflow", ObservationType::Chain, SpanCategory::Chain),
     ] {
         let attrs = make_attrs(&[("traceloop.span.kind", kind)]);
-        assert_eq!(detect_observation_type("opaque", &attrs), observation);
-        assert_eq!(categorize_span("opaque", &attrs), category);
+        assert_eq!(
+            detect_observation_type(rules(), "opaque", &attrs),
+            observation
+        );
+        assert_eq!(categorize_span(rules(), "opaque", &attrs), category);
     }
 }
 
@@ -335,7 +348,7 @@ fn traceloop_decorator_kinds_classify_from_their_explicit_attribute() {
 fn test_detect_observation_type_rpc_not_retriever() {
     // RPC spans should not be classified as Retriever even if name contains "retriev"
     let attrs = make_attrs(&[("rpc.system", "aws-api")]);
-    let obs = detect_observation_type("Bedrock AgentCore.RetrieveMemoryRecords", &attrs);
+    let obs = detect_observation_type(rules(), "Bedrock AgentCore.RetrieveMemoryRecords", &attrs);
     assert_eq!(obs, ObservationType::Span);
 }
 
@@ -343,7 +356,7 @@ fn test_detect_observation_type_rpc_not_retriever() {
 fn test_detect_observation_type_http_not_retriever() {
     // HTTP spans should not be classified as Retriever even if name contains "retriev"
     let attrs = make_attrs(&[("http.method", "GET")]);
-    let obs = detect_observation_type("retrieve-data", &attrs);
+    let obs = detect_observation_type(rules(), "retrieve-data", &attrs);
     assert_eq!(obs, ObservationType::Span);
 }
 
@@ -356,7 +369,7 @@ fn test_regression_rpc_with_genai_attrs_not_generation() {
         ("gen_ai.operation.name", "chat"),
         ("gen_ai.request.model", "anthropic.claude-3-sonnet"),
     ]);
-    let obs = detect_observation_type("Bedrock Runtime.Converse", &attrs);
+    let obs = detect_observation_type(rules(), "Bedrock Runtime.Converse", &attrs);
     assert_eq!(
         obs,
         ObservationType::Span,
@@ -372,7 +385,11 @@ fn test_regression_embedding_model_with_text_completion_op() {
         ("gen_ai.operation.name", "text_completion"),
         ("gen_ai.request.model", "amazon.titan-embed-text-v2:0"),
     ]);
-    let obs = detect_observation_type("text_completion amazon.titan-embed-text-v2:0", &attrs);
+    let obs = detect_observation_type(
+        rules(),
+        "text_completion amazon.titan-embed-text-v2:0",
+        &attrs,
+    );
     assert_eq!(
         obs,
         ObservationType::Embedding,
@@ -472,7 +489,7 @@ fn test_extract_session_from_metadata() {
         r#"{"thread_id": "langgraph-demo-dea531b92e3b4dd0", "user_id": "demo-user"}"#,
     )]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(rules(), &mut span, "", &attrs, &[]);
 
     assert_eq!(
         span.session_id,
@@ -489,7 +506,7 @@ fn test_extract_tags_all_sources() {
         ("tag.tags", r#"["openinference"]"#),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(rules(), &mut span, "", &attrs, &[]);
 
     assert!(span.tags.contains(&"base".to_string()));
     assert!(span.tags.contains(&"langsmith".to_string()));
@@ -504,7 +521,7 @@ fn test_extract_tags_merge() {
         ("langsmith.tags", r#"["test", "weather"]"#),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(rules(), &mut span, "", &attrs, &[]);
 
     assert!(span.tags.contains(&"production".to_string()));
     assert!(span.tags.contains(&"weather".to_string()));
@@ -519,7 +536,7 @@ fn test_extract_tags_openinference_tag_tags() {
         ("tag.tags", r#"["openinference", "phoenix"]"#),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(rules(), &mut span, "", &attrs, &[]);
 
     assert!(span.tags.contains(&"existing".to_string()));
     assert!(span.tags.contains(&"openinference".to_string()));
@@ -611,7 +628,7 @@ fn test_langsmith_session_id_extraction() {
         ("langsmith.span.kind", "chain"),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(rules(), &mut span, "", &attrs, &[]);
 
     assert_eq!(span.session_id, Some("session-abc-123".to_string()));
 }
@@ -762,7 +779,7 @@ fn test_session_id_priority_session_id_over_telemetry() {
     ]);
 
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(rules(), &mut span, "", &attrs, &[]);
 
     assert_eq!(
         span.session_id,

@@ -529,7 +529,7 @@ pub(super) fn extract_logfire_event_array(
 
         let event_name = raw.get("event.name").and_then(|e| e.as_str()).unwrap_or("");
 
-        if !is_message_event(event_name) {
+        if !is_message_event(sideseat_domain::rules::ruleset(), event_name) {
             continue;
         }
 
@@ -550,7 +550,7 @@ pub(super) fn extract_logfire_event_array(
             continue;
         };
         let event_name = raw.get("event.name").and_then(|e| e.as_str()).unwrap_or("");
-        if is_message_event(event_name) {
+        if is_message_event(sideseat_domain::rules::ruleset(), event_name) {
             continue;
         }
 

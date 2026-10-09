@@ -280,6 +280,11 @@ pub struct TracePipeline {
     /// Cross-batch cache for base64 extraction.
     /// Avoids redundant decode + BLAKE3 for repeated images across spans/batches.
     file_cache: FileExtractionCache,
+    /// The ruleset extraction reads: the embedded one, unless a test injects its own
+    /// ([`TracePipeline::with_rules`]). A field rather than the global, so a test runs the very code production
+    /// runs with the declarations it needs - and every extraction of one pipeline, the deletion fences'
+    /// re-extraction included, reads the same one.
+    rules: &'static sideseat_domain::rules::Ruleset,
 }
 
 mod batch;
@@ -326,12 +331,32 @@ pub fn process_request_for_test_with_files(
     mode: ExtractionMode,
     files_enabled: bool,
 ) -> Option<Vec<NormalizedSpan>> {
+    process_request_for_test_with_rules(
+        request,
+        pricing,
+        mode,
+        files_enabled,
+        sideseat_domain::rules::ruleset(),
+    )
+}
+
+/// As [`process_request_for_test_with_files`], extracted by a ruleset of the test's own - the embedded corpus
+/// with a test asset beside it, say - through exactly the code production runs.
+#[cfg(any(test, feature = "test-support"))]
+pub fn process_request_for_test_with_rules(
+    request: &ExportTraceServiceRequest,
+    pricing: &PricingService,
+    mode: ExtractionMode,
+    files_enabled: bool,
+    rules: &sideseat_domain::rules::Ruleset,
+) -> Option<Vec<NormalizedSpan>> {
     process_request(
         request,
         pricing,
         files_enabled,
         &FileExtractionCache::new(),
         mode,
+        rules,
     )
     .map(|(spans, _, _)| spans)
 }
@@ -401,20 +426,21 @@ fn process_request(
     files_enabled: bool,
     file_cache: &FileExtractionCache,
     mode: crate::traces::extract::ExtractionMode,
+    rules: &sideseat_domain::rules::Ruleset,
 ) -> Option<(
     Vec<NormalizedSpan>,
     Vec<PendingFileWrite>,
     Vec<IncomingReference>,
 )> {
     // Stage 1a: Extract Attributes
-    let spans = extract_attributes_batch(request);
+    let spans = extract_attributes_batch(request, rules);
     if spans.is_empty() {
         return None;
     }
 
     // Stage 1b: Extract Messages, Tool Definitions, and Tool Names
     let (raw_messages, tool_definitions, tool_names) =
-        extract_messages_batch(request, &spans, mode);
+        extract_messages_batch(request, &spans, mode, rules);
 
     // Stage 2: SideML Conversion
     let messages = to_sideml_batch(&raw_messages);
@@ -639,6 +665,8 @@ mod association_settlement_tests;
 mod batch_equivalence_tests;
 #[cfg(test)]
 mod batch_outcome_tests;
+#[cfg(test)]
+mod derived_round_trip_tests;
 #[cfg(test)]
 mod fan_out_tests;
 #[cfg(test)]

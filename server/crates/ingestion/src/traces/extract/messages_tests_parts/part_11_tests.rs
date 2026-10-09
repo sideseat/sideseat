@@ -432,7 +432,13 @@ fn the_field_rules_reproduce_the_chains_they_replaced() {
 
     for (what, attrs) in cases {
         let mut declared = SpanData::default();
-        crate::traces::extract::attributes::apply_span_fields(&mut declared, "a.span", &attrs, &[]);
+        crate::traces::extract::attributes::apply_span_fields(
+            sideseat_domain::rules::ruleset(),
+            &mut declared,
+            "a.span",
+            &attrs,
+            &[],
+        );
         let mut legacy = SpanData::default();
         crate::traces::extract::attributes::extract_semantic_legacy(&mut legacy, &attrs);
 
@@ -711,6 +717,7 @@ fn the_genai_field_rules_reproduce_the_chains_they_replaced() {
     for (what, span_name, attrs) in cases {
         let mut declared = SpanData::default();
         crate::traces::extract::attributes::apply_span_fields(
+            sideseat_domain::rules::ruleset(),
             &mut declared,
             span_name,
             &attrs,
@@ -806,7 +813,13 @@ fn the_display_name_is_declared_and_the_raw_name_is_untouched() {
             span_name: raw_name.to_string(),
             ..SpanData::default()
         };
-        apply_span_fields(&mut declared, raw_name, &attrs, &[]);
+        apply_span_fields(
+            sideseat_domain::rules::ruleset(),
+            &mut declared,
+            raw_name,
+            &attrs,
+            &[],
+        );
 
         let mut legacy = SpanData {
             span_name: raw_name.to_string(),
@@ -829,7 +842,13 @@ fn the_display_name_is_declared_and_the_raw_name_is_untouched() {
         span_name: "claude_code.api_request".to_string(),
         ..SpanData::default()
     };
-    apply_span_fields(&mut span, "claude_code.api_request", &attrs, &[]);
+    apply_span_fields(
+        sideseat_domain::rules::ruleset(),
+        &mut span,
+        "claude_code.api_request",
+        &attrs,
+        &[],
+    );
     assert_eq!(
         span.span_name, "chat gpt-4o",
         "the display name is resolved"

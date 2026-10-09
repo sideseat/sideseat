@@ -352,7 +352,10 @@ fn test_claude_code_ignores_redacted_and_empty_values() {
 
 #[test]
 fn test_claude_code_tool_output_event_is_a_message_event() {
-    assert!(is_message_event("tool.output"));
+    assert!(is_message_event(
+        sideseat_domain::rules::ruleset(),
+        "tool.output"
+    ));
 }
 
 #[test]
@@ -632,7 +635,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // conventions on a tool execution span, so the legacy side must be compared under that same rule.
         // Without it the oracle compares at two different levels - the rules apply the gate internally
         // (it is a declared rule property now) while these functions expected their caller to.
-        let is_tool_span = is_tool_execution_span(case);
+        let is_tool_span = is_tool_execution_span(sideseat_domain::rules::ruleset(), case);
         // Preserve the retired readers' rank order and claim each carrier per reader, exactly as the old
         // dispatcher did. Without claiming, this side reports
         // duplicates production never produced: two dialects do read `message`, and the earlier extractor

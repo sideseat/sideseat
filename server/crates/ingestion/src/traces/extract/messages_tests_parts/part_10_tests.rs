@@ -356,7 +356,7 @@ fn the_declared_span_facts_reproduce_the_legacy_tool_span_test() {
     for (what, attrs, expected) in cases {
         let attrs = make_attrs(&attrs);
         assert_eq!(
-            is_tool_execution_span(&attrs),
+            is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
             expected,
             "{what}: the declared evidence disagrees with the branches it replaced"
         );
@@ -418,7 +418,7 @@ fn declared_tool_definitions_survive_a_tool_execution_span() {
         ("gen_ai.operation.name", "execute_tool"),
     ]);
     assert!(
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
         "the case has to be a tool span for this to mean anything"
     );
     let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
@@ -441,7 +441,7 @@ fn openinference_tool_output_is_a_tool_result() {
         ("output.mime_type", "text/plain"),
     ]);
     assert!(
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
         "the OpenInference span kind must establish the tool-execution gate"
     );
 
@@ -451,6 +451,7 @@ fn openinference_tool_output_is_a_tool_result() {
         &mut messages,
         &mut tools,
         SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
             name: "weather_assistant.get_weather",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.generic"),
@@ -507,6 +508,7 @@ fn google_genai_flattened_tool_arguments_are_the_arguments_the_model_sent() {
             &mut messages,
             &mut tools,
             SpanExtraction {
+                rules: sideseat_domain::rules::ruleset(),
                 name: "execute_tool get_weather",
                 attrs: &attrs,
                 scope_name: Some(scope),
@@ -562,7 +564,7 @@ fn a_carrier_holding_only_a_tool_list_is_not_read_as_a_conversation() {
         "span",
         Utc::now(),
         ExtractionMode::PerCarrier,
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
     );
     let from_input: Vec<&RawMessage> = messages
         .iter()
@@ -591,6 +593,7 @@ fn a_message_rule_may_also_emit_tool_definitions() {
     let input = r#"{"messages": [{"role": "user", "content": "q"}], "tools": [{"data": {"name": "search"}}]}"#;
     let attrs = make_attrs(&[("haystack.component.input", input)]);
     let span = SpanExtraction {
+        rules: sideseat_domain::rules::ruleset(),
         name: "haystack.component.run",
         attrs: &attrs,
         scope_name: Some("haystack"),
@@ -634,7 +637,7 @@ fn a_tools_list_beside_a_conversation_does_not_claim_the_carrier() {
         "span",
         Utc::now(),
         ExtractionMode::PerCarrier,
-        is_tool_execution_span(&attrs),
+        is_tool_execution_span(sideseat_domain::rules::ruleset(), &attrs),
     );
     let from_input: Vec<&RawMessage> = messages
         .iter()
@@ -863,7 +866,7 @@ fn try_raw_io(
             &sideseat_domain::rules::MessageContext::for_span(
                 span_name,
                 attrs,
-                is_tool_execution_span(attrs),
+                is_tool_execution_span(sideseat_domain::rules::ruleset(), attrs),
             ),
             &std::collections::HashSet::new(),
         )

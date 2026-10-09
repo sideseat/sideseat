@@ -79,6 +79,7 @@ impl TracePipeline {
         let pricing = &self.pricing;
         let files_enabled = self.file_service.is_enabled();
         let file_cache = &self.file_cache;
+        let rules = self.rules;
 
         // Process requests in parallel using scoped threads.
         // base64 extraction can take 100ms-1s per request for image-heavy spans,
@@ -113,6 +114,7 @@ impl TracePipeline {
                             files_enabled,
                             file_cache,
                             ExtractionMode::PerCarrier,
+                            rules,
                         )
                     }),
                 ) {

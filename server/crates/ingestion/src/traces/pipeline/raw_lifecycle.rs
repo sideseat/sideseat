@@ -419,6 +419,7 @@ impl TracePipeline {
             false,
             &self.file_cache,
             ExtractionMode::PerCarrier,
+            self.rules,
         )
         .map(|(spans, _, _)| spans)
         .unwrap_or_default();

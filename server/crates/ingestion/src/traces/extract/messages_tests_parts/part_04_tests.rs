@@ -656,7 +656,13 @@ fn test_session_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.sessionId", "session-12345")]);
 
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs, &[]);
+    apply_span_fields(
+        sideseat_domain::rules::ruleset(),
+        &mut span,
+        "",
+        &attrs,
+        &[],
+    );
 
     assert_eq!(
         span.session_id,

@@ -45,7 +45,7 @@ pub(crate) fn extract_messages_from_events(
 
 /// One span event, read by the shared event reader with its span as context.
 fn read_span_event(event: &Event, span: EventSpan<'_>) -> Vec<RawMessage> {
-    if !is_message_event(&event.name) {
+    if !is_message_event(span.rules, &event.name) {
         return vec![];
     }
     read_message_event(
@@ -67,6 +67,7 @@ pub(crate) fn extract_message_from_event(
     read_span_event(
         event,
         EventSpan {
+            rules: sideseat_domain::rules::ruleset(),
             name: span_name,
             attrs: span_attrs,
             scope: None,
@@ -81,6 +82,8 @@ pub(crate) fn extract_message_from_event(
 
 #[derive(Clone, Copy)]
 struct SpanExtraction<'a> {
+    /// The ruleset this span is read by: the embedded one in production, a test's own where it injects one.
+    rules: &'a sideseat_domain::rules::Ruleset,
     name: &'a str,
     attrs: &'a HashMap<String, String>,
     scope_name: Option<&'a str>,
@@ -91,6 +94,7 @@ impl<'a> SpanExtraction<'a> {
     #[cfg(test)]
     fn unscoped(name: &'a str, attrs: &'a HashMap<String, String>, is_tool_span: bool) -> Self {
         Self {
+            rules: sideseat_domain::rules::ruleset(),
             name,
             attrs,
             scope_name: None,
@@ -128,7 +132,11 @@ pub(crate) fn try_declared_rules(
     try_declared_rules_for_span(
         messages,
         tool_definitions,
-        SpanExtraction::unscoped(span_name, attrs, is_tool_execution_span(attrs)),
+        SpanExtraction::unscoped(
+            span_name,
+            attrs,
+            is_tool_execution_span(sideseat_domain::rules::ruleset(), attrs),
+        ),
         timestamp,
         claims,
     )
@@ -141,9 +149,7 @@ fn try_declared_rules_for_span(
     timestamp: DateTime<Utc>,
     claims: &mut std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
 ) -> bool {
-    let emissions = sideseat_domain::rules::ruleset()
-        .messages
-        .run(&span.message_context());
+    let emissions = span.rules.messages.run(&span.message_context());
     // "Was the message payload handled?" - which is what the caller does with this answer, since it uses it
     // to decide whether the generic reader still needs to run.
     //
@@ -294,7 +300,8 @@ fn extract_per_carrier(
         sideseat_domain::rules::message_rules::OwnedCarrier,
     > = std::collections::HashSet::new();
     let mut any_specific = false;
-    let observation_type = super::attributes::detect_observation_type(span.name, span.attrs);
+    let observation_type =
+        super::attributes::detect_observation_type(span.rules, span.name, span.attrs);
 
     // One evaluator, called directly: the table of framework extractors it replaced is gone, and with one
     // entry left the indirection only hid which code runs.
@@ -425,7 +432,11 @@ pub(crate) fn extract_tool_definitions(
     timestamp: DateTime<Utc>,
 ) -> (Vec<RawToolDefinition>, Vec<RawToolNames>) {
     extract_tool_definitions_for_span(
-        SpanExtraction::unscoped(span_name, attrs, is_tool_execution_span(attrs)),
+        SpanExtraction::unscoped(
+            span_name,
+            attrs,
+            is_tool_execution_span(sideseat_domain::rules::ruleset(), attrs),
+        ),
         timestamp,
     )
 }
@@ -440,7 +451,8 @@ fn extract_tool_definitions_for_span(
     // Declared `repr` grammars. Every span, like the rest of this function: a tool definition is not a
     // message, so carrier claiming does not apply - a framework may state its tools on a carrier another
     // rule reads as a conversation, and both statements are true.
-    for emission in sideseat_domain::rules::ruleset()
+    for emission in span
+        .rules
         .messages
         .tool_definitions(&span.message_context())
     {
@@ -467,8 +479,11 @@ fn extract_tool_definitions_for_span(
 /// because one question has several conventions answering it - an operation name, a span-kind attribute, a
 /// pair of attributes that appear together only on a call being run - and which dialect supplied the
 /// answer is not something a reader of it should have to know.
-pub(crate) fn is_tool_execution_span(attrs: &HashMap<String, String>) -> bool {
-    sideseat_domain::rules::ruleset().span_facts.holds(
+pub(crate) fn is_tool_execution_span(
+    rules: &sideseat_domain::rules::Ruleset,
+    attrs: &HashMap<String, String>,
+) -> bool {
+    rules.span_facts.holds(
         sideseat_domain::rules::schema::SpanFact::ToolExecution,
         attrs,
     )
@@ -502,7 +517,7 @@ fn fallback_messages(
     timestamp: DateTime<Utc>,
     already_read: &std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
 ) -> Vec<RawMessage> {
-    sideseat_domain::rules::ruleset()
+    span.rules
         .messages
         .fallback(&span.message_context(), already_read)
         .into_iter()
@@ -531,18 +546,27 @@ pub(super) fn extract_messages_for_span(
     timestamp: DateTime<Utc>,
     mode: ExtractionMode,
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
-    extract_messages_for_scoped_span(otlp_span, span_attrs, None, timestamp, mode)
+    extract_messages_for_scoped_span(
+        sideseat_domain::rules::ruleset(),
+        otlp_span,
+        span_attrs,
+        None,
+        timestamp,
+        mode,
+    )
 }
 
 pub(super) fn extract_messages_for_scoped_span(
+    rules: &sideseat_domain::rules::Ruleset,
     otlp_span: &Span,
     span_attrs: &HashMap<String, String>,
     scope_name: Option<&str>,
     timestamp: DateTime<Utc>,
     mode: ExtractionMode,
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
-    let is_tool_span = is_tool_execution_span(span_attrs);
+    let is_tool_span = is_tool_execution_span(rules, span_attrs);
     let span = SpanExtraction {
+        rules,
         name: &otlp_span.name,
         attrs: span_attrs,
         scope_name,
@@ -558,6 +582,7 @@ pub(super) fn extract_messages_for_scoped_span(
         &mut raw_messages,
         &otlp_span.events,
         EventSpan {
+            rules,
             name: &otlp_span.name,
             attrs: span_attrs,
             scope: scope_name,

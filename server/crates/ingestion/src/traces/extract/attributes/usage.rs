@@ -261,9 +261,11 @@ const REASONING_TOKENS: TokenConfig = TokenConfig::new(
 /// **Derived** from the assets rather than listed beside them: a hand-maintained mirror of a declaration is
 /// the hole this engine exists to close, and adding a spelling to a counter would otherwise silently change
 /// what the details object contains - the same value counted twice, once as a counter and once as a detail.
-pub(super) fn counters_already_read() -> std::collections::BTreeSet<&'static str> {
+pub(super) fn counters_already_read(
+    rules: &sideseat_domain::rules::Ruleset,
+) -> std::collections::BTreeSet<&str> {
     use sideseat_domain::rules::schema::FieldTarget::*;
-    sideseat_domain::rules::ruleset()
+    rules
         .span_fields
         .attributes_read(&[
             UsageInputTokens,

@@ -380,6 +380,7 @@ pub(crate) struct TokenReadings {
 }
 
 pub(crate) fn apply_span_fields(
+    rules: &sideseat_domain::rules::Ruleset,
     span: &mut SpanData,
     span_name: &str,
     attrs: &HashMap<String, String>,
@@ -393,10 +394,7 @@ pub(crate) fn apply_span_fields(
     // The **real** span name, because a source may read it and a gate may ask about it. Passed as `""` this
     // was the same defect the message path had: such a declaration compiles and can never hold.
     let mut tokens = TokenReadings::default();
-    for resolved in sideseat_domain::rules::ruleset()
-        .span_fields
-        .resolve(span_name, attrs, events)
-    {
+    for resolved in rules.span_fields.resolve(span_name, attrs, events) {
         // **The refusals are reported.** Resolution records every source that was present and unreadable, and
         // this loop applied only the answer and dropped them - so `gen_ai.usage.input_tokens = "many"` produced
         // exactly the same stored span as the attribute being absent, and a column that is empty because three
@@ -537,6 +535,7 @@ fn apply_field(
 /// Arithmetic, a synthesised total and every pricing-dependent decision are statements about our own
 /// accounting rather than about a producer's spelling, which is why they are code and not data.
 pub(crate) fn extract_genai(
+    rules: &sideseat_domain::rules::Ruleset,
     span: &mut SpanData,
     attrs: &HashMap<String, String>,
     span_name: &str,
@@ -699,7 +698,7 @@ pub(crate) fn extract_genai(
     );
 
     // Usage details: every `gen_ai.usage.*` member no declared counter reads.
-    let already_read = counters_already_read();
+    let already_read = counters_already_read(rules);
     let mut details = serde_json::Map::new();
     for (key, value) in attrs {
         if let Some(field) = key.strip_prefix("gen_ai.usage.")

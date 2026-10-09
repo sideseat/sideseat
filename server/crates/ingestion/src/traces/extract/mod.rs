@@ -437,8 +437,12 @@ pub(super) mod keys {
 
 /// Extract span attributes from an OTLP trace request.
 ///
-/// Pipeline Step 1a: Parses protobuf, extracts GenAI attributes, and classifies spans.
-pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<SpanData> {
+/// Pipeline Step 1a: Parses protobuf, extracts GenAI attributes, and classifies spans, by `rules` - the
+/// embedded ruleset in production, a test's own where it injects one, through the same code either way.
+pub fn extract_attributes_batch(
+    request: &ExportTraceServiceRequest,
+    rules: &sideseat_domain::rules::Ruleset,
+) -> Vec<SpanData> {
     let mut spans = Vec::new();
 
     for resource_spans in &request.resource_spans {
@@ -492,6 +496,7 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                     })
                     .collect();
                 let tokens = attributes::apply_span_fields(
+                    rules,
                     &mut span,
                     &otlp_span.name,
                     &span_attrs,
@@ -499,41 +504,46 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                 );
 
                 // Extract GenAI attributes
-                attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name, &tokens);
+                attributes::extract_genai(rules, &mut span, &span_attrs, &otlp_span.name, &tokens);
 
                 // Classify span
                 span.framework = Some(attributes::detect_framework_scoped(
+                    rules,
                     &otlp_span.name,
                     span.scope_name.as_deref(),
                     &span_attrs,
                     &resource_attrs,
                 ));
                 span.observation_type = Some(attributes::detect_observation_type(
+                    rules,
                     &otlp_span.name,
                     &span_attrs,
                 ));
                 // The thread this span is a request of, where a producer exports each request as what it added.
                 // Derived here because a read holds a span's messages and not its attributes; which attributes key
                 // a thread is the asset's statement (`request_threads`).
-                span.request_thread = sideseat_domain::rules::ruleset()
+                span.request_thread = rules
                     .request_threads
                     .thread_key(&otlp_span.name, &span_attrs)
                     .unwrap_or_default();
                 // And the declared facts a read needs that a read cannot see, as one word of bits
                 // (`span_marks`). Nothing is stored about the attributes themselves: only the answers.
-                span.span_marks = sideseat_domain::rules::ruleset().span_marks.marks_of(
+                span.span_marks = rules.span_marks.marks_of(
                     &otlp_span.name,
                     &span_attrs,
                     span.scope_name.as_deref(),
                     span.scope_version.as_deref(),
                 );
-                span.span_category =
-                    Some(attributes::categorize_span(&otlp_span.name, &span_attrs));
+                span.span_category = Some(attributes::categorize_span(
+                    rules,
+                    &otlp_span.name,
+                    &span_attrs,
+                ));
 
                 // A tool the producer says failed makes the span an error, where the span's own status did not
                 // already say so. Which statement says it is declared (`span_facts`, `tool_failed`).
                 if span.status_code.as_deref() != Some("ERROR")
-                    && sideseat_domain::rules::ruleset().span_facts.holds(
+                    && rules.span_facts.holds(
                         sideseat_domain::rules::schema::SpanFact::ToolFailed,
                         &span_attrs,
                     )
@@ -649,6 +659,7 @@ pub fn extract_messages_batch(
     request: &ExportTraceServiceRequest,
     spans: &[SpanData],
     mode: messages::ExtractionMode,
+    rules: &sideseat_domain::rules::Ruleset,
 ) -> (
     Vec<Vec<RawMessage>>,
     Vec<Vec<RawToolDefinition>>,
@@ -668,6 +679,7 @@ pub fn extract_messages_batch(
 
                 let (raw_messages, tool_definitions, tool_names) =
                     messages::extract_messages_for_scoped_span(
+                        rules,
                         otlp_span,
                         &span_attrs,
                         span.scope_name.as_deref(),
