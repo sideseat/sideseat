@@ -34,21 +34,44 @@ fn seal_of(token: &str) -> String {
     crate::message_truth::truth::hex_digest(&sha2::Sha256::digest(token.as_bytes()))
 }
 
-/// The opaque tokens a node holds under a signature or encrypted member.
-fn signatures_in(node: &Value) -> Vec<&str> {
+/// Whether a value is the token sought. Where the fact's seal is known that is its own signature exactly,
+/// whatever it looks like: a short or unusually spelled token is still the one sealed. Without a seal it is
+/// anything that looks like an opaque token.
+fn sought(value: &str, seal: Option<&str>) -> bool {
+    match seal {
+        Some(seal) => seal_of(value) == seal,
+        None => opaque(value),
+    }
+}
+
+/// Whether a value signs a part at all: it looks like an opaque token, or it is the one sought.
+fn signs(value: &str, seal: Option<&str>) -> bool {
+    opaque(value) || sought(value, seal)
+}
+
+/// The tokens a node holds under a signature or encrypted member.
+fn signatures_in<'v>(node: &'v Value, seal: Option<&str>) -> Vec<&'v str> {
     node.as_object()
         .map(|map| {
             map.iter()
                 .filter(|(key, _)| names_signature(key))
-                .filter_map(|(_, value)| value.as_str().filter(|v| opaque(v)))
+                .filter_map(|(_, value)| value.as_str().filter(|v| signs(v, seal)))
                 .collect()
         })
         .unwrap_or_default()
 }
 
-/// Whether a token is the one sought: the fact's own where its seal is known, else any.
-fn sought(token: &str, seal: Option<&str>) -> bool {
-    seal.is_none_or(|seal| seal_of(token) == seal)
+/// The member a flattened string sits under, and the path of what holds it. A decoded copy keeps the
+/// member of the string it was decoded from: `parts.0.signature|json` is still a `signature`, its JSON
+/// string literal read.
+fn member(at: &str) -> (&str, &str) {
+    let mut at = at;
+    while let Some((head, how)) = at.rsplit_once('|')
+        && !how.contains(['.', '['])
+    {
+        at = head;
+    }
+    at.rsplit_once('.').unwrap_or(("", at))
 }
 
 /// A withheld reasoning step's signature is not exported where no payload, decoded as far as the search
@@ -62,15 +85,17 @@ pub(super) fn prove_signature(seal: Option<&str>, haystack: &Haystack) -> Proof 
     }
     for carrier in &haystack.carriers {
         if let Some(at) = find_node(carrier, |node| {
-            signatures_in(node).into_iter().any(|t| sought(t, seal))
+            signatures_in(node, seal)
+                .into_iter()
+                .any(|t| sought(t, seal))
         }) {
             return Proof::Present(format!("{at} holds the signature"));
         }
-        if let Some((at, _)) = carrier.strings.iter().find(|(at, value)| {
-            at.rsplit(['.', '|']).next().is_some_and(names_signature)
-                && opaque(value)
-                && sought(value, seal)
-        }) {
+        if let Some((at, _)) = carrier
+            .strings
+            .iter()
+            .find(|(at, value)| names_signature(member(at).1) && sought(value, seal))
+        {
             return Proof::Present(format!("{at} is the signature"));
         }
     }
@@ -104,7 +129,7 @@ pub(super) fn prove_reasoning_part(seal: Option<&str>, haystack: &Haystack) -> P
     };
     for carrier in &haystack.carriers {
         if let Some(at) = find_node(carrier, |node| {
-            let tokens = signatures_in(node);
+            let tokens = signatures_in(node, seal);
             tokens.iter().any(|t| sought(t, seal))
                 || (typed(node) && (tokens.is_empty() || seal.is_none()))
         }) {
@@ -113,20 +138,16 @@ pub(super) fn prove_reasoning_part(seal: Option<&str>, haystack: &Haystack) -> P
             ));
         }
         for (at, kind) in carrier.strings.iter() {
-            if !(at.ends_with(".type") && names_reasoning(kind)) {
+            let (base, name) = member(at);
+            if !(name == "type" && names_reasoning(kind)) {
                 continue;
             }
-            let base = &at[..at.len() - ".type".len()];
             let signed_by: Vec<&str> = carrier
                 .strings
                 .iter()
                 .filter(|(other, value)| {
-                    other.strip_prefix(base).is_some_and(|rest| {
-                        rest.trim_start_matches(['.', '|'])
-                            .split(['.', '|'])
-                            .next()
-                            .is_some_and(names_signature)
-                    }) && opaque(value)
+                    let (holder, name) = member(other);
+                    holder == base && names_signature(name) && signs(value, seal)
                 })
                 .map(|(_, value)| value.as_str())
                 .collect();
@@ -135,10 +156,7 @@ pub(super) fn prove_reasoning_part(seal: Option<&str>, haystack: &Haystack) -> P
             }
         }
         if let Some((at, _)) = carrier.strings.iter().find(|(at, value)| {
-            seal.is_some()
-                && at.rsplit(['.', '|']).next().is_some_and(names_signature)
-                && opaque(value)
-                && sought(value, seal)
+            seal.is_some() && names_signature(member(at).1) && sought(value, seal)
         }) {
             return Proof::Present(format!("{at} is the reasoning's signature"));
         }

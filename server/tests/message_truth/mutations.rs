@@ -15,7 +15,7 @@ use super::mutate::*;
 use super::mutate_framework::*;
 use super::mutate_matching::*;
 use super::mutate_requests::*;
-use super::recon::Recon;
+use super::recon::{Recon, ViewKind};
 use super::truth::Truth;
 
 /// Reconstructions the catalogue edits: clean or nearly clean fixtures that between them hold
@@ -579,4 +579,86 @@ fn observed(truth: &Truth, recon: &Recon) -> BTreeSet<String> {
         .into_iter()
         .map(|v| format!("{}#{}", v.id(), v.fingerprint()))
         .collect()
+}
+
+/// A fixture's truth and reconstruction, with the violations it has unmutated.
+fn baseline(fixture: &str) -> (Truth, Recon, BTreeSet<String>) {
+    let fixtures: std::collections::BTreeMap<String, Vec<std::path::PathBuf>> =
+        crate::discover_fixtures().into_iter().collect();
+    let truths = super::Truths::load();
+    let truth = truths.documents[&truths.of_fixture[fixture]].for_fixture(fixture);
+    let recon = super::recon::build(fixture, &fixtures[fixture]);
+    let found = observed(&truth, &recon);
+    (truth, recon, found)
+}
+
+/// What a mutation adds, by assertion and subject.
+fn added(truth: &Truth, recon: &Recon, baseline: &BTreeSet<String>) -> BTreeSet<String> {
+    observed(truth, recon)
+        .difference(baseline)
+        .map(|v| {
+            let mut parts = v.split('#').next().unwrap_or("").split(':').skip(2);
+            format!(
+                "{}:{}",
+                parts.next().unwrap_or(""),
+                parts.next().unwrap_or("")
+            )
+        })
+        .collect()
+}
+
+// The cases below need a gap only a few fixtures declare, so they are not in the catalogue's pool.
+
+#[test]
+fn a_part_owed_off_its_span_is_still_owed_on_a_span_that_was_sent_it() {
+    // Withheld reasoning the producing span leaves out (`output_not_exported`) is shown where a later
+    // request re-sent it; shown on a span nothing sent it is misattributed, gap or no gap.
+    let (truth, mut recon, baseline) = baseline("agno/sdk/multi_turn");
+    let fact = truth
+        .facts
+        .iter()
+        .find(|f| f.id == "fact-002")
+        .expect("the withheld reasoning");
+    let mut moved = false;
+    for (v, b) in locate(fact, &recon) {
+        if recon.views[v].kind == ViewKind::Trace {
+            recon.views[v].blocks[b].span = "an-enclosing-agent-span".into();
+            moved = true;
+        }
+    }
+    assert!(moved, "the trace view shows the reasoning");
+    let new = added(&truth, &recon, &baseline);
+    assert!(
+        new.contains("attribution.span:fact-002"),
+        "misattribution not caught: {new:?}"
+    );
+}
+
+#[test]
+fn reasoning_owed_unsigned_on_its_span_differs_from_its_conversation_copy_only_by_the_mark() {
+    // Koog's own span carries no signature for this reasoning (`span_signature_not_exported`): the span's
+    // block is unsigned where the conversation's is signed, and is otherwise the same block.
+    let (truth, mut recon, baseline) = baseline("koog/sdk/session");
+    let fact = truth
+        .facts
+        .iter()
+        .find(|f| f.id == "fact-004")
+        .expect("the withheld reasoning");
+    let mut unsigned = fact.clone();
+    unsigned.value["signed"] = Value::Bool(false);
+    let mut edited = false;
+    for (v, b) in locate(&unsigned, &recon) {
+        if recon.views[v].kind == ViewKind::Span {
+            let block = &mut recon.views[v].blocks[b];
+            set(block, "data", json!("a member no other view shows"));
+            block.refresh();
+            edited = true;
+        }
+    }
+    assert!(edited, "the span view shows the reasoning unsigned");
+    let new = added(&truth, &recon, &baseline);
+    assert!(
+        new.contains("cross_view.differs:fact-004"),
+        "a span block unlike the conversation's is not caught: {new:?}"
+    );
 }

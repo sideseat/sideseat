@@ -45,6 +45,9 @@ pub(super) struct Context<'a> {
     pub home_traces: BTreeMap<String, BTreeSet<String>>,
     /// The spans a fact a request re-sent may be shown on: those of the calls that were sent it.
     pub sent_spans: BTreeMap<String, BTreeSet<String>>,
+    /// For a response part its producing span does not carry (`output_not_exported`), the spans of the
+    /// later calls whose requests handed it back: the only spans it can be shown on.
+    pub replayed_spans: BTreeMap<String, BTreeSet<String>>,
     /// What this fixture's recorded requests account for in its views (`requests`).
     pub accounted: super::requests::Accounted,
     /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
@@ -67,6 +70,7 @@ impl<'a> Context<'a> {
             home_trace: BTreeMap::new(),
             home_traces: BTreeMap::new(),
             sent_spans: BTreeMap::new(),
+            replayed_spans: BTreeMap::new(),
             accounted,
             trace_label: BTreeMap::new(),
         };
@@ -114,7 +118,36 @@ impl<'a> Context<'a> {
                 context.home_trace.insert(fact.id.as_str(), trace);
             }
         }
+        if let Some(recorded) = truth.requests.get(&recon.fixture) {
+            let off_span: Vec<&Fact> = truth
+                .facts
+                .iter()
+                .filter(|f| context.owed_off_span(f))
+                .collect();
+            for fact in off_span {
+                let spans: BTreeSet<String> = recorded
+                    .calls
+                    .iter()
+                    .filter(|(_, request)| {
+                        request
+                            .messages
+                            .iter()
+                            .flat_map(|m| m.parts.iter())
+                            .any(|o| o.replay_of.as_deref() == Some(fact.id.as_str()))
+                    })
+                    .filter_map(|(call, _)| matching.span_of.get(call))
+                    .map(|&s| recon.generations[s].span.clone())
+                    .collect();
+                context.replayed_spans.insert(fact.id.clone(), spans);
+            }
+        }
         context
+    }
+
+    /// A response part its producing span does not carry (`output_not_exported`, proven): owed by the
+    /// conversation views only, where a later request handed it back.
+    pub fn owed_off_span(&self, fact: &Fact) -> bool {
+        fact.call.is_some() && fact.require.is_some() && !self.asserted_in(fact, "span")
     }
 
     pub fn fact(&self, id: &str) -> Option<&'a Fact> {
@@ -220,13 +253,6 @@ pub(super) fn check_placement(context: &Context<'_>, out: &mut Vec<Violation>) {
     for scope in scopes(context) {
         let assigned = assign(context, &scope);
         for (fact, shown) in report_assignment(context, &scope, &assigned, out) {
-            // Owed unsigned on its span and signed elsewhere: the two cannot be the same block.
-            let unsigned_on_span = context
-                .fact(&fact)
-                .is_some_and(|f| f.value.get(super::truth::UNSIGNED_ON_SPAN).is_some());
-            if scope.kind == ViewKind::Span && unsigned_on_span {
-                continue;
-            }
             digests.entry(fact).or_default().insert(scope.kind, shown);
         }
         check_reasoning_kind(&scope, out);
@@ -561,6 +587,25 @@ fn maximum_matching(adjacency: &[Vec<usize>]) -> Vec<Option<usize>> {
     out
 }
 
+/// The digest a block is compared across views by. Withheld reasoning owed unsigned on its span and signed
+/// elsewhere is compared without the mark alone: every other difference between its span's block and the
+/// conversation's still tells them apart.
+fn cross_view_digest(fact: &Fact, block: &Block) -> String {
+    if fact.value.get(super::truth::UNSIGNED_ON_SPAN).is_none() {
+        return block.digest.clone();
+    }
+    let mut content = block.content.clone();
+    if let Some(members) = content.as_object_mut() {
+        members.remove("signed");
+    }
+    format!(
+        "{}/{}/{}",
+        block.role,
+        block.kind,
+        crate::content_digest(&content)
+    )
+}
+
 /// Reports what the assignment left unassigned or doubled; returns, per assigned fact, the digests of
 /// every block in its trace that shows it.
 fn report_assignment(
@@ -636,7 +681,7 @@ fn report_assignment(
                 .iter()
                 .filter(|&&b| in_home(context, scope, fact, b) && !consumed.contains(&b))
                 .filter(|&&b| b == at || !claimed.contains(&b))
-                .map(|&b| scope.blocks[b].2.digest.clone())
+                .map(|&b| cross_view_digest(fact, scope.blocks[b].2))
                 .collect(),
         );
         // A copy is another block with the same content: a framework that wraps the prompt in a new

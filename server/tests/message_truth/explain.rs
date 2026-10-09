@@ -329,13 +329,15 @@ fn check_attribution(
             continue;
         }
         // A part its producing span does not carry (`output_not_exported`, proven) is owed off that span,
-        // where a later request re-sent it, so it is not attributed to it.
-        if fact.call.is_some()
-            && fact
-                .require
-                .as_ref()
-                .is_some_and(|r| !r.views.iter().any(|v| v == "span"))
-        {
+        // where a later request handed it back: on the span of a call that was sent it, or one enclosing
+        // that, and nowhere else. Without a request transcript no span can be named for it.
+        let off_span = context.owed_off_span(fact);
+        let sent = if off_span {
+            context.replayed_spans.get(fact_id)
+        } else {
+            context.sent_spans.get(fact_id)
+        };
+        if off_span && sent.is_none() {
             continue;
         }
         // An unexported response has no span of its own to be attributed to.
@@ -349,7 +351,7 @@ fn check_attribution(
         // A fact the requests re-sent belongs on a span that was sent it, or an enclosing one, and nowhere
         // else: a client's preamble goes with every request, so any of those spans is right, and the
         // conversation's first call - the ordinary home of a system prompt - is right only if it was sent it.
-        let allowed = match context.sent_spans.get(fact_id) {
+        let allowed = match sent {
             Some(spans) => {
                 spans.contains(&block.span)
                     || recon

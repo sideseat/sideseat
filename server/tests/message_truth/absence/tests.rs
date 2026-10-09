@@ -696,3 +696,66 @@ fn withheld_reasoning_is_absent_only_where_no_payload_holds_a_reasoning_part() {
         &attribute(string(&typed.to_string()))
     )));
 }
+
+fn sealed_fact(token: &str) -> Fact {
+    let mut fact = withheld_fact();
+    fact.seal = Some(truth::hex_digest(&sha2::Sha256::digest(token.as_bytes())));
+    fact
+}
+
+#[test]
+fn a_known_seal_finds_its_signature_whatever_it_looks_like() {
+    // Short and dotted: no opaque token by its looks, but the one the fact is sealed with.
+    const OWN: &str = "sig.turn-1";
+    let fact = sealed_fact(OWN);
+    let part = serde_json::json!([{"type": "thinking", "thinking": "", "signature": OWN}]);
+    let payload = attribute(string(&part.to_string()));
+    assert!(present(prove_claim(&Claim::Signature(&fact), &payload)));
+    assert!(present(prove(&fact, &payload)));
+    let flattened = span(|s| {
+        s.attributes
+            .push(kv("gen_ai.thinking.signature", string(OWN)))
+    });
+    assert!(present(prove_claim(&Claim::Signature(&fact), &flattened)));
+    // Without a seal the same short value is no token, and proves nothing.
+    let mut unsealed = withheld_fact();
+    unsealed.require = None;
+    assert_eq!(
+        prove_claim(&Claim::Signature(&unsealed), &flattened),
+        Proof::Absent
+    );
+}
+
+#[test]
+fn a_decoded_signature_keeps_the_member_it_was_decoded_from() {
+    const OWN: &str = "EqQBCkgIBhABGAIiQKmvNk3zF7Yh0w2xQ5kVd9pLr8c3Tg1uB4oWnXeZsA6y";
+    const OTHER: &str = "ErUBCkYIBhABGAIiQGq1Lr7mWc2Vb8xNn3pKd0tTz5hJ9yRa4oUe6iSfX1gB";
+    let fact = sealed_fact(OWN);
+    // Each value is a JSON string literal, so the token itself is only in its decoded copy, at
+    // `...signature|json`.
+    let quoted = |token: &str| string(&serde_json::Value::String(token.to_string()).to_string());
+    let flattened = |token: &str| {
+        let token = token.to_string();
+        span(move |s| {
+            s.attributes.push(kv(
+                "gen_ai.output.messages.0.parts.0.type",
+                string("reasoning"),
+            ));
+            s.attributes.push(kv(
+                "gen_ai.output.messages.0.parts.0.signature",
+                quoted(&token),
+            ));
+        })
+    };
+    assert!(present(prove_claim(
+        &Claim::Signature(&fact),
+        &flattened(OWN)
+    )));
+    assert!(present(prove(&fact, &flattened(OWN))));
+    // A part sealed with another turn's signature is not this one, decoded or not.
+    assert_eq!(
+        prove_claim(&Claim::Signature(&fact), &flattened(OTHER)),
+        Proof::Absent
+    );
+    assert_eq!(prove(&fact, &flattened(OTHER)), Proof::Absent);
+}
