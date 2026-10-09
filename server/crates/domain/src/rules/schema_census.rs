@@ -39,35 +39,12 @@ const UNUSED: &[(&str, &str)] = &[
          answer would state it, and no shipped asset has one - the only use is turns on an output carrier",
     ),
     (
-        "SectionRoute.position",
-        "a section claimed by its place in the producer's sequence, for a carrier whose sections differ by where \
-         they sit rather than by a tag - reminders embedded in a request's user turn before the one it appends; no \
-         shipped route uses it yet",
-    ),
-    (
         "SectionPosition=first",
-        "part of the closed set of places a route may claim, as `SectionRoute.position`",
+        "part of the closed set of places a route may claim, as `not_last` is used",
     ),
     (
         "SectionPosition=last",
-        "part of the closed set of places a route may claim, as `SectionRoute.position`",
-    ),
-    (
-        "SectionPosition=not_last",
-        "the place the first route that needs `SectionRoute.position` will claim",
-    ),
-    (
-        "SectionRoute.wrap_text",
-        "literal text a producer adds around a section when it sends it and leaves out of the carrier, restored \
-         with the reason it is constant; no shipped route restores any yet",
-    ),
-    (
-        "WrapText.before",
-        "one side of `SectionRoute.wrap_text`, which no shipped route uses yet",
-    ),
-    (
-        "WrapText.after",
-        "one side of `SectionRoute.wrap_text`, which no shipped route uses yet",
+        "part of the closed set of places a route may claim, as `not_last` is used",
     ),
     (
         "ParseMode=java_tostring",

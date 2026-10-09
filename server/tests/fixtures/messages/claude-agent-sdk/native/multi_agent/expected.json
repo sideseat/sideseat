@@ -65,7 +65,7 @@
         "system",
         "system",
         "user",
-        "system",
+        "user",
         "system"
       ],
       "tool_names": [],
@@ -97,10 +97,10 @@
         },
         {
           "index": 3,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
-          "content_digest": "c640a113de6d3e2f",
+          "content": "<system-reminder> Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call rea…[341 chars]",
+          "content_digest": "7e7d5b998082114a",
           "observation_type": "generation"
         },
         {
@@ -119,7 +119,7 @@
         "system",
         "system",
         "user",
-        "system",
+        "user",
         "system",
         "assistant",
         "tool",
@@ -154,10 +154,10 @@
         },
         {
           "index": 3,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
-          "content_digest": "c640a113de6d3e2f",
+          "content": "<system-reminder> Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call rea…[341 chars]",
+          "content_digest": "7e7d5b998082114a",
           "observation_type": "generation"
         },
         {
@@ -283,7 +283,7 @@
         "system",
         "system",
         "user",
-        "system",
+        "user",
         "system"
       ],
       "tool_names": [],
@@ -315,10 +315,10 @@
         },
         {
           "index": 3,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
-          "content_digest": "c640a113de6d3e2f",
+          "content": "<system-reminder> Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call rea…[341 chars]",
+          "content_digest": "7e7d5b998082114a",
           "observation_type": "generation"
         },
         {
@@ -776,7 +776,7 @@
         "system",
         "system",
         "user",
-        "system",
+        "user",
         "system",
         "assistant",
         "tool",
@@ -871,10 +871,10 @@
         },
         {
           "index": 9,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
-          "content_digest": "c640a113de6d3e2f",
+          "content": "<system-reminder> Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call rea…[341 chars]",
+          "content_digest": "7e7d5b998082114a",
           "observation_type": "generation"
         },
         {
@@ -1017,7 +1017,7 @@
         "system",
         "system",
         "user",
-        "system",
+        "user",
         "system",
         "assistant",
         "tool",
@@ -1112,10 +1112,10 @@
         },
         {
           "index": 9,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
-          "content_digest": "c640a113de6d3e2f",
+          "content": "<system-reminder> Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call rea…[341 chars]",
+          "content_digest": "7e7d5b998082114a",
           "observation_type": "generation"
         },
         {
@@ -1265,7 +1265,7 @@
       "system",
       "system",
       "user",
-      "system",
+      "user",
       "system",
       "assistant",
       "system",
@@ -1419,10 +1419,10 @@
       },
       {
         "index": 17,
-        "role": "system",
+        "role": "user",
         "entry_type": "text",
-        "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
-        "content_digest": "c640a113de6d3e2f",
+        "content": "<system-reminder> Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call rea…[341 chars]",
+        "content_digest": "7e7d5b998082114a",
         "observation_type": "generation"
       },
       {

@@ -170,6 +170,56 @@
       "priority": 1400
     },
     {
+      "id": "claude-agent-sdk.system_reminders_beside_a_prompt",
+      "doc": "The reminders of a subagent's request whose delta opens its user turn - the request that hands the subagent its task. The client sends every reminder but the last inside that turn, each a text part of its own wrapped in `<system-reminder>` tags, and only the last - the environment block - as the system turn it appends; the attribute exports them unwrapped, in order, joined by a rule. Only a subagent's: a main-agent request that resumes a process restates the earlier turns' reminders beside its own, and those are the system turns they were (`claude-code/multi_turn`). Read before the rule below, which then owns nothing here.",
+      "where": {
+        "all": [
+          {
+            "source": "span_name",
+            "starts_with": "claude_code."
+          },
+          {
+            "source": "attr:new_context",
+            "starts_with": "[USER]"
+          },
+          {
+            "source": "attr:agent_id",
+            "exists": true
+          }
+        ]
+      },
+      "read": {
+        "attribute": "system_reminders"
+      },
+      "parse": "text",
+      "raw_where": {
+        "non_blank": true
+      },
+      "sections": {
+        "split_on": "\n\n---\n\n",
+        "routes": [
+          {
+            "id": "in_the_prompt",
+            "doc": "A reminder before the last: a part of the user turn, as the client sent it.",
+            "position": "not_last",
+            "role": "user",
+            "wrap_text": {
+              "because": "The CLI wraps a reminder it puts into a user turn as `<system-reminder>\\n${text}\\n</system-reminder>` (the native `claude` binary of @anthropic-ai/claude-agent-sdk-darwin-arm64 0.3.284, function `XLr`, closing tag constant `Ms`), and every captured request part carrying the tag - 10 of 10 across the Claude Code family's model-requests.json - is exactly a section of its span's `system_reminders` inside that wrapper.",
+              "before": "<system-reminder>\n",
+              "after": "\n</system-reminder>"
+            }
+          },
+          {
+            "id": "appended",
+            "doc": "The last reminder: the environment block, a system turn of its own.",
+            "role": "system"
+          }
+        ]
+      },
+      "emit": "message",
+      "priority": 1414
+    },
+    {
       "id": "claude-agent-sdk.system_reminders",
       "doc": "The environment block the client appends to the request as a system turn of its own: the working directory, the platform, the tools' context. Part of what the model was told, carried whole rather than as a preview, so it is read as the system message it is.",
       "where": {
