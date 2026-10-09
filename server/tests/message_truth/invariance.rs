@@ -129,6 +129,25 @@ fn conversation(golden: &crate::Golden) -> Vec<(&'static str, Projection)> {
     out
 }
 
+/// The lines of a `describe_diff` that are about the conversation: span views are left out with the lines
+/// that continue them, since a release may name and split its spans differently and `conversation` does
+/// not compare them. A span view's lines start `span <key>:`, the views that appeared or vanished
+/// `span views`; a line indented further continues the line above it.
+fn conversation_lines(diff: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut in_span_view = false;
+    for line in diff.lines().skip(1) {
+        let trimmed = line.trim();
+        if !line.starts_with("    ") {
+            in_span_view = trimmed.starts_with("span ");
+        }
+        if !in_span_view {
+            out.push(trimmed);
+        }
+    }
+    out
+}
+
 /// A fixture captured on another release of its framework: `<producer>/<mode>@<version>/<scenario>`,
 /// with the current release's `<producer>/<mode>/<scenario>`.
 fn current_release_of(label: &str) -> Option<String> {
@@ -250,12 +269,7 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
         };
         if conversation(golden) != conversation(current) {
             let diff = describe_diff(label, current, golden);
-            let summary: Vec<&str> = diff
-                .lines()
-                .skip(1)
-                .map(str::trim)
-                .filter(|l| !l.contains("span view"))
-                .collect();
+            let summary = conversation_lines(&diff);
             let mut violation = Violation::new(
                 ViolationView::Delivery,
                 "invariance.framework_version",
@@ -282,6 +296,57 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
         "{} disagreement(s) between delivery variations and the ledger:\n  {}",
         problems.len(),
         problems.join("\n  ")
+    );
+}
+
+/// A release comparison's summary names the conversation's differences and none of the span views': a
+/// span view's lines - its header, the role sequences continuing it, and the views that appeared or
+/// vanished - are left out under the label `describe_diff` gives them, and every other view's are kept.
+#[test]
+fn a_release_comparison_leaves_out_every_span_view_line() {
+    let fixtures: std::collections::BTreeMap<String, Vec<PathBuf>> =
+        crate::discover_fixtures().into_iter().collect();
+    let label = "_synthetic/tool_use";
+    let golden =
+        crate::build_golden(label, &fixtures[label], &crate::rows_for(&fixtures[label])).golden;
+    let mut edited = golden.clone();
+    let span = edited
+        .span_views
+        .keys()
+        .next()
+        .cloned()
+        .expect("a span view");
+    edited
+        .span_views
+        .get_mut(&span)
+        .expect("the view")
+        .role_sequence = vec!["user".into()];
+    edited.span_views.insert(
+        "trace-9/added/span-9".into(),
+        golden.span_views[&span].clone(),
+    );
+    let trace = edited
+        .trace_views
+        .values_mut()
+        .next()
+        .expect("a trace view");
+    trace.message_count += 1;
+    let diff = describe_diff(label, &golden, &edited);
+    assert!(
+        diff.contains(&format!("span {span}: role sequence changed")),
+        "the edit shows in the span view: {diff}"
+    );
+    let kept = conversation_lines(&diff);
+    assert!(
+        kept.iter().all(|l| !l.starts_with("span ")
+            && !l.starts_with("expected:")
+            && !l.starts_with("actual:")),
+        "a span view line was kept: {kept:?}"
+    );
+    assert!(
+        kept.iter()
+            .any(|l| l.starts_with("trace ") && l.contains("message_count")),
+        "the trace view's difference was dropped: {kept:?}"
     );
 }
 
