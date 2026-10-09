@@ -318,6 +318,40 @@ def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() ->
         )
 
 
+def test_unexported_parallel_tool_results_withdraw_all_but_the_first() -> None:
+    """`parallel_tool_results` withdraws the results of every tool call of a response but the first, each
+    with a `not_exported` gap the rubric proves; the first result, and a lone call's, stay asserted."""
+    framework = derive.Framework.of(
+        {"unexported": {"parallel_tool_results": "records the first tool message only"}}
+    )
+    calls = [
+        model_call(
+            wire.tool_call_part("a", "get_weather", {"city": "Tokyo", "days": 1}),
+            wire.tool_call_part("b", "get_precipitation", {"city": "Paris"}),
+            wire.tool_call_part("c", "get_precipitation", {"city": "Tokyo"}),
+            finish="tool_use",
+        ),
+        model_call(
+            wire.tool_call_part("d", "get_weather", {"city": "Rome", "days": 1}),
+            finish="tool_use",
+        ),
+        model_call(wire.text_part("Pack an umbrella for Tokyo.")),
+    ]
+    builder = derive.assemble(
+        "p", "tool_use", calls, options=derive.Options(framework=framework)
+    )
+    results = {r["value"]["call_id"]: r for r in facts_by_kind(builder, "tool_result")}
+    assert [call for call, r in results.items() if r["require"] is None] == ["b", "c"]
+    assert [
+        (g["fact"], g["reason"], g["subject"])
+        for g in builder.gaps
+        if g["reason"] == "not_exported"
+    ] == [
+        ("tool_result", "not_exported", results["b"]["id"]),
+        ("tool_result", "not_exported", results["c"]["id"]),
+    ]
+
+
 def test_unexported_withheld_reasoning_is_withdrawn_with_a_gap_the_rubric_proves() -> (
     None
 ):

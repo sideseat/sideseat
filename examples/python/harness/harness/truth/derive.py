@@ -304,7 +304,9 @@ class Framework:
     #: (``signature_not_exported``); ``reasoning_output`` - that reasoning missing from the span that
     #: produced it, a later request re-sending it (``output_not_exported``); ``reasoning_span_signature``
     #: - that reasoning's signature missing from the span that produced it, another carrier holding it
-    #: (``span_signature_not_exported``); ``media`` - the
+    #: (``span_signature_not_exported``); ``parallel_tool_results`` - the results of every tool call but the
+    #: first of one response, where the producer records only the first of the turn's tool messages
+    #: (``not_exported``; it withdraws them); ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
     #: those modalities, and it withdraws the fact, so it holds for every capture or none)
     #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
@@ -757,6 +759,7 @@ UNEXPORTED = frozenset(
         "reasoning_signature",
         "reasoning_output",
         "reasoning_span_signature",
+        "parallel_tool_results",
         "media",
         *METADATA,
     }
@@ -870,6 +873,24 @@ def _unexported(builder: Builder, framework: Framework) -> None:
             outputs = [facts[output] for output in record["outputs"]]
             if outputs and all(fact["kind"] == "tool_call" for fact in outputs):
                 gap("response", "call_not_exported", detail, record["id"])
+    if detail := declared("parallel_tool_results"):
+        # The first call's result is exported, so it stays owed; the absence search proves each later one
+        # against every payload of the capture.
+        for record in builder.calls:
+            calls = [
+                facts[output]["value"].get("id")
+                for output in record["outputs"]
+                if facts[output]["kind"] == "tool_call"
+            ]
+            later = {id for id in calls[1:] if isinstance(id, str)}
+            for fact in builder.facts:
+                if (
+                    fact["kind"] == "tool_result"
+                    and fact["value"].get("call_id") in later
+                    and fact["require"] is not None
+                ):
+                    fact["require"] = None
+                    gap("tool_result", "not_exported", detail, fact["id"])
     if detail := declared("media"):
         entry = framework.unexported["media"]
         modalities = entry.get("modalities") if isinstance(entry, dict) else None

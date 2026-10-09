@@ -8,6 +8,10 @@
       "withheld_reasoning": {
         "reason": "reasoning the model signed and withheld the text of: Spring AI's telemetry exports no reasoning part for it, and no payload holds one",
         "scenarios": ["multi_turn", "session", "streaming"]
+      },
+      "parallel_tool_results": {
+        "reason": "the results of a response's tool calls after the first: Spring AI's OpenInference instrumentation records only the first tool message the next request sends, and no payload holds the others",
+        "scenarios": ["streaming", "tool_use"]
       }
     }
   }

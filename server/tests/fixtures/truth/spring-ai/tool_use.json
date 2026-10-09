@@ -282,16 +282,7 @@
     },
     "is_error": false
    },
-   "require": {
-    "anchor": "conversation",
-    "views": [
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "semantic"
-   }
+   "require": null
   },
   {
    "id": "fact-008",
@@ -305,16 +296,7 @@
     "value": "10% chance of rain in Paris tomorrow.",
     "is_error": false
    },
-   "require": {
-    "anchor": "conversation",
-    "views": [
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "semantic"
-   }
+   "require": null
   },
   {
    "id": "fact-009",
@@ -328,16 +310,7 @@
     "value": "80% chance of rain in Tokyo tomorrow.",
     "is_error": false
    },
-   "require": {
-    "anchor": "conversation",
-    "views": [
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "semantic"
-   }
+   "require": null
   },
   {
    "id": "fact-010",
@@ -399,6 +372,24 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "not_exported",
+   "detail": "the results of a response's tool calls after the first: Spring AI's OpenInference instrumentation records only the first tool message the next request sends, and no payload holds the others",
+   "subject": "fact-007"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "not_exported",
+   "detail": "the results of a response's tool calls after the first: Spring AI's OpenInference instrumentation records only the first tool message the next request sends, and no payload holds the others",
+   "subject": "fact-008"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "not_exported",
+   "detail": "the results of a response's tool calls after the first: Spring AI's OpenInference instrumentation records only the first tool message the next request sends, and no payload holds the others",
+   "subject": "fact-009"
   }
  ]
 }
