@@ -9,10 +9,14 @@ use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
 use sideseat_adapter_blob_storage::FilesystemStorage;
+use sideseat_adapter_cache::CacheService;
 use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
 use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-use sideseat_core::config::RetentionConfig;
+use sideseat_core::config::{
+    CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, RetentionConfig, StorageBackend,
+};
 use sideseat_core::storage::AppStorage;
+use sideseat_domain::files::FileService;
 use sideseat_ports::blobs::FileStorage;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
@@ -32,6 +36,11 @@ impl Clock for TestClock {
 struct Fixture {
     _temp: tempfile::TempDir,
     sqlite: Arc<SqliteService>,
+    database: Arc<dyn TransactionalRepository + Send + Sync>,
+    analytics: Arc<dyn AnalyticsRepository + Send + Sync>,
+    storage: Arc<dyn FileStorage>,
+    /// Over the staging store, as in the server: staged blobs live in the project's file store.
+    files: Arc<FileService>,
     service: StagingService,
     project: ProjectId,
 }
@@ -70,10 +79,40 @@ async fn fixture() -> Fixture {
         .create_project(&org.id, "Retirement")
         .await
         .expect("project");
+    let temp_files = app_storage.subdir(sideseat_core::storage::DataSubdir::FilesTemp);
+    tokio::fs::create_dir_all(&temp_files)
+        .await
+        .expect("files temp dir");
+    let files = Arc::new(
+        FileService::new(
+            FilesConfig {
+                enabled: true,
+                storage: StorageBackend::Filesystem,
+                quota_bytes: 0,
+                filesystem_path: Some(temp.path().join("staging").display().to_string()),
+                s3: None,
+            },
+            temp_files,
+            Arc::clone(&storage),
+            Arc::clone(&database),
+            Arc::new(
+                CacheService::new(&CacheConfig {
+                    backend: CacheBackendType::Memory,
+                    max_entries: 16,
+                    eviction_policy: EvictionPolicy::TinyLfu,
+                    redis_url: None,
+                })
+                .await
+                .expect("memory cache"),
+            ),
+        )
+        .await
+        .expect("file service"),
+    );
     let service = StagingService::new(
-        storage,
-        database,
-        analytics,
+        Arc::clone(&storage),
+        Arc::clone(&database),
+        Arc::clone(&analytics),
         clock,
         RetentionConfig::default(),
         2,
@@ -81,6 +120,10 @@ async fn fixture() -> Fixture {
     Fixture {
         _temp: temp,
         sqlite,
+        database,
+        analytics,
+        storage,
+        files,
         service,
         project: ProjectId::from(project.id.as_str()),
     }
@@ -154,6 +197,236 @@ async fn a_retired_payload_is_finished() {
             .await
             .expect("classify"),
         MissingReference::Finished
+    );
+}
+
+/// A project's deletion takes its staged payloads with it, registry rows before their blobs: a reference to one is
+/// then finished, neither a lost registration nor a row whose blob is gone, which every delivery of its reference
+/// failed to load until redrive happened to release it.
+#[tokio::test]
+async fn a_deleted_projects_payloads_go_with_it_and_their_references_finish() {
+    let fixture = fixture().await;
+    let reference = stage(&fixture, b"deleted with its project").await;
+    let (payload, _) = fixture
+        .service
+        .load(&reference.id)
+        .await
+        .expect("load")
+        .expect("staged");
+
+    assert!(
+        sideseat_domain::cleanup::cleanup_project(
+            &fixture.database,
+            &fixture.analytics,
+            &fixture.files,
+            &fixture.project,
+        )
+        .await
+        .expect("cleanup"),
+        "the project is deleted"
+    );
+
+    assert!(
+        fixture
+            .service
+            .load(&reference.id)
+            .await
+            .expect("the payload's row outlived its blob")
+            .is_none(),
+        "the payload's row outlived its project"
+    );
+    assert!(
+        !fixture
+            .storage
+            .exists(&fixture.project, &payload.blob_hash)
+            .await
+            .expect("exists"),
+        "the payload's blob outlived its project"
+    );
+    assert_eq!(
+        fixture
+            .service
+            .classify_missing(&reference)
+            .await
+            .expect("classify"),
+        MissingReference::Finished
+    );
+    assert!(anomalies(&fixture).await.is_empty());
+}
+
+/// The registry rows go before the blobs: a deletion whose row delete fails keeps the payload whole - row and
+/// blob, so a delivery still loads it - and the project fenced, and the sweep's retry finishes it.
+#[tokio::test]
+async fn a_failed_row_delete_keeps_the_blob_for_the_retry() {
+    let fixture = fixture().await;
+    let reference = stage(&fixture, b"deleted on the retry").await;
+    sideseat_adapter_sqlite::test_support::inject_staging_fault(
+        &fixture.sqlite,
+        sideseat_adapter_sqlite::test_support::StagingFault::Retire,
+    )
+    .await
+    .expect("inject");
+    assert!(
+        sideseat_domain::cleanup::cleanup_project(
+            &fixture.database,
+            &fixture.analytics,
+            &fixture.files,
+            &fixture.project,
+        )
+        .await
+        .is_err(),
+        "a deletion that could not remove the rows reports itself unfinished"
+    );
+    let (payload, _) = fixture
+        .service
+        .load(&reference.id)
+        .await
+        .expect("the row kept its blob")
+        .expect("the row stays for the retry");
+
+    sideseat_adapter_sqlite::test_support::clear_staging_fault(
+        &fixture.sqlite,
+        sideseat_adapter_sqlite::test_support::StagingFault::Retire,
+    )
+    .await
+    .expect("clear");
+    sideseat_domain::cleanup::finish_project_deletion(
+        &fixture.database,
+        &fixture.analytics,
+        &fixture.files,
+        &fixture.project,
+    )
+    .await
+    .expect("the retry finishes");
+    assert!(
+        fixture
+            .service
+            .load(&reference.id)
+            .await
+            .expect("load")
+            .is_none()
+    );
+    assert!(
+        !fixture
+            .storage
+            .exists(&fixture.project, &payload.blob_hash)
+            .await
+            .expect("exists")
+    );
+}
+
+/// A request that stored its blob before the fence can register after the deletion removed the rows - after the
+/// project row itself is gone. The sweep of the deleted project's residual removes that payload too, row before
+/// blob, so its reference finishes instead of failing to load.
+#[tokio::test]
+async fn a_payload_registered_after_the_project_went_is_collected() {
+    let fixture = fixture().await;
+    assert!(
+        sideseat_domain::cleanup::cleanup_project(
+            &fixture.database,
+            &fixture.analytics,
+            &fixture.files,
+            &fixture.project,
+        )
+        .await
+        .expect("cleanup")
+    );
+    // The repeated clean sweeps that remove the project row, at once.
+    assert!(
+        fixture
+            .database
+            .record_project_sweep(fixture.project.as_str(), true, 1, 0)
+            .await
+            .expect("sweep"),
+        "the project row is removed"
+    );
+    let late = stage(&fixture, b"registered late").await;
+    let (payload, _) = fixture
+        .service
+        .load(&late.id)
+        .await
+        .expect("load")
+        .expect("staged");
+
+    sideseat_domain::cleanup::advance_pending_deletions(
+        &fixture.database,
+        &fixture.analytics,
+        &fixture.files,
+        0,
+    )
+    .await
+    .expect("sweep the residual");
+    assert!(
+        fixture
+            .service
+            .load(&late.id)
+            .await
+            .expect("the late row outlived its blob")
+            .is_none(),
+        "the late row outlived its project"
+    );
+    assert!(
+        !fixture
+            .storage
+            .exists(&fixture.project, &payload.blob_hash)
+            .await
+            .expect("exists")
+    );
+    assert_eq!(
+        fixture
+            .service
+            .classify_missing(&late)
+            .await
+            .expect("classify"),
+        MissingReference::Finished
+    );
+}
+
+/// The residual's sweep keeps the same order: a row it cannot remove keeps its blob, so its reference still loads
+/// until a later check removes both.
+#[tokio::test]
+async fn a_residual_sweep_that_cannot_remove_a_row_keeps_its_blob() {
+    let fixture = fixture().await;
+    assert!(
+        sideseat_domain::cleanup::cleanup_project(
+            &fixture.database,
+            &fixture.analytics,
+            &fixture.files,
+            &fixture.project,
+        )
+        .await
+        .expect("cleanup")
+    );
+    assert!(
+        fixture
+            .database
+            .record_project_sweep(fixture.project.as_str(), true, 1, 0)
+            .await
+            .expect("sweep")
+    );
+    let late = stage(&fixture, b"registered late, kept whole").await;
+    sideseat_adapter_sqlite::test_support::inject_staging_fault(
+        &fixture.sqlite,
+        sideseat_adapter_sqlite::test_support::StagingFault::Retire,
+    )
+    .await
+    .expect("inject");
+    sideseat_domain::cleanup::advance_pending_deletions(
+        &fixture.database,
+        &fixture.analytics,
+        &fixture.files,
+        0,
+    )
+    .await
+    .expect("sweep the residual");
+    assert!(
+        fixture
+            .service
+            .load(&late.id)
+            .await
+            .expect("the row kept its blob")
+            .is_some(),
+        "the row stays for a later check"
     );
 }
 

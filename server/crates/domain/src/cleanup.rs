@@ -302,9 +302,21 @@ pub async fn finish_project_deletion(
         errors.push(format!("Analytics delete failed: {}", e));
     }
 
+    // Staged payloads: registry rows before the blobs, which live in the project's file store and go with its
+    // files below. A row left without its blob would be loaded and fail on every delivery of its reference; a
+    // reference whose row is gone is finished, as a retired one is (`server/specs/StagingRetirement.tla`). So the
+    // files wait for the rows: a failure keeps both for the sweep's retry. A request that stored its blob before
+    // the fence can register after this; the rows it leaves count as data found, like a late writer's spans.
+    let staged = repo.delete_project_staged_payloads(project_id).await;
+    if let Err(e) = &staged {
+        errors.push(format!("Staged payload delete failed: {}", e));
+    }
+
     // Files: bytes then rows, and the `files` rows are not reached by any cascade - `files.project_id`
     // has no foreign key to `projects`, so nothing else would ever remove them.
-    if let Err(e) = file_service.delete_project(project_id).await {
+    if staged.is_ok()
+        && let Err(e) = file_service.delete_project(project_id).await
+    {
         errors.push(format!("File delete failed: {}", e));
     }
 
@@ -327,6 +339,14 @@ pub async fn finish_project_deletion(
             tracing::warn!(project_id = %project_id, error = %e, "Could not verify a project's data is gone");
             u64::MAX
         });
+    let staged = staged.unwrap_or_default();
+    if staged > 0 {
+        tracing::debug!(
+            project_id = %project_id,
+            staged,
+            "A deleted project's staged payloads were removed; the project's tombstone stays"
+        );
+    }
     if remaining > 0 {
         // Not an error: this is the case the barrier exists for. A writer that read the fence before the
         // tombstone has committed, its rows were just deleted again, and the sweep count below starts
@@ -343,7 +363,7 @@ pub async fn finish_project_deletion(
     let removed = repo
         .record_project_sweep(
             project_id,
-            remaining == 0,
+            remaining == 0 && staged == 0,
             PROJECT_TOMBSTONE_CLEAN_SWEEPS,
             // A window, not a sweep: every instance sweeps, and without this N instances would reach the
             // required count in one interval. Half the interval, so a slightly early tick still counts.
@@ -602,10 +622,22 @@ pub async fn advance_pending_deletions(
         Ok(deleted) => {
             for (project_id, claim_token) in deleted {
                 let project_id = ProjectId::from(project_id);
+                // A payload registered after the tombstone went - its blob stored before the fence - is removed
+                // registry row first, then with the files, as `finish_project_deletion` removes them.
+                let staged_result = repo.delete_project_staged_payloads(&project_id).await;
+                if let Err(ref e) = staged_result {
+                    tracing::warn!(project_id = %project_id, error = %e, "Could not collect a deleted project's staged payloads");
+                }
                 // File ownership is checked independently from analytics because a partially committed batch can
                 // leave bytes and associations without an analytical row.
-                let file_result = file_service.delete_project(&project_id).await;
-                if let Err(ref e) = file_result {
+                let file_result = match staged_result {
+                    Ok(_) => file_service
+                        .delete_project(&project_id)
+                        .await
+                        .map_err(|e| e.to_string()),
+                    Err(ref e) => Err(e.to_string()),
+                };
+                if let (Ok(_), Err(e)) = (&staged_result, &file_result) {
                     tracing::warn!(project_id = %project_id, error = %e, "Could not collect a deleted project's files");
                 }
                 let row_count_result = analytics.as_ref().count_project_rows(&project_id).await;
@@ -634,7 +666,9 @@ pub async fn advance_pending_deletions(
                 }
 
                 // Back off only when both stores report no work and no error.
-                let was_quiet = matches!(file_result, Ok(0)) && matches!(row_count_result, Ok(0));
+                let was_quiet = matches!(staged_result, Ok(0))
+                    && matches!(file_result, Ok(0))
+                    && matches!(row_count_result, Ok(0));
                 if let Err(e) = repo
                     .record_deleted_project_check(
                         &project_id,

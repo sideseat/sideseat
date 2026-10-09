@@ -159,6 +159,10 @@ Project deletion is fenced twice:
 
 The second check is mandatory because queued traces may be processed after the project state changes.
 
+Deletion removes the project's staged payloads too, registry rows before their blobs, which live in the
+project's file store: a queued reference to one is then finished, as a retired one is, and no row is left
+naming a blob that is gone.
+
 ## Trace ingestion
 
 `TracePipeline` consumes staged trace references or runs synchronously in the request. Queue partitions are

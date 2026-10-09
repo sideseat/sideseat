@@ -319,7 +319,8 @@ pub trait StagedPayloadStore: Send + Sync {
 
     async fn delete_staged_payload(&self, id: &str) -> Result<(), DataError>;
 
-    /// Remove registry rows for a project that does not exist at the transactional restore point.
+    /// Remove a project's registry rows: when the project is deleted, and when it does not exist at the
+    /// transactional restore point.
     async fn delete_project_staged_payloads(
         &self,
         project_id: &ProjectId,

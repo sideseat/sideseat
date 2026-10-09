@@ -496,6 +496,10 @@ CREATE TABLE IF NOT EXISTS staged_payloads (
 );
 CREATE INDEX IF NOT EXISTS idx_staged_payloads_pending
     ON staged_payloads(unconfirmed, created_at, id);
+-- A project's rows, for its deletion and its usage: without it every deletion sweep and usage check scanned
+-- every tenant's rows, quarantined ones included, which the registry keeps until an operator acts.
+CREATE INDEX IF NOT EXISTS idx_staged_payloads_project
+    ON staged_payloads(project_id);
 
 -- Queue references whose registration was lost: acknowledged exports that cannot be found. Never expected;
 -- each is an incident, so the rows are kept until an operator clears them. Written by the maintenance role,
