@@ -525,15 +525,18 @@ async fn strict_confirmation_survives_hold_patch_and_byte_identical_retry_for_al
             .await
             .unwrap()
     );
-    assert!(
+    assert_eq!(
         harness
             .analytics
-            .metrics_match_content(
+            .metric_winners(
                 &harness.project_id,
-                &[("metric".to_string(), metric_digest, metric_instant)],
+                &[("metric".to_string(), metric_instant)],
             )
             .await
             .unwrap()
+            .get("metric")
+            .map(|winner| winner.content_digest.clone()),
+        Some(metric_digest)
     );
     assert!(
         harness

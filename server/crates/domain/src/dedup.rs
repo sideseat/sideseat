@@ -16,8 +16,8 @@ use sideseat_ports::types::{
     FeedMessagesParams, FeedSpansParams, ListLogsParams, ListMetricsParams, ListSessionsParams,
     ListSpansParams, ListTracesParams, LogRow, MessageQueryParams, MessageQueryResult,
     MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, ProjectId,
-    RawPending, RawRecordRow, SearchPage, SearchQuery, SessionRow, SpanCounts, SpanRow, SpanWinner,
-    TraceRow, deduplicate_by_span_identity,
+    RawPending, RawRecordRow, SearchPage, SearchQuery, SessionRow, SpanCounts, SpanRow, TraceRow,
+    WinningRevision, deduplicate_by_span_identity,
 };
 
 pub struct DedupAnalyticsRepository {
@@ -129,7 +129,7 @@ impl SpanStore for DedupAnalyticsRepository {
         &self,
         project_id: &ProjectId,
         spans: &[(String, String)],
-    ) -> Result<HashMap<(String, String), SpanWinner>, DataError> {
+    ) -> Result<HashMap<(String, String), WinningRevision>, DataError> {
         self.inner.span_winners(project_id, spans).await
     }
 }
@@ -174,12 +174,12 @@ impl MetricStore for DedupAnalyticsRepository {
             .await
     }
 
-    async fn metrics_match_content(
+    async fn metric_winners(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String, DateTime<Utc>)],
-    ) -> Result<bool, DataError> {
-        self.inner.metrics_match_content(project_id, records).await
+        records: &[(String, DateTime<Utc>)],
+    ) -> Result<HashMap<String, WinningRevision>, DataError> {
+        self.inner.metric_winners(project_id, records).await
     }
 }
 

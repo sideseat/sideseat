@@ -45,7 +45,7 @@ struct Samples {
     spans: Vec<(String, String, String)>,
     raw_ids: Vec<String>,
     log: Option<(String, u32, chrono::DateTime<Utc>)>,
-    datapoint: Option<(String, String, chrono::DateTime<Utc>)>,
+    datapoint: Option<(String, chrono::DateTime<Utc>)>,
     metric_name: Option<String>,
     term: Option<String>,
 }
@@ -132,16 +132,10 @@ fn samples(service: &DuckdbService) -> Samples {
         .ok();
     let datapoint = conn
         .query_row(
-            "SELECT datapoint_id, content_digest, epoch_us(\"timestamp\") FROM otel_metrics \
+            "SELECT datapoint_id, epoch_us(\"timestamp\") FROM otel_metrics \
              ORDER BY hash(datapoint_id), datapoint_id LIMIT 1",
             [],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    instant(row.get::<_, i64>(2)?),
-                ))
-            },
+            |row| Ok((row.get::<_, String>(0)?, instant(row.get::<_, i64>(1)?))),
         )
         .ok();
     let metric_name = one(
@@ -574,7 +568,7 @@ async fn read_paths() {
             ..Default::default()
         })
     );
-    if let Some((datapoint, content_digest, metric_instant)) = &s.datapoint {
+    if let Some((datapoint, metric_instant)) = &s.datapoint {
         measure!(
             rows,
             &profile,
@@ -584,11 +578,8 @@ async fn read_paths() {
         measure!(
             rows,
             &profile,
-            "ingest: metrics match content",
-            repo.metrics_match_content(
-                project,
-                &[(datapoint.clone(), content_digest.clone(), *metric_instant)]
-            )
+            "ingest: metric winners",
+            repo.metric_winners(project, &[(datapoint.clone(), *metric_instant)])
         );
     }
 

@@ -15,7 +15,9 @@ use sideseat_core::config::RetentionConfig;
 use sideseat_ports::blobs::{FileStorage, FileStorageError};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, DeletionScope, TransactionalRepository};
-use sideseat_ports::types::{ProjectId, SpanWinner, StagedPayload, StagedRecord, StagedSignal};
+use sideseat_ports::types::{
+    ProjectId, StagedPayload, StagedRecord, StagedSignal, WinningRevision,
+};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -47,6 +49,13 @@ impl StagedPayloadRef {
     pub fn partition_key(&self) -> String {
         self.partition_key.clone()
     }
+}
+
+/// The stored winners of a payload's span identities and datapoints.
+#[derive(Default)]
+struct Winners {
+    spans: HashMap<(String, String), WinningRevision>,
+    metrics: HashMap<String, WinningRevision>,
 }
 
 /// How one staged record stands against the store.
@@ -246,15 +255,19 @@ impl StagingService {
             .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
-    /// Check strict content equality. On a miss, settle what a revision received later superseded and prove every
-    /// other missing record was intentionally removed before declaring the payload terminal.
+    /// Check strict content equality - for a datapoint, stored at a receipt no earlier than this export's. On a
+    /// miss, settle what a revision received later superseded and prove every other missing record was
+    /// intentionally removed before declaring the payload terminal.
     ///
-    /// A span whose winner is another revision is settled when that revision was received no earlier than this
-    /// export and this export's own record holds the span: the export is stored, and is not the latest. Without
-    /// that, an export written after a later revision - redrive holding a copy it loaded, a requester retrying a
-    /// failed settlement - found that revision the winner, stayed pending, and was written again for as long as it
-    /// was retried. Its rows are stored at its receipt, so writing it again changes nothing a read answers
-    /// (`server/specs/StagingRetirement.tla`).
+    /// A span or datapoint whose winner is another revision is settled when that revision was received no
+    /// earlier than this export: the export is not the latest. Without that, an export written after a later
+    /// revision - redrive holding a copy it loaded, a requester retrying a failed settlement - found that
+    /// revision the winner, stayed pending, and was written again for as long as it was retried. Its rows are
+    /// stored at its receipt, so writing it again changes nothing a read answers
+    /// (`server/specs/StagingRetirement.tla`). A superseded span is settled only once the export's own record
+    /// holds it, so an export is never retired unwritten; a datapoint keeps only its winning revision, so a
+    /// superseded one is settled by the correction alone, as a write of it would only have been replaced
+    /// (`server/specs/StagingCorrections.tla`).
     pub async fn disposition(
         &self,
         payload: &StagedPayload,
@@ -276,7 +289,7 @@ impl StagingService {
             return Ok(StagingDisposition::DeliberatelyAbsent);
         }
 
-        let winners = self.span_winners(payload).await?;
+        let winners = self.winners(payload).await?;
         let mut saw_absence = false;
         let mut confirmed = Vec::new();
         let mut superseded = Vec::new();
@@ -307,12 +320,12 @@ impl StagingService {
         }
         let held = self.held_by_own_record(payload, &superseded).await?;
         for record in superseded {
-            if let StagedRecord::Span {
-                trace_id, span_id, ..
-            } = record
-                && held.contains(&(trace_id.clone(), span_id.clone()))
-            {
-                continue;
+            match record {
+                StagedRecord::Span {
+                    trace_id, span_id, ..
+                } if held.contains(&(trace_id.clone(), span_id.clone())) => continue,
+                StagedRecord::Metric { .. } => continue,
+                _ => {}
             }
             if self
                 .record_deliberately_absent(&payload.project_id, record)
@@ -330,30 +343,47 @@ impl StagingService {
         })
     }
 
-    /// The winning revisions of a trace payload's spans, in one read; empty for other signals.
-    async fn span_winners(
-        &self,
-        payload: &StagedPayload,
-    ) -> Result<HashMap<(String, String), SpanWinner>, StagingError> {
-        let spans: Vec<(String, String)> = payload
-            .records
-            .iter()
-            .filter_map(|record| match record {
+    /// The winning revisions of a payload's spans or datapoints, in one read; empty for logs.
+    async fn winners(&self, payload: &StagedPayload) -> Result<Winners, StagingError> {
+        let mut spans = std::collections::BTreeSet::new();
+        let mut datapoints = std::collections::BTreeSet::new();
+        for record in &payload.records {
+            match record {
                 StagedRecord::Span {
                     trace_id, span_id, ..
-                } => Some((trace_id.clone(), span_id.clone())),
-                _ => None,
-            })
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        if spans.is_empty() {
-            return Ok(HashMap::new());
+                } => {
+                    spans.insert((trace_id.clone(), span_id.clone()));
+                }
+                StagedRecord::Metric {
+                    datapoint_id,
+                    timestamp,
+                    ..
+                } => {
+                    datapoints.insert((datapoint_id.clone(), *timestamp));
+                }
+                StagedRecord::Log { .. } => {}
+            }
         }
-        self.analytics
-            .span_winners(&payload.project_id, &spans)
-            .await
-            .map_err(|error| StagingError::Registry(error.to_string()))
+        let registry =
+            |error: sideseat_ports::error::DataError| StagingError::Registry(error.to_string());
+        let mut winners = Winners::default();
+        if !spans.is_empty() {
+            let spans: Vec<_> = spans.into_iter().collect();
+            winners.spans = self
+                .analytics
+                .span_winners(&payload.project_id, &spans)
+                .await
+                .map_err(registry)?;
+        }
+        if !datapoints.is_empty() {
+            let datapoints: Vec<_> = datapoints.into_iter().collect();
+            winners.metrics = self
+                .analytics
+                .metric_winners(&payload.project_id, &datapoints)
+                .await
+                .map_err(registry)?;
+        }
+        Ok(winners)
     }
 
     /// How one record stands in the store: its content stored, superseded by a revision received no earlier
@@ -362,27 +392,63 @@ impl StagingService {
         &self,
         payload: &StagedPayload,
         record: &StagedRecord,
-        winners: &HashMap<(String, String), SpanWinner>,
+        winners: &Winners,
     ) -> Result<Standing, StagingError> {
-        let StagedRecord::Span {
-            trace_id,
-            span_id,
-            content_digest,
-            ..
-        } = record
-        else {
-            return Ok(
-                if self.record_confirmed(&payload.project_id, record).await? {
-                    Standing::Stored
-                } else {
-                    Standing::Missing
-                },
-            );
+        if let Some(standing) = Self::revision_standing(payload, record, winners) {
+            return Ok(standing);
+        }
+        Ok(if self.log_confirmed(&payload.project_id, record).await? {
+            Standing::Stored
+        } else {
+            Standing::Missing
+        })
+    }
+
+    /// How a span or a datapoint stands against its identity's winning revision; `None` for a log record, which
+    /// has no revisions.
+    ///
+    /// A datapoint's content found stored counts only when it was stored at a receipt no earlier than this
+    /// export's. A write stores a datapoint at its export's receipt even when its content is unchanged, so this
+    /// export written would move the datapoint to its receipt; settled on an earlier export's copy, it would
+    /// leave the datapoint at that earlier receipt, and a correction received in between - still to be written -
+    /// would take over once written (`StagingCorrections.tla`, `RetiredIsAnswered`).
+    fn revision_standing(
+        payload: &StagedPayload,
+        record: &StagedRecord,
+        winners: &Winners,
+    ) -> Option<Standing> {
+        let (winner, content_digest, received_no_earlier) = match record {
+            StagedRecord::Span {
+                trace_id,
+                span_id,
+                content_digest,
+                ..
+            } => (
+                winners.spans.get(&(trace_id.clone(), span_id.clone())),
+                content_digest,
+                false,
+            ),
+            StagedRecord::Metric {
+                datapoint_id,
+                content_digest,
+                ..
+            } => (winners.metrics.get(datapoint_id), content_digest, true),
+            StagedRecord::Log { .. } => return None,
         };
-        Ok(match winners.get(&(trace_id.clone(), span_id.clone())) {
-            Some(winner) if &winner.content_digest == content_digest => Standing::Stored,
+        Some(match winner {
+            Some(winner)
+                if &winner.content_digest == content_digest
+                    && (!received_no_earlier || winner.ingested_at >= payload.created_at) =>
+            {
+                Standing::Stored
+            }
             // No earlier: two exports received in the same microsecond have no order, and either may win.
-            Some(winner) if winner.ingested_at >= payload.created_at => Standing::Superseded,
+            Some(winner)
+                if &winner.content_digest != content_digest
+                    && winner.ingested_at >= payload.created_at =>
+            {
+                Standing::Superseded
+            }
             _ => Standing::Missing,
         })
     }
@@ -568,6 +634,7 @@ impl StagingService {
                             &request,
                             self.analytics.as_ref(),
                             self.database.as_ref(),
+                            current.created_at,
                         )
                         .await
                         .is_ok(),
@@ -631,22 +698,16 @@ impl StagingService {
                     .spans_match_content(&payload.project_id, &records)
                     .await
             }
+            // The rule settlement applies record by record, read from the same winners: a fast path that only
+            // matched content would settle an export whose content an earlier export stored (`revision_standing`).
             StagedSignal::Metrics => {
-                let records = payload
-                    .records
-                    .iter()
-                    .filter_map(|record| match record {
-                        StagedRecord::Metric {
-                            datapoint_id,
-                            content_digest,
-                            timestamp,
-                        } => Some((datapoint_id.clone(), content_digest.clone(), *timestamp)),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                self.analytics
-                    .metrics_match_content(&payload.project_id, &records)
-                    .await
+                let winners = self.winners(payload).await?;
+                return Ok(payload.records.iter().all(|record| {
+                    matches!(
+                        Self::revision_standing(payload, record, &winners),
+                        Some(Standing::Stored)
+                    )
+                }));
             }
             StagedSignal::Logs => {
                 let records = payload
@@ -675,46 +736,33 @@ impl StagingService {
         .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
-    /// Whether a metric or log record's content is stored; spans are read through their winners ([`Self::standing`]).
-    async fn record_confirmed(
+    /// Whether a log record is stored; spans and datapoints are read through their winners ([`Self::standing`]).
+    async fn log_confirmed(
         &self,
         project_id: &ProjectId,
         record: &StagedRecord,
     ) -> Result<bool, StagingError> {
-        match record {
-            StagedRecord::Span { .. } => Ok(false),
-            StagedRecord::Metric {
-                datapoint_id,
-                content_digest,
-                timestamp,
-            } => {
-                self.analytics
-                    .metrics_match_content(
-                        project_id,
-                        &[(datapoint_id.clone(), content_digest.clone(), *timestamp)],
-                    )
-                    .await
-            }
-            StagedRecord::Log {
-                log_digest,
-                ordinal,
-                timestamp,
-                own_instant,
-                ..
-            } => {
-                self.analytics
-                    .logs_match_content(
-                        project_id,
-                        &[(
-                            log_digest.clone(),
-                            *ordinal,
-                            own_instant.then_some(*timestamp),
-                        )],
-                    )
-                    .await
-            }
-        }
-        .map_err(|error| StagingError::Registry(error.to_string()))
+        let StagedRecord::Log {
+            log_digest,
+            ordinal,
+            timestamp,
+            own_instant,
+            ..
+        } = record
+        else {
+            return Ok(false);
+        };
+        self.analytics
+            .logs_match_content(
+                project_id,
+                &[(
+                    log_digest.clone(),
+                    *ordinal,
+                    own_instant.then_some(*timestamp),
+                )],
+            )
+            .await
+            .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
     async fn record_deliberately_absent(
@@ -797,150 +845,8 @@ fn blob_error(error: FileStorageError) -> StagingError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::{TimeZone, Utc};
-    use sideseat_adapter_blob_storage::FilesystemStorage;
-    use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
-    use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::storage::AppStorage;
-    use sideseat_ports::types::NormalizedMetric;
-
-    #[derive(Debug)]
-    struct TestClock;
-
-    impl Clock for TestClock {
-        fn now(&self) -> chrono::DateTime<Utc> {
-            Utc.timestamp_opt(1_704_067_200, 0).single().unwrap()
-        }
-    }
-
-    #[tokio::test]
-    async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let app_storage = AppStorage::init_for_test(temp.path().to_path_buf());
-        tokio::fs::create_dir_all(temp.path().join("duckdb"))
-            .await
-            .unwrap();
-        let clock: Arc<dyn Clock> = Arc::new(TestClock);
-        let sqlite = Arc::new(
-            SqliteService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .unwrap(),
-        );
-        let database: Arc<dyn TransactionalRepository + Send + Sync> =
-            Arc::new(SqliteRepository(sqlite));
-        let duck = Arc::new(
-            DuckdbService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .unwrap(),
-        );
-        let analytics: Arc<dyn AnalyticsRepository + Send + Sync> =
-            Arc::new(DuckdbRepository(duck));
-        let storage: Arc<dyn FileStorage> =
-            Arc::new(FilesystemStorage::new(temp.path().join("staging")));
-        let service = StagingService::new(
-            Arc::clone(&storage),
-            Arc::clone(&database),
-            Arc::clone(&analytics),
-            Arc::clone(&clock),
-            RetentionConfig::default(),
-            2,
-        );
-
-        let user = database
-            .create_user("staging@example.test", None)
-            .await
-            .unwrap();
-        let org = database
-            .create_organization_with_owner("Staging", "staging", &user.id)
-            .await
-            .unwrap();
-        let project = database.create_project(&org.id, "Staging").await.unwrap();
-        let project_id = ProjectId::from(project.id.as_str());
-        let metric = NormalizedMetric {
-            project_id: Some(project.id.clone()),
-            datapoint_id: "same-identity".to_string(),
-            content_digest: "new-content".to_string(),
-            timestamp: clock.now(),
-            ingested_at: Some(clock.now()),
-            ..Default::default()
-        };
-        analytics
-            .insert_metrics(std::slice::from_ref(&metric))
-            .await
-            .unwrap();
-
-        for _ in 0..2 {
-            let reference = service
-                .stage(
-                    &project.id,
-                    StagedSignal::Metrics,
-                    b"byte-identical-export",
-                    clock.now(),
-                    vec![StagedRecord::Metric {
-                        datapoint_id: metric.datapoint_id.clone(),
-                        content_digest: metric.content_digest.clone(),
-                        timestamp: metric.timestamp,
-                    }],
-                    "series".to_string(),
-                )
-                .await
-                .unwrap();
-            let (payload, _) = service.load(&reference.id).await.unwrap().unwrap();
-            assert_eq!(
-                service.settle(&payload).await.unwrap(),
-                StagingDisposition::Confirmed
-            );
-            assert!(
-                database
-                    .get_staged_payload(&reference.id)
-                    .await
-                    .unwrap()
-                    .is_none()
-            );
-            assert!(
-                !storage
-                    .exists(&project_id, &payload.blob_hash)
-                    .await
-                    .unwrap()
-            );
-        }
-
-        let missing = service
-            .stage(
-                &project.id,
-                StagedSignal::Metrics,
-                b"missing-export",
-                clock.now(),
-                vec![StagedRecord::Metric {
-                    datapoint_id: "missing".to_string(),
-                    content_digest: "never-written".to_string(),
-                    timestamp: clock.now(),
-                }],
-                String::new(),
-            )
-            .await
-            .unwrap();
-        assert!(!service.note_failed_attempt(&missing.id).await.unwrap());
-        assert!(service.note_failed_attempt(&missing.id).await.unwrap());
-        let held = database
-            .get_staged_payload(&missing.id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(held.unconfirmed);
-        assert_eq!(held.redrive_attempts, 2);
-        assert!(storage.exists(&project_id, &held.blob_hash).await.unwrap());
-        assert!(
-            database
-                .pending_staged_payloads(10)
-                .await
-                .unwrap()
-                .is_empty()
-        );
-    }
-}
+#[path = "staging_tests.rs"]
+mod tests;
 
 #[cfg(test)]
 #[path = "staging_retirement_tests.rs"]
@@ -949,3 +855,7 @@ mod retirement_tests;
 #[cfg(test)]
 #[path = "staging_fault_tests.rs"]
 mod fault_tests;
+
+#[cfg(test)]
+#[path = "staging_precedence_tests.rs"]
+mod precedence_tests;

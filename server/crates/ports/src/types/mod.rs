@@ -59,7 +59,9 @@ pub use messages::{
 pub use metrics::{ListMetricsParams, MetricAggregateRow, MetricRow};
 
 // Re-export stats types
-pub use staging::{SpanWinner, StagedPayload, StagedRecord, StagedSequenceState, StagedSignal};
+pub use staging::{
+    StagedPayload, StagedRecord, StagedSequenceState, StagedSignal, WinningRevision,
+};
 pub use stats::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,

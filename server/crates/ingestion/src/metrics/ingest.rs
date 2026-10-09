@@ -19,6 +19,7 @@
 
 use std::collections::HashSet;
 
+use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
 
 use super::extract::extract_metrics_batch;
@@ -74,31 +75,42 @@ impl Stored {
     }
 }
 
-/// Extract, fence and write a metrics request. `Err` means nothing was stored and a retry is warranted.
+/// Extract, fence and write a metrics request received at `received_at`. `Err` means nothing was stored and a
+/// retry is warranted.
+///
+/// Every datapoint is stored at the export's receipt, whichever write stores it: a correction of a datapoint
+/// wins by the instant it was received, so a copy of an earlier export written late - a retry after its
+/// settlement failed, redrive - loses to a correction received after it instead of replacing it.
 pub async fn ingest(
     request: &ExportMetricsServiceRequest,
     analytics: &(dyn AnalyticsRepository + Send + Sync),
     database: &(dyn TransactionalRepository + Send + Sync),
+    received_at: DateTime<Utc>,
 ) -> Result<Stored, String> {
-    ingest_inner(request, analytics, database, None).await
+    ingest_inner(request, analytics, database, received_at, None).await
 }
 
 pub async fn ingest_governed(
     request: &ExportMetricsServiceRequest,
     analytics: &(dyn AnalyticsRepository + Send + Sync),
     database: &(dyn TransactionalRepository + Send + Sync),
+    received_at: DateTime<Utc>,
     governance: &StorageGovernanceService,
 ) -> Result<Stored, String> {
-    ingest_inner(request, analytics, database, Some(governance)).await
+    ingest_inner(request, analytics, database, received_at, Some(governance)).await
 }
 
 async fn ingest_inner(
     request: &ExportMetricsServiceRequest,
     analytics: &(dyn AnalyticsRepository + Send + Sync),
     database: &(dyn TransactionalRepository + Send + Sync),
+    received_at: DateTime<Utc>,
     governance: Option<&StorageGovernanceService>,
 ) -> Result<Stored, String> {
     let mut metrics = extract_metrics_batch(request);
+    for metric in &mut metrics {
+        metric.ingested_at = Some(received_at);
+    }
     let total = metrics.len();
     if metrics.is_empty() {
         return Ok(Stored::nothing_of(total));

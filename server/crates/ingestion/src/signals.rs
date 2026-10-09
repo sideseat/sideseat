@@ -706,6 +706,7 @@ impl Signal for MetricsSignal {
             request,
             self.analytics.as_ref(),
             self.database.as_ref(),
+            context.received.received_at,
             context.storage_governance,
         )
         .await?;

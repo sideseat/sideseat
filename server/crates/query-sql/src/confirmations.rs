@@ -122,53 +122,99 @@ fn winning_spans_with_digest(
     )
 }
 
-/// The `(datapoint_id, content_digest, timestamp)` records, confirmed when each stored datapoint carries that
-/// digest.
+/// The winning revision of each requested `(trace_id, span_id)` identity that has one: its trace id, span id,
+/// content digest and ingest instant in epoch microseconds. DuckDB reads the identities through the `span_id`
+/// index, as [`matching_spans`] does; the caller binds at most [`crate::keyed::KEYED_CHUNK`] per query.
+pub fn span_winners(
+    project_id: &str,
+    spans: &[(String, String)],
+    backend: Backend,
+) -> Option<ParameterizedQuery> {
+    let identities: BTreeSet<&(String, String)> = spans.iter().collect();
+    if identities.is_empty() {
+        return None;
+    }
+    let mut params = Vec::new();
+    let source = match backend {
+        Backend::Duckdb => {
+            let keys = distinct_keys(identities.iter().map(|(_, span_id)| span_id.as_str()));
+            params.extend(
+                keys.iter()
+                    .map(|key| QueryValue::String((*key).to_string())),
+            );
+            let keyed = duckdb_keyed(
+                "otel_spans",
+                "span_id",
+                "project_id, trace_id, span_id, content_digest, ingested_at, superseded_at",
+                keys.len(),
+            );
+            format!("{keyed} WHERE superseded_at IS NULL AND")
+        }
+        Backend::Clickhouse => "otel_spans FINAL WHERE".to_string(),
+    };
+    params.push(QueryValue::String(project_id.to_string()));
+    for (trace_id, span_id) in &identities {
+        params.push(QueryValue::String(trace_id.clone()));
+        params.push(QueryValue::String(span_id.clone()));
+    }
+    let instant = match backend {
+        Backend::Duckdb => "EPOCH_US(ingested_at)",
+        Backend::Clickhouse => "toInt64(toUnixTimestamp64Micro(ingested_at))",
+    };
+    Some(ParameterizedQuery::new(
+        format!(
+            "SELECT trace_id, span_id, content_digest, {instant} FROM {source} \
+             project_id = ? AND (trace_id, span_id) IN ({}){}",
+            std::iter::repeat_n("(?, ?)", identities.len())
+                .collect::<Vec<_>>()
+                .join(", "),
+            sequential_consistency(backend)
+        ),
+        params,
+    ))
+}
+
+/// The stored revision of each `(datapoint_id, timestamp)` datapoint: its id, content digest and ingest instant in
+/// epoch microseconds.
 ///
 /// A datapoint's instant is part of its identity, so its rows all carry the `timestamp` it was staged with, and
 /// rows are appended in roughly the order of their instants. DuckDB therefore reads only the row groups whose
 /// `timestamp` bounds hold one of the records' instants - their zone maps - rather than the table, and needs no
 /// index: one on `datapoint_id` measured 85 bytes per point, more than half the per-point target. A correction
-/// replaces its row, so there is one row per datapoint to count. ClickHouse reads the datapoints through their
-/// skip index.
-pub fn metrics(
+/// replaces its row, so there is one row per datapoint. ClickHouse reads the datapoints through their skip index.
+pub fn metric_winners(
     project_id: &str,
-    records: &[(String, String, DateTime<Utc>)],
+    records: &[(String, DateTime<Utc>)],
     backend: Backend,
-) -> Option<ConfirmationQuery> {
-    let instants = distinct_instants(records.iter().map(|(_, _, timestamp)| *timestamp))?;
-    let records: BTreeSet<_> = records
-        .iter()
-        .map(|(datapoint_id, digest, _)| (datapoint_id.clone(), digest.clone()))
-        .collect();
-    let tuples = std::iter::repeat_n("(?, ?)", records.len())
-        .collect::<Vec<_>>()
-        .join(", ");
+) -> Option<ParameterizedQuery> {
+    let instants = distinct_instants(records.iter().map(|(_, timestamp)| *timestamp))?;
+    let ids: BTreeSet<&str> = records.iter().map(|(id, _)| id.as_str()).collect();
     let (source, mut params) = by_instant("otel_metrics", &instants, backend);
     params.push(QueryValue::String(project_id.to_string()));
-    for (datapoint_id, digest) in &records {
-        params.push(QueryValue::String(datapoint_id.clone()));
-        params.push(QueryValue::String(digest.clone()));
-    }
-    Some(ConfirmationQuery {
-        query: ParameterizedQuery::new(
-            format!(
-                "SELECT count() FROM {source} \
-                 project_id = ? AND (datapoint_id, content_digest) IN ({tuples}){}",
-                sequential_consistency(backend)
-            ),
-            params,
+    params.extend(ids.iter().map(|id| QueryValue::String((*id).to_string())));
+    let instant = match backend {
+        Backend::Duckdb => "EPOCH_US(ingested_at)",
+        Backend::Clickhouse => "toInt64(toUnixTimestamp64Micro(ingested_at))",
+    };
+    Some(ParameterizedQuery::new(
+        format!(
+            "SELECT datapoint_id, content_digest, {instant} FROM {source} \
+             project_id = ? AND datapoint_id IN ({}){}",
+            std::iter::repeat_n("?", ids.len())
+                .collect::<Vec<_>>()
+                .join(", "),
+            sequential_consistency(backend)
         ),
-        expected: records.len() as u64,
-    })
+        params,
+    ))
 }
 
 /// The `(log_digest, ordinal, instant)` records, confirmed when each is stored.
 ///
 /// A record's own instant - its time or observed time - is part of its digest, so DuckDB reads only the row
-/// groups of the records' instants, as [`metrics`] does. A record carrying no time of its own is stored under its
-/// delivery's receipt time, which another delivery replaces, so a list holding one is read unbounded: the
-/// caller separates them, and pays the whole-table read only for those.
+/// groups of the records' instants, as [`metric_winners`] does. A record carrying no time of its own is stored
+/// under its delivery's receipt time, which another delivery replaces, so a list holding one is read unbounded:
+/// the caller separates them, and pays the whole-table read only for those.
 pub fn logs(
     project_id: &str,
     records: &[(String, u32, Option<DateTime<Utc>>)],

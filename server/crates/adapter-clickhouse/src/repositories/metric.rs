@@ -13,7 +13,7 @@ use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_ports::traits::FilterOptionRow;
 use sideseat_ports::types::{
     ListMetricsParams, MetricAggregateRow, MetricRow as MetricResultRow, NormalizedMetric,
-    ProjectId,
+    ProjectId, WinningRevision,
 };
 use sideseat_query_sql::{Backend, confirmations, dml, metrics as metric_sql};
 
@@ -354,19 +354,33 @@ pub async fn get_metric(
     Ok(row.map(Into::into))
 }
 
-pub async fn matches_content(
+/// The stored revision of each of these `(datapoint_id, timestamp)` datapoints, by datapoint id.
+pub async fn winners(
     client: &Client,
     project_id: &ProjectId,
-    records: &[(String, String, chrono::DateTime<chrono::Utc>)],
-) -> Result<bool, ClickhouseError> {
-    let Some(plan) = confirmations::metrics(project_id.as_str(), records, Backend::Clickhouse)
+    records: &[(String, chrono::DateTime<chrono::Utc>)],
+) -> Result<HashMap<String, WinningRevision>, ClickhouseError> {
+    let Some(query) =
+        confirmations::metric_winners(project_id.as_str(), records, Backend::Clickhouse)
     else {
-        return Ok(true);
+        return Ok(HashMap::new());
     };
-    let found: u64 = bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
-        .fetch_one()
-        .await?;
-    Ok(found == plan.expected)
+    let rows: Vec<(String, String, i64)> =
+        bind_analytics_values(client.query(query.sql()), query.params())
+            .fetch_all()
+            .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(datapoint_id, content_digest, ingested_us)| {
+            (
+                datapoint_id,
+                WinningRevision {
+                    content_digest,
+                    ingested_at: sideseat_core::utils::time::micros_to_datetime(ingested_us),
+                },
+            )
+        })
+        .collect())
 }
 
 pub async fn aggregate_metrics(

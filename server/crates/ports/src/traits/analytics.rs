@@ -148,7 +148,7 @@ pub trait SpanStore: Send + Sync {
         &self,
         project_id: &ProjectId,
         spans: &[(String, String)],
-    ) -> Result<HashMap<(String, String), SpanWinner>, DataError>;
+    ) -> Result<HashMap<(String, String), WinningRevision>, DataError>;
 }
 
 /// Metric writes and the read API over winning datapoint revisions.
@@ -180,13 +180,14 @@ pub trait MetricStore: Send + Sync {
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
 
-    /// Whether every `(datapoint_id, content_digest, timestamp)` record is stored with that digest. The
-    /// timestamp is the datapoint's own instant, part of its identity, which a store may bound its read by.
-    async fn metrics_match_content(
+    /// The winning revision of each of these `(datapoint_id, timestamp)` datapoints that is stored, by datapoint
+    /// id. The timestamp is the datapoint's own instant, which a store may bound its read by. Settling an export
+    /// whose content is not stored reads it, to tell a correction received after the export's from a miss.
+    async fn metric_winners(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String, DateTime<Utc>)],
-    ) -> Result<bool, DataError>;
+        records: &[(String, DateTime<Utc>)],
+    ) -> Result<HashMap<String, WinningRevision>, DataError>;
 }
 
 /// OTLP log writes and correlation-aware reads.

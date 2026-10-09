@@ -39,10 +39,29 @@
 (* receipt, so a copy written late is superseded at once and settles as     *)
 (* superseded; without it the instant is the write's, and LaterReceiptWins *)
 (* fails: the late copy takes over from the revision that arrived after it. *)
+(*                                                                          *)
+(* OwnRecord says what a superseded export must have stored to settle. A    *)
+(* span's export keeps a raw record of its own, the authority every derived *)
+(* row is rebuilt from, so it settles as superseded only once written. A    *)
+(* metric datapoint keeps only its winning revision: writing a superseded   *)
+(* one would store nothing, so it settles on the later revision alone.      *)
+(* StagingCorrections checks that instance.                                 *)
+(*                                                                          *)
+(* Each export carries a content, and with SharedContent two exports may    *)
+(* carry the same one: a retry, or a correction back to an earlier value.   *)
+(* A datapoint's write stores even an unchanged content at its receipt, so  *)
+(* finding its content stored settles an export only where it was stored   *)
+(* at a receipt no earlier than the export's; one stored earlier would let  *)
+(* a revision received in between take over once written. Spans skip an     *)
+(* exact redelivery instead of writing it, which this model does not        *)
+(* describe, so their exports' contents stay distinct. Receipts are totally *)
+(* ordered here; two in one microsecond, which a store orders by write and  *)
+(* settlement accepts either way, are left to the staging tests.            *)
 (***************************************************************************)
-EXTENDS Naturals, FiniteSets, Sequences
+EXTENDS Naturals, FiniteSets, Sequences, TLC
 
-CONSTANTS Payloads, Consumers, WithPowerLoss, ReceiptPrecedence, MaxWrites
+CONSTANTS Payloads, Consumers, Contents, WithPowerLoss, ReceiptPrecedence, OwnRecord, SharedContent,
+    MaxWrites
 
 VARIABLES
     row,        \* payload -> registry state
@@ -52,14 +71,15 @@ VARIABLES
     pc,         \* each consumer's message in hand and its next step
     verdict,    \* payload -> what a consumer concluded on reading its reference
     received,   \* payload -> its receipt order (0 = not yet received)
-    written,    \* every revision stored: [p, at]
+    content,    \* payload -> the content it carries ("none" = not yet received)
+    written,    \* every revision stored: [p, c, at]
     \* Ghost facts the protocol cannot read, used only by the invariants.
     retired,    \* payloads retired at some point
     dropped,    \* payloads whose project was deleted
     lost,       \* payloads whose registration a power loss rolled back
     tail        \* the registrations committed since the last other commit, oldest first
 
-vars == <<row, seq, hw, queue, pc, verdict, received, written, retired, dropped, lost, tail>>
+vars == <<row, seq, hw, queue, pc, verdict, received, content, written, retired, dropped, lost, tail>>
 
 Idle == [p |-> "none", step |-> "idle"]
 MaxSeq == Cardinality(Payloads) + 1
@@ -73,6 +93,7 @@ TypeOK ==
         pc[c] = Idle \/ (pc[c].p \in Payloads /\ pc[c].step \in {"read", "write", "settle", "ack"})
     /\ verdict \in [Payloads -> {"none", "processed", "finished", "anomaly"}]
     /\ received \in [Payloads -> 0..Cardinality(Payloads)]
+    /\ content \in [Payloads -> Contents \cup {"none"}]
     /\ retired \subseteq Payloads /\ dropped \subseteq Payloads /\ lost \subseteq Payloads
 
 Init ==
@@ -83,6 +104,7 @@ Init ==
     /\ pc = [c \in Consumers |-> Idle]
     /\ verdict = [p \in Payloads |-> "none"]
     /\ received = [p \in Payloads |-> 0]
+    /\ content = [p \in Payloads |-> "none"]
     /\ written = {}
     /\ retired = {} /\ dropped = {} /\ lost = {}
     /\ tail = <<>>
@@ -91,7 +113,7 @@ Init ==
 Holder(s) == {q \in Payloads : row[q] = "live" /\ seq[q] = s}
 
 ----------------------------------------------------------------------------
-(* The span's revisions: the store answers with the latest by instant.     *)
+(* The identity's revisions: the store answers with the latest by instant. *)
 (* Instants tie only for two writes of one payload under ReceiptPrecedence, *)
 (* which are the same revision.                                            *)
 
@@ -99,21 +121,25 @@ Written(p) == \E r \in written : r.p = p
 
 WinnerRecord == CHOOSE r \in written : \A o \in written : o.at <= r.at
 
-Winner == IF written = {} THEN "none" ELSE WinnerRecord.p
-
 \* Write p's revision: at its receipt with ReceiptPrecedence, at the write's own instant without. Writing a
 \* revision again at its receipt stores nothing new, so only distinct revisions count towards the bound.
 WriteRevision(p) ==
-    /\ LET r == [p |-> p, at |-> IF ReceiptPrecedence THEN received[p] ELSE Cardinality(written) + 1]
+    /\ LET r == [p |-> p, c |-> content[p],
+                 at |-> IF ReceiptPrecedence THEN received[p] ELSE Cardinality(written) + 1]
        IN  /\ r \in written \/ Cardinality(written) < MaxWrites
            /\ written' = written \cup {r}
 
-\* What settling reads: p's content is stored and is the winner - or, with ReceiptPrecedence, a revision received
-\* after it is, which supersedes it legitimately.
+\* What settling reads. p's content is stored as the winner - where a write stores an unchanged content again,
+\* at a receipt no earlier than p's - or, with ReceiptPrecedence, a revision received after p's is, which
+\* supersedes it legitimately once p's own record is stored where the store keeps one. Without ReceiptPrecedence
+\* nothing reads an instant: content alone settles, as it did.
 Confirmed(p) ==
-    /\ Written(p)
-    /\ \/ Winner = p
-       \/ (ReceiptPrecedence /\ Winner # "none" /\ received[Winner] > received[p])
+    /\ written # {}
+    /\ \/ /\ WinnerRecord.c = content[p]
+          /\ OwnRecord \/ ~ReceiptPrecedence \/ WinnerRecord.at >= received[p]
+       \/ /\ ReceiptPrecedence
+          /\ WinnerRecord.at > received[p]
+          /\ OwnRecord => Written(p)
 
 ----------------------------------------------------------------------------
 
@@ -126,6 +152,9 @@ Stage(p) ==
     /\ hw' = hw + 1
     /\ queue' = queue \cup {p}
     /\ received' = [received EXCEPT ![p] = Cardinality({q \in Payloads : received[q] # 0}) + 1]
+    /\ \E c \in Contents :
+        /\ SharedContent \/ \A q \in Payloads : content[q] # c
+        /\ content' = [content EXCEPT ![p] = c]
     /\ tail' = Append(tail, p)
     /\ UNCHANGED <<pc, verdict, written, retired, dropped, lost>>
 
@@ -134,7 +163,7 @@ DeleteProject(p) ==
     /\ row' = [row EXCEPT ![p] = "gone"]
     /\ dropped' = dropped \cup {p}
     /\ tail' = <<>>
-    /\ UNCHANGED <<seq, hw, queue, pc, verdict, received, written, retired, lost>>
+    /\ UNCHANGED <<seq, hw, queue, pc, verdict, received, content, written, retired, lost>>
 
 \* The defect under detection: a WAL loses a suffix of its commits. Losing the newest registration of the
 \* trailing run models any such suffix, one commit at a time; a lost retirement only resurrects a live row,
@@ -148,31 +177,33 @@ PowerLoss ==
         /\ lost' = lost \cup {p}
         /\ tail' = SubSeq(tail, 1, Len(tail) - 1)
         \* The reference keeps the sequence it was published with, the exporter its answer.
-        /\ UNCHANGED <<seq, queue, pc, verdict, received, written, retired, dropped>>
+        /\ UNCHANGED <<seq, queue, pc, verdict, received, content, written, retired, dropped>>
 
 Take(c, p) ==
     /\ pc[c] = Idle /\ p \in queue
     /\ pc' = [pc EXCEPT ![c] = [p |-> p, step |-> "read"]]
-    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, written, retired, dropped, lost, tail>>
 
-\* Reading decides. A live row is persisted, then settled. A missing one is classified by its sequence.
+\* Reading decides. A live row is persisted, then settled - or settled first, as redrive reads a payload's
+\* disposition before it writes and retires one whose content is already settled; one that is not stays queued.
+\* A missing row is classified by its sequence.
 Read(c) ==
     /\ pc[c].step = "read"
     /\ LET p == pc[c].p
            s == seq[p]
        IN  IF row[p] = "live"
-           THEN /\ pc' = [pc EXCEPT ![c].step = "write"]
+           THEN /\ \E next \in {"write", "settle"} : pc' = [pc EXCEPT ![c].step = next]
                 /\ UNCHANGED verdict
            ELSE /\ verdict' = [verdict EXCEPT ![p] =
                         IF s > hw \/ Holder(s) # {} THEN "anomaly" ELSE "finished"]
                 /\ pc' = [pc EXCEPT ![c].step = "ack"]
-    /\ UNCHANGED <<row, seq, hw, queue, received, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, queue, received, content, written, retired, dropped, lost, tail>>
 
 CWrite(c) ==
     /\ pc[c].step = "write"
     /\ WriteRevision(pc[c].p)
     /\ pc' = [pc EXCEPT ![c].step = "settle"]
-    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, retired, dropped, lost, tail>>
 
 \* Settled, the reference is acknowledged; still pending, it stays queued for another delivery.
 CSettle(c) ==
@@ -186,19 +217,19 @@ CSettle(c) ==
              /\ pc' = [pc EXCEPT ![c].step = "ack"]
         ELSE /\ pc' = [pc EXCEPT ![c] = Idle]
              /\ UNCHANGED <<row, retired, verdict, tail>>
-    /\ UNCHANGED <<seq, hw, queue, received, written, dropped, lost>>
+    /\ UNCHANGED <<seq, hw, queue, received, content, written, dropped, lost>>
 
 Ack(c) ==
     /\ pc[c].step = "ack"
     /\ queue' = queue \ {pc[c].p}
     /\ pc' = [pc EXCEPT ![c] = Idle]
-    /\ UNCHANGED <<row, seq, hw, verdict, received, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, verdict, received, content, written, retired, dropped, lost, tail>>
 
 \* A crash loses a worker's place; an unacknowledged reference stays queued and is redelivered.
 Crash(c) ==
     /\ pc[c] # Idle
     /\ pc' = [pc EXCEPT ![c] = Idle]
-    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, written, retired, dropped, lost, tail>>
 
 Next ==
     \/ PowerLoss
@@ -230,13 +261,24 @@ NoFalseAnomaly ==
 CleanRunsAreClean ==
     ~WithPowerLoss => \A p \in Payloads : verdict[p] # "anomaly"
 
-\* Once a revision received later is stored, an earlier one is never the span's winner again - however late a
-\* worker writes the copy of it that it loaded.
+\* The store answers the content of the latest export received of those it stores - however late a worker
+\* writes the copy of an earlier one that it loaded.
 LaterReceiptWins ==
-    \A p, q \in Payloads :
-        (received[p] # 0 /\ received[q] > received[p] /\ Written(q)) => Winner # p
+    \A q \in Payloads :
+        (Written(q) /\ \A o \in Payloads : Written(o) => received[o] <= received[q])
+            => WinnerRecord.c = content[q]
 
-\* A payload is retired only once its content is stored: superseded is settled, unwritten is not.
+\* Where the store keeps an export's own record, a payload is retired only once its content is stored:
+\* superseded is settled, unwritten is not.
 RetiredWasWritten ==
-    \A p \in retired : Written(p)
+    OwnRecord => \A p \in retired : Written(p)
+
+\* Retiring a payload loses nothing a read answers: its own revision is stored, or one received after it is,
+\* which LaterReceiptWins keeps the answer over it. Its content stored by an earlier export is not enough: a
+\* revision received in between would take over once written.
+RetiredIsAnswered ==
+    \A p \in retired : Written(p) \/ \E q \in Payloads : Written(q) /\ received[q] > received[p]
+
+\* Exports and contents are interchangeable: only the order exports are received in tells them apart.
+Symmetry == Permutations(Payloads) \cup Permutations(Contents)
 =============================================================================

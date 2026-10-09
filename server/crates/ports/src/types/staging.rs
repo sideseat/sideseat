@@ -72,10 +72,11 @@ impl StagedRecord {
     }
 }
 
-/// What the store holds as a span identity's current revision, as settling a staged export compares it: the
-/// revision's content digest and the instant it was received at, which orders it among the identity's revisions.
+/// What the store holds as a span's or a datapoint's current revision, as settling a staged export compares it:
+/// the revision's content digest and the instant it was received at, which orders it among the identity's
+/// revisions.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpanWinner {
+pub struct WinningRevision {
     pub content_digest: String,
     pub ingested_at: DateTime<Utc>,
 }

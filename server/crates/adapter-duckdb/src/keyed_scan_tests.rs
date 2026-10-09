@@ -214,20 +214,26 @@ async fn ingest_lookups_read_the_rows_they_name() {
     );
     let scanned = rows_scanned(&s.profile);
     assert!(scanned <= ROW_GROUP, "logs match content scanned {scanned}");
-    let points: Vec<(String, String, chrono::DateTime<Utc>)> = (MIDDLE..MIDDLE + 5)
-        .map(|n| (format!("dp-{n:08}"), format!("metric-digest-{n}"), at(n)))
+    let points: Vec<(String, chrono::DateTime<Utc>)> = (MIDDLE..MIDDLE + 5)
+        .map(|n| (format!("dp-{n:08}"), at(n)))
         .collect();
-    assert!(
-        s.repo
-            .metrics_match_content(&project, &points)
-            .await
-            .expect("metrics")
+    let winners = s
+        .repo
+        .metric_winners(&project, &points)
+        .await
+        .expect("metrics");
+    assert_eq!(
+        (MIDDLE..MIDDLE + 5)
+            .map(|n| winners
+                .get(&format!("dp-{n:08}"))
+                .map(|winner| winner.content_digest.clone()))
+            .collect::<Vec<_>>(),
+        (MIDDLE..MIDDLE + 5)
+            .map(|n| Some(format!("metric-digest-{n}")))
+            .collect::<Vec<_>>()
     );
     let scanned = rows_scanned(&s.profile);
-    assert!(
-        scanned <= ROW_GROUP,
-        "metrics match content scanned {scanned}"
-    );
+    assert!(scanned <= ROW_GROUP, "metric winners scanned {scanned}");
     held!(
         "file reference fields of a trace",
         SPANS_PER_TRACE,

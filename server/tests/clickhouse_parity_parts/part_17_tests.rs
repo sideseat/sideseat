@@ -158,3 +158,71 @@ async fn a_datapoint_reads_back_alike_on_both_backends() {
         "a datapoint must read back alike on both backends"
     );
 }
+
+/// A correction of a datapoint written after a later one - a worker writing the copy it loaded - is stored at its
+/// receipt, so it loses at once on both backends, and both answer the later correction as the winner settlement
+/// reads.
+#[tokio::test]
+async fn a_correction_written_after_a_later_one_stays_superseded_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_correction_order").await;
+
+    let base = NormalizedMetric {
+        project_id: Some(PROJECT.to_string()),
+        metric_name: "queue.depth".to_string(),
+        metric_type: MetricType::Gauge,
+        datapoint_id: "datapoint-receipt-order".to_string(),
+        timestamp: ts(0),
+        ..Default::default()
+    };
+    let earlier = NormalizedMetric {
+        value_double: Some(1.0),
+        content_digest: "earlier".to_string(),
+        ingested_at: Some(ts(10)),
+        ..base.clone()
+    };
+    let later = NormalizedMetric {
+        value_double: Some(2.0),
+        content_digest: "later".to_string(),
+        ingested_at: Some(ts(20)),
+        ..base
+    };
+
+    let project = ProjectId::from(PROJECT);
+    let identity = ("datapoint-receipt-order".to_string(), ts(0));
+    let mut answers = Vec::new();
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        // The later correction first, then the earlier one's late copy.
+        repo.insert_metrics(std::slice::from_ref(&later))
+            .await
+            .expect("later correction");
+        repo.insert_metrics(std::slice::from_ref(&earlier))
+            .await
+            .expect("late copy");
+        let stored = repo
+            .get_metric(&project, "datapoint-receipt-order")
+            .await
+            .expect("metric")
+            .expect("metric exists");
+        let winners = repo
+            .metric_winners(&project, std::slice::from_ref(&identity))
+            .await
+            .expect("winners");
+        let winner = winners.get(&identity.0).expect("a winner");
+        answers.push((
+            stored.value_double,
+            winner.content_digest.clone(),
+            winner.ingested_at,
+        ));
+    }
+    assert_eq!(
+        answers,
+        vec![(Some(2.0), "later".to_string(), ts(20)); 2],
+        "the correction received later must stay the winner on both backends"
+    );
+}

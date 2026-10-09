@@ -230,31 +230,6 @@ pub fn span_raw_ids(
     })
 }
 
-/// Read each requested span identity's winning row's content digest and ingest instant, in epoch microseconds.
-pub fn span_winners(
-    project_id: &str,
-    spans: &[(String, String)],
-    backend: Backend,
-) -> Option<ParameterizedQuery> {
-    if spans.is_empty() {
-        return None;
-    }
-    let (source, mut params) = winning_identities(spans, "content_digest, ingested_at", backend);
-    params.push(QueryValue::String(project_id.to_string()));
-    let identities = identity_params(spans, &mut params);
-    let instant = match backend {
-        Backend::Duckdb => "EPOCH_US(ingested_at)",
-        Backend::Clickhouse => "toInt64(toUnixTimestamp64Micro(ingested_at))",
-    };
-    Some(ParameterizedQuery {
-        sql: format!(
-            "SELECT trace_id, span_id, content_digest, {instant} FROM {source} \
-             WHERE project_id = ? AND (trace_id, span_id) IN ({identities})"
-        ),
-        params,
-    })
-}
-
 /// Read the subset of requested trace ids that still have at least one winning span.
 pub fn surviving_trace_ids(
     project_id: &str,

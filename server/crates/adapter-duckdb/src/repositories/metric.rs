@@ -13,7 +13,7 @@ use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::traits::FilterOptionRow;
 use sideseat_ports::types::{
-    ListMetricsParams, MetricAggregateRow, MetricRow, NormalizedMetric, ProjectId,
+    ListMetricsParams, MetricAggregateRow, MetricRow, NormalizedMetric, ProjectId, WinningRevision,
 };
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::{Backend, confirmations, dml, metrics as metric_sql};
@@ -61,22 +61,40 @@ pub fn get_metric(
     Ok(execute_metric_rows(conn, &query)?.into_iter().next())
 }
 
-pub fn matches_content(
+/// The stored revision of each of these `(datapoint_id, timestamp)` datapoints, by datapoint id.
+pub fn winners(
     conn: &Connection,
     project_id: &ProjectId,
-    records: &[(String, String, chrono::DateTime<chrono::Utc>)],
-) -> Result<bool, DuckdbError> {
+    records: &[(String, chrono::DateTime<chrono::Utc>)],
+) -> Result<HashMap<String, WinningRevision>, DuckdbError> {
+    let mut winners = HashMap::with_capacity(records.len());
     for chunk in records.chunks(sideseat_query_sql::keyed::KEYED_CHUNK) {
-        let Some(plan) = confirmations::metrics(project_id.as_str(), chunk, Backend::Duckdb) else {
+        let Some(query) =
+            confirmations::metric_winners(project_id.as_str(), chunk, Backend::Duckdb)
+        else {
             continue;
         };
-        let values = metric_values(plan.query.params());
-        let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
-        if found as u64 != plan.expected {
-            return Ok(false);
+        let values = metric_values(query.params());
+        let mut statement = conn.prepare(query.sql())?;
+        let rows = statement.query_map(values.as_slice(), |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })?;
+        for row in rows {
+            let (datapoint_id, content_digest, ingested_us) = row?;
+            winners.insert(
+                datapoint_id,
+                WinningRevision {
+                    content_digest,
+                    ingested_at: micros_to_datetime(ingested_us),
+                },
+            );
         }
     }
-    Ok(true)
+    Ok(winners)
 }
 
 pub fn aggregate_metrics(

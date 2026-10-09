@@ -28,7 +28,7 @@ use sideseat_ports::types::{
     MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan,
     PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
     SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
-    SpanWinner, StatsParams, TraceRow,
+    StatsParams, TraceRow, WinningRevision,
 };
 
 use super::DuckdbService;
@@ -266,7 +266,7 @@ impl SpanStore for DuckdbRepository {
         &self,
         project_id: &ProjectId,
         spans: &[(String, String)],
-    ) -> Result<HashMap<(String, String), SpanWinner>, DataError> {
+    ) -> Result<HashMap<(String, String), WinningRevision>, DataError> {
         let db = Arc::clone(&self.0);
         let project_id = project_id.to_string();
         let spans = spans.to_vec();
@@ -361,15 +361,15 @@ impl MetricStore for DuckdbRepository {
         .map_err(Into::into)
     }
 
-    async fn metrics_match_content(
+    async fn metric_winners(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String, DateTime<Utc>)],
-    ) -> Result<bool, DataError> {
+        records: &[(String, DateTime<Utc>)],
+    ) -> Result<HashMap<String, WinningRevision>, DataError> {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let records = records.to_vec();
-        DuckdbService::run_query(move || metric::matches_content(&db.conn(), &project_id, &records))
+        DuckdbService::run_query(move || metric::winners(&db.conn(), &project_id, &records))
             .await
             .map_err(DataError::from)?
             .map_err(Into::into)

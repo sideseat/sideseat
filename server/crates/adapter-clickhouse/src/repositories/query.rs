@@ -61,8 +61,8 @@ pub async fn span_winners(
     client: &Client,
     project_id: &str,
     spans: &[(String, String)],
-) -> Result<HashMap<(String, String), SpanWinner>, ClickhouseError> {
-    let Some(query) = analytics::span_winners(project_id, spans, Backend::Clickhouse) else {
+) -> Result<HashMap<(String, String), WinningRevision>, ClickhouseError> {
+    let Some(query) = confirmations::span_winners(project_id, spans, Backend::Clickhouse) else {
         return Ok(HashMap::new());
     };
     let rows: Vec<(String, String, String, i64)> =
@@ -74,7 +74,7 @@ pub async fn span_winners(
         .map(|(trace_id, span_id, content_digest, ingested_us)| {
             (
                 (trace_id, span_id),
-                SpanWinner {
+                WinningRevision {
                     content_digest,
                     ingested_at: sideseat_core::utils::time::micros_to_datetime(ingested_us),
                 },
@@ -94,7 +94,7 @@ use crate::ClickhouseError;
 use rows::{ChSessionRow, ChSpanRow, ChTraceRow};
 use sideseat_ports::types::{
     FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
-    SpanRow, SpanWinner, TraceRow,
+    SpanRow, TraceRow, WinningRevision,
 };
 
 /// List traces with pagination and filtering

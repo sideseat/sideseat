@@ -11,7 +11,7 @@ use crate::{DuckdbError, in_transaction};
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
     FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
-    SpanRow, SpanWinner, TraceRow, parse_tags,
+    SpanRow, TraceRow, WinningRevision, parse_tags,
 };
 use sideseat_query_sql::confirmations;
 use sideseat_query_sql::keyed::KEYED_CHUNK;
@@ -275,10 +275,10 @@ pub fn span_winners(
     conn: &Connection,
     project_id: &str,
     spans: &[(String, String)],
-) -> Result<HashMap<(String, String), SpanWinner>, DuckdbError> {
+) -> Result<HashMap<(String, String), WinningRevision>, DuckdbError> {
     let mut winners = HashMap::with_capacity(spans.len());
     for chunk in spans.chunks(KEYED_CHUNK) {
-        let Some(query) = analytics::span_winners(project_id, chunk, Backend::Duckdb) else {
+        let Some(query) = confirmations::span_winners(project_id, chunk, Backend::Duckdb) else {
             continue;
         };
         let values = duckdb_values(query.params());
@@ -294,7 +294,7 @@ pub fn span_winners(
             let (identity, content_digest, ingested_us) = row?;
             winners.insert(
                 identity,
-                SpanWinner {
+                WinningRevision {
                     content_digest,
                     ingested_at: micros_to_datetime(ingested_us),
                 },

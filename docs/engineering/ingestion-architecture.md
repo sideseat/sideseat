@@ -107,17 +107,21 @@ rules.
 Confirmation compares stable producer-owned identity and content. System metadata such as ingestion time is
 not part of the content digest.
 
-A trace export's rows and raw record are stored at its receipt - the instant the request arrived, which
-staging keeps with the payload - not at the instant a write runs. Nothing orders two workers' writes: a
-consumer, the inline requester and redrive each load a payload, write it and settle it, and one holding an
-earlier export can write it after another wrote a later revision of the same span. Stored at its receipt,
-that late copy is superseded at once rather than taking the span back. Settling it finds the later revision
-the winner, received no earlier than the export, and the export's own record holding the span, and settles
-it as superseded; an export never written is not settled that way, since its own record does not exist.
-`StagingRetirement.tla` and `RawRecordOwnership.tla` check that a later receipt keeps winning
-(`LaterReceiptWins`) and that only a written export is retired. Readers that pin a traversal or a window by
-`ingested_at` see such a late write as stored at its receipt: it can enter a traversal already under way, and
-the ClickHouse cross-partition check can miss a correction written long after it was received.
+A trace export's rows and raw record, and a metrics export's datapoints, are stored at its receipt - the
+instant the request arrived, which staging keeps with the payload - not at the instant a write runs. Nothing
+orders two workers' writes: a consumer, the inline requester and redrive each load a payload, write it and
+settle it, and one holding an earlier export can write it after another wrote a later revision of the same
+span or a later correction of the same datapoint. Stored at its receipt, that late copy is superseded at once
+rather than taking the span or datapoint back. Settling it finds the later revision the winner, received no
+earlier than the export, and settles it as superseded. A span settles that way only once the export's own
+record holds it, since raw records are the authority and an export never written has none. A datapoint keeps
+only its winning revision, so a superseded one settles on the later correction alone: writing it would store
+nothing. `StagingRetirement.tla` and `RawRecordOwnership.tla` check that a later receipt keeps winning
+(`LaterReceiptWins`) and that only a written export is retired; `StagingCorrections.tla` checks the datapoint
+rule, that an export retired unwritten is always answered by a later revision that is stored. Readers that pin
+a traversal or a window by `ingested_at` see such a late write as stored at its receipt: it can enter a
+traversal already under way, and the ClickHouse cross-partition check can miss a correction written long after
+it was received.
 
 ## Acknowledgement contract
 
