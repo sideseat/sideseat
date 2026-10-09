@@ -842,7 +842,7 @@ fn every_absence_gap_is_proven() {
                     }
                     Claim::CallSpan(call) => match &matched {
                         Some((recon, matching)) => {
-                            call_span::prove_call_span(&checked, call, recon, matching)
+                            call_span::prove_call_span(&checked, call, recon, matching, &haystack)
                         }
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },

@@ -1,16 +1,28 @@
 //! A call whose trace context the producer lost (`trace_not_propagated`): the producer started a new trace for
-//! it, so the history it was sent, and the results its request carried, are shown in that trace rather than in
-//! the conversation's. Neither a leak nor a duplicate there - the same conversation, split by the telemetry.
+//! it, so the history it was sent, and the results its request carried, are shown in that trace as well as in
+//! the conversation's. Neither a leak nor a duplicate there - the same conversation, split by the telemetry - so
+//! that trace is one more home of each fact it was sent, owed one copy like every home (`Context::home_traces`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::absence::haystack::Haystack;
+use super::absence::{Proof, prove};
 use super::matching::Matching;
-use super::predicates::{Shows, shows};
-use super::recon::{Recon, ViewKind};
-use super::truth::Truth;
+use super::recon::Recon;
+use super::truth::{Fact, Truth};
 
-/// By fact, the traces or spans it is also at home in.
-pub(super) type Homes = BTreeMap<String, BTreeSet<String>>;
+/// What a split-off trace adds to each fact it was sent: its homes, the spans it was sent on, and whether a
+/// session can hold it at all.
+#[derive(Debug, Default)]
+pub(super) struct Split {
+    /// By fact, the traces it is at home in: each split-off trace it was sent in, and its own home trace where
+    /// a raw carrier of that trace holds it.
+    pub homes: BTreeMap<String, BTreeSet<String>>,
+    /// By fact, the spans it is shown on: the split-off calls' spans, and its home call's span with its trace.
+    pub spans: BTreeMap<String, BTreeSet<String>>,
+    /// The facts none of whose homes belongs to a session, so the session view cannot hold them.
+    pub sessionless: BTreeSet<String>,
+}
 
 /// The calls the producer started a new trace for.
 pub(super) fn untraced_calls(truth: &Truth) -> BTreeSet<&str> {
@@ -22,22 +34,31 @@ pub(super) fn untraced_calls(truth: &Truth) -> BTreeSet<&str> {
         .collect()
 }
 
-/// For each fact an untraced call was sent - every fact its conversation holds before the call's own output -
-/// the traces it is also at home in, and the spans it was sent on: those of the untraced calls.
-pub(super) fn moved_homes(truth: &Truth, recon: &Recon, matching: &Matching) -> (Homes, Homes) {
-    let mut homes = Homes::new();
-    let mut spans = Homes::new();
-    for call_id in untraced_calls(truth) {
+/// The homes a split-off trace adds. `home` names a fact's ordinary home - its call's trace and span - as the
+/// checks place it. That home stays one only where a raw carrier of its trace holds the fact: a result the
+/// producer recorded only in the split-off call's request is in no carrier of the conversation's trace, and the
+/// raw payloads, not the reconstruction under test, say so.
+pub(super) fn split(
+    truth: &Truth,
+    recon: &Recon,
+    matching: &Matching,
+    home: impl Fn(&Fact) -> Option<(String, String)>,
+) -> Split {
+    let mut out = Split::default();
+    let untraced = untraced_calls(truth);
+    if untraced.is_empty() {
+        return out;
+    }
+    let haystack = Haystack::of_fixture(&recon.paths);
+    let trace_of = span_traces(&recon.paths);
+    for call_id in untraced {
         let Some(call) = truth.calls.iter().find(|c| c.id == call_id) else {
             continue;
         };
         let Some(&span) = matching.span_of.get(call_id) else {
             continue;
         };
-        let (trace, span) = (
-            &recon.generations[span].trace,
-            &recon.generations[span].span,
-        );
+        let generation = &recon.generations[span];
         let Some(conversation) = truth
             .conversations
             .iter()
@@ -45,60 +66,95 @@ pub(super) fn moved_homes(truth: &Truth, recon: &Recon, matching: &Matching) -> 
         else {
             continue;
         };
-        for fact in conversation
+        for id in conversation
             .sequence
             .iter()
             .take_while(|id| !call.outputs.contains(id))
         {
-            homes.entry(fact.clone()).or_default().insert(trace.clone());
-            spans.entry(fact.clone()).or_default().insert(span.clone());
+            out.homes
+                .entry(id.clone())
+                .or_default()
+                .insert(generation.trace.clone());
+            out.spans
+                .entry(id.clone())
+                .or_default()
+                .insert(generation.span.clone());
         }
     }
-    (homes, spans)
-}
-
-/// The facts the session view cannot hold: those a trace view shows only in the moved traces, where those
-/// traces belong to no session - the producer stated none on any of their spans.
-pub(super) fn sessionless(truth: &Truth, recon: &Recon, moved: &Homes) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    for (fact_id, traces) in moved {
-        let Some(fact) = truth.facts.iter().find(|f| &f.id == fact_id) else {
+    for (id, homes) in out.homes.iter_mut() {
+        let Some(fact) = truth.facts.iter().find(|f| &f.id == id) else {
             continue;
         };
-        let call_id = fact.value.get("call_id").and_then(|v| v.as_str());
-        let shown_in: BTreeSet<&str> = recon
-            .views
-            .iter()
-            .filter(|v| v.kind == ViewKind::Trace)
-            .filter(|v| {
-                v.blocks
-                    .iter()
-                    .any(|b| shows(fact, b, call_id) != Shows::No)
-            })
-            .map(|v| v.key.as_str())
-            .collect();
-        if !shown_in.is_empty()
-            && shown_in
-                .iter()
-                .all(|t| traces.contains(*t) && !recon.session_of_trace.contains_key(*t))
+        if let Some((trace, span)) = home(fact)
+            && trace_holds(&haystack, &trace_of, &trace, fact)
         {
-            out.insert(fact_id.clone());
+            homes.insert(trace);
+            out.spans.entry(id.clone()).or_default().insert(span);
+        }
+        if !homes.iter().any(|t| recon.session_of_trace.contains_key(t)) {
+            out.sessionless.insert(id.clone());
         }
     }
     out
 }
 
-/// `trace_not_propagated` holds where the call's span has no parent and sits in a trace no earlier call of its
-/// conversation is tied to, and - where those calls' traces belong to a session - no span of the call's trace
-/// carries that session's id in any attribute: the producer started a trace for it and stated no session on it.
-/// Anything else - a parent, an earlier call's trace, the session id, a first call, an untied call - is refused.
+/// Whether a raw carrier of the trace holds the fact: anything but a proven absence, so a fact the search
+/// cannot rule out stays owed there.
+fn trace_holds(
+    haystack: &Haystack,
+    trace_of: &BTreeMap<String, String>,
+    trace: &str,
+    fact: &Fact,
+) -> bool {
+    let within = Haystack {
+        carriers: haystack
+            .carriers
+            .iter()
+            .filter(|c| {
+                c.span
+                    .as_deref()
+                    .and_then(|s| trace_of.get(s))
+                    .is_some_and(|t| t == trace)
+            })
+            .cloned()
+            .collect(),
+        undecoded: haystack.undecoded.clone(),
+    };
+    prove(fact, &within) != Proof::Absent
+}
+
+/// Each raw span's trace, both as hex.
+fn span_traces(paths: &[std::path::PathBuf]) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for path in paths {
+        let request = crate::decode_request(path);
+        for span in request
+            .resource_spans
+            .iter()
+            .flat_map(|r| &r.scope_spans)
+            .flat_map(|s| &s.spans)
+        {
+            out.insert(
+                super::truth::hex_digest(&span.span_id),
+                super::truth::hex_digest(&span.trace_id),
+            );
+        }
+    }
+    out
+}
+
+/// `trace_not_propagated` holds where the call answers a tool round - the call right before it in its
+/// conversation asked for a tool - and its span has no parent, sits in a trace no earlier call of its
+/// conversation is tied to, and belongs to no session: the reconstruction joins it to none, and no span of its
+/// trace carries the session id of the conversation's earlier traces in any attribute. Anything else - a call
+/// answering no tool round, a parent, an earlier call's trace, a session, a first call, an untied call - is
+/// refused.
 pub(super) fn prove_untraced(
     truth: &Truth,
     call_id: &str,
     recon: &Recon,
     matching: &Matching,
-) -> super::absence::Proof {
-    use super::absence::Proof;
+) -> Proof {
     let Some(position) = truth.calls.iter().position(|c| c.id == call_id) else {
         return Proof::Unprovable(format!("no call {call_id}"));
     };
@@ -107,11 +163,28 @@ pub(super) fn prove_untraced(
         return Proof::Unprovable(format!("{call_id} is tied to no span"));
     };
     let generation = &recon.generations[span];
-    let earlier: Vec<&str> = truth.calls[..position]
+    let before: Vec<_> = truth.calls[..position]
         .iter()
         .filter(|c| c.conversation == call.conversation && c.succeeded())
-        .filter_map(|c| matching.span_of.get(&c.id))
-        .map(|&g| recon.generations[g].trace.as_str())
+        .collect();
+    let Some(previous) = before.last() else {
+        return Proof::Unprovable(
+            "the first call of its conversation starts its trace".to_string(),
+        );
+    };
+    let asked = previous.outputs.iter().any(|id| {
+        truth
+            .facts
+            .iter()
+            .any(|f| &f.id == id && f.kind == "tool_call")
+    });
+    if !asked {
+        return Proof::Unprovable(format!("{} asked for no tool", previous.id));
+    }
+    let earlier: Vec<&str> = before
+        .iter()
+        .filter_map(|c| matching.span_showing(&c.id))
+        .map(|g| recon.generations[g].trace.as_str())
         .collect();
     if earlier.is_empty() {
         return Proof::Unprovable(
@@ -126,6 +199,9 @@ pub(super) fn prove_untraced(
             "{} is in the trace of an earlier call of its conversation",
             generation.label
         ));
+    }
+    if let Some(session) = recon.session_of_trace.get(&generation.trace) {
+        return Proof::Present(format!("{} belongs to session {session}", generation.label));
     }
     let sessions: BTreeSet<&str> = earlier
         .iter()
@@ -188,11 +264,11 @@ fn session_stated(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message_truth::absence::Proof;
 
     /// The call answering Spring AI's streamed tool round is in a trace of its own, with no parent and no
-    /// session: proven, and what it was sent is at home there. A parent span, or an earlier call's trace,
-    /// refuses it.
+    /// session: proven, and what it was sent is at home there - and in the conversation's trace only where a
+    /// raw carrier of that trace holds it. A call answering no tool round, a parent span, a session, or an
+    /// earlier call's trace refuses it.
     #[test]
     fn a_call_in_a_trace_of_its_own_moves_what_it_was_sent() {
         let fixture = "spring-ai/sdk/streaming";
@@ -213,27 +289,55 @@ mod tests {
             prove_untraced(&truth, "call-001", &recon, &matching),
             Proof::Unprovable(_)
         ));
-        let (homes, _) = moved_homes(&truth, &recon, &matching);
-        let moved = &recon.generations[matching.span_of["call-002"]].trace;
-        assert!(homes["fact-001"].contains(moved), "the prompt it was sent");
-        let mut parented = recon.clone();
         let at = matching.span_of["call-002"];
+        let first = &recon.generations[matching.span_of["call-001"]];
+        let (home, moved) = (&first.trace, &recon.generations[at].trace);
+        let split = split(&truth, &recon, &matching, |_| {
+            Some((first.trace.clone(), first.span.clone()))
+        });
+        // The prompt is in both traces' carriers; the first result only in the split-off call's request.
+        assert_eq!(
+            split.homes["fact-001"],
+            BTreeSet::from([home.clone(), moved.clone()])
+        );
+        assert_eq!(split.homes["fact-005"], BTreeSet::from([moved.clone()]));
+        assert!(split.sessionless.contains("fact-005"));
+        assert!(!split.sessionless.contains("fact-001"));
+        // A call after one that asked for no tool answers no tool round.
+        let mut plain = truth.clone();
+        for fact in plain
+            .facts
+            .iter_mut()
+            .filter(|f| f.call.as_deref() == Some("call-001"))
+        {
+            fact.kind = "text".into();
+        }
+        assert!(matches!(
+            prove_untraced(&plain, "call-002", &recon, &matching),
+            Proof::Unprovable(_)
+        ));
+        let mut parented = recon.clone();
         parented.generations[at].ancestors = vec!["a-parent".to_string()];
         assert!(matches!(
             prove_untraced(&truth, "call-002", &parented, &matching),
             Proof::Present(_)
         ));
+        let mut joined = recon.clone();
+        joined
+            .session_of_trace
+            .insert(moved.clone(), "another-session".into());
+        assert!(matches!(
+            prove_untraced(&truth, "call-002", &joined, &matching),
+            Proof::Present(_)
+        ));
         // The session search finds the id where a span states it - the conversation's own trace - and not in
         // the trace the producer started.
-        let home = &recon.generations[matching.span_of["call-001"]].trace;
         let session = recon.session_of_trace[home].as_str();
         let sessions = BTreeSet::from([session]);
         assert!(session_stated(&recon.paths, home, &sessions).is_some());
         assert_eq!(session_stated(&recon.paths, moved, &sessions), None);
         let mut same = recon.clone();
-        same.generations[at].trace = recon.generations[matching.span_of["call-001"]]
-            .trace
-            .clone();
+        same.generations[at].trace = home.clone();
         assert!(matches!(
             prove_untraced(&truth, "call-002", &same, &matching),
             Proof::Present(_)

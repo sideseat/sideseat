@@ -1,72 +1,141 @@
 //! A model call recorded on no span of its own: the producer writes no model-call span at all, and the span
 //! of the call before it - an agent span holding the whole run - carries this call's output too.
 
-use super::Proof;
-use crate::message_truth::matching::{Matching, outputs, shown_in, signature};
+use std::collections::BTreeSet;
+
+use super::{Haystack, Proof, prove};
+use crate::message_truth::matching::{Matching, outputs, shared_span, shown_in, signature};
 use crate::message_truth::recon::Recon;
 use crate::message_truth::truth::Truth;
 
 /// `call_span_not_exported` holds where no span of the capture is a model call - had the producer written one,
-/// the call could have its own - the span the previous call of the conversation is tied to shows every asserted
-/// output of this call as well, and no other span but one enclosing it shows any of it as its own output.
-/// Anything else is refused: a model-call span anywhere, another span with the output, a first call, a call
-/// with nothing asserted, or a shared span that does not carry all of the output.
+/// the call could have its own - and the call answers a tool round on the span it shares (`shared_span`).
+/// That span shows every asserted output of the call. No other span but one enclosing it shows any of them as
+/// its output, as the reconstruction reads them, and no raw carrier under the run's span holds them: a span of
+/// its own, typed or not, would carry the response - a text, or a message holding a tool call's arguments. Anything else is refused: a model-call span, another span with the output, a call that answers no
+/// tool round, a call with nothing asserted, or a shared span that does not carry all of the output.
 pub(super) fn prove_call_span(
     truth: &Truth,
     call_id: &str,
     recon: &Recon,
     matching: &Matching,
+    haystack: &Haystack,
 ) -> Proof {
     if let Some(generation) = recon.generations.iter().find(|g| g.typed) {
         return Proof::Present(format!("{} is a model-call span", generation.label));
     }
-    let Some(position) = truth.calls.iter().position(|c| c.id == call_id) else {
+    let Some(call) = truth.calls.iter().find(|c| c.id == call_id) else {
         return Proof::Unprovable(format!("no call {call_id}"));
     };
-    let call = &truth.calls[position];
-    // The nearest earlier call that is tied to a span: a call between them may share that span too.
-    let earlier: Vec<_> = truth.calls[..position]
-        .iter()
-        .rev()
-        .filter(|c| c.conversation == call.conversation && c.succeeded())
-        .collect();
-    if earlier.is_empty() {
-        return Proof::Unprovable(
-            "the first call of its conversation has no span to share".to_string(),
-        );
-    }
-    let Some(&span) = earlier.iter().find_map(|c| matching.span_of.get(&c.id)) else {
-        return Proof::Unprovable(
-            "no earlier call of its conversation is tied to a span".to_string(),
-        );
+    let span = match shared_span(truth, matching, call_id) {
+        Ok(span) => span,
+        Err(why) => return Proof::Unprovable(why),
     };
     let shared = outputs(recon, &recon.generations[span]);
     let owed = signature(truth, call);
     if owed.is_empty() {
         return Proof::Unprovable(format!("{call_id} has no asserted output to look for"));
     }
-    // A span of its own would show its output as its own: then the call has a span, typed or not. A span
-    // enclosing the run's - a crew reporting its result - restates the run's output and is not one.
-    let enclosing = &recon.generations[span].ancestors;
+    if let Some(fact) = owed.iter().find(|fact| !shown_in(fact, &shared)) {
+        return Proof::Unprovable(format!(
+            "{} does not show {}, an output of this call",
+            recon.generations[span].label, fact.id
+        ));
+    }
+    // A span enclosing the run's - a crew reporting its result - restates the run's output and is not one.
+    let run: BTreeSet<&str> = std::iter::once(recon.generations[span].span.as_str())
+        .chain(recon.generations[span].ancestors.iter().map(String::as_str))
+        .collect();
     if let Some(own) = recon
         .generations
         .iter()
-        .enumerate()
-        .filter(|&(g, other)| g != span && !enclosing.contains(&other.span))
-        .find(|(_, g)| {
+        .filter(|g| !run.contains(g.span.as_str()))
+        .find(|g| {
             let shown = outputs(recon, g);
             owed.iter().any(|fact| shown_in(fact, &shown))
         })
     {
-        return Proof::Present(format!("{} shows this call's output", own.1.label));
+        return Proof::Present(format!("{} shows this call's output", own.label));
     }
-    match owed.iter().find(|fact| !shown_in(fact, &shared)) {
-        None => Proof::Absent,
-        Some(fact) => Proof::Unprovable(format!(
-            "{} does not show {}, an output of this call",
-            recon.generations[span].label, fact.id
-        )),
+    // In the raw carriers, where a span of its own would be: within the run, under the run's span, since the
+    // call happens while that span is active. Not the spans after it - the next agent of a crew is handed
+    // this call's answer as its task - which the reading above has already searched.
+    let within = descendants(&recon.paths, &recon.generations[span].span);
+    let elsewhere = Haystack {
+        carriers: haystack
+            .carriers
+            .iter()
+            .filter(|c| c.span.as_deref().is_some_and(|s| within.contains(s)))
+            .cloned()
+            .collect(),
+        undecoded: haystack.undecoded.clone(),
+    };
+    for fact in &owed {
+        if fact.kind != "tool_call" {
+            let proof = prove(fact, &elsewhere);
+            if proof != Proof::Absent {
+                return Proof::Present(format!("under the run's span, {}: {proof:?}", fact.id));
+            }
+            continue;
+        }
+        // The span that ran a call records its arguments; a message holding them - a role beside them - is a
+        // response, or a request re-sending one, which a model-call span would carry.
+        let arguments = &fact.value["arguments"];
+        if !super::identifying(arguments) {
+            return Proof::Unprovable(format!(
+                "{}'s arguments are too plain to tell a message holding them",
+                fact.id
+            ));
+        }
+        for carrier in &elsewhere.carriers {
+            if let Some(at) = super::find_node(carrier, |node| {
+                node.get("role").is_some_and(serde_json::Value::is_string)
+                    && super::holds(node, arguments)
+            }) {
+                return Proof::Present(format!(
+                    "{at}, under the run's span, is a message holding the arguments of {}",
+                    fact.id
+                ));
+            }
+        }
     }
+    Proof::Absent
+}
+
+/// Every raw span under `root`, as hex: its children, theirs, and so on.
+fn descendants(paths: &[std::path::PathBuf], root: &str) -> BTreeSet<String> {
+    let hex = crate::message_truth::truth::hex_digest;
+    let mut parent: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for path in paths {
+        let request = crate::decode_request(path);
+        for span in request
+            .resource_spans
+            .iter()
+            .flat_map(|r| &r.scope_spans)
+            .flat_map(|s| &s.spans)
+            .filter(|s| !s.parent_span_id.is_empty())
+        {
+            parent.insert(hex(&span.span_id), hex(&span.parent_span_id));
+        }
+    }
+    parent
+        .keys()
+        .filter(|span| {
+            let mut cursor = span.as_str();
+            let mut seen = BTreeSet::new();
+            while let Some(up) = parent.get(cursor) {
+                if up == root {
+                    return true;
+                }
+                if !seen.insert(up.as_str()) {
+                    break;
+                }
+                cursor = up;
+            }
+            false
+        })
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -74,8 +143,8 @@ mod tests {
     use super::*;
 
     /// On a capture with no model-call span the call answering a tool round shares the run's span, and that is
-    /// proven; a model-call span anywhere, another span showing the output, a first call, or a shared span
-    /// missing one output refuses it.
+    /// proven; a model-call span anywhere, another span showing the output in the reading or in a raw carrier,
+    /// a first call, a call answering no tool round, or a shared span missing one output refuses it.
     #[test]
     fn a_call_shares_the_run_s_span_only_where_no_model_call_span_exists() {
         let fixture = "crewai/sdk/tool_use";
@@ -88,13 +157,54 @@ mod tests {
         let truth = truths["crewai/tool_use"].for_fixture(fixture);
         let recon = crate::message_truth::recon::build(fixture, &paths);
         let matching = crate::message_truth::matching::match_calls(&truth, &recon, &mut Vec::new());
-        assert_eq!(
-            prove_call_span(&truth, "call-002", &recon, &matching),
-            Proof::Absent
-        );
+        let haystack = Haystack::of_fixture(&paths);
+        let proof = |truth: &Truth, call: &str, recon: &Recon, haystack: &Haystack| {
+            prove_call_span(truth, call, recon, &matching, haystack)
+        };
+        assert_eq!(proof(&truth, "call-002", &recon, &haystack), Proof::Absent);
         assert!(matches!(
-            prove_call_span(&truth, "call-001", &recon, &matching),
+            proof(&truth, "call-001", &recon, &haystack),
             Proof::Unprovable(_)
+        ));
+        // A call after one that asked for no tool answers no tool round.
+        let mut plain = truth.clone();
+        for fact in plain
+            .facts
+            .iter_mut()
+            .filter(|f| f.call.as_deref() == Some("call-001"))
+        {
+            fact.kind = "text".into();
+        }
+        assert!(matches!(
+            proof(&plain, "call-002", &recon, &haystack),
+            Proof::Unprovable(_)
+        ));
+        // A raw carrier within the run holding the answer: a span of its own the reading missed.
+        let answer = *signature(&truth, &truth.calls[1])
+            .last()
+            .expect("an output");
+        let shared_span = &recon.generations[matching.span_of["call-001"]].span;
+        let outside = recon
+            .generations
+            .iter()
+            .find(|g| g.ancestors.first() == Some(shared_span))
+            .map(|g| g.span.clone())
+            .expect("a span within the run");
+        let mut missed = Haystack {
+            carriers: haystack.carriers.clone(),
+            undecoded: Vec::new(),
+        };
+        missed.carriers.push(super::super::Carrier {
+            span: Some(outside),
+            strings: vec![(
+                "a missed span".to_string(),
+                super::super::haystack::collapse_whitespace(answer.text()),
+            )],
+            ..Default::default()
+        });
+        assert!(matches!(
+            proof(&truth, "call-002", &recon, &missed),
+            Proof::Present(_)
         ));
         // The run's span without one of the call's outputs: the call is then missing, not sharing it.
         let mut cut = recon.clone();
@@ -110,7 +220,7 @@ mod tests {
             view.blocks.retain(|b| !(b.output && shown_in(last, &[b])));
         }
         assert!(matches!(
-            prove_call_span(&truth, "call-002", &cut, &matching),
+            proof(&truth, "call-002", &cut, &haystack),
             Proof::Unprovable(_)
         ));
         // Another span showing the call's output is a span of its own, typed or not; one enclosing the run's
@@ -138,13 +248,13 @@ mod tests {
             view.blocks.push(copy.clone());
         }
         assert!(matches!(
-            prove_call_span(&truth, "call-002", &own, &matching),
+            proof(&truth, "call-002", &own, &haystack),
             Proof::Present(_)
         ));
         let mut typed = recon.clone();
         typed.generations[0].typed = true;
         assert!(matches!(
-            prove_call_span(&truth, "call-002", &typed, &matching),
+            proof(&truth, "call-002", &typed, &haystack),
             Proof::Present(_)
         ));
     }

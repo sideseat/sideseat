@@ -19,6 +19,67 @@ pub(super) struct Matching {
     pub span_of: BTreeMap<String, usize>,
     /// Successful calls nothing asserted about, so no span can be tied to them.
     pub unmatchable: BTreeSet<String>,
+    /// A call recorded on no span of its own (`call_span_not_exported`): the span of the run it shares, which
+    /// its parts are attributed to and its trace is read from. Never in `span_of`, so no span view owes it.
+    pub shared: BTreeMap<String, usize>,
+}
+
+impl Matching {
+    /// The span a call's parts are shown on: its own, or the run's span it shares.
+    pub fn span_showing(&self, call: &str) -> Option<usize> {
+        self.span_of
+            .get(call)
+            .or_else(|| self.shared.get(call))
+            .copied()
+    }
+}
+
+/// The span a call recorded on no span of its own shares (`call_span_not_exported`): that of the nearest
+/// earlier successful call of its conversation tied to a span of its own, when the call right before it asked
+/// for a tool - it answers a tool round - and every call in between shares that span too. Anything else
+/// names why no span can be shared.
+pub(super) fn shared_span(
+    truth: &Truth,
+    matching: &Matching,
+    call_id: &str,
+) -> Result<usize, String> {
+    let position = truth
+        .calls
+        .iter()
+        .position(|c| c.id == call_id)
+        .ok_or_else(|| format!("no call {call_id}"))?;
+    let call = &truth.calls[position];
+    let spanless: BTreeSet<&str> = truth
+        .gaps
+        .iter()
+        .filter(|g| g.reason == "call_span_not_exported")
+        .filter_map(|g| g.subject.as_deref())
+        .collect();
+    let mut earlier = truth.calls[..position]
+        .iter()
+        .rev()
+        .filter(|c| c.conversation == call.conversation && c.succeeded());
+    let previous = earlier
+        .clone()
+        .next()
+        .ok_or("the first call of its conversation has no span to share")?;
+    let asked = previous.outputs.iter().any(|id| {
+        truth
+            .facts
+            .iter()
+            .any(|f| &f.id == id && f.kind == "tool_call")
+    });
+    if !asked {
+        return Err(format!("{} asked for no tool", previous.id));
+    }
+    let owner = earlier
+        .find(|c| !spanless.contains(c.id.as_str()))
+        .ok_or("no earlier call of its conversation has a span of its own")?;
+    matching
+        .span_of
+        .get(&owner.id)
+        .copied()
+        .ok_or_else(|| format!("{} is tied to no span", owner.id))
 }
 
 /// The facts that identify a call: its asserted outputs.
@@ -218,6 +279,12 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
 
     assign_by_metadata(recon, &by_meta, &mut matching, out);
     match_failed_attempts(truth, recon, &gen_outputs, &mut matching, out);
+
+    for call in &spanless {
+        if let Ok(span) = shared_span(truth, &matching, call) {
+            matching.shared.insert((*call).to_string(), span);
+        }
+    }
 
     // What is left: typed generation spans that spoke but recorded no asserted call.
     let matched: BTreeSet<usize> = matching.span_of.values().copied().collect();
