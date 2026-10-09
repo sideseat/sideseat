@@ -558,7 +558,8 @@ fn the_api_crate_names_only_inward_workspace_crates() {
     let workspace_dependencies: BTreeSet<&str> = dependencies
         .lines()
         .filter_map(|line| line.split_once('='))
-        .map(|(name, _)| name.trim())
+        // A dotted key (`name.workspace = true`) names the same dependency as `name = ...`.
+        .map(|(name, _)| name.trim().split('.').next().unwrap_or_default())
         .filter(|name| name.starts_with("sideseat-") && *name != WORKSPACE_HACK)
         .collect();
     assert_eq!(
@@ -585,7 +586,8 @@ fn messaging_stays_transport_neutral() {
     let workspace_dependencies: BTreeSet<&str> = dependencies
         .lines()
         .filter_map(|line| line.split_once('='))
-        .map(|(name, _)| name.trim())
+        // A dotted key (`name.workspace = true`) names the same dependency as `name = ...`.
+        .map(|(name, _)| name.trim().split('.').next().unwrap_or_default())
         .filter(|name| name.starts_with("sideseat-") && *name != WORKSPACE_HACK)
         .collect();
 
