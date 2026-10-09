@@ -10,6 +10,7 @@ use crate::rules::content_blocks::Expansion;
 use sideseat_core::utils::file_uri as files;
 
 mod canonical;
+mod java_tostring;
 #[cfg(any(test, feature = "test-support"))]
 mod legacy_chain;
 #[cfg(any(test, feature = "test-support"))]
@@ -18,6 +19,7 @@ mod python_repr;
 mod stable_hash;
 mod tool_result;
 
+pub(crate) use java_tostring::try_parse_java_tostring;
 #[cfg(test)]
 use legacy_chain::legacy_provider_formats;
 #[cfg(any(test, feature = "test-support"))]

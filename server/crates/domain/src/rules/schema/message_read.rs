@@ -583,6 +583,16 @@ pub enum ParseMode {
     /// tool's returned value with `str()` where the conventions expect JSON; opt-in per rule, because the
     /// same text from anyone else may be prose.
     PythonLiteral,
+    /// Parse Java's conventional `toString` of an object graph - `Name { key = value, ... }`, lists as
+    /// `[a, b]`, maps as `{k=v}` - into a JSON tree, each object's class under `__java_class`; the carrier is
+    /// skipped when the whole text is not one object or one list.
+    ///
+    /// The counterpart of `python_constructor_repr`, for a JVM framework that records its message objects with
+    /// `toString`. That format does not escape a quote inside a string, so a reading is accepted only where
+    /// printing it again with the format's own spacing reproduces the text byte for byte; anything else stays
+    /// text. Strings are kept exactly as written, and a bare number only where it reads back as written.
+    #[serde(rename = "java_tostring")]
+    JavaToString,
     /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
     /// non-string or an accidental number into a number.
     Text,

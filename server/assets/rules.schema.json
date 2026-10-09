@@ -1501,6 +1501,11 @@
           "const": "python_literal"
         },
         {
+          "description": "Parse Java's conventional `toString` of an object graph - `Name { key = value, ... }`, lists as\n`[a, b]`, maps as `{k=v}` - into a JSON tree, each object's class under `__java_class`; the carrier is\nskipped when the whole text is not one object or one list.\n\nThe counterpart of `python_constructor_repr`, for a JVM framework that records its message objects with\n`toString`. That format does not escape a quote inside a string, so a reading is accepted only where\nprinting it again with the format's own spacing reproduces the text byte for byte; anything else stays\ntext. Strings are kept exactly as written, and a bare number only where it reads back as written.",
+          "type": "string",
+          "const": "java_tostring"
+        },
+        {
           "description": "Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a\nnon-string or an accidental number into a number.",
           "type": "string",
           "const": "text"

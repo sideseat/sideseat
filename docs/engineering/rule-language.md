@@ -334,6 +334,14 @@ The decoded value becomes messages through:
 A section body, a selected value and an attached attribute are the producer's bytes: nothing is trimmed unless a
 `pipe` says so. Every role a rule states, in any envelope or section route, must be a role.
 
+A producer that records its own message objects as a language prints them is read with that language's parse
+mode: `python_constructor_repr` (and its array and sequence forms) for a Python `repr`, `python_literal` for the
+`str()` of a dict or list, and `java_tostring` for Java's conventional `Name { key = value, ... }`. Each yields a
+JSON tree the readings select from, with the class kept beside the members (`__python_constructor`,
+`__java_class`), and leaves the carrier to the next rule when the whole text is not one. Java does not escape a
+quote inside a string, so `java_tostring` accepts a reading only where printing it again with the format's own
+spacing gives back the text byte for byte; where two readings both do, the earliest end of the string is taken.
+
 Some producers re-send the turns of a tool loop as text in every request - the call written out as prose, the
 result quoted back - while the call and the result are also on record losslessly, in the model's output and on
 the tool's own span. A reading marks those messages with `rendering`, a value condition asked of the same value
@@ -1074,6 +1082,7 @@ How a raw attribute string becomes a value.
 - `"python_constructor_repr_array"`: Parse a JSON array whose every element is a Python constructor `repr`, each into a JSON tree.
 - `"python_constructor_repr_sequence"`: Parse text that is several Python constructor `repr`s written back to back, into an array of their trees.
 - `"python_literal"`: Parse the Python `str()` of a dict or a list - single-quoted strings, `True`, `False`, `None` - into a JSON tree; the carrier is skipped when the whole text is not one.
+- `"java_tostring"`: Parse Java's conventional `toString` of an object graph - `Name { key = value, ... }`, lists as `[a, b]`, maps as `{k=v}` - into a JSON tree, each object's class under `__java_class`; the carrier is skipped when the whole text is not one object or one list.
 - `"text"`: Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a non-string or an accidental number into a number.
 
 ### `OverlaySpec`

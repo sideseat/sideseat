@@ -39,6 +39,11 @@ const UNUSED: &[(&str, &str)] = &[
          answer would state it, and no shipped asset has one - the only use is turns on an output carrier",
     ),
     (
+        "ParseMode=java_tostring",
+        "the JVM counterpart of `python_constructor_repr`, for a producer that records its message objects with \
+         `toString`; no shipped rule reads one yet",
+    ),
+    (
         "MessageProjectionRule.only_event_sources",
         "the event half of where a projected row's messages may come from, for a producer whose bookkeeping span \
          carries its request as events; no shipped projection names one yet",
