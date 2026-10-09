@@ -37,9 +37,10 @@
 //!
 //! # Residuals of the detector itself
 //!
-//! - **A clock-behind instance can write a correction carrying an `ingested_at` below the window** and be
-//!   missed. Mitigated by [`WINDOW_OVERLAP`], not closed — the same clock limit that runs through every
-//!   mechanism over these stores.
+//! - **A correction can be written carrying an `ingested_at` below the window** and be missed: from an
+//!   instance whose clock is behind, or long after it was received, since a row is stored at its export's
+//!   receipt - redrive after an outage, a payload whose writes kept failing. Mitigated by [`WINDOW_OVERLAP`],
+//!   not closed — the same limit that runs through every mechanism over these stores.
 //! - **A backward move can erase its own evidence, which is why the finding is recorded durably.** When a
 //!   correction moves a span *backward* across a month, the newer revision expires first and the obsolete one
 //!   is left alone in its partition; a current-state query then sees one row per identity and reports clean,
@@ -62,9 +63,9 @@ use super::{ClickhouseError, ClickhouseService};
 
 /// How far back beyond the recorded watermark each pass re-reads.
 ///
-/// A pass reads rows whose `ingested_at` is above `checked_through`, and that column is `Utc::now()` on the
-/// writing instance — so an instance whose clock is behind can commit a correction stamped below a watermark
-/// another instance's rows established, and it would never be examined. Re-reading an overlap catches the
+/// A pass reads rows whose `ingested_at` is above `checked_through`, and that column is the receiving instance's
+/// clock at receipt — so an instance whose clock is behind, or a write that ran long after its receipt, can
+/// commit a correction stamped below a watermark other rows established, and it would never be examined. Re-reading an overlap catches the
 /// ordinary case at the cost of re-probing rows that were already clean, which is idempotent: the anomaly
 /// table is keyed by identity, so re-detecting one updates its row rather than adding another.
 ///

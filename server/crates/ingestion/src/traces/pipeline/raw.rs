@@ -76,6 +76,11 @@ impl RawDraft {
         &self.project_id
     }
 
+    /// When the export was received: the instant its record and rows are stored at.
+    pub(in crate::traces) fn received_at(&self) -> DateTime<Utc> {
+        self.received.received_at
+    }
+
     /// The media as pending file writes, each owned by the traces whose spans carry it.
     pub(in crate::traces) fn media_writes(
         &self,
@@ -250,7 +255,7 @@ impl RawDraft {
 
 /// Hex BLAKE3 of the project and the received body: the same body for the same project is the same record,
 /// whatever its media's fate.
-fn raw_id(project_id: &str, received: &ReceivedPayload) -> String {
+pub(crate) fn raw_id(project_id: &str, received: &ReceivedPayload) -> String {
     let mut hasher = blake3::Hasher::new();
     hasher.update(b"sideseat-raw-record-v1\0");
     hasher.update(project_id.as_bytes());

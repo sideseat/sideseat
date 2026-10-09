@@ -50,6 +50,7 @@ fn protobuf(request: &ExportTraceServiceRequest) -> ReceivedPayload {
     ReceivedPayload::new(
         request.encode_to_vec(),
         sideseat_domain::raw_payload::RawContent::Protobuf,
+        chrono::Utc::now(),
     )
 }
 
@@ -57,6 +58,7 @@ fn json(request: &ExportTraceServiceRequest) -> ReceivedPayload {
     ReceivedPayload::new(
         serde_json::to_vec(request).expect("json"),
         sideseat_domain::raw_payload::RawContent::Json,
+        chrono::Utc::now(),
     )
 }
 
@@ -218,6 +220,7 @@ async fn an_export_settles_only_when_its_record_holds_it() {
             "default",
             StagedSignal::Traces,
             &received.staged(),
+            received.received_at,
             crate::traces::confirmation_records(&request),
             "p".to_string(),
         )
@@ -332,6 +335,7 @@ async fn revisions_in_one_batch_are_each_settled_after_their_wave() {
                 "default",
                 StagedSignal::Traces,
                 &body.staged(),
+                body.received_at,
                 crate::traces::confirmation_records(request),
                 "p".to_string(),
             )

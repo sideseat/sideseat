@@ -12,6 +12,7 @@ use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::ProjectId;
 
 use crate::raw_identities::record_identities;
+use crate::received::ReceivedPayload;
 
 /// Records read at once. A redelivery names whichever exports first carried its spans, so the records can be many
 /// and large; none needs to outlive its own check, and reading them a few at a time bounds what is held to a few
@@ -48,6 +49,29 @@ pub(crate) async fn covered(
                 }
             }
         }
+    }
+    Ok(covered)
+}
+
+/// The subset of `spans` the export's own record holds - the record `received` is stored as, whatever revision
+/// of each span won. An export that is not the winner of a span is stored only when its own record holds it:
+/// the winner's record holds the winner's revision, not this one.
+pub(crate) async fn held_by_own_record(
+    analytics: &(dyn AnalyticsRepository + Send + Sync),
+    project_id: &ProjectId,
+    received: &ReceivedPayload,
+    spans: &[(String, String)],
+) -> Result<HashSet<(String, String)>, DataError> {
+    if spans.is_empty() {
+        return Ok(HashSet::new());
+    }
+    let raw_id = crate::traces::raw_id(project_id.as_str(), received);
+    let mut covered = HashSet::new();
+    for record in analytics.get_raw_records(project_id, &[raw_id]).await? {
+        let Ok(held) = record_identities(&record.record) else {
+            continue;
+        };
+        covered.extend(spans.iter().filter(|span| held.contains(*span)).cloned());
     }
     Ok(covered)
 }

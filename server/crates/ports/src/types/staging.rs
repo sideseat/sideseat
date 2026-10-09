@@ -72,6 +72,14 @@ impl StagedRecord {
     }
 }
 
+/// What the store holds as a span identity's current revision, as settling a staged export compares it: the
+/// revision's content digest and the instant it was received at, which orders it among the identity's revisions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpanWinner {
+    pub content_digest: String,
+    pub ingested_at: DateTime<Utc>,
+}
+
 /// Durable registry row pointing at one blob-store object.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StagedPayload {
@@ -80,6 +88,7 @@ pub struct StagedPayload {
     pub signal: StagedSignal,
     pub blob_hash: String,
     pub byte_len: u64,
+    /// When the export was received: every write of it stores its rows at this instant, to the microsecond.
     pub created_at: DateTime<Utc>,
     pub redrive_attempts: u32,
     pub unconfirmed: bool,

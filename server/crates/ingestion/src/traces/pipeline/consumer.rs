@@ -392,8 +392,11 @@ impl TracePipeline {
                 payload.signal
             ));
         }
-        let (request, received) =
-            crate::received::staged_traces(&bytes, payload.project_id.as_str())?;
+        let (request, received) = crate::received::staged_traces(
+            &bytes,
+            payload.project_id.as_str(),
+            payload.created_at,
+        )?;
         Ok(Some((payload, request, received)))
     }
 

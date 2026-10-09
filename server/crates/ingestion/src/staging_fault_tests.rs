@@ -160,6 +160,7 @@ async fn stage(fixture: &Fixture) -> Result<StagedPayloadRef, super::StagingErro
             fixture.project.as_str(),
             StagedSignal::Traces,
             b"an export",
+            chrono::Utc::now(),
             Vec::new(),
             "partition".to_string(),
         )

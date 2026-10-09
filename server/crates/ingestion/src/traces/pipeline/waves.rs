@@ -18,10 +18,10 @@
 //! other, whatever their traces: grouped with an export that arrived after it and supplied the file, in its wave
 //! or an earlier one, the reference held where alone it would have found nothing.
 //!
-//! Each export's staged payload is settled after its own wave, before the next wave is written. Settling
-//! confirms the export's content is the stored winner; settled after a later wave that holds another revision of
-//! the same span, the export found that revision the winner, stayed pending, and was written again - over the
-//! revision that had arrived after it.
+//! Each export's staged payload is settled after its own wave, before the next wave is written, so it is settled
+//! while its content is the stored winner. Settled after a later wave that holds another revision of the same
+//! span, it is settled as superseded by that revision instead (`StagingService::disposition`), which reads the
+//! export's own record as well.
 
 use std::collections::{HashMap, HashSet};
 
@@ -177,6 +177,7 @@ mod tests {
                 ReceivedPayload::new(
                     prost::Message::encode_to_vec(request),
                     sideseat_domain::raw_payload::RawContent::Protobuf,
+                    chrono::Utc::now(),
                 )
             })
             .collect()

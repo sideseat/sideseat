@@ -1,7 +1,7 @@
 //! DuckDB's winning span revisions, as a condition on the row rather than a window over the table.
 //!
 //! A span identity keeps every revision it was delivered as, and a read answers with the latest - by
-//! `ingested_at`, then by physical order. Computing that with `ROW_NUMBER() OVER (PARTITION BY identity ...)`
+//! `ingested_at`, the instant its export was received, then by physical order. Computing that with `ROW_NUMBER() OVER (PARTITION BY identity ...)`
 //! partitions every row of the table before any filter of the read can apply, and holds whole rows to do it:
 //! on a million spans each list, feed and search read ran out of a 200 MB memory limit. So every row carries
 //! `superseded_at` instead: the `ingested_at` of the revision that follows it in that order, `NULL` while it is
@@ -10,8 +10,11 @@
 //! read's own conditions, and it reads only the columns the read names.
 //!
 //! The same column answers "the latest revision ingested before a watermark", which a traversal pins so that a
-//! revision delivered after it began neither appears in it nor hides the revision it replaced: a row is that
-//! winner when it was ingested before the watermark and the revision that followed it, if any, was not.
+//! revision received after it began neither appears in it nor hides the revision it replaced: a row is that
+//! winner when it was ingested before the watermark and the revision that followed it, if any, was not. A
+//! revision received before the watermark and written after it - redrive, a backlog drained late - is stored at
+//! its receipt, so it can enter a traversal already under way, as any write from a clock behind the watermark's
+//! could: a page cut before it does not show it, and none shows it twice.
 //!
 //! Every identity-wide delete removes all of an identity's revisions together, so the chain of revisions an
 //! identity keeps is always complete and the condition never loses a winner.

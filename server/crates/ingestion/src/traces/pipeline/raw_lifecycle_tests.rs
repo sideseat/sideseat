@@ -68,9 +68,14 @@ fn key(trace_id: u8, id: u8) -> SpanKey {
 
 /// Ingest a body exactly as the request path does: staged, prepared, written.
 async fn ingest(pipeline: &TracePipeline, body: &ExportTraceServiceRequest) -> ReceivedPayload {
-    let received = ReceivedPayload::new(body.encode_to_vec(), RawContent::Protobuf);
+    let received = ReceivedPayload::new(
+        body.encode_to_vec(),
+        RawContent::Protobuf,
+        chrono::Utc::now(),
+    );
     let (request, received) =
-        crate::received::staged_traces(&received.staged(), PROJECT).expect("prepare");
+        crate::received::staged_traces(&received.staged(), PROJECT, received.received_at)
+            .expect("prepare");
     let outcome = pipeline.ingest_now(&request, &received).await;
     assert!(
         matches!(

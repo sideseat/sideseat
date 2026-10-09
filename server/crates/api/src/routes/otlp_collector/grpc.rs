@@ -400,7 +400,8 @@ impl RawExportHandler for OtlpTraceService {
             }
             let Received { message: req, raw } = request.into_inner();
             // The bytes the exporter sent, which is what the raw record must hold - see `grpc_raw`.
-            let received = ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf);
+            let received =
+                ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf, self.clock.now());
             export_signal(
                 self.signal.as_ref(),
                 req,
@@ -490,7 +491,8 @@ impl RawExportHandler for OtlpMetricsService {
             }
             let Received { message: req, raw } = request.into_inner();
             // The bytes the exporter sent, which is what the raw record must hold - see `grpc_raw`.
-            let received = ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf);
+            let received =
+                ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf, self.clock.now());
             export_signal(
                 self.signal.as_ref(),
                 req,
@@ -580,7 +582,8 @@ impl RawExportHandler for OtlpLogsService {
             }
             let Received { message: req, raw } = request.into_inner();
             // The bytes the exporter sent, which is what the raw record must hold - see `grpc_raw`.
-            let received = ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf);
+            let received =
+                ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf, self.clock.now());
             export_signal(
                 self.signal.as_ref(),
                 req,

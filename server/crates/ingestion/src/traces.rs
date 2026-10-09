@@ -6,6 +6,7 @@ pub mod raw_views;
 
 pub use extract::SpanData;
 pub use persist::SseSpanEvent;
+pub(crate) use pipeline::raw_id;
 pub use pipeline::{
     DropReason, IngestOutcome, InlineBatcher, Reconciled, TracePipeline, strip_unstorable_spans,
 };

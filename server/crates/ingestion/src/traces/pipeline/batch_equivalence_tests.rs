@@ -130,6 +130,7 @@ async fn ingest_singly(
         let received = ReceivedPayload::new(
             request.encode_to_vec(),
             sideseat_domain::raw_payload::RawContent::Protobuf,
+            chrono::Utc::now(),
         );
         outcomes.push(pipeline.ingest_now(request, &received).await);
     }
@@ -178,6 +179,7 @@ async fn concurrent_inline_exports_are_batched_and_answered_alone() {
                 let received = ReceivedPayload::new(
                     request.encode_to_vec(),
                     sideseat_domain::raw_payload::RawContent::Protobuf,
+                    chrono::Utc::now(),
                 );
                 batcher.ingest(&request, &received, None).await
             })
@@ -234,6 +236,7 @@ fn received_of(request: &ExportTraceServiceRequest) -> ReceivedPayload {
     ReceivedPayload::new(
         request.encode_to_vec(),
         sideseat_domain::raw_payload::RawContent::Protobuf,
+        chrono::Utc::now(),
     )
 }
 

@@ -6,6 +6,7 @@
 //! after every absent record is explained by the same deletion/retention rules
 //! as ingestion.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use chrono::TimeDelta;
@@ -14,7 +15,7 @@ use sideseat_core::config::RetentionConfig;
 use sideseat_ports::blobs::{FileStorage, FileStorageError};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, DeletionScope, TransactionalRepository};
-use sideseat_ports::types::{ProjectId, StagedPayload, StagedRecord, StagedSignal};
+use sideseat_ports::types::{ProjectId, SpanWinner, StagedPayload, StagedRecord, StagedSignal};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -46,6 +47,15 @@ impl StagedPayloadRef {
     pub fn partition_key(&self) -> String {
         self.partition_key.clone()
     }
+}
+
+/// How one staged record stands against the store.
+enum Standing {
+    /// Its content is stored as the winner.
+    Stored,
+    /// A revision received no earlier than its payload is the winner.
+    Superseded,
+    Missing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,11 +105,14 @@ impl StagingService {
         }
     }
 
+    /// Stage `bytes`, received at `received_at`: the registration keeps the receipt, which every later write of the
+    /// payload stores its rows at ([`crate::received::ReceivedPayload`]).
     pub async fn stage(
         &self,
         project_id: &str,
         signal: StagedSignal,
         bytes: &[u8],
+        received_at: chrono::DateTime<chrono::Utc>,
         records: Vec<StagedRecord>,
         partition_key: String,
     ) -> Result<StagedPayloadRef, StagingError> {
@@ -123,7 +136,7 @@ impl StagingService {
             signal,
             blob_hash,
             byte_len: bytes.len() as u64,
-            created_at: self.clock.now(),
+            created_at: received_at,
             redrive_attempts: 0,
             unconfirmed: false,
             records,
@@ -233,8 +246,15 @@ impl StagingService {
             .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
-    /// Check strict content equality. On a miss, prove every missing record was
-    /// intentionally removed before declaring the payload terminal.
+    /// Check strict content equality. On a miss, settle what a revision received later superseded and prove every
+    /// other missing record was intentionally removed before declaring the payload terminal.
+    ///
+    /// A span whose winner is another revision is settled when that revision was received no earlier than this
+    /// export and this export's own record holds the span: the export is stored, and is not the latest. Without
+    /// that, an export written after a later revision - redrive holding a copy it loaded, a requester retrying a
+    /// failed settlement - found that revision the winner, stayed pending, and was written again for as long as it
+    /// was retried. Its rows are stored at its receipt, so writing it again changes nothing a read answers
+    /// (`server/specs/StagingRetirement.tla`).
     pub async fn disposition(
         &self,
         payload: &StagedPayload,
@@ -256,12 +276,21 @@ impl StagingService {
             return Ok(StagingDisposition::DeliberatelyAbsent);
         }
 
+        let winners = self.span_winners(payload).await?;
         let mut saw_absence = false;
         let mut confirmed = Vec::new();
+        let mut superseded = Vec::new();
         for record in &payload.records {
-            if self.record_confirmed(&payload.project_id, record).await? {
-                confirmed.push(record.clone());
-                continue;
+            match self.standing(payload, record, &winners).await? {
+                Standing::Stored => {
+                    confirmed.push(record.clone());
+                    continue;
+                }
+                Standing::Superseded => {
+                    superseded.push(record);
+                    continue;
+                }
+                Standing::Missing => {}
             }
             if self
                 .record_deliberately_absent(&payload.project_id, record)
@@ -276,11 +305,127 @@ impl StagingService {
         if !self.raw_covers(payload, &confirmed).await? {
             return Ok(StagingDisposition::Pending);
         }
+        let held = self.held_by_own_record(payload, &superseded).await?;
+        for record in superseded {
+            if let StagedRecord::Span {
+                trace_id, span_id, ..
+            } = record
+                && held.contains(&(trace_id.clone(), span_id.clone()))
+            {
+                continue;
+            }
+            if self
+                .record_deliberately_absent(&payload.project_id, record)
+                .await?
+            {
+                saw_absence = true;
+                continue;
+            }
+            return Ok(StagingDisposition::Pending);
+        }
         Ok(if saw_absence {
             StagingDisposition::DeliberatelyAbsent
         } else {
             StagingDisposition::Confirmed
         })
+    }
+
+    /// The winning revisions of a trace payload's spans, in one read; empty for other signals.
+    async fn span_winners(
+        &self,
+        payload: &StagedPayload,
+    ) -> Result<HashMap<(String, String), SpanWinner>, StagingError> {
+        let spans: Vec<(String, String)> = payload
+            .records
+            .iter()
+            .filter_map(|record| match record {
+                StagedRecord::Span {
+                    trace_id, span_id, ..
+                } => Some((trace_id.clone(), span_id.clone())),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if spans.is_empty() {
+            return Ok(HashMap::new());
+        }
+        self.analytics
+            .span_winners(&payload.project_id, &spans)
+            .await
+            .map_err(|error| StagingError::Registry(error.to_string()))
+    }
+
+    /// How one record stands in the store: its content stored, superseded by a revision received no earlier
+    /// than its payload, or neither.
+    async fn standing(
+        &self,
+        payload: &StagedPayload,
+        record: &StagedRecord,
+        winners: &HashMap<(String, String), SpanWinner>,
+    ) -> Result<Standing, StagingError> {
+        let StagedRecord::Span {
+            trace_id,
+            span_id,
+            content_digest,
+            ..
+        } = record
+        else {
+            return Ok(
+                if self.record_confirmed(&payload.project_id, record).await? {
+                    Standing::Stored
+                } else {
+                    Standing::Missing
+                },
+            );
+        };
+        Ok(match winners.get(&(trace_id.clone(), span_id.clone())) {
+            Some(winner) if &winner.content_digest == content_digest => Standing::Stored,
+            // No earlier: two exports received in the same microsecond have no order, and either may win.
+            Some(winner) if winner.ingested_at >= payload.created_at => Standing::Superseded,
+            _ => Standing::Missing,
+        })
+    }
+
+    /// The spans of `records` the payload's own raw record holds, read from its staged body.
+    async fn held_by_own_record(
+        &self,
+        payload: &StagedPayload,
+        records: &[&StagedRecord],
+    ) -> Result<HashSet<(String, String)>, StagingError> {
+        let spans: Vec<(String, String)> = records
+            .iter()
+            .filter_map(|record| match record {
+                StagedRecord::Span {
+                    trace_id, span_id, ..
+                } => Some((trace_id.clone(), span_id.clone())),
+                _ => None,
+            })
+            .collect();
+        if spans.is_empty() {
+            return Ok(HashSet::new());
+        }
+        let bytes = match self
+            .storage
+            .get(&payload.project_id, &payload.blob_hash)
+            .await
+        {
+            Ok(bytes) => bytes,
+            Err(FileStorageError::NotFound { .. }) => {
+                return Err(StagingError::MissingBlob(payload.id.clone()));
+            }
+            Err(error) => return Err(blob_error(error)),
+        };
+        let received = crate::received::staged_received(&bytes, payload.created_at)
+            .map_err(StagingError::Blob)?;
+        crate::raw_coverage::held_by_own_record(
+            self.analytics.as_ref(),
+            &payload.project_id,
+            &received,
+            &spans,
+        )
+        .await
+        .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
     /// Whether the raw authority holds every span of `records`: each in the record its winning row names.
@@ -398,7 +543,11 @@ impl StagingService {
             };
             let write_ok = match current.signal {
                 StagedSignal::Traces => {
-                    match crate::received::staged_traces(&bytes, current.project_id.as_str()) {
+                    match crate::received::staged_traces(
+                        &bytes,
+                        current.project_id.as_str(),
+                        current.created_at,
+                    ) {
                         Ok((request, received)) => !matches!(
                             trace_pipeline.ingest_now(&request, &received).await,
                             IngestOutcome::Failed
@@ -526,25 +675,14 @@ impl StagingService {
         .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
+    /// Whether a metric or log record's content is stored; spans are read through their winners ([`Self::standing`]).
     async fn record_confirmed(
         &self,
         project_id: &ProjectId,
         record: &StagedRecord,
     ) -> Result<bool, StagingError> {
         match record {
-            StagedRecord::Span {
-                trace_id,
-                span_id,
-                content_digest,
-                ..
-            } => {
-                self.analytics
-                    .spans_match_content(
-                        project_id,
-                        &[(trace_id.clone(), span_id.clone(), content_digest.clone())],
-                    )
-                    .await
-            }
+            StagedRecord::Span { .. } => Ok(false),
             StagedRecord::Metric {
                 datapoint_id,
                 content_digest,
@@ -739,6 +877,7 @@ mod tests {
                     &project.id,
                     StagedSignal::Metrics,
                     b"byte-identical-export",
+                    clock.now(),
                     vec![StagedRecord::Metric {
                         datapoint_id: metric.datapoint_id.clone(),
                         content_digest: metric.content_digest.clone(),
@@ -773,6 +912,7 @@ mod tests {
                 &project.id,
                 StagedSignal::Metrics,
                 b"missing-export",
+                clock.now(),
                 vec![StagedRecord::Metric {
                     datapoint_id: "missing".to_string(),
                     content_digest: "never-written".to_string(),

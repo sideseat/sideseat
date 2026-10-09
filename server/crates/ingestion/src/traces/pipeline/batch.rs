@@ -34,6 +34,7 @@ impl TracePipeline {
                 ReceivedPayload::new(
                     request.encode_to_vec(),
                     sideseat_domain::raw_payload::RawContent::Protobuf,
+                    chrono::Utc::now(),
                 )
             })
             .collect();
@@ -56,6 +57,7 @@ impl TracePipeline {
                 ReceivedPayload::new(
                     request.encode_to_vec(),
                     sideseat_domain::raw_payload::RawContent::Protobuf,
+                    chrono::Utc::now(),
                 )
             })
             .collect();
@@ -173,8 +175,12 @@ impl TracePipeline {
         for (index, result) in results.into_iter().enumerate() {
             match result {
                 Prepared::Ready(mut db_spans, pending_files, incoming) => {
+                    // Every write of an export stores its rows at the export's receipt, so its revision of a
+                    // span is ordered by when it arrived, not by when this write happens to run: a copy written
+                    // after a revision received later is superseded at once (`ReceivedPayload`).
                     for span in &mut db_spans {
                         span.batch_slot = index;
+                        span.ingested_at = Some(received[index].received_at);
                     }
                     let project_id = db_spans
                         .first()
@@ -485,8 +491,8 @@ impl TracePipeline {
         sideseat_domain::search::index_spans(&mut all_db_spans);
 
         // The raw records before the rows derived from them; a batch whose records cannot be stored stores
-        // nothing, and is redelivered.
-        let now = chrono::Utc::now();
+        // nothing, and is redelivered. Each record is stamped with its export's receipt, as its rows are, so
+        // records replay in the order their revisions take.
         // Per draft: the hold its rows carry.
         let mut hold_by_project: HashMap<String, Option<chrono::DateTime<chrono::Utc>>> =
             HashMap::new();
@@ -505,7 +511,7 @@ impl TracePipeline {
             .filter_map(|(index, draft)| {
                 // A request whose every span a fence refused stores no record: no row would name it.
                 let keep = kept_by_draft.get(index)?;
-                Some(draft.row(&requests[*index], keep, now, hold_of(draft)))
+                Some(draft.row(&requests[*index], keep, draft.received_at(), hold_of(draft)))
             })
             .collect::<Result<Vec<_>, _>>();
         let raw_rows = match raw_rows {

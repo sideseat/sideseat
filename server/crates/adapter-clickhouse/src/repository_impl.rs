@@ -20,7 +20,7 @@ use sideseat_ports::types::{
     MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan,
     PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
     SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
-    StatsParams, TraceRow,
+    SpanWinner, StatsParams, TraceRow,
 };
 
 use super::ClickhouseService;
@@ -237,6 +237,19 @@ impl SpanStore for ClickhouseRepository {
             query::spans_with_matching_content,
             project_id.as_str(),
             records
+        )
+    }
+    async fn span_winners(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<HashMap<(String, String), SpanWinner>, DataError> {
+        tenant_query!(
+            self,
+            project_id,
+            query::span_winners,
+            project_id.as_str(),
+            spans
         )
     }
 }

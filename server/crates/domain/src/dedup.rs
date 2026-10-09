@@ -16,8 +16,8 @@ use sideseat_ports::types::{
     FeedMessagesParams, FeedSpansParams, ListLogsParams, ListMetricsParams, ListSessionsParams,
     ListSpansParams, ListTracesParams, LogRow, MessageQueryParams, MessageQueryResult,
     MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, ProjectId,
-    RawPending, RawRecordRow, SearchPage, SearchQuery, SessionRow, SpanCounts, SpanRow, TraceRow,
-    deduplicate_by_span_identity,
+    RawPending, RawRecordRow, SearchPage, SearchQuery, SessionRow, SpanCounts, SpanRow, SpanWinner,
+    TraceRow, deduplicate_by_span_identity,
 };
 
 pub struct DedupAnalyticsRepository {
@@ -123,6 +123,14 @@ impl SpanStore for DedupAnalyticsRepository {
         self.inner
             .spans_with_matching_content(project_id, records)
             .await
+    }
+
+    async fn span_winners(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<HashMap<(String, String), SpanWinner>, DataError> {
+        self.inner.span_winners(project_id, spans).await
     }
 }
 

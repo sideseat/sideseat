@@ -28,7 +28,7 @@ use sideseat_ports::types::{
     MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan,
     PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
     SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
-    StatsParams, TraceRow,
+    SpanWinner, StatsParams, TraceRow,
 };
 
 use super::DuckdbService;
@@ -261,6 +261,19 @@ impl SpanStore for DuckdbRepository {
         .await
         .map_err(DataError::from)?
         .map_err(Into::into)
+    }
+    async fn span_winners(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<HashMap<(String, String), SpanWinner>, DataError> {
+        let db = Arc::clone(&self.0);
+        let project_id = project_id.to_string();
+        let spans = spans.to_vec();
+        DuckdbService::run_query(move || query::span_winners(&db.conn(), &project_id, &spans))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 }
 

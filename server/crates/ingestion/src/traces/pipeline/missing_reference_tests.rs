@@ -42,6 +42,7 @@ async fn staged(pipeline: &TracePipeline, body: &[u8]) -> StagedPayloadRef {
             "default",
             StagedSignal::Traces,
             body,
+            chrono::Utc::now(),
             Vec::new(),
             "p".to_string(),
         )

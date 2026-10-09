@@ -218,6 +218,7 @@ mod tests {
             received: ReceivedPayload::new(
                 Vec::new(),
                 sideseat_domain::raw_payload::RawContent::Protobuf,
+                chrono::Utc::now(),
             ),
             staged: None,
             bytes,

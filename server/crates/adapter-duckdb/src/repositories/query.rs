@@ -2,7 +2,7 @@
 
 mod rows;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use duckdb::{Connection, Row};
@@ -11,7 +11,7 @@ use crate::{DuckdbError, in_transaction};
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
     FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
-    SpanRow, TraceRow, parse_tags,
+    SpanRow, SpanWinner, TraceRow, parse_tags,
 };
 use sideseat_query_sql::confirmations;
 use sideseat_query_sql::keyed::KEYED_CHUNK;
@@ -267,6 +267,41 @@ pub fn spans_with_matching_content(
         }
     }
     Ok(matching)
+}
+
+/// The winning revision of each of these span identities that has one, read through the `span_id` index a
+/// chunk at a time.
+pub fn span_winners(
+    conn: &Connection,
+    project_id: &str,
+    spans: &[(String, String)],
+) -> Result<HashMap<(String, String), SpanWinner>, DuckdbError> {
+    let mut winners = HashMap::with_capacity(spans.len());
+    for chunk in spans.chunks(KEYED_CHUNK) {
+        let Some(query) = analytics::span_winners(project_id, chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = duckdb_values(query.params());
+        let mut statement = conn.prepare(query.sql())?;
+        let rows = statement.query_map(values.as_slice(), |row| {
+            Ok((
+                (row.get(0)?, row.get(1)?),
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })?;
+        for row in rows {
+            let (identity, content_digest, ingested_us) = row?;
+            winners.insert(
+                identity,
+                SpanWinner {
+                    content_digest,
+                    ingested_at: micros_to_datetime(ingested_us),
+                },
+            );
+        }
+    }
+    Ok(winners)
 }
 
 // --- Delete operations ---

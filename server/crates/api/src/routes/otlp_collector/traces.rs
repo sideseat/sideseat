@@ -44,7 +44,8 @@ pub async fn export(
     };
 
     // The body as it arrived, for staging: the decoded request is about to be mutated.
-    let received = ReceivedPayload::new(body.to_vec(), content_type.raw_content());
+    let received =
+        ReceivedPayload::new(body.to_vec(), content_type.raw_content(), state.clock.now());
     match export_signal(
         state.trace_signal.as_ref(),
         request,

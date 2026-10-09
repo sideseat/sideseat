@@ -70,7 +70,11 @@ async fn an_exact_redelivery_restores_a_lost_association() {
     let (_temp, _analytics, database, pipeline) = pipeline_over_a_temp_store_with(true).await;
     let project = ProjectId::from(PROJECT);
     let request = export();
-    let received = ReceivedPayload::new(request.encode_to_vec(), RawContent::Protobuf);
+    let received = ReceivedPayload::new(
+        request.encode_to_vec(),
+        RawContent::Protobuf,
+        chrono::Utc::now(),
+    );
     assert_eq!(
         pipeline.ingest_now(&request, &received).await,
         IngestOutcome::Stored

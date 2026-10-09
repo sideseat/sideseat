@@ -31,15 +31,22 @@
 (*   HeldIntact - under a legal hold no record content is lost: deletion   *)
 (*                and retention are refused, the reconciler waits, and an  *)
 (*                ingest's repair only adds.                              *)
+(*   LaterReceiptWins - an ingest of this export that writes its rows after *)
+(*                a revision received later took a span over never takes   *)
+(*                it back: with ReceiptPrecedence a row's instant is its    *)
+(*                export's receipt, so the late row is superseded at once. *)
+(*                Without it the row's instant is the write's, and an      *)
+(*                ingest's late replay wins over the later revision.       *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, TLC
 
 CONSTANTS Spans, Ingests, Reconcilers, MaxVer,
-          WithHold,    \* explore legal holds
-          WithRestore  \* explore backup and restore
+          WithHold,          \* explore legal holds
+          WithRestore,       \* explore backup and restore
+          ReceiptPrecedence  \* a row's instant is its export's receipt, not its write
 
 ASSUME Spans # {} /\ Ingests # {} /\ Reconcilers # {} /\ MaxVer \in Nat
-ASSUME WithHold \in BOOLEAN /\ WithRestore \in BOOLEAN
+ASSUME WithHold \in BOOLEAN /\ WithRestore \in BOOLEAN /\ ReceiptPrecedence \in BOOLEAN
 
 VARIABLES
     rows,      \* spans that currently have a row naming the record
@@ -53,10 +60,12 @@ VARIABLES
     cleared,   \* entries up to this one are processed
     ipc, ikept, iwritten,
     rpc, rrec, rhad, rlive, rtaken,
-    backup     \* one snapshot of the analytics store, when `taken`
+    backup,    \* one snapshot of the analytics store, when `taken`
+    later,     \* spans a revision received after this export has been written for
+    overtaken  \* ghost: a row of this export was written over a revision received after it
 
 vars == <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
-          rpc, rrec, rhad, rlive, rtaken, backup>>
+          rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 Version == [ver : 0..MaxVer, seq : Nat, content : SUBSET Spans]
 
@@ -104,6 +113,8 @@ Init ==
     /\ rlive = [r \in Reconcilers |-> {}]
     /\ rtaken = [r \in Reconcilers |-> 0]
     /\ backup = [taken |-> FALSE, rows |-> {}, store |-> {}]
+    /\ later = {}
+    /\ overtaken = FALSE
 
 ----------------------------------------------------------------------------
 (* Ingest: the deletion fences decide what is kept, the record is inserted  *)
@@ -114,7 +125,7 @@ Fence(i) ==
     /\ ikept' = [ikept EXCEPT ![i] = Spans \ tomb]
     /\ ipc' = [ipc EXCEPT ![i] = IF Spans \ tomb = {} THEN "done" ELSE "insert"]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 \* Insert-if-absent, at whatever version the writer's clock gives: a clock far behind the others or far
 \* ahead of them, the two extremes skew can produce.
@@ -125,13 +136,19 @@ Insert(i) ==
          ELSE \E v \in {1, MaxVer} : Append(v, ikept[i])
     /\ ipc' = [ipc EXCEPT ![i] = "write"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, enq, cleared, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 \* No fence between the record and the rows: a deletion in between leaves
 \* rows the existing tombstone re-check removes (Sweep).
+\* With ReceiptPrecedence a row's instant is its export's receipt, so a row written where a revision received later
+\* already is goes in superseded; without it the row's instant is the write's, and it takes the span back.
+Overtakes(spans) == ~ReceiptPrecedence /\ spans \cap later # {}
+
 Write(i) ==
     /\ ipc[i] = "write"
     /\ rows' = rows \cup ikept[i]
+    /\ overtaken' = (overtaken \/ Overtakes(ikept[i]))
+    /\ UNCHANGED later
     /\ iwritten' = [iwritten EXCEPT ![i] = ikept[i]]
     /\ ipc' = [ipc EXCEPT ![i] = "check"]
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ikept,
@@ -143,7 +160,10 @@ Write(i) ==
 \* the export is refused and delivered again, from the fences. No repair runs: the write did not return.
 Fail(i) ==
     /\ ipc[i] = "write"
-    /\ \E landed \in {{}, ikept[i]} : rows' = rows \cup landed
+    /\ \E landed \in {{}, ikept[i]} :
+        /\ rows' = rows \cup landed
+        /\ overtaken' = (overtaken \/ Overtakes(landed))
+    /\ UNCHANGED later
     /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "fence"]
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ikept, iwritten,
@@ -160,7 +180,7 @@ Check(i) ==
               /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "done"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, cleared, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 ----------------------------------------------------------------------------
 (* Deletion, the tombstone sweep, retention and holds.                     *)
@@ -173,14 +193,17 @@ Delete(s) ==
     /\ s \notin tomb
     /\ tomb' = tomb \cup {s}
     /\ rows' = rows \ {s}
+    \* Every revision of the identity goes.
+    /\ later' = later \ {s}
     /\ Enqueue
     /\ UNCHANGED <<store, seq, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, overtaken>>
 
 \* The existing compensating re-check: rows written for a deleted span go again.
 Sweep ==
     /\ rows \cap tomb # {}
     /\ rows' = rows \ tomb
+    /\ UNCHANGED <<later, overtaken>>
     /\ Enqueue
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
                    rpc, rrec, rhad, rlive, rtaken, backup>>
@@ -189,9 +212,10 @@ Expire(s) ==
     /\ ~hold
     /\ s \in rows
     /\ rows' = rows \ {s}
+    /\ later' = later \ {s}
     /\ Enqueue
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, overtaken>>
 
 SetHold ==
     /\ WithHold
@@ -201,14 +225,14 @@ SetHold ==
     /\ heldOnce' = TRUE
     /\ frozen' = LatestContent
     /\ UNCHANGED <<rows, store, seq, tomb, enq, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 ReleaseHold ==
     /\ hold
     /\ hold' = FALSE
     /\ frozen' = {}
     /\ UNCHANGED <<rows, store, seq, tomb, heldOnce, enq, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 ----------------------------------------------------------------------------
 (* Backup and restore. The journal and tombstones live in the transactional *)
@@ -221,8 +245,11 @@ Backup ==
     /\ ~backup.taken
     /\ backup' = [taken |-> TRUE, rows |-> rows, store |-> store]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept,
-                   iwritten, rpc, rrec, rhad, rlive, rtaken>>
+                   iwritten, rpc, rrec, rhad, rlive, rtaken, later, overtaken>>
 
+\* A restore can take a later revision's rows back with it; `later` keeps them all the same. That over-approximates
+\* what a write can overtake, which matters only without ReceiptPrecedence, and keeps the snapshot to the rows and
+\* the store.
 Restore ==
     /\ backup.taken
     /\ rows' = backup.rows
@@ -232,7 +259,15 @@ Restore ==
     \* An operator's restore under a hold is what the hold now protects.
     /\ frozen' = IF hold /\ backup.store # {} THEN LatestOf(backup.store).content ELSE {}
     /\ UNCHANGED <<seq, tomb, hold, heldOnce, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, later, overtaken>>
+
+\* Another export, received after this one, writes its revision of a span: the span's winner is no longer ours.
+Supersede(s) ==
+    /\ s \notin tomb
+    /\ s \notin later
+    /\ later' = later \cup {s}
+    /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
+                   rpc, rrec, rhad, rlive, rtaken, backup, overtaken>>
 
 ----------------------------------------------------------------------------
 (* The reconciler: read the queue position, the latest record and the rows; *)
@@ -248,7 +283,7 @@ RRead(r) ==
     /\ rlive' = [rlive EXCEPT ![r] = rows]
     /\ rpc' = [rpc EXCEPT ![r] = "act"]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept,
-                   iwritten, backup>>
+                   iwritten, backup, later, overtaken>>
 
 RAct(r) ==
     /\ rpc[r] = "act"
@@ -266,7 +301,7 @@ RAct(r) ==
                       /\ Append(rrec[r].ver + 1, new)
     /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
-                   rrec, rhad, rlive, rtaken, backup>>
+                   rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 \* After every action, look again. Rows that appeared after this reconciler's delete
 \* get back what it read - every version is the export minus some deleted spans, so it covers
@@ -286,18 +321,18 @@ RRecheck(r) ==
                    ELSE UNCHANGED enq
     /\ rpc' = [rpc EXCEPT ![r] = "clear"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rrec, rhad, rlive, rtaken, backup>>
+                   rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 RClear(r) ==
     /\ rpc[r] = "clear"
     /\ cleared' = IF rtaken[r] > cleared THEN rtaken[r] ELSE cleared
     /\ rpc' = [rpc EXCEPT ![r] = "idle"]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, ipc, ikept, iwritten,
-                   rrec, rhad, rlive, rtaken, backup>>
+                   rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
 Next ==
     \/ \E i \in Ingests : Fence(i) \/ Insert(i) \/ Write(i) \/ Fail(i) \/ Check(i)
-    \/ \E s \in Spans : Delete(s) \/ Expire(s)
+    \/ \E s \in Spans : Delete(s) \/ Expire(s) \/ Supersede(s)
     \/ Sweep \/ SetHold \/ ReleaseHold \/ Backup \/ Restore
     \/ \E r \in Reconcilers : RRead(r) \/ RAct(r) \/ RRecheck(r) \/ RClear(r)
 
@@ -324,6 +359,9 @@ HeldIntact == hold => frozen \subseteq LatestContent
 \* The repair and the rewrite keep the shape every version has: the export
 \* minus spans that were deleted. That is why a re-inserted read covers rows.
 VersionsAreFiltered == \A v \in store : Spans \ v.content \subseteq tomb
+
+\* A span a later revision has taken over is never this export's again.
+LaterReceiptWins == ~overtaken
 
 \* The model is symmetric in spans, ingests and reconcilers.
 Symmetry == Permutations(Spans) \cup Permutations(Ingests) \cup Permutations(Reconcilers)

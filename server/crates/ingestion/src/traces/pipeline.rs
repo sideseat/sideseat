@@ -294,6 +294,7 @@ mod fences_late;
 mod inline;
 mod raw;
 mod raw_lifecycle;
+pub(crate) use raw::raw_id;
 mod single;
 mod waves;
 
@@ -677,6 +678,8 @@ mod pipeline_tests;
 mod raw_authority_tests;
 #[cfg(test)]
 mod raw_lifecycle_tests;
+#[cfg(test)]
+mod receipt_precedence_tests;
 #[cfg(test)]
 mod storable_timestamp_tests;
 #[cfg(test)]

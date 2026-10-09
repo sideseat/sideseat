@@ -107,6 +107,18 @@ rules.
 Confirmation compares stable producer-owned identity and content. System metadata such as ingestion time is
 not part of the content digest.
 
+A trace export's rows and raw record are stored at its receipt - the instant the request arrived, which
+staging keeps with the payload - not at the instant a write runs. Nothing orders two workers' writes: a
+consumer, the inline requester and redrive each load a payload, write it and settle it, and one holding an
+earlier export can write it after another wrote a later revision of the same span. Stored at its receipt,
+that late copy is superseded at once rather than taking the span back. Settling it finds the later revision
+the winner, received no earlier than the export, and the export's own record holding the span, and settles
+it as superseded; an export never written is not settled that way, since its own record does not exist.
+`StagingRetirement.tla` and `RawRecordOwnership.tla` check that a later receipt keeps winning
+(`LaterReceiptWins`) and that only a written export is retired. Readers that pin a traversal or a window by
+`ingested_at` see such a late write as stored at its receipt: it can enter a traversal already under way, and
+the ClickHouse cross-partition check can miss a correction written long after it was received.
+
 ## Acknowledgement contract
 
 An OTLP success means one of two things:

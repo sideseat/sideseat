@@ -140,6 +140,15 @@ pub trait SpanStore: Send + Sync {
         project_id: &ProjectId,
         records: &[(String, String, String)],
     ) -> Result<HashSet<(String, String, String)>, DataError>;
+
+    /// The winning revision of each of these `(trace_id, span_id)` identities that has one. Settling an export
+    /// whose content is not the winner reads it, to tell a revision received after the export's - which
+    /// supersedes it legitimately - from one that does not.
+    async fn span_winners(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<HashMap<(String, String), SpanWinner>, DataError>;
 }
 
 /// Metric writes and the read API over winning datapoint revisions.

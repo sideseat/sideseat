@@ -77,6 +77,7 @@ async fn each_export_in_a_batch_is_answered_for_its_own_spans() {
     let received = ReceivedPayload::new(
         gone.encode_to_vec(),
         sideseat_domain::raw_payload::RawContent::Protobuf,
+        chrono::Utc::now(),
     );
     assert_eq!(pipeline.ingest_now(&gone, &received).await, outcomes[1]);
 }

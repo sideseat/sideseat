@@ -220,6 +220,7 @@ pub async fn export_signal<S: Signal>(
             context.project_id,
             signal.staged_signal(),
             &encoded,
+            context.received.received_at,
             records,
             signal.partition_key(&request),
         )

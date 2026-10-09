@@ -81,7 +81,11 @@ fn media_is_owned_by_the_traces_that_carry_it() {
         span(2, 2, Some(picture(2))),
         span(2, 3, Some(picture(1))),
     ]);
-    let received = ReceivedPayload::new(request.encode_to_vec(), RawContent::Protobuf);
+    let received = ReceivedPayload::new(
+        request.encode_to_vec(),
+        RawContent::Protobuf,
+        chrono::Utc::now(),
+    );
     let draft = RawDraft::new("project", &received, true);
     let writes = draft.media_writes(&request);
     let owners: BTreeSet<(String, String)> = writes
@@ -112,7 +116,11 @@ fn media_is_owned_by_the_traces_that_carry_it() {
 #[test]
 fn a_fenced_span_does_not_survive_in_the_raw_record() {
     let original = export(vec![span(1, 1, None), span(2, 2, None)]);
-    let received = ReceivedPayload::new(original.encode_to_vec(), RawContent::Protobuf);
+    let received = ReceivedPayload::new(
+        original.encode_to_vec(),
+        RawContent::Protobuf,
+        chrono::Utc::now(),
+    );
     let draft = RawDraft::new("project", &received, true);
     let mut mutated = original.clone();
     mutated.resource_spans[0]
@@ -159,7 +167,11 @@ fn media_the_store_refused_stays_inline() {
         span(1, 1, Some(picture(1))),
         span(1, 2, Some(picture(2))),
     ]);
-    let received = ReceivedPayload::new(request.encode_to_vec(), RawContent::Protobuf);
+    let received = ReceivedPayload::new(
+        request.encode_to_vec(),
+        RawContent::Protobuf,
+        chrono::Utc::now(),
+    );
     let mut draft = RawDraft::new("project", &received, true);
     let writes = draft.media_writes(&request);
     let refused = format!("#!B64!#image/png::{}", hash_of(&picture(1)));
@@ -195,7 +207,11 @@ fn media_the_store_refused_stays_inline() {
 #[test]
 fn a_repair_is_the_union_two_versions_up() {
     let request = export(vec![span(1, 1, None), span(1, 2, None), span(1, 3, None)]);
-    let received = ReceivedPayload::new(request.encode_to_vec(), RawContent::Protobuf);
+    let received = ReceivedPayload::new(
+        request.encode_to_vec(),
+        RawContent::Protobuf,
+        chrono::Utc::now(),
+    );
     let draft = RawDraft::new("project", &received, true);
     let at = DateTime::from_timestamp_micros(5).unwrap();
     let mut latest = draft

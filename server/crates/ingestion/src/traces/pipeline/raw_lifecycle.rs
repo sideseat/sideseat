@@ -122,7 +122,7 @@ impl TracePipeline {
                     item.request,
                     current,
                     &item.kept,
-                    Utc::now(),
+                    item.draft.received_at(),
                     item.hold_until,
                 )?;
                 self.analytics

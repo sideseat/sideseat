@@ -134,9 +134,10 @@ fn export(answer: &str) -> ExportTraceServiceRequest {
 
 /// Ingest a body exactly as the request path does: staged, prepared, written.
 async fn ingest(pipeline: &TracePipeline, body: &ExportTraceServiceRequest) {
-    let received = ReceivedPayload::new(body.encode_to_vec(), RawContent::Protobuf);
+    let at = chrono::Utc::now();
+    let received = ReceivedPayload::new(body.encode_to_vec(), RawContent::Protobuf, at);
     let (request, received) =
-        crate::received::staged_traces(&received.staged(), PROJECT).expect("prepare");
+        crate::received::staged_traces(&received.staged(), PROJECT, at).expect("prepare");
     let outcome = pipeline.ingest_now(&request, &received).await;
     assert!(matches!(outcome, IngestOutcome::Stored), "{outcome:?}");
 }

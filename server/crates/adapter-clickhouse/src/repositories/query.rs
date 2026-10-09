@@ -4,7 +4,7 @@
 
 mod rows;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
@@ -56,6 +56,33 @@ pub async fn spans_with_matching_content(
     Ok(rows.into_iter().collect())
 }
 
+/// The winning revision of each of these span identities that has one.
+pub async fn span_winners(
+    client: &Client,
+    project_id: &str,
+    spans: &[(String, String)],
+) -> Result<HashMap<(String, String), SpanWinner>, ClickhouseError> {
+    let Some(query) = analytics::span_winners(project_id, spans, Backend::Clickhouse) else {
+        return Ok(HashMap::new());
+    };
+    let rows: Vec<(String, String, String, i64)> =
+        bind_analytics_values(client.query(query.sql()), query.params())
+            .fetch_all()
+            .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(trace_id, span_id, content_digest, ingested_us)| {
+            (
+                (trace_id, span_id),
+                SpanWinner {
+                    content_digest,
+                    ingested_at: sideseat_core::utils::time::micros_to_datetime(ingested_us),
+                },
+            )
+        })
+        .collect())
+}
+
 /// Builder for constructing parameterized SQL WHERE clauses.
 ///
 /// Collects conditions and their parameter values, then allows binding
@@ -67,7 +94,7 @@ use crate::ClickhouseError;
 use rows::{ChSessionRow, ChSpanRow, ChTraceRow};
 use sideseat_ports::types::{
     FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
-    SpanRow, TraceRow,
+    SpanRow, SpanWinner, TraceRow,
 };
 
 /// List traces with pagination and filtering

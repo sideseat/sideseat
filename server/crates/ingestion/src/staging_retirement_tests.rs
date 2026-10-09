@@ -93,6 +93,7 @@ async fn stage(fixture: &Fixture, body: &[u8]) -> StagedPayloadRef {
             fixture.project.as_str(),
             StagedSignal::Traces,
             body,
+            chrono::Utc::now(),
             Vec::new(),
             "partition".to_string(),
         )

@@ -35,7 +35,7 @@
 //! - rows old enough for the ClickHouse TTL to reap, distributed (sharded) mode, and async
 //!   inserts - all three are configurations this single-node test cannot enter.
 //! - timezone and DST behaviour in the stats bucketing.
-//! - `ingested_at`, which is the server clock at write time and so differs by design.
+//! - `ingested_at`, which is the receiving server's clock at receipt and so differs by design.
 //!
 //! Needs a live ClickHouse. Skips with a message when `SIDESEAT_TEST_CLICKHOUSE_URL` is unset,
 //! so `cargo test` stays green on a checkout with no container:
@@ -60,3 +60,4 @@ include!("clickhouse_parity_parts/part_13_tests.rs");
 include!("clickhouse_parity_parts/part_14_tests.rs");
 include!("clickhouse_parity_parts/part_15_tests.rs");
 include!("clickhouse_parity_parts/part_16_tests.rs");
+include!("clickhouse_parity_parts/part_17_tests.rs");
