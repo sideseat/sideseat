@@ -46,5 +46,13 @@ def pin() -> None:
     pinned = entries()
     litellm.register_model(pinned)
     for model_id, entry in pinned.items():
-        litellm.model_cost[model_id] = dict(entry)
+        # LiteLLM also reads a model under its routed names; a bundled entry there must not survive either.
+        for name in (model_id, *aliases(model_id)):
+            if name == model_id or name in litellm.model_cost:
+                litellm.model_cost[name] = dict(entry)
     litellm.add_known_models()
+
+
+def aliases(model_id: str) -> tuple[str, ...]:
+    """The names LiteLLM may look a Bedrock model up under besides its id."""
+    return (f"bedrock/{model_id}", f"bedrock/converse/{model_id}")

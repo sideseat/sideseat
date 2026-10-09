@@ -12,11 +12,12 @@ use super::matching::Matching;
 use super::recon::Recon;
 use super::truth::{Fact, Truth, hex_digest};
 
-/// For each framework-written fact, the spans whose raw payload holds its text exactly, byte for byte
-/// (`spans_holding`).
+/// For each framework-written fact, the spans whose raw payload holds its text byte for byte, written where its
+/// place in the conversation says (`placed_holders`): where the views must attribute it.
 pub(super) fn emitting_spans(
     truth: &Truth,
-    paths: &[PathBuf],
+    recon: &Recon,
+    matching: &Matching,
 ) -> BTreeMap<String, BTreeSet<String>> {
     let authored: Vec<&Fact> = truth
         .facts
@@ -26,28 +27,80 @@ pub(super) fn emitting_spans(
     if authored.is_empty() {
         return BTreeMap::new();
     }
-    let spans = raw_spans(paths);
+    let spans = raw_spans(&recon.paths);
     authored
         .into_iter()
-        .map(|fact| (fact.id.clone(), spans_holding(&spans, fact.text())))
+        .map(|fact| {
+            let (before, after) = call_starts(truth, fact, recon, matching).unwrap_or_default();
+            let placed = placed_holders(&holders(&spans, fact.text()), &before, &after);
+            (fact.id.clone(), placed)
+        })
         .collect()
 }
 
-/// The spans holding the text as an attribute's whole string, or a string anywhere inside an attribute that is
-/// JSON.
-fn spans_holding(spans: &[RawSpan], text: &str) -> BTreeSet<String> {
+/// When the calls before and after a fact in its conversation started, or `None` where a call has no span.
+fn call_starts(
+    truth: &Truth,
+    fact: &Fact,
+    recon: &Recon,
+    matching: &Matching,
+) -> Option<(Vec<u64>, Vec<u64>)> {
+    let conversation = truth
+        .conversations
+        .iter()
+        .find(|c| c.id == fact.conversation)?;
+    let at = conversation.sequence.iter().position(|id| *id == fact.id)?;
+    let mut before = Vec::new();
+    let mut after = Vec::new();
+    for call in truth
+        .calls
+        .iter()
+        .filter(|c| c.conversation == fact.conversation && c.succeeded() && !c.outputs.is_empty())
+    {
+        let generation = &recon.generations[matching.span_showing(&call.id)?];
+        let start = generation.start.timestamp_nanos_opt()? as u64;
+        let earlier = call
+            .outputs
+            .iter()
+            .any(|o| conversation.sequence.iter().position(|id| id == o) < Some(at));
+        if earlier {
+            before.push(start);
+        } else {
+            after.push(start);
+        }
+    }
+    Some((before, after))
+}
+
+/// Where the text is held as an attribute's whole string, or a string anywhere inside an attribute that is
+/// JSON: each holding span with when that copy was written.
+fn holders(spans: &[RawSpan], text: &str) -> Vec<(String, u64)> {
     spans
         .iter()
-        .filter(|span| span.strings.iter().any(|s| s == text))
-        .map(|span| span.id.clone())
+        .flat_map(|span| {
+            span.strings
+                .iter()
+                .filter(|(s, _)| s == text)
+                .map(|(_, at)| (span.id.clone(), *at))
+        })
         .collect()
 }
 
-/// One raw span: its id, when it ended, and every string its attributes and events hold, JSON decoded.
+/// The spans whose copy of the text was written where its place in the conversation says: after every call
+/// before it started, and before every call after it started.
+fn placed_holders(holders: &[(String, u64)], before: &[u64], after: &[u64]) -> BTreeSet<String> {
+    holders
+        .iter()
+        .filter(|(_, at)| before.iter().all(|t| t < at) && after.iter().all(|t| t >= at))
+        .map(|(span, _)| span.clone())
+        .collect()
+}
+
+/// One raw span: its id, and every string its attributes and events hold, JSON decoded, each with when it was
+/// written - an event's own time, or the span's end for its attributes.
 struct RawSpan {
     id: String,
-    end: u64,
-    strings: Vec<String>,
+    strings: Vec<(String, u64)>,
 }
 
 fn raw_spans(paths: &[PathBuf]) -> Vec<RawSpan> {
@@ -61,18 +114,24 @@ fn raw_spans(paths: &[PathBuf]) -> Vec<RawSpan> {
             .flat_map(|s| &s.spans)
         {
             let mut strings = Vec::new();
-            for kv in span
-                .attributes
-                .iter()
-                .chain(span.events.iter().flat_map(|e| &e.attributes))
-            {
+            for kv in &span.attributes {
                 if let Some(value) = &kv.value {
-                    collect_otlp(value, &mut strings);
+                    let mut found = Vec::new();
+                    collect_otlp(value, &mut found);
+                    strings.extend(found.into_iter().map(|s| (s, span.end_time_unix_nano)));
+                }
+            }
+            for event in &span.events {
+                for kv in &event.attributes {
+                    if let Some(value) = &kv.value {
+                        let mut found = Vec::new();
+                        collect_otlp(value, &mut found);
+                        strings.extend(found.into_iter().map(|s| (s, event.time_unix_nano)));
+                    }
                 }
             }
             out.push(RawSpan {
                 id: hex_digest(&span.span_id),
-                end: span.end_time_unix_nano,
                 strings,
             });
         }
@@ -132,8 +191,8 @@ pub(super) fn refusal(
         ));
     }
     let raw = raw_spans(&recon.paths);
-    let spans = spans_holding(&raw, text);
-    if spans.is_empty() {
+    let held = holders(&raw, text);
+    if held.is_empty() {
         return Some(format!("no span's payload holds {} as written", fact.id));
     }
     if let Some(other) = truth
@@ -170,34 +229,24 @@ pub(super) fn refusal(
         .iter()
         .find(|c| c.id == fact.conversation)?;
     let at = conversation.sequence.iter().position(|id| *id == fact.id)?;
-    let (before, after): (Vec<&str>, Vec<&str>) = truth
+    let after: Vec<&str> = truth
         .calls
         .iter()
         .filter(|c| c.conversation == fact.conversation && c.succeeded() && !c.outputs.is_empty())
-        .map(|c| c.id.as_str())
-        .partition(|call| {
-            truth.calls.iter().find(|c| c.id == *call).is_some_and(|c| {
-                c.outputs
-                    .iter()
-                    .any(|o| conversation.sequence.iter().position(|id| id == o) < Some(at))
-            })
-        });
-    let start = |call: &str| -> Option<u64> {
-        let generation = &recon.generations[matching.span_showing(call)?];
-        generation.start.timestamp_nanos_opt().map(|n| n as u64)
-    };
-    let placed = raw.iter().filter(|s| spans.contains(&s.id)).any(|span| {
-        before
-            .iter()
-            .all(|c| start(c).is_some_and(|t| t < span.end))
-            && after
+        .filter(|c| {
+            c.outputs
                 .iter()
-                .all(|c| start(c).is_some_and(|t| t >= span.end))
-    });
-    if !placed {
+                .all(|o| conversation.sequence.iter().position(|id| id == o) > Some(at))
+        })
+        .map(|c| c.id.as_str())
+        .collect();
+    let Some((before_starts, after_starts)) = call_starts(truth, fact, recon, matching) else {
+        return Some("a call of its conversation has no span to time it by".to_string());
+    };
+    if placed_holders(&held, &before_starts, &after_starts).is_empty() {
         return Some(format!(
-            "the spans that hold it end where its place in the conversation (after {}) cannot be",
-            before.last().unwrap_or(&"no call")
+            "no copy of {} was written where its place in the conversation says",
+            fact.id
         ));
     }
     for call in after {

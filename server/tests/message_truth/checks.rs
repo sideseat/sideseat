@@ -135,7 +135,7 @@ impl<'a> Context<'a> {
             }
         }
         context.splits = super::propagation::split(truth, recon, matching);
-        context.authored_spans = super::authored::emitting_spans(truth, &recon.paths);
+        context.authored_spans = super::authored::emitting_spans(truth, recon, matching);
         let recorded = truth.requests.get(&recon.fixture);
         let off_span: Vec<&Fact> = truth
             .facts

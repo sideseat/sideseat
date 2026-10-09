@@ -75,6 +75,9 @@ pub(super) fn prove_call_span(
             .collect(),
         undecoded: haystack.undecoded.clone(),
     };
+    if let Some(at) = elsewhere.undecoded.first() {
+        return Proof::Unprovable(format!("{at} is encoded deeper than the search decodes"));
+    }
     for fact in &owed {
         if fact.kind != "tool_call" {
             let proof = prove(fact, &elsewhere);
@@ -83,8 +86,9 @@ pub(super) fn prove_call_span(
             }
             continue;
         }
-        // The span that ran a call records its arguments; a message holding them - a role beside them - is a
-        // response, or a request re-sending one, which a model-call span would carry.
+        // The span that ran a call records its arguments; a message holding them - a role beside them - or a
+        // call naming the tool beside them is a response, or a request re-sending one, which a model-call
+        // span would carry, whatever shape it writes it in.
         let arguments = &fact.value["arguments"];
         if !super::identifying(arguments) {
             return Proof::Unprovable(format!(
@@ -92,13 +96,15 @@ pub(super) fn prove_call_span(
                 fact.id
             ));
         }
+        let name = fact.value.get("name").and_then(serde_json::Value::as_str);
         for carrier in &elsewhere.carriers {
             if let Some(at) = super::find_node(carrier, |node| {
-                node.get("role").is_some_and(serde_json::Value::is_string)
-                    && super::holds(node, arguments)
+                super::holds(node, arguments)
+                    && (node.get("role").is_some_and(serde_json::Value::is_string)
+                        || name.is_some_and(|name| names(node, name)))
             }) {
                 return Proof::Present(format!(
-                    "{at}, during the run, is a message holding the arguments of {}",
+                    "{at}, during the run, is a response holding the call {}",
                     fact.id
                 ));
             }
@@ -135,6 +141,16 @@ fn raw_model_call_span(paths: &[std::path::PathBuf]) -> Option<String> {
         }
     }
     None
+}
+
+/// Whether an object names the tool in one of its members, directly or in a nested `function`: a call written
+/// as `{name, arguments}` or `{function: {name, arguments}}`, with or without a role.
+fn names(node: &serde_json::Value, name: &str) -> bool {
+    let Some(object) = node.as_object() else {
+        return false;
+    };
+    object.values().any(|v| v.as_str() == Some(name))
+        || object.get("function").is_some_and(|f| names(f, name))
 }
 
 /// Every raw span, in any trace, open at some instant the run's span (`own`) was - its interval overlapping the

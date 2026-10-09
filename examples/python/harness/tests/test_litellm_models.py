@@ -53,8 +53,13 @@ def test_pin_makes_the_pinned_entries_the_whole_description(
     fake: Any = types.ModuleType("litellm")
     pinned = litellm_models.entries()
     model_id = next(iter(pinned))
-    # A map that said more about the model than the pinned entry does: a capability it must not keep.
-    fake.model_cost = {model_id: {"bedrock_converse_supports_strict_tools": True}}
+    # A map that said more about the model than the pinned entry does - under its id and under the routed name
+    # LiteLLM prefers - a capability it must not keep.
+    alias = litellm_models.aliases(model_id)[0]
+    fake.model_cost = {
+        model_id: {"bedrock_converse_supports_strict_tools": True},
+        alias: {"bedrock_converse_supports_strict_tools": True},
+    }
 
     def register_model(entries: dict[str, Any]) -> None:
         for key, value in entries.items():
@@ -67,4 +72,7 @@ def test_pin_makes_the_pinned_entries_the_whole_description(
     litellm_models.pin()
     assert os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] == "True"
     assert fake.model_cost[model_id] == pinned[model_id]
+    assert fake.model_cost[alias] == pinned[model_id]
+    # A routed name the map did not have is not invented.
+    assert litellm_models.aliases(model_id)[1] not in fake.model_cost
     assert folded, "the provider sets LiteLLM routes by are folded again"
