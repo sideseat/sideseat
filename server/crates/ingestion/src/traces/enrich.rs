@@ -342,6 +342,7 @@ mod tests {
             },
             rendering: false,
             direction: None,
+            stream: None,
         }
     }
 
@@ -613,6 +614,7 @@ mod tests {
                 },
                 rendering: false,
                 direction: None,
+                stream: None,
             },
         ];
 
@@ -675,6 +677,7 @@ mod tests {
             },
             rendering: false,
             direction: None,
+            stream: None,
         }
     }
 

@@ -33,6 +33,7 @@ fn row(span: &str, trace: &str, messages: Vec<serde_json::Value>) -> MessageSpan
         content: serde_json::Value::Array(messages),
         rendering: false,
         direction: None,
+        stream: None,
     }];
     MessageSpanRow {
         request_frame: String::new(),

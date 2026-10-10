@@ -75,7 +75,8 @@ pub struct MessageRule {
     #[serde(default)]
     pub aggregate_into_array: Option<bool>,
     /// A gate on the span: the rule is consulted only where this holds. It reads the span's name and
-    /// attributes and the instrumentation scope - never the resource.
+    /// attributes and the instrumentation scope - never the resource. On an event rule too `attr:` is the
+    /// **span's** attribute; the event's own are `source.event.where`'s.
     ///
     /// Several extractors refuse to read a carrier whose name they share with other dialects unless the span
     /// also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also where one
@@ -84,6 +85,10 @@ pub struct MessageRule {
     /// telemetry carries itself, and how a reading is skipped where something holds (`not`).
     #[serde(default, rename = "where")]
     pub condition: Option<SpanWhere>,
+    /// The part of a streamed response each of this event rule's readings is: a `chunk`, or the `terminal`
+    /// that ends one, with what it holds. Refused on a span rule: a stream is a sequence of events on one span.
+    #[serde(default)]
+    pub stream: Option<StreamDeclaration>,
     /// Ordered readings of the parsed value, tried until one yields an observation.
     ///
     /// An ordered coalesce, not a program: a payload has more than one documented shape and the rule

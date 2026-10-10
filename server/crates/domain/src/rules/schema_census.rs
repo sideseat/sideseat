@@ -34,6 +34,12 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "TerminalContent=aggregate",
+        "half of the closed set of what a stream's terminal reading holds: a producer whose final reading is \
+         always the whole response declares it; the one shipped stream's terminal depends on its model adapter, \
+         and its contentless end can only be a delta",
+    ),
+    (
         "ReadingDirection=output",
         "half of the closed pair a reading's side is stated in: a reading of an input carrier that holds the \
          answer would state it, and no shipped asset has one - the only use is turns on an output carrier",

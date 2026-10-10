@@ -19,6 +19,11 @@ pub struct RawMessage {
     /// keeps the bytes it always had.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub direction: Option<crate::rules::schema::ReadingDirection>,
+    /// The part of a streamed response this message is, where its event rule declares a stream
+    /// (`MessageRule::stream`). Written only when declared, so every other stored message keeps the bytes it
+    /// always had.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<crate::rules::schema::StreamMark>,
 }
 
 /// Physical carrier that supplied a message.
@@ -42,6 +47,12 @@ impl RawMessage {
         self
     }
 
+    /// The same message, as the part of a streamed response its event rule declared, where it declared one.
+    pub fn streamed(mut self, stream: Option<crate::rules::schema::StreamMark>) -> Self {
+        self.stream = stream;
+        self
+    }
+
     pub fn from_event(name: &str, time: DateTime<Utc>, content: JsonValue) -> Self {
         Self {
             source: MessageSource::Event {
@@ -51,6 +62,7 @@ impl RawMessage {
             content,
             rendering: false,
             direction: None,
+            stream: None,
         }
     }
 
@@ -63,6 +75,7 @@ impl RawMessage {
             content,
             rendering: false,
             direction: None,
+            stream: None,
         }
     }
 }

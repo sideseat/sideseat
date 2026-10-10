@@ -19,6 +19,7 @@ fn attribute(key: &str, content: serde_json::Value) -> RawMessage {
         content,
         rendering: false,
         direction: None,
+        stream: None,
     }
 }
 
@@ -32,6 +33,7 @@ fn event(name: &str, content: serde_json::Value) -> RawMessage {
         content,
         rendering: false,
         direction: None,
+        stream: None,
     }
 }
 

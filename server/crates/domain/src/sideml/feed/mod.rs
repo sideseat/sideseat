@@ -149,6 +149,7 @@ mod prefix;
 mod request_context;
 mod request_frames;
 mod session;
+mod stream;
 mod tool_merge;
 
 use block_hash::compute_block_hash;
@@ -180,7 +181,7 @@ use serde_json::Value as JsonValue;
 #[cfg(test)]
 use serde_json::json;
 
-use super::normalize::to_sideml_with_context;
+use super::normalize::{SideMLMessage, finish_sideml, read_sideml};
 use super::provenance::PositionPath;
 use super::tools::{extract_tool_name, normalize_tools, tool_definition_quality};
 use super::types::ContentBlock;

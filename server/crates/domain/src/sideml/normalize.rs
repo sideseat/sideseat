@@ -71,6 +71,9 @@ pub struct SideMLMessage {
     /// serialised, like `rendering`.
     #[serde(skip)]
     pub direction: Option<crate::rules::schema::ReadingDirection>,
+    /// The part of a streamed response its reading is (`RawMessage::stream`); not serialised, like `rendering`.
+    #[serde(skip)]
+    pub stream: Option<crate::rules::schema::StreamMark>,
 }
 
 // ============================================================================
@@ -103,58 +106,65 @@ pub fn to_sideml_with_context(
     raw_messages: &[RawMessage],
     is_tool_span: bool,
 ) -> Vec<SideMLMessage> {
-    // Pre-process: split bundled tool results into separate messages
-    let expanded = expand_bundled_tool_results(raw_messages);
+    finish_sideml(read_sideml(raw_messages, is_tool_span))
+}
 
-    // First pass: normalize all messages and build tool_use_id -> name map
-    let mut tool_names: HashMap<String, String> = HashMap::new();
-    let mut messages: Vec<SideMLMessage> = Vec::with_capacity(expanded.len());
-
-    for (raw, position) in &expanded {
-        // Derive role from event name at query time, considering span context
-        let content_with_role = derive_role_from_source_with_context(raw, is_tool_span);
-
-        // Normalize to SideML format
-        let sideml = normalize(&content_with_role);
-
-        // Collect tool_use_id -> name mappings from tool_use content blocks
-        for block in &sideml.content {
-            if let ContentBlock::ToolUse {
-                id: Some(id), name, ..
-            } = block
-            {
-                tool_names.insert(id.clone(), name.clone());
+/// The first stage of [`to_sideml_with_context`]: one message per stored message, bundles expanded, roles and
+/// categories derived, tool blocks not yet split. A streamed reading keeps its whitespace-only text, because it
+/// may be the space between two pieces of one response (`feed::stream` joins them before [`finish_sideml`]).
+pub(crate) fn read_sideml(raw_messages: &[RawMessage], is_tool_span: bool) -> Vec<SideMLMessage> {
+    expand_bundled_tool_results(raw_messages)
+        .iter()
+        .map(|(raw, position)| {
+            // Derive role from event name at query time, considering span context
+            let content_with_role = derive_role_from_source_with_context(raw, is_tool_span);
+            let sideml = match raw.stream {
+                Some(_) => super::normalize_keeping_blank_text(&content_with_role),
+                None => normalize(&content_with_role),
+            };
+            // Determine category based on source and derived role
+            // IMPORTANT: Use content_with_role (not raw.content) to see the derived role
+            let category = determine_category(&raw.source, &content_with_role);
+            let (source_type, timestamp) = match &raw.source {
+                MessageSource::Event { time, .. } => (MessageSourceType::Event, *time),
+                MessageSource::Attribute { time, .. } => (MessageSourceType::Attribute, *time),
+            };
+            SideMLMessage {
+                position: position.clone(),
+                source: raw.source.clone(),
+                category,
+                source_type,
+                timestamp,
+                sideml,
+                rendering: raw.rendering,
+                direction: raw.direction,
+                stream: raw.stream,
             }
-        }
+        })
+        .collect()
+}
 
-        // Determine category based on source and derived role
-        // IMPORTANT: Use content_with_role (not raw.content) to see the derived role
-        let category = determine_category(&raw.source, &content_with_role);
-
-        // Determine source type and time
-        let (source_type, timestamp) = match &raw.source {
-            MessageSource::Event { time, .. } => (MessageSourceType::Event, *time),
-            MessageSource::Attribute { time, .. } => (MessageSourceType::Attribute, *time),
-        };
-
-        messages.push(SideMLMessage {
-            position: position.clone(),
-            source: raw.source.clone(),
-            category,
-            source_type,
-            timestamp,
-            sideml,
-            rendering: raw.rendering,
-            direction: raw.direction,
-        });
+/// The second stage of [`to_sideml_with_context`]: a streamed reading's blank text beside visible content
+/// dropped, as every other message's was when it was read; each message split to one tool block at most; and
+/// each tool result named after the call it answers.
+pub(crate) fn finish_sideml(mut messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
+    for message in messages.iter_mut().filter(|m| m.stream.is_some()) {
+        super::remove_blank_text_beside_visible_content(&mut message.sideml.content);
     }
+    let tool_names: HashMap<String, String> = messages
+        .iter()
+        .flat_map(|message| &message.sideml.content)
+        .filter_map(|block| match block {
+            ContentBlock::ToolUse {
+                id: Some(id), name, ..
+            } => Some((id.clone(), name.clone())),
+            _ => None,
+        })
+        .collect();
 
-    // Second pass: flatten bundled tool messages into individual messages
     // This ensures each message has at most one tool ID, simplifying deduplication.
     // IMPORTANT: Must happen BEFORE name enrichment so flattened messages get enriched.
     let mut messages = flatten_tool_blocks(messages);
-
-    // Third pass: enrich tool role messages with tool name from their tool_use_id
     for msg in &mut messages {
         if msg.sideml.role == ChatRole::Tool
             && msg.sideml.name.is_none()
@@ -164,7 +174,6 @@ pub fn to_sideml_with_context(
             msg.sideml.name = Some(name.clone());
         }
     }
-
     messages
 }
 
@@ -287,6 +296,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     content: msg.clone(),
                     rendering: raw.rendering,
                     direction: raw.direction,
+                    stream: raw.stream,
                 },
                 path.child_key("message"),
             ));
@@ -308,6 +318,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     content: json!({"role": "assistant", "content": text}),
                     rendering: raw.rendering,
                     direction: raw.direction,
+                    stream: raw.stream,
                 },
                 path.child_key(member),
             ));
@@ -358,6 +369,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     content: json!({"role": "system", "content": text}),
                     rendering: raw.rendering,
                     direction: raw.direction,
+                    stream: raw.stream,
                 },
                 path.child_key(member),
             ));
@@ -391,6 +403,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                             content: combined,
                             rendering: raw.rendering,
                             direction: raw.direction,
+                            stream: raw.stream,
                         },
                         array_path.child_index(run.start),
                     )),
@@ -404,6 +417,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                                         content: message.clone(),
                                         rendering: raw.rendering,
                                         direction: raw.direction,
+                                        stream: raw.stream,
                                     },
                                     array_path.child_index(position),
                                 ));
@@ -428,6 +442,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     content: item.clone(),
                     rendering: raw.rendering,
                     direction: raw.direction,
+                    stream: raw.stream,
                 },
                 array_path.child_index(position),
             ));
@@ -625,6 +640,7 @@ fn expand_bundled_tool_result(
                 content: new_content,
                 rendering: raw.rendering,
                 direction: raw.direction,
+                stream: raw.stream,
             },
             bundle_path.child_index(position),
         ));
@@ -713,6 +729,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         sideml: new_sideml,
                         rendering: msg.rendering,
                         direction: msg.direction,
+                        stream: msg.stream,
                     });
                 }
                 ContentBlock::ToolResult { tool_use_id, .. } => {
@@ -745,6 +762,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         sideml: new_sideml,
                         rendering: msg.rendering,
                         direction: msg.direction,
+                        stream: msg.stream,
                     });
                 }
                 _ => {
@@ -801,6 +819,7 @@ fn emit_non_tool_message(
         sideml: new_sideml,
         rendering: msg.rendering,
         direction: msg.direction,
+        stream: msg.stream,
     });
 }
 

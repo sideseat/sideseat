@@ -186,14 +186,16 @@ fn try_declared_rules_for_span(
                 messages.push(
                     RawMessage::from_event(key, timestamp, emission.value)
                         .rendered(emission.rendering)
-                        .directed(emission.direction),
+                        .directed(emission.direction)
+                        .streamed(emission.stream),
                 );
             }
             sideseat_domain::rules::schema::EmitTarget::Message => {
                 messages.push(
                     RawMessage::from_attr(key, timestamp, emission.value)
                         .rendered(emission.rendering)
-                        .directed(emission.direction),
+                        .directed(emission.direction)
+                        .streamed(emission.stream),
                 );
             }
             sideseat_domain::rules::schema::EmitTarget::ToolDefinitions => {
@@ -536,6 +538,7 @@ fn fallback_messages(
             RawMessage::from_attr(emission.carrier.name(), timestamp, emission.value)
                 .rendered(emission.rendering)
                 .directed(emission.direction)
+                .streamed(emission.stream)
         })
         .collect()
 }

@@ -160,7 +160,7 @@ impl MessagePlan {
             }
             // A rule whose condition fails says nothing about the event, so it must not suppress the raw
             // form either. Asked before `replaces` is set, where it used to be set first.
-            if !gates_allow(rule, &ctx) {
+            if !gates_allow(rule, &ctx) || !event_gate_allows(rule, event_attrs) {
                 continue;
             }
             // The same routing and ownership as a span: only message emissions, one rule per carrier. An
@@ -195,7 +195,17 @@ impl MessagePlan {
                     owned_attributes.push(owned.name.clone());
                 }
             }
-            out.extend(kept.into_iter().filter(|e| e.target == EmitTarget::Message));
+            out.extend(
+                kept.into_iter()
+                    .filter(|e| e.target == EmitTarget::Message)
+                    .map(|emission| Emission {
+                        stream: rule
+                            .stream
+                            .as_ref()
+                            .map(|stream| stream.mark(&emission.value)),
+                        ..emission
+                    }),
+            );
         }
         // **Replacement depends on something having read the event**, not on the declaration alone. A
         // container whose declared reads all fail - `gen_ai.input.messages = "{"` on the inference-details

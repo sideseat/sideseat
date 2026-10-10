@@ -16,6 +16,7 @@ fn test_unflatten_multiple_tool_calls() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -65,6 +66,7 @@ fn test_unflatten_no_dotted_keys_unchanged() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -95,6 +97,7 @@ fn test_unflatten_nested_object_path() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -302,6 +305,7 @@ fn test_category_from_data_role() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -368,6 +372,7 @@ fn test_category_from_tool_call_role() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -394,6 +399,7 @@ fn test_tool_call_role_from_event_gets_tool_input_category() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -421,6 +427,7 @@ fn test_category_from_tools_role() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -451,6 +458,7 @@ fn test_pipeline_tool_span_messages_end_to_end() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let tool_result_msg = RawMessage {
@@ -464,6 +472,7 @@ fn test_pipeline_tool_span_messages_end_to_end() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     // Use is_tool_span=true for tool span context

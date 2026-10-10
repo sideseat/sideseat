@@ -633,6 +633,13 @@ pub struct EventSource {
     /// The events this rule reads. An empty list is refused: it names nothing, and under the previous
     /// spelling it silently made the rule an ordinary span rule instead.
     pub names: Vec<String>,
+    /// A condition on the **event's own** attributes: `attr:<key>` is the event's attribute and `attr_keys` its
+    /// keys, and nothing else is readable - not the span's name, scope, resource or marks, which are the span's.
+    /// The event is read only where it holds. The rule's `where` is a gate on the span the event is on, reading
+    /// the span's attributes, which cannot tell one event of a span from another; this can - a stream's chunks
+    /// from the reading that ends it by the finish reason it states, say.
+    #[serde(default, rename = "where")]
+    pub condition: Option<Box<SpanWhere>>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]

@@ -357,6 +357,16 @@ fn unwrap_choice_envelope(raw: JsonValue) -> JsonValue {
 }
 
 pub fn normalize(raw: &JsonValue) -> ChatMessage {
+    normalize_message(raw, true)
+}
+
+/// [`normalize`], keeping whitespace-only text beside other content: a streamed reading's whitespace is part of
+/// the response it is a piece of, so it is dropped from that response once it is whole (`feed::stream`).
+fn normalize_keeping_blank_text(raw: &JsonValue) -> ChatMessage {
+    normalize_message(raw, false)
+}
+
+fn normalize_message(raw: &JsonValue, drop_blank_text: bool) -> ChatMessage {
     // Unflatten dotted keys first (e.g., "tool_calls.0.function.name" -> nested)
     let raw = unwrap_choice_envelope(unflatten::unflatten_dotted_keys(raw));
 
@@ -515,7 +525,9 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
         });
     }
 
-    remove_blank_text_beside_visible_content(&mut content_vec);
+    if drop_blank_text {
+        remove_blank_text_beside_visible_content(&mut content_vec);
+    }
 
     // Parse finish reason, under SideSeat's member or a declared spelling of it.
     let finish_reason = std::iter::once("finish_reason")

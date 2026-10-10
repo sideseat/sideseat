@@ -16,6 +16,7 @@ fn test_response_data_tool_calls() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -42,6 +43,7 @@ fn test_response_data_streaming() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -76,6 +78,7 @@ fn test_response_data_empty_streaming_skipped() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -88,4 +91,73 @@ fn test_response_data_empty_streaming_skipped() {
     );
     // Kept as-is (the original wrapper object)
     assert!(result[0].0.content.get("combined_chunk_content").is_some());
+}
+
+#[test]
+fn test_request_data_expansion() {
+    // request_data wraps messages in {messages: [...], model: "..."}
+    let raw = RawMessage {
+        source: MessageSource::Attribute {
+            key: "request_data".to_string(),
+            time: Utc::now(),
+        },
+        content: json!({
+            "messages": [
+                {"role": "system", "content": "You are helpful"},
+                {"role": "user", "content": "Hello"}
+            ],
+            "model": "gpt-4o"
+        }),
+        rendering: false,
+        direction: None,
+        stream: None,
+    };
+
+    let mut result = Vec::new();
+    expand_message_array(&mut result, &raw, &PositionPath::root(0));
+
+    assert_eq!(
+        result.len(),
+        2,
+        "Should expand messages array from request_data"
+    );
+    assert_eq!(
+        result[0].0.content.get("role").and_then(|r| r.as_str()),
+        Some("system")
+    );
+    assert_eq!(
+        result[1].0.content.get("role").and_then(|r| r.as_str()),
+        Some("user")
+    );
+}
+
+#[test]
+fn test_response_data_message_unwrap() {
+    // response_data non-streaming: {message: {role, content, ...}, usage: {...}}
+    let raw = RawMessage {
+        source: MessageSource::Attribute {
+            key: "response_data".to_string(),
+            time: Utc::now(),
+        },
+        content: json!({
+            "message": {"role": "assistant", "content": "Hi there!"},
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5}
+        }),
+        rendering: false,
+        direction: None,
+        stream: None,
+    };
+
+    let mut result = Vec::new();
+    expand_message_array(&mut result, &raw, &PositionPath::root(0));
+
+    assert_eq!(result.len(), 1, "Should unwrap singular message");
+    assert_eq!(
+        result[0].0.content.get("role").and_then(|r| r.as_str()),
+        Some("assistant")
+    );
+    assert_eq!(
+        result[0].0.content.get("content").and_then(|c| c.as_str()),
+        Some("Hi there!")
+    );
 }

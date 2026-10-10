@@ -246,6 +246,8 @@ pub struct Emission<'a> {
     /// The side of the span this observation is on, where its reading declares one that differs from the
     /// carrier's (`Alternative::direction`). Every other carrier fact stays the carrier's.
     pub direction: Option<super::schema::ReadingDirection>,
+    /// The part of a streamed response this observation is, where its event rule declares a stream.
+    pub stream: Option<super::schema::StreamMark>,
     /// The members a compose read through a conditional fallback, which it gives up - member and carrier
     /// together - where another rule already owns the carrier. Empty for every other reading.
     pub yields: Vec<YieldedMember<'a>>,
@@ -316,6 +318,54 @@ impl CompiledSource {
     }
 }
 
+/// What an event rule's readings are as parts of a streamed response (`MessageRule::stream`), compiled.
+#[derive(Debug, Clone)]
+pub enum CompiledStream {
+    /// A chunk, with the condition that says its calls are still arriving where the producer marks them.
+    Chunk {
+        partial_calls: Option<Box<ValueCondition>>,
+    },
+    /// A terminal: every reading is marked alike.
+    Terminal(super::schema::StreamMark),
+}
+
+impl CompiledStream {
+    pub fn compile(declaration: &super::schema::StreamDeclaration) -> Self {
+        use super::schema::{StreamDeclaration, StreamMark, TerminalContent};
+        match declaration {
+            StreamDeclaration::Chunk { partial_calls } => Self::Chunk {
+                partial_calls: partial_calls.clone(),
+            },
+            StreamDeclaration::Terminal { content } => Self::Terminal(match content {
+                TerminalContent::Aggregate => StreamMark::Aggregate,
+                TerminalContent::Delta => StreamMark::Delta,
+                TerminalContent::Unknown => StreamMark::Unknown,
+            }),
+        }
+    }
+
+    /// The condition that says a chunk's calls are still arriving, where the rule declares one.
+    pub fn partial_calls(&self) -> Option<&ValueCondition> {
+        match self {
+            Self::Chunk { partial_calls } => partial_calls.as_deref(),
+            Self::Terminal(_) => None,
+        }
+    }
+
+    /// The mark a reading gets, from the value it emitted: a chunk is settled only where the producer marks
+    /// partial calls and this one is not marked.
+    pub fn mark(&self, value: &JsonValue) -> super::schema::StreamMark {
+        use super::schema::StreamMark;
+        match self {
+            Self::Terminal(mark) => *mark,
+            Self::Chunk {
+                partial_calls: Some(partial),
+            } if !predicates::predicates_hold(value, partial) => StreamMark::SettledChunk,
+            Self::Chunk { .. } => StreamMark::Chunk,
+        }
+    }
+}
+
 /// A compiled message rule.
 #[derive(Debug, Clone)]
 pub struct CompiledMessageRule {
@@ -333,6 +383,10 @@ pub struct CompiledMessageRule {
     pub aggregate_into_array: bool,
     /// The rule's `where`, lowered: consulted only where it holds.
     pub gate: Option<super::span_conditions::SpanExpr>,
+    /// An event rule's condition on the event's own attributes (`source.event.where`), lowered.
+    pub event_gate: Option<super::span_conditions::SpanExpr>,
+    /// The part of a streamed response this event rule's readings are (`MessageRule::stream`).
+    pub stream: Option<CompiledStream>,
     /// A condition on the raw carrier text, asked before parsing.
     pub raw_where: ValueCondition,
     pub branch_set: Option<CompiledBranchSet>,

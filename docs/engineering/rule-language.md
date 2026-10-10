@@ -1007,7 +1007,8 @@ emits - because that is ownership and policy rather than a transform.
 | `wrap` | [`WrapSpec`](#wrapspec) or null | Wrap the parsed value in a message envelope with this role. |
 | `emit` | [`EmitTarget`](#emittarget) or null | Whether the observation is a message or a tool definition. |
 | `aggregate_into_array` | true or false | Emit one observation whose value is the array of everything read, rather than one per reading. |
-| `where` | [`Expr_SpanCondition`](#expr_spancondition) or null | A gate on the span: the rule is consulted only where this holds. It reads the span's name and attributes and the instrumentation scope - never the resource. |
+| `where` | [`Expr_SpanCondition`](#expr_spancondition) or null | A gate on the span: the rule is consulted only where this holds. It reads the span's name and attributes and the instrumentation scope - never the resource. On an event rule too `attr:` is the **span's** attribute; the event's own are `source.event.where`'s. |
+| `stream` | [`StreamDeclaration`](#streamdeclaration) or null | The part of a streamed response each of this event rule's readings is: a `chunk`, or the `terminal` that ends one, with what it holds. Refused on a span rule: a stream is a sequence of events on one span. |
 | `alternatives` | list of [`Alternative`](#alternative) | Ordered readings of the parsed value, tried until one yields an observation. |
 | `also` | list of [`Alternative`](#alternative) | Readings that all contribute, rather than the first that yields. |
 | `fallback` | list of [`Alternative`](#alternative) | A reading used only when nothing else in this rule emitted anything. |
@@ -1066,6 +1067,7 @@ every rule that names the event, in rank order) and a span rule has no event nam
 | Key | Type | What it is |
 | --- | --- | --- |
 | `names` (required) | list of string | The events this rule reads. An empty list is refused: it names nothing, and under the previous spelling it silently made the rule an ordinary span rule instead. |
+| `where` | [`Expr_SpanCondition`](#expr_spancondition) or null | A condition on the **event's own** attributes: `attr:<key>` is the event's attribute and `attr_keys` its keys, and nothing else is readable - not the span's name, scope, resource or marks, which are the span's. The event is read only where it holds. The rule's `where` is a gate on the span the event is on, reading the span's attributes, which cannot tell one event of a span from another; this can - a stream's chunks from the reading that ends it by the finish reason it states, say. |
 
 ### `ReadSpec`
 
@@ -1361,6 +1363,25 @@ What an emitted observation is.
 - one of `"message"`, `"tool_definitions"`
 - `"tool_names"`: A list of tool *names*, as opposed to their definitions. A framework that reports only the names has said which tools were available, not what they take.
 - `"claim"`: The carrier is claimed and nothing is read from it.
+
+### `StreamDeclaration`
+
+Which part of a streamed response a reading is (`MessageRule::stream`).
+
+A producer that reports a response chunk by chunk writes one reading per chunk and one that ends it. The
+chunks are pieces of the response, never a response of their own; what the terminal reading holds is the
+producer's contract, and only it can say.
+
+- object with `partial_calls` ([`Expr_ValuePredicate`](#expr_valuepredicate) or null), `part` (`"chunk"`, required): A piece of a streamed response. Its calls are calls of the response only where `partial_calls` says how the producer marks a call still arriving and this one is not marked; with no `partial_calls`, none is.
+- object with `content` ([`TerminalContent`](#terminalcontent), required), `part` (`"terminal"`, required): The reading that ends a streamed response, and what it holds.
+
+### `TerminalContent`
+
+What the reading that ends a streamed response holds.
+
+- `"aggregate"`: The whole response: the chunks before it restate it.
+- `"delta"`: Only its own last piece: the response is every chunk and it, joined.
+- `"unknown"`: Either, depending on something the reading does not say - the producer's model adapter, say. Resolved by the response a generation enclosing the reading's span recorded, where it equals the reading or the join; otherwise the reading is shown as it was recorded, beside its chunks joined. The record is taken as the finished response, since the terminal states that the call finished; a record a cancelled call left with only its last piece would read as an aggregate.
 
 ### `Alternative`
 

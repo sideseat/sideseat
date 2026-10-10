@@ -1056,10 +1056,21 @@
           "default": null
         },
         "where": {
-          "description": "A gate on the span: the rule is consulted only where this holds. It reads the span's name and\nattributes and the instrumentation scope - never the resource.\n\nSeveral extractors refuse to read a carrier whose name they share with other dialects unless the span\nalso carries their own marker - `gen_ai.prompt` is the generic conventions' key and also where one\nexporter writes a whole request, so reading it unconditionally would claim another dialect's payload. A\ngate is also how a reading is restricted to one instrumentation scope, which is producer evidence the\ntelemetry carries itself, and how a reading is skipped where something holds (`not`).",
+          "description": "A gate on the span: the rule is consulted only where this holds. It reads the span's name and\nattributes and the instrumentation scope - never the resource. On an event rule too `attr:` is the\n**span's** attribute; the event's own are `source.event.where`'s.\n\nSeveral extractors refuse to read a carrier whose name they share with other dialects unless the span\nalso carries their own marker - `gen_ai.prompt` is the generic conventions' key and also where one\nexporter writes a whole request, so reading it unconditionally would claim another dialect's payload. A\ngate is also how a reading is restricted to one instrumentation scope, which is producer evidence the\ntelemetry carries itself, and how a reading is skipped where something holds (`not`).",
           "anyOf": [
             {
               "$ref": "#/$defs/Expr_SpanCondition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stream": {
+          "description": "The part of a streamed response each of this event rule's readings is: a `chunk`, or the `terminal`\nthat ends one, with what it holds. Refused on a span rule: a stream is a sequence of events on one span.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StreamDeclaration"
             },
             {
               "type": "null"
@@ -1291,6 +1302,17 @@
           "items": {
             "type": "string"
           }
+        },
+        "where": {
+          "description": "A condition on the **event's own** attributes: `attr:<key>` is the event's attribute and `attr_keys` its\nkeys, and nothing else is readable - not the span's name, scope, resource or marks, which are the span's.\nThe event is read only where it holds. The rule's `where` is a gate on the span the event is on, reading\nthe span's attributes, which cannot tell one event of a span from another; this can - a stream's chunks\nfrom the reading that ends it by the finish reason it states, say.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr_SpanCondition"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -2401,6 +2423,74 @@
           "description": "The carrier is claimed and nothing is read from it.\n\nA real shape, not a loophole: one dialect's agent spans aggregate what their children already\nreported, and their `input.value` is a Python `repr` of framework internals. Claiming says \"this is\nmine and holds no message\", which stops a generic reader from presenting that text as a\nconversation - and saying it in a rule is what keeps the decision out of the code.",
           "type": "string",
           "const": "claim"
+        }
+      ]
+    },
+    "StreamDeclaration": {
+      "description": "Which part of a streamed response a reading is (`MessageRule::stream`).\n\nA producer that reports a response chunk by chunk writes one reading per chunk and one that ends it. The\nchunks are pieces of the response, never a response of their own; what the terminal reading holds is the\nproducer's contract, and only it can say.",
+      "oneOf": [
+        {
+          "description": "A piece of a streamed response. Its calls are calls of the response only where `partial_calls` says how\nthe producer marks a call still arriving and this one is not marked; with no `partial_calls`, none is.",
+          "type": "object",
+          "properties": {
+            "partial_calls": {
+              "description": "What says a chunk's call is still arriving, where the producer marks it: a condition on the chunk's\npayload. A chunk it holds for keeps its calls out of every join. One it does not hold for carries\ncalls the producer finished, and they are calls of the response, once each beside the terminal's.\nThe condition is the chunk's, not each call's: a chunk holding a finished call beside one still\narriving keeps both out. Absent: the producer marks no call either way, and a chunk's arguments may\nnot have finished arriving, so no chunk's call is an execution - a complete call such a producer\nsends only in a chunk is lost.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Expr_ValuePredicate"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "part": {
+              "type": "string",
+              "const": "chunk"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part"
+          ]
+        },
+        {
+          "description": "The reading that ends a streamed response, and what it holds.",
+          "type": "object",
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/TerminalContent"
+            },
+            "part": {
+              "type": "string",
+              "const": "terminal"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part",
+            "content"
+          ]
+        }
+      ]
+    },
+    "TerminalContent": {
+      "description": "What the reading that ends a streamed response holds.",
+      "oneOf": [
+        {
+          "description": "The whole response: the chunks before it restate it.",
+          "type": "string",
+          "const": "aggregate"
+        },
+        {
+          "description": "Only its own last piece: the response is every chunk and it, joined.",
+          "type": "string",
+          "const": "delta"
+        },
+        {
+          "description": "Either, depending on something the reading does not say - the producer's model adapter, say. Resolved by\nthe response a generation enclosing the reading's span recorded, where it equals the reading or the join;\notherwise the reading is shown as it was recorded, beside its chunks joined. The record is taken as the\nfinished response, since the terminal states that the call finished; a record a cancelled call left\nwith only its last piece would read as an aggregate.",
+          "type": "string",
+          "const": "unknown"
         }
       ]
     },

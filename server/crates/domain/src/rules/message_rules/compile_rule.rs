@@ -35,6 +35,7 @@ pub(super) fn compile_rule(
         reads_tool_spans,
         tag_as,
         condition,
+        stream,
         priority,
     } = rule;
     // The values every check below reads, resolved once. The *declarations* above keep their presence, which
@@ -803,6 +804,32 @@ pub(super) fn compile_rule(
             CompiledSource::Event(event.names.clone())
         }
     };
+    // A stream is a sequence of events on one span, so only an event rule's readings can be parts of one.
+    if stream.is_some() && !matches!(source, Some(super::schema::MessageSource::Event(_))) {
+        return Err(MessageCompileError::Inexpressible {
+            rule: id.clone(),
+            detail: "`stream` on a span rule: a streamed response is a sequence of events on one span",
+        });
+    }
+    // An event's own condition reads that event's attributes and nothing else: the span it sits on is the
+    // rule's `where`.
+    let event_gate = match source {
+        Some(super::schema::MessageSource::Event(event)) => event
+            .condition
+            .as_ref()
+            .map(|condition| {
+                super::super::detect_rules::checked_condition(
+                    condition,
+                    super::super::span_conditions::Readable::ATTRIBUTES,
+                )
+            })
+            .transpose()
+            .map_err(|refusal| MessageCompileError::Condition {
+                rule: id.clone(),
+                detail: refusal.to_string(),
+            })?,
+        _ => None,
+    };
 
     let compiled_branch_set = match branch_set {
         Some(set) => {
@@ -899,6 +926,8 @@ pub(super) fn compile_rule(
         target: emit_target,
         aggregate_into_array: aggregate,
         gate,
+        event_gate,
+        stream: stream.as_ref().map(CompiledStream::compile),
         raw_where: raw_where.clone(),
         branch_set: compiled_branch_set,
         source: compiled_source,

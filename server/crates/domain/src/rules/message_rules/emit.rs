@@ -101,6 +101,7 @@ pub(super) fn emit_rule<'p>(
             out.push(Emission {
                 rendering: false,
                 direction: None,
+                stream: None,
                 rule_id: &rule.rule_id,
                 evidence: rule_evidence(rule, &[]),
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
@@ -121,6 +122,7 @@ pub(super) fn emit_rule<'p>(
                 out.push(Emission {
                     rendering: false,
                     direction: None,
+                    stream: None,
                     rule_id: &rule.rule_id,
                     evidence: rule_evidence(rule, &[]),
                     carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
@@ -175,6 +177,7 @@ pub(super) fn emit_rule<'p>(
             out.push(Emission {
                 rendering: false,
                 direction: None,
+                stream: None,
                 rule_id: &rule.rule_id,
                 evidence: rule_evidence(rule, &[]),
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
@@ -210,6 +213,7 @@ pub(super) fn emit_rule<'p>(
                     .is_some_and(|condition| predicates_hold(&entry.value, condition)),
                 // An indexed entry is read by the rule itself, with no reading to declare a side.
                 direction: None,
+                stream: None,
                 value: entry.value,
                 yields: Vec::new(),
             });
@@ -250,6 +254,7 @@ pub(super) fn emit_rule<'p>(
                     out.push(Emission {
                         rendering: false,
                         direction: None,
+                        stream: None,
                         rule_id: &rule.rule_id,
                         evidence: rule_evidence(rule, &clause),
                         // The array attribute is what was read; each element's tag is a name for one of its parts.
@@ -268,6 +273,7 @@ pub(super) fn emit_rule<'p>(
                     out.push(Emission {
                         rendering: false,
                         direction: None,
+                        stream: None,
                         rule_id: &rule.rule_id,
                         evidence: rule_evidence(rule, &[vec![route]]),
                         carrier: EmittedCarrier::Attribute(
@@ -334,6 +340,7 @@ pub(super) fn emit_rule<'p>(
         out.push(Emission {
             rendering: false,
             direction: None,
+            stream: None,
             rule_id: &rule.rule_id,
             evidence: rule_evidence(rule, &contributing),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
@@ -374,6 +381,7 @@ pub(super) fn emit_rule<'p>(
             value,
             rendering,
             direction,
+            stream: None,
             yields: Vec::new(),
         });
     }

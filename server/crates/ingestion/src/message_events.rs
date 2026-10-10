@@ -99,6 +99,7 @@ pub(crate) fn read_message_event(
             RawMessage::from_event(emission.carrier.name(), time, emission.value)
                 .rendered(emission.rendering)
                 .directed(emission.direction)
+                .streamed(emission.stream)
         })
         .collect();
     if reading.replaces_raw {
@@ -342,5 +343,88 @@ mod tests {
         );
         assert_eq!(names(&messages), vec!["gen_ai.choice".to_string()]);
         assert_eq!(messages[0].content["content"], "Visit the Prado.");
+    }
+
+    /// The choice that only ends a streamed answer - a finish reason, and a `content` member with no value, which
+    /// the event does not have - is read as the stream's terminal, holding nothing but why the model stopped.
+    #[test]
+    fn a_contentless_finish_choice_ends_the_stream() {
+        let body = structured_attributes(&[
+            KeyValue {
+                key: "content".to_string(),
+                value: None,
+            },
+            KeyValue {
+                key: "index".to_string(),
+                value: Some(AnyValue {
+                    value: Some(any_value::Value::IntValue(0)),
+                }),
+            },
+            KeyValue {
+                key: "finish_reason".to_string(),
+                value: Some(text("STOP")),
+            },
+        ]);
+        let messages = read_message_event(
+            "gen_ai.choice",
+            &body,
+            chrono::Utc::now(),
+            EventSpan::unattached(Some("gcp.vertex.agent")),
+        );
+        let readings: Vec<&RawMessage> = messages.iter().filter(|m| m.stream.is_some()).collect();
+        assert_eq!(readings.len(), 1, "{messages:?}");
+        assert_eq!(
+            readings[0].stream,
+            Some(sideseat_domain::rules::schema::StreamMark::Delta)
+        );
+        assert_eq!(
+            readings[0].content,
+            json!({"role": "model", "parts": [], "finish_reason": "STOP"})
+        );
+    }
+
+    /// A chunk's call is settled unless it carries a streaming member - `will_continue`, true or false, or
+    /// `partial_args`, even the empty list a call opens with - each on its own. A member with no value is none.
+    #[test]
+    fn a_chunk_s_call_is_settled_unless_it_carries_a_streaming_member() {
+        use sideseat_domain::rules::schema::StreamMark;
+        let chunk = |call: serde_json::Value| {
+            let content = json!({"role": "model", "parts": [{"function_call": call}]});
+            let attrs = HashMap::from([
+                ("content".to_string(), content.to_string()),
+                ("index".to_string(), "0".to_string()),
+            ]);
+            let messages = read_message_event(
+                "gen_ai.choice",
+                &attrs,
+                chrono::Utc::now(),
+                EventSpan::unattached(Some("gcp.vertex.agent")),
+            );
+            messages.iter().find_map(|m| m.stream)
+        };
+        let base = json!({"id": "c1", "name": "get_weather", "args": {"city": "Milan"}});
+        let with = |member: &str, value: serde_json::Value| {
+            let mut call = base.clone();
+            call[member] = value;
+            call
+        };
+        let partial = json!([{"json_path": "$.city", "string_value": "Mi"}]);
+        for (call, mark) in [
+            (base.clone(), StreamMark::SettledChunk),
+            (
+                with("will_continue", JsonValue::Null),
+                StreamMark::SettledChunk,
+            ),
+            (
+                with("partial_args", JsonValue::Null),
+                StreamMark::SettledChunk,
+            ),
+            (with("will_continue", json!(true)), StreamMark::Chunk),
+            (with("will_continue", json!(false)), StreamMark::Chunk),
+            (with("partial_args", partial), StreamMark::Chunk),
+            (with("partial_args", json!([])), StreamMark::Chunk),
+        ] {
+            assert_eq!(chunk(call.clone()), Some(mark), "{call}");
+        }
     }
 }

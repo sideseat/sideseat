@@ -2,12 +2,12 @@
  "passes": 3,
  "tables": {
   "log_terms": {
-   "columns": 8912744,
+   "columns": 8650608,
    "indexes": 0
   },
   "otel_logs": {
    "columns": 5504968,
-   "indexes": 1048576
+   "indexes": 1310720
   },
   "otel_metrics": {
    "columns": 524272,
@@ -34,7 +34,7 @@
    "indexes": 0
   }
  },
- "residual": 525064,
+ "residual": 525056,
  "analytics_used": 47448064,
  "transactional": {
   "api_keys": 20480,
@@ -65,14 +65,14 @@
  "media": 4145647,
  "signals": {
   "traces": {
-   "items": 40713,
+   "items": 40767,
    "stored_excluding_media": 30981600,
-   "per_item": 760.98
+   "per_item": 759.97
   },
   "logs": {
-   "items": 6231,
-   "stored_excluding_media": 15466288,
-   "per_item": 2482.15
+   "items": 6741,
+   "stored_excluding_media": 15466296,
+   "per_item": 2294.36
   },
   "metrics": {
    "items": 1440,

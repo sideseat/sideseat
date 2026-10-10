@@ -7,7 +7,7 @@ use crate::sideml::provenance::PathSegment;
 
 /// Parse span rows into parsed messages.
 pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<ParsedMessage> {
-    let mut messages: Vec<ParsedMessage> = Vec::with_capacity(rows.len() * 4);
+    let mut read: Vec<stream::RowMessages<'_>> = Vec::with_capacity(rows.len());
     let mut parsed_bodies: HashMap<&str, Option<Arc<Vec<RawMessage>>>> = HashMap::new();
 
     for row in rows {
@@ -34,6 +34,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
             parsed_bodies.insert(row.messages_json.as_str(), parsed.clone());
             parsed
         };
+        let span_messages = raw_msgs.as_ref().map_or(0, |messages| messages.len());
         let raw_msgs = with_log_messages(row, raw_msgs);
 
         if let Some(raw_msgs) = raw_msgs {
@@ -65,38 +66,49 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
                 raw_msg_count = raw_msgs.len(),
                 "parse_span_rows: raw messages parsed"
             );
-            let sideml_msgs = to_sideml_with_context(&raw_msgs, is_tool_span);
-            tracing::trace!(
-                span_id = %row.span_id,
-                sideml_msg_count = sideml_msgs.len(),
-                "parse_span_rows: SideML conversion done"
-            );
-            for (index, msg) in sideml_msgs.into_iter().enumerate() {
-                let timestamp = msg.timestamp;
-                messages.push(ParsedMessage {
-                    position: msg.position.clone(),
-                    trace_id: row.trace_id.clone(),
-                    span_id: row.span_id.clone(),
-                    parent_span_id: row.parent_span_id.clone(),
-                    session_id: row.session_id.clone(),
-                    message_index: index as i32,
-                    timestamp,
-                    source: msg.source,
-                    message: msg.sideml,
-                    category: msg.category,
-                    model: row.model.clone(),
-                    provider: row.provider.clone(),
-                    status_code: row.status_code.clone(),
-                    total_tokens: row.total_tokens,
-                    cost_total: row.cost_total,
-                    observation_type: row.observation_type.clone(),
-                    span_name: row.span_name.clone(),
-                    scope_name: row.scope_name.clone(),
-                    scope_version: row.scope_version.clone(),
-                    rendering: msg.rendering,
-                    direction: msg.direction,
-                });
-            }
+            read.push(stream::RowMessages {
+                row,
+                span_messages,
+                messages: read_sideml(&raw_msgs, is_tool_span),
+            });
+        }
+    }
+
+    // Every view shows a streamed response's chunks as the one response they are pieces of (`stream`).
+    stream::reassemble(rows, &mut read);
+
+    let mut messages: Vec<ParsedMessage> = Vec::with_capacity(rows.len() * 4);
+    for stream::RowMessages {
+        row,
+        messages: read,
+        ..
+    } in read
+    {
+        for (index, msg) in finish_sideml(read).into_iter().enumerate() {
+            let timestamp = msg.timestamp;
+            messages.push(ParsedMessage {
+                position: msg.position.clone(),
+                trace_id: row.trace_id.clone(),
+                span_id: row.span_id.clone(),
+                parent_span_id: row.parent_span_id.clone(),
+                session_id: row.session_id.clone(),
+                message_index: index as i32,
+                timestamp,
+                source: msg.source,
+                message: msg.sideml,
+                category: msg.category,
+                model: row.model.clone(),
+                provider: row.provider.clone(),
+                status_code: row.status_code.clone(),
+                total_tokens: row.total_tokens,
+                cost_total: row.cost_total,
+                observation_type: row.observation_type.clone(),
+                span_name: row.span_name.clone(),
+                scope_name: row.scope_name.clone(),
+                scope_version: row.scope_version.clone(),
+                rendering: msg.rendering,
+                direction: msg.direction,
+            });
         }
     }
 

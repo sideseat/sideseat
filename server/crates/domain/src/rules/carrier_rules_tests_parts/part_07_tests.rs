@@ -711,3 +711,158 @@ fn every_span_field_source_can_name_what_it_read() {
         "no sources were walked, so this gate is checking nothing: {checked}"
     );
 }
+
+/// An event rule may ask about the event's **own** attributes (`source.event.where`): two events of one span,
+/// told apart only by what each states - a stream's partial chunk and its complete answer - are read by different
+/// rules. The rule's `where` reads the span, which both share, so it cannot. A span name, scope or resource asked of
+/// the event is refused at compile time, since an event has none.
+#[test]
+fn an_event_rule_reads_only_the_events_its_own_condition_admits() {
+    use crate::rules::message_rules::compile;
+
+    let compiled = |condition: &str| {
+        let body = format!(
+            r#"{{"id":"t","message_events":[{{"id":"t.e","name":"acme.choice"}}],
+                 "messages":[{{"id":"t.read","source":{{"event":{{"names":["acme.choice"],"where":{condition}}}}},
+                 "read":{{"attribute":"content"}},"parse":"json","emit":"message","priority":1}}]}}"#
+        );
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
+    };
+    let plan =
+        compiled(r#"{"source":"attr:finish_reason","exists":true}"#).expect("the probe compiles");
+    let content = (
+        "content".to_string(),
+        r#"{"role":"assistant","content":"answer"}"#.to_string(),
+    );
+    let complete = std::collections::HashMap::from([
+        content.clone(),
+        ("finish_reason".to_string(), "STOP".to_string()),
+    ]);
+    let partial = std::collections::HashMap::from([content]);
+    // The span states a finish reason too: the event's condition must not read it.
+    let span_attrs =
+        std::collections::HashMap::from([("finish_reason".to_string(), "STOP".to_string())]);
+    let read = |attrs| plan.from_event("acme.choice", attrs, "span", None, &span_attrs, false);
+    assert_eq!(
+        read(&complete).emissions.len(),
+        1,
+        "the complete answer is read"
+    );
+    assert!(
+        read(&partial).emissions.is_empty(),
+        "a partial chunk is not"
+    );
+    // Nothing but the event's own attributes: a span name, the scope, the resource and a span's marks are the
+    // span's, which the rule's `where` reads.
+    for refused in [
+        r#"{"source":"span_name","equals":"span"}"#,
+        r#"{"source":"scope.name","equals":"acme"}"#,
+        r#"{"source":"scope.version","equals":"1"}"#,
+        r#"{"source":"resource:service.name","equals":"acme"}"#,
+        r#"{"source":"mark:acme.marked","exists":true}"#,
+    ] {
+        assert!(
+            compiled(refused).is_err(),
+            "an event's condition read a source the event does not have: {refused}"
+        );
+    }
+}
+
+/// A rule's `stream` gives every reading it emits that part of a streamed response, and only an event rule may
+/// declare one: a stream is a sequence of events on one span.
+#[test]
+fn a_stream_part_is_an_event_rule_s_and_marks_each_of_its_readings() {
+    use crate::rules::message_rules::compile;
+    use crate::rules::schema::StreamMark;
+
+    let compiled = |source: &str, stream: &str| {
+        let body = format!(
+            r#"{{"id":"t","message_events":[{{"id":"t.e","name":"acme.choice"}}],
+                 "messages":[{{"id":"t.read","source":{source},"stream":{stream},
+                 "read":{{"attribute":"content"}},"parse":"json","emit":"message","priority":1}}]}}"#
+        );
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
+    };
+    let event = r#"{"event":{"names":["acme.choice"]}}"#;
+    let attrs = std::collections::HashMap::from([(
+        "content".to_string(),
+        r#"{"role":"assistant","content":"answer"}"#.to_string(),
+    )]);
+    let none = std::collections::HashMap::new();
+    for (stream, mark) in [
+        (r#"{"part":"chunk"}"#, StreamMark::Chunk),
+        (
+            r#"{"part":"terminal","content":"aggregate"}"#,
+            StreamMark::Aggregate,
+        ),
+        (
+            r#"{"part":"terminal","content":"delta"}"#,
+            StreamMark::Delta,
+        ),
+        (
+            r#"{"part":"terminal","content":"unknown"}"#,
+            StreamMark::Unknown,
+        ),
+    ] {
+        let plan = compiled(event, stream).expect("an event rule may stream");
+        let reading = plan.from_event("acme.choice", &attrs, "span", None, &none, false);
+        assert_eq!(
+            reading
+                .emissions
+                .iter()
+                .map(|e| e.stream)
+                .collect::<Vec<_>>(),
+            [Some(mark)],
+            "{stream}"
+        );
+    }
+    // Where the producer marks partial calls, a chunk it does not mark is settled: its calls are calls.
+    let marked = compiled(
+        event,
+        r#"{"part":"chunk","partial_calls":{"path":"$.partial","equals":true}}"#,
+    )
+    .expect("a chunk may declare its partial calls");
+    for (content, mark) in [
+        (
+            r#"{"role":"assistant","content":"answer","partial":true}"#,
+            StreamMark::Chunk,
+        ),
+        (
+            r#"{"role":"assistant","content":"answer"}"#,
+            StreamMark::SettledChunk,
+        ),
+    ] {
+        let attrs = std::collections::HashMap::from([("content".to_string(), content.to_string())]);
+        let reading = marked.from_event("acme.choice", &attrs, "span", None, &none, false);
+        assert_eq!(
+            reading
+                .emissions
+                .iter()
+                .map(|e| e.stream)
+                .collect::<Vec<_>>(),
+            [Some(mark)],
+            "{content}"
+        );
+    }
+    let refusal = compiled(r#"{"span":{}}"#, r#"{"part":"chunk"}"#)
+        .err()
+        .map(|error| error.to_string());
+    assert!(
+        refusal
+            .as_deref()
+            .is_some_and(|error| error.contains("`stream` on a span rule")),
+        "a span rule is refused a stream: {refusal:?}"
+    );
+}

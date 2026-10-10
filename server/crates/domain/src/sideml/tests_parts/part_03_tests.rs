@@ -138,6 +138,7 @@ fn test_to_sideml_strands_user_message() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -172,6 +173,7 @@ fn test_to_sideml_strands_tool_message_categorization() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -199,6 +201,7 @@ fn test_to_sideml_tool_input_categorization() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -221,6 +224,7 @@ fn test_to_sideml_attribute_source_uses_span_timestamp() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -244,6 +248,7 @@ fn test_to_sideml_choice_event_categorization() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -398,6 +403,7 @@ fn test_bundled_tool_results_are_split_into_separate_messages() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[bundled_message]);
@@ -436,6 +442,7 @@ fn test_single_tool_result_not_split() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[single_message]);
@@ -464,6 +471,7 @@ fn test_non_tool_messages_not_affected_by_bundling_logic() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[user_message]);
@@ -492,6 +500,7 @@ fn test_special_role_tool_call_preserved() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -517,6 +526,7 @@ fn test_special_role_tools_preserved() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -542,6 +552,7 @@ fn test_special_role_data_preserved() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -567,6 +578,7 @@ fn test_special_role_context_preserved() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -592,6 +604,7 @@ fn test_standard_role_overridden_by_event() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -620,6 +633,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     // Tool result without name but with matching tool_use_id
@@ -634,6 +648,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml_with_context(&[tool_call, tool_result], false);
@@ -667,6 +682,7 @@ fn test_tool_result_no_name_when_no_matching_tool_use() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[tool_result]);
@@ -693,6 +709,7 @@ fn test_gen_ai_choice_in_tool_span_becomes_tool_role() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     // In tool span: gen_ai.choice is tool OUTPUT
@@ -721,6 +738,7 @@ fn test_gen_ai_choice_in_chat_span_becomes_assistant_role() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     // In chat span: gen_ai.choice is assistant response
@@ -749,6 +767,7 @@ fn test_gen_ai_tool_message_in_chat_span_becomes_tool_role() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     // In chat span: gen_ai.tool.message is tool result
@@ -821,6 +840,7 @@ fn test_to_sideml_derives_assistant_role_from_choice_event() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -847,6 +867,7 @@ fn test_to_sideml_derives_user_role_from_user_message_event() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -870,6 +891,7 @@ fn test_to_sideml_derives_tool_role_from_tool_message_event() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -895,6 +917,7 @@ fn test_to_sideml_event_derived_role_takes_precedence() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -926,6 +949,7 @@ fn test_unflatten_tool_calls_from_openinference() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[raw_message]);

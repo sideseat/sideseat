@@ -228,6 +228,7 @@ mod tests {
             content: serde_json::json!({"role": "user", "content": "q"}),
             rendering: false,
             direction: None,
+            stream: None,
         };
         let suppressed = |messages: &[RawMessage]| {
             plan.suppresses_messages(&MessageProjectionContext {
@@ -477,6 +478,7 @@ mod tests {
             content: serde_json::json!({"role": "user", "content": "q"}),
             rendering: false,
             direction: None,
+            stream: None,
         };
         let messages = [message];
         let suppressed = |marks: u16| {
@@ -586,6 +588,7 @@ mod tests {
             content: serde_json::json!({"role": "user", "content": "q"}),
             rendering: false,
             direction: None,
+            stream: None,
         };
         let event = |name: &str| {
             from(MessageSource::Event {

@@ -812,6 +812,27 @@ pub(super) fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) 
     })
 }
 
+/// Whether an event rule's condition on the event's own attributes holds (`source.event.where`). Read with no
+/// span name, scope or resource, which compilation refuses the condition to ask about.
+pub(super) fn event_gate_allows(
+    rule: &CompiledMessageRule,
+    event_attrs: &std::collections::HashMap<String, String>,
+) -> bool {
+    rule.event_gate.as_ref().is_none_or(|gate| {
+        super::span_conditions::holds(
+            gate,
+            &super::span_conditions::SpanSubject {
+                span_name: "",
+                attrs: event_attrs,
+                scope_name: None,
+                resource: None,
+                scope_version: None,
+                marks: 0,
+            },
+        )
+    })
+}
+
 /// Every carrier this rule names that the span carries, in declared order: the one it reads - its attribute, or
 /// the first present of its spellings - and each of `each`.
 ///

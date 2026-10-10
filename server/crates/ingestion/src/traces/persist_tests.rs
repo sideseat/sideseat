@@ -50,6 +50,7 @@ fn make_raw_message(content: &str) -> RawMessage {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     }
 }
 

@@ -382,6 +382,75 @@ pub enum ReadingDirection {
     Output,
 }
 
+/// Which part of a streamed response a reading is (`MessageRule::stream`).
+///
+/// A producer that reports a response chunk by chunk writes one reading per chunk and one that ends it. The
+/// chunks are pieces of the response, never a response of their own; what the terminal reading holds is the
+/// producer's contract, and only it can say.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(tag = "part", rename_all = "snake_case", deny_unknown_fields)]
+pub enum StreamDeclaration {
+    /// A piece of a streamed response. Its calls are calls of the response only where `partial_calls` says how
+    /// the producer marks a call still arriving and this one is not marked; with no `partial_calls`, none is.
+    Chunk {
+        /// What says a chunk's call is still arriving, where the producer marks it: a condition on the chunk's
+        /// payload. A chunk it holds for keeps its calls out of every join. One it does not hold for carries
+        /// calls the producer finished, and they are calls of the response, once each beside the terminal's.
+        /// The condition is the chunk's, not each call's: a chunk holding a finished call beside one still
+        /// arriving keeps both out. Absent: the producer marks no call either way, and a chunk's arguments may
+        /// not have finished arriving, so no chunk's call is an execution - a complete call such a producer
+        /// sends only in a chunk is lost.
+        #[serde(default)]
+        partial_calls: Option<Box<ValueCondition>>,
+    },
+    /// The reading that ends a streamed response, and what it holds.
+    Terminal { content: TerminalContent },
+}
+
+/// What the reading that ends a streamed response holds.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalContent {
+    /// The whole response: the chunks before it restate it.
+    Aggregate,
+    /// Only its own last piece: the response is every chunk and it, joined.
+    Delta,
+    /// Either, depending on something the reading does not say - the producer's model adapter, say. Resolved by
+    /// the response a generation enclosing the reading's span recorded, where it equals the reading or the join;
+    /// otherwise the reading is shown as it was recorded, beside its chunks joined. The record is taken as the
+    /// finished response, since the terminal states that the call finished; a record a cancelled call left
+    /// with only its last piece would read as an aggregate.
+    Unknown,
+}
+
+/// A stream reading's part as stored on its raw message: written only where a rule declares a stream, so
+/// every other stored message keeps the bytes it always had.
+#[derive(Debug, Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum StreamMark {
+    /// A piece whose calls may still be arriving: none of them is an execution.
+    Chunk,
+    /// A piece whose calls the producer marks as finished (`StreamDeclaration::Chunk::partial_calls`).
+    SettledChunk,
+    Aggregate,
+    Delta,
+    Unknown,
+}
+
+impl StreamMark {
+    /// Whether the reading is a piece of a streamed response.
+    pub fn is_chunk(self) -> bool {
+        matches!(self, Self::Chunk | Self::SettledChunk)
+    }
+
+    /// Whether the reading ends a streamed response.
+    pub fn is_terminal(self) -> bool {
+        !self.is_chunk()
+    }
+}
+
 /// What an emitted observation is.
 #[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]

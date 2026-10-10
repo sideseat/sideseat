@@ -59,6 +59,16 @@
       "facts": {
         "preset": "emission"
       }
+    },
+    {
+      "id": "google-adk.choice_end",
+      "doc": "The choice that ends the model's output without a piece of it: the same emission as the choices before it.",
+      "match": {
+        "event": "google_adk.choice_end"
+      },
+      "facts": {
+        "preset": "emission"
+      }
     }
   ],
   "detect": [
@@ -334,14 +344,86 @@
       }
     },
     {
-      "id": "google-adk.event_content_choice",
-      "doc": "The model's answer as ADK for Go reports it: a `gen_ai.choice` whose `content` is the model API's message, with the finish reason the event states beside it. Read like the request turns, under a tag of its own because it is the call's output rather than its input.",
+      "id": "google-adk.event_choice_chunk",
+      "doc": "A chunk of a streamed response: ADK for Python writes a `gen_ai.choice` for every response its model adapter yields until one states a finish reason, so the ones before it are pieces of that answer, never answers of their own. A function call in one is a call of the answer unless Gemini marks it as still arriving.",
       "source": {
         "event": {
           "names": [
             "gen_ai.choice"
+          ],
+          "where": {
+            "not": {
+              "source": "attr:finish_reason",
+              "exists": true
+            }
+          }
+        }
+      },
+      "stream": {
+        "part": "chunk",
+        "partial_calls": {
+          "doc": "A function call streamed in pieces carries the streaming members, as ADK itself tells one (`streaming_utils`): `partial_args`, even empty - the Interactions adapter opens a call with an empty list before its arguments arrive - or `will_continue`, true while more follows and false or absent on the closing piece. A call with neither is whole.",
+          "any": [
+            {
+              "path": "$.parts[*].function_call.will_continue",
+              "kind": "bool"
+            },
+            {
+              "path": "$.parts[*].function_call.partial_args",
+              "kind": "array"
+            }
           ]
         }
+      },
+      "read": {
+        "attribute": "content"
+      },
+      "parse": "json",
+      "emit": "message",
+      "priority": 2010,
+      "alternatives": [
+        {
+          "id": "content",
+          "doc": "The model API's own message, as the terminal choice writes it.",
+          "select": "$",
+          "where": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              },
+              {
+                "path": "$.parts",
+                "kind": "array"
+              }
+            ]
+          }
+        }
+      ],
+      "tag_as": "google_adk.choice_content",
+      "where": {
+        "source": "scope.name",
+        "equals": "gcp.vertex.agent"
+      }
+    },
+    {
+      "id": "google-adk.event_content_choice",
+      "doc": "The model's answer as ADK reports it: a `gen_ai.choice` whose `content` is the model API's message, with the finish reason the event states beside it. Read like the request turns, under a tag of its own because it is the call's output rather than its input. The choice that states a finish reason ends a response ADK for Python may have streamed in chunks before it (`google-adk.event_choice_chunk`), and what it holds depends on the model adapter: the whole answer through LiteLLM, which aggregates; only the last chunk through Gemini's own adapter, whose aggregate ADK never records. So the terminal is `unknown`, resolved by the response ADK's `call_llm` step recorded around the call.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.choice"
+          ],
+          "where": {
+            "source": "attr:finish_reason",
+            "exists": true
+          }
+        }
+      },
+      "stream": {
+        "part": "terminal",
+        "content": "unknown"
       },
       "read": {
         "attribute": "content"
@@ -380,6 +462,53 @@
         }
       ],
       "tag_as": "google_adk.choice_content",
+      "where": {
+        "source": "scope.name",
+        "equals": "gcp.vertex.agent"
+      }
+    },
+    {
+      "id": "google-adk.event_choice_end",
+      "doc": "A choice that only ends a streamed response: Gemini's last chunk may state the finish reason and carry no content, which ADK's exporter writes as a `content` member with no value, so the event has none. It holds no piece of the answer, so it is a `delta`: the answer is the chunks before it, joined, and what this says is why the model stopped. Tagged apart from `google_adk.choice_content`, whose carrier it does not read.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.choice"
+          ],
+          "where": {
+            "all": [
+              {
+                "source": "attr:finish_reason",
+                "exists": true
+              },
+              {
+                "not": {
+                  "source": "attr:content",
+                  "exists": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "stream": {
+        "part": "terminal",
+        "content": "delta"
+      },
+      "read": {
+        "attribute": "finish_reason"
+      },
+      "parse": "json_or_string",
+      "emit": "message",
+      "priority": 2012,
+      "wrap": {
+        "role": "model",
+        "content_as": "finish_reason",
+        "members": {
+          "parts": []
+        }
+      },
+      "tag_as": "google_adk.choice_end",
       "where": {
         "source": "scope.name",
         "equals": "gcp.vertex.agent"

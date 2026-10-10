@@ -105,6 +105,7 @@ fn test_expand_message_array_preserves_message_with_string_content() {
         content: json!({"role": "system", "content": "You are a helpful assistant."}),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -135,6 +136,7 @@ fn test_expand_message_array_preserves_message_with_array_content() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -165,6 +167,7 @@ fn test_expand_message_array_expands_top_level_array() {
         ]),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -197,6 +200,7 @@ fn test_expand_message_array_expands_nested_messages_array() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -219,6 +223,7 @@ fn test_expand_message_array_gemini_parts_format() {
         ]),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -248,6 +253,7 @@ fn test_expand_message_array_coalesces_google_genai_stream_chunks() {
         ]),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -294,6 +300,7 @@ fn test_expand_message_array_coalesces_each_stream_of_a_tool_loop() {
         ]),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -337,6 +344,7 @@ fn test_expand_message_array_keeps_multiple_finished_candidates_separate() {
         ]),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let mut result = Vec::new();
@@ -357,6 +365,7 @@ fn test_to_sideml_vercel_ai_system_and_user_messages() {
             content: json!({"role": "system", "content": "You are a helpful assistant."}),
             rendering: false,
             direction: None,
+            stream: None,
         },
         RawMessage {
             source: MessageSource::Attribute {
@@ -366,6 +375,7 @@ fn test_to_sideml_vercel_ai_system_and_user_messages() {
             content: json!({"role": "user", "content": [{"type": "text", "text": "Hello"}]}),
             rendering: false,
             direction: None,
+            stream: None,
         },
     ];
 
@@ -413,6 +423,7 @@ fn test_flatten_tool_blocks_preserves_order() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -467,6 +478,7 @@ fn test_flatten_tool_blocks_text_after_tools() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -537,6 +549,7 @@ fn two_non_tool_groups_of_one_message_occupy_two_positions() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -592,6 +605,7 @@ fn a_call_and_a_result_in_one_message_are_split() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -658,6 +672,7 @@ fn text_between_two_tool_blocks_keeps_its_place() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -708,6 +723,7 @@ fn test_flatten_tool_blocks_single_tool_unchanged() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -751,6 +767,7 @@ fn test_flatten_tool_blocks_multiple_tool_results() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -817,6 +834,7 @@ fn test_flatten_tool_blocks_mixed_tool_use_and_result() {
         },
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -875,6 +893,7 @@ fn test_flattened_tool_results_get_name_enriched() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     // Bundled tool results - will be flattened
@@ -897,6 +916,7 @@ fn test_flattened_tool_results_get_name_enriched() {
         }),
         rendering: false,
         direction: None,
+        stream: None,
     };
 
     let result = to_sideml(&[tool_use_msg, tool_results_msg]);
@@ -928,71 +948,4 @@ fn test_flattened_tool_results_get_name_enriched() {
         .collect();
     assert!(names.contains(&"get_weather".to_string()));
     assert!(names.contains(&"get_time".to_string()));
-}
-
-#[test]
-fn test_request_data_expansion() {
-    // request_data wraps messages in {messages: [...], model: "..."}
-    let raw = RawMessage {
-        source: MessageSource::Attribute {
-            key: "request_data".to_string(),
-            time: Utc::now(),
-        },
-        content: json!({
-            "messages": [
-                {"role": "system", "content": "You are helpful"},
-                {"role": "user", "content": "Hello"}
-            ],
-            "model": "gpt-4o"
-        }),
-        rendering: false,
-        direction: None,
-    };
-
-    let mut result = Vec::new();
-    expand_message_array(&mut result, &raw, &PositionPath::root(0));
-
-    assert_eq!(
-        result.len(),
-        2,
-        "Should expand messages array from request_data"
-    );
-    assert_eq!(
-        result[0].0.content.get("role").and_then(|r| r.as_str()),
-        Some("system")
-    );
-    assert_eq!(
-        result[1].0.content.get("role").and_then(|r| r.as_str()),
-        Some("user")
-    );
-}
-
-#[test]
-fn test_response_data_message_unwrap() {
-    // response_data non-streaming: {message: {role, content, ...}, usage: {...}}
-    let raw = RawMessage {
-        source: MessageSource::Attribute {
-            key: "response_data".to_string(),
-            time: Utc::now(),
-        },
-        content: json!({
-            "message": {"role": "assistant", "content": "Hi there!"},
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5}
-        }),
-        rendering: false,
-        direction: None,
-    };
-
-    let mut result = Vec::new();
-    expand_message_array(&mut result, &raw, &PositionPath::root(0));
-
-    assert_eq!(result.len(), 1, "Should unwrap singular message");
-    assert_eq!(
-        result[0].0.content.get("role").and_then(|r| r.as_str()),
-        Some("assistant")
-    );
-    assert_eq!(
-        result[0].0.content.get("content").and_then(|c| c.as_str()),
-        Some("Hi there!")
-    );
 }

@@ -346,9 +346,125 @@ fn log_carried_messages_reach_every_view_exactly_once() {
     for (label, paths) in &fixtures {
         if label.starts_with("_synthetic/") && !log_exports_beside(paths).is_empty() {
             assert!(
-                LOG_FIXTURES.iter().any(|(listed, _)| listed == label),
-                "{label} carries log records but is not in LOG_FIXTURES"
+                LOG_FIXTURES.iter().any(|(listed, _)| listed == label)
+                    || STREAM_FIXTURES.iter().any(|(listed, ..)| listed == label),
+                "{label} carries log records but is in neither LOG_FIXTURES nor STREAM_FIXTURES"
             );
+        }
+    }
+}
+
+/// Synthetic streams, by what their model-call step recorded: each a stream of `gen_ai.choice` chunks ADK writes
+/// as log events below `call_llm`, with the assistant text every conversation view shows, in order, and the
+/// arguments of each call it shows. A chunk is never a message of its own.
+const STREAM_FIXTURES: &[StreamFixture] = &[
+    // The terminal holds the whole answer, and `call_llm` recorded it: an aggregate.
+    ("_synthetic/streamed_choice_chunks", &[STREAMED_ANSWER], &[]),
+    // The terminal holds only the last chunk, and `call_llm` recorded the whole answer: a delta.
+    ("_synthetic/streamed_choice_delta", &[STREAMED_ANSWER], &[]),
+    // `call_llm` recorded nothing: the chunks joined, and the terminal beside them as recorded.
+    (
+        "_synthetic/streamed_choice_unresolved",
+        &[STREAMED_ANSWER, STREAMED_ANSWER],
+        &[],
+    ),
+    // No terminal: the chunks joined, and `call_llm`'s copy of the last one it saw.
+    (
+        "_synthetic/streamed_choice_interrupted",
+        &[STREAMED_ANSWER, "unscreen."],
+        &[],
+    ),
+    // Text chunks, a chunk holding a call marked as still arriving, and the terminal's text and complete call.
+    (
+        "_synthetic/streamed_choice_tool_call",
+        &["Rome will be sunny t"],
+        &[MILAN],
+    ),
+    // Every chunk, then a choice holding no content that states why the model stopped: the chunks joined.
+    (
+        "_synthetic/streamed_choice_contentless",
+        &[STREAMED_ANSWER],
+        &[],
+    ),
+    // A complete, unmarked call in a chunk, then a choice holding no content: the chunk's call is the call.
+    (
+        "_synthetic/streamed_choice_call_chunk",
+        &["Rome will be sunny t"],
+        &[MILAN],
+    ),
+    // A call marked as still arriving, then a choice holding no content, and a record without it: no call.
+    (
+        "_synthetic/streamed_choice_partial_call",
+        &["Rome will be sunny t"],
+        &[],
+    ),
+    // The same complete call in a chunk and in the terminal: one call.
+    (
+        "_synthetic/streamed_choice_call_twice",
+        &["Rome will be sunny t"],
+        &[MILAN],
+    ),
+];
+
+/// A stream fixture, its assistant texts, and the arguments of each call it shows.
+type StreamFixture = (
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+);
+
+/// The arguments of the complete call the stream-call synthetics make.
+const MILAN: &str = r#"{"city":"Milan","days":1}"#;
+
+const STREAMED_ANSWER: &str = "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable \
+     layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler \
+     morning and evening, and pack sunglasses and sunscreen.";
+
+#[test]
+fn every_synthetic_stream_is_read_as_its_terminal_and_step_say() {
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
+    for (label, answers, expected_calls) in STREAM_FIXTURES {
+        let paths = fixtures
+            .get(*label)
+            .unwrap_or_else(|| panic!("missing stream fixture {label}"));
+        let golden = build_golden(label, paths, &rows_for(paths)).golden;
+        // A golden keeps a long text as a preview, so each is compared by the digest of its whole block.
+        let expected: Vec<String> = answers
+            .iter()
+            .map(|answer| {
+                content_digest(
+                    &serde_json::to_value(sideseat_domain::sideml::ContentBlock::Text {
+                        text: (*answer).to_string(),
+                        citations: Vec::new(),
+                    })
+                    .expect("a text block serialises"),
+                )
+            })
+            .collect();
+        for (name, view) in golden.trace_views.iter().chain(&golden.session_views) {
+            let texts: Vec<&str> = view
+                .messages
+                .iter()
+                .filter(|m| m.role == "assistant" && m.entry_type == "text")
+                .map(|m| m.content_digest.as_str())
+                .collect();
+            assert_eq!(texts, expected, "{label} {name}");
+            // A call marked as still arriving never became a call; each complete one did, once. The history the
+            // request re-sent holds a call of its own, under another id.
+            let calls: Vec<&str> = view
+                .messages
+                .iter()
+                .filter(|m| m.entry_type == "tool_use" && m.content.contains("tooluse_stream_1"))
+                .map(|m| m.content.as_str())
+                .collect();
+            assert_eq!(
+                calls.len(),
+                expected_calls.len(),
+                "{label} {name}: {calls:?}"
+            );
+            for (call, arguments) in calls.iter().zip(expected_calls.iter()) {
+                assert!(call.contains(arguments), "{label} {name}: {call}");
+            }
         }
     }
 }
