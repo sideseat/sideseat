@@ -42,9 +42,51 @@ def log_tail(work: Path, lines: int = 40) -> str:
     return "\n".join(path.read_text(errors="replace").splitlines()[-lines:])
 
 
+def free_ports() -> int:
+    """A base port with the two after it free too: the server listens on three."""
+    import socket
+
+    for _ in range(50):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            base = probe.getsockname()[1]
+        if base > 65000:
+            continue
+        held = []
+        try:
+            for port in (base, base + 1, base + 2):
+                listener = socket.socket()
+                held.append(listener)
+                listener.bind(("127.0.0.1", port))
+            return base
+        except OSError:
+            continue
+        finally:
+            for listener in held:
+                listener.close()
+    raise SystemExit("[storage] no three free ports in a row")
+
+
+def port_in_use(port: int) -> bool:
+    import socket
+
+    with socket.socket() as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            return True
+    return False
+
+
 def start_server(
     binary: Path, work: Path, extra_env: dict, port: int
 ) -> subprocess.Popen:
+    """A server over `work` on `port`, refusing a port another server holds: its health check would answer for
+    this one, and every export would go to it - two runs on one port each measured both corpora."""
+    if port_in_use(port):
+        sys.exit(
+            f"[storage] port {port} is in use: another server would answer for this one"
+        )
     env = {
         "PATH": os.environ["PATH"],
         "HOME": str(work),
@@ -70,6 +112,9 @@ def start_server(
     for _ in range(90):
         try:
             if http("GET", f"http://127.0.0.1:{port}/api/v1/health")[0] == 200:
+                # The answer is this server's only while it is still running.
+                time.sleep(0.5)
+                alive(server, work, "starting")
                 return server
         except OSError:
             pass
@@ -104,6 +149,7 @@ def load(
     written already, which the stored figures must not count twice."""
     projects = {}
     base = f"http://127.0.0.1:{port}"
+    alive(server, work, "loading")
     for tenant in sorted({e["tenant"] for e in exports}):
         status, body = http(
             "POST",

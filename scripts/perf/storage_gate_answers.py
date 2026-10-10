@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import datetime
 import shutil
-import socket
 import sqlite3
 import subprocess
 import tempfile
@@ -141,29 +140,6 @@ def binary_of(script, given: Path | None) -> Path:
     return (Path(target) / "debug/sideseat").resolve()
 
 
-def free_ports() -> int:
-    """A base port with the two after it free too: the server listens on three."""
-    for _ in range(50):
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", 0))
-            base = probe.getsockname()[1]
-        if base > 65000:
-            continue
-        try:
-            held = []
-            for port in (base, base + 1, base + 2):
-                listener = socket.socket()
-                listener.bind(("127.0.0.1", port))
-                held.append(listener)
-            return base
-        except OSError:
-            continue
-        finally:
-            for listener in held:
-                listener.close()
-    raise SystemExit("[storage] no three free ports in a row")
-
-
 def session_requests(get, projects: list[str]) -> list[str]:
     """The view and message view of each project's first listed session, as its server lists them."""
     import json
@@ -188,7 +164,7 @@ def answers(store: Path, requests: list[str], script, binary: Path) -> dict:
     with tempfile.TemporaryDirectory(dir=store.parent) as scratch:
         copy = Path(scratch) / "store"
         shutil.copytree(store, copy)
-        port = free_ports()
+        port = storage_server.free_ports()
         server = storage_server.start_server(binary, copy, {}, port)
         try:
             time.sleep(0.5)

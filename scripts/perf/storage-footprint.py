@@ -94,7 +94,8 @@ TRANSACTIONAL_OWNER = {
     "files": "traces",
     "trace_files": "traces",
 }
-PORT = int(os.environ.get("FOOTPRINT_STORAGE_PORT", "5621"))
+# Free ports of its own unless named: two runs on one port measured each other's corpus too.
+PORT = int(os.environ.get("FOOTPRINT_STORAGE_PORT", "0")) or storage_server.free_ports()
 SCOPE = str(abs(hash(str(ROOT))) % 1_000_000)
 CH_NAME, PG_NAME, MINIO_NAME = (
     f"sideseat-storage-{n}-{SCOPE}" for n in ("ch", "pg", "minio")
