@@ -21,7 +21,6 @@ use crate::routes::otel::types::{
 };
 use crate::types::{MAX_PAGE, MAX_PAGE_LIMIT, OrderBy, OrderDirection};
 use sideseat_domain::sideml::{FeedOptions, extract_tools_from_rows, process_span, process_spans};
-use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, MessageQueryParams, ProjectId, SpanRow,
@@ -36,7 +35,6 @@ type McpError = rmcp::model::ErrorData;
 pub struct McpServer {
     analytics: Arc<crate::dependencies::AnalyticsStore>,
     files: Arc<sideseat_domain::files::FileService>,
-    clock: Arc<dyn Clock>,
     project_id: ProjectId,
 }
 
@@ -44,13 +42,11 @@ impl McpServer {
     pub fn new(
         analytics: Arc<crate::dependencies::AnalyticsStore>,
         files: Arc<sideseat_domain::files::FileService>,
-        clock: Arc<dyn Clock>,
         project_id: String,
     ) -> Self {
         Self {
             analytics,
             files,
-            clock,
             project_id: project_id.into(),
         }
     }
@@ -214,7 +210,6 @@ impl McpServer {
                 &processed,
                 session_totals,
                 envelopes,
-                self.clock.now(),
             ));
         }
 
@@ -267,7 +262,6 @@ impl McpServer {
             &processed,
             trace_totals,
             envelopes,
-            self.clock.now(),
         ))
     }
 

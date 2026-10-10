@@ -110,11 +110,11 @@ pub async fn get_span_messages(
         let composed =
             compose_request(repo, project_id, &result.rows, thread, to_timestamp).await?;
         let processed = feed_arc_after_window(Arc::new(composed), from_timestamp, to_timestamp);
-        return stream_messages_response(processed, None, envelopes, state.clock.now());
+        return stream_messages_response(processed, None, envelopes);
     }
     let reconstructed = process_span_cached(&state.reconstruction, result.rows, &options);
     let processed = feed_arc_after_window(reconstructed, from_timestamp, to_timestamp);
-    stream_messages_response(processed, None, envelopes, state.clock.now())
+    stream_messages_response(processed, None, envelopes)
 }
 
 /// One request span's view, composed from its thread.
@@ -280,7 +280,7 @@ pub async fn get_trace_messages(
 
     // Use trace-level totals for metadata (matches trace endpoint)
     let trace_totals = Some((trace.total_tokens, trace.total_cost));
-    stream_messages_response(processed, trace_totals, envelopes, state.clock.now())
+    stream_messages_response(processed, trace_totals, envelopes)
 }
 
 /// GET /sessions/{session_id}/messages - Get conversation messages for a session
@@ -349,7 +349,7 @@ pub async fn get_session_messages(
         result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
     let reconstructed = process_spans_cached(&state.reconstruction, result.rows, &options);
     let processed = feed_arc_after_window(reconstructed, from_timestamp, to_timestamp);
-    stream_messages_response(processed, session_totals, envelopes, state.clock.now())
+    stream_messages_response(processed, session_totals, envelopes)
 }
 
 fn feed_arc_after_window(
@@ -367,7 +367,6 @@ fn stream_messages_response(
     processed: Arc<FeedResult>,
     trace_totals: Option<(i64, f64)>,
     envelopes: Vec<SpanEnvelopeDto>,
-    now: DateTime<Utc>,
 ) -> Result<Response, ApiError> {
     let mut start_time: Option<DateTime<Utc>> = None;
     let mut end_time: Option<DateTime<Utc>> = None;
@@ -384,7 +383,7 @@ fn stream_messages_response(
         total_messages: processed.messages.len() as i64,
         total_tokens,
         total_cost,
-        start_time: start_time.unwrap_or(now),
+        start_time,
         end_time,
         replay_matching_complete: processed.metadata.replay_matching_complete,
     };
@@ -467,7 +466,6 @@ pub(crate) fn build_messages_response(
     processed: &FeedResult,
     trace_totals: Option<(i64, f64)>,
     envelopes: Vec<SpanEnvelopeDto>,
-    now: DateTime<Utc>,
 ) -> MessagesResponseDto {
     let mut messages_dto = Vec::new();
     let mut start_time: Option<DateTime<Utc>> = None;
@@ -496,7 +494,7 @@ pub(crate) fn build_messages_response(
             total_messages,
             total_tokens,
             total_cost,
-            start_time: start_time.unwrap_or(now),
+            start_time,
             end_time,
             // Carried from the pipeline, not recomputed: this is the one place a caller can learn that
             // the answer may repeat history.
@@ -506,3 +504,7 @@ pub(crate) fn build_messages_response(
         tool_names: processed.tool_names.clone(),
     }
 }
+
+#[cfg(test)]
+#[path = "messages_tests.rs"]
+mod tests;

@@ -407,7 +407,8 @@ export interface MessagesMetadata {
    */
   total_tokens?: number;
   total_cost?: number;
-  start_time: string;
+  /** The earliest and the latest message's time; null when there is no message. */
+  start_time: string | null;
   end_time: string | null;
   /**
    * False when cross-trace replay matching hit its search budget, so this answer may repeat history it would

@@ -9,8 +9,6 @@ use rmcp::transport::streamable_http_server::{
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 
-use sideseat_ports::clock::Clock;
-
 use crate::auth::ProjectRead;
 
 mod tools;
@@ -30,7 +28,6 @@ struct McpRouterState {
     analytics: Arc<crate::dependencies::AnalyticsStore>,
     /// Needed to render a span's raw OTLP JSON: the record holds its media by hash.
     files: Arc<sideseat_domain::files::FileService>,
-    clock: Arc<dyn Clock>,
     ct: CancellationToken,
     /// Session IDs are resolved within their authorised project, never across
     /// tenant boundaries.
@@ -40,13 +37,11 @@ struct McpRouterState {
 pub fn routes(
     analytics: Arc<crate::dependencies::AnalyticsStore>,
     files: Arc<sideseat_domain::files::FileService>,
-    clock: Arc<dyn Clock>,
     ct: CancellationToken,
 ) -> Router<()> {
     let state = McpRouterState {
         analytics,
         files,
-        clock,
         ct,
         session_managers: Arc::new(dashmap::DashMap::new()),
     };
@@ -62,7 +57,6 @@ async fn mcp_proxy(
     let project_id = access.project_id.into_inner();
     let analytics = state.analytics.clone();
     let files = state.files.clone();
-    let clock = state.clock.clone();
     let session_manager = state
         .session_managers
         .entry(project_id.clone())
@@ -73,7 +67,6 @@ async fn mcp_proxy(
             Ok(McpServer::new(
                 analytics.clone(),
                 files.clone(),
-                clock.clone(),
                 project_id.clone(),
             ))
         },

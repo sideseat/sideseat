@@ -346,7 +346,9 @@ pub struct MessagesMetadataDto {
     /// The cost beside `total_tokens`, present exactly when it is.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_cost: Option<f64>,
-    pub start_time: DateTime<Utc>,
+    /// When the earliest and the latest message happened; null when there is no message. Never the server's
+    /// clock in their place: an empty view stated the instant it was asked, so two asks of one view differed.
+    pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
     /// False when cross-trace replay matching hit its search budget, so this answer may repeat history it
     /// would otherwise have collapsed.
@@ -639,7 +641,7 @@ mod serialisation_tests {
             total_messages: 1,
             total_tokens: Some(0),
             total_cost: Some(0.0),
-            start_time: DateTime::from_timestamp(0, 0).unwrap(),
+            start_time: DateTime::from_timestamp(0, 0),
             end_time: None,
             replay_matching_complete: false,
         };

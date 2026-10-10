@@ -425,22 +425,18 @@ impl ApiServer {
         // boundary and per-IP API rate limit.
         let mcp_routes = if app.config.mcp.enabled {
             let ct = super::mcp::cancellation_token_from_shutdown(app.shutdown_rx.clone());
-            let mcp = super::mcp::routes(
-                app.analytics.clone(),
-                app.files.clone(),
-                app.clock.clone(),
-                ct,
-            )
-            .layer(axum::middleware::from_fn_with_state(
-                AuthState {
-                    auth_manager: auth_manager.clone(),
-                    allowed_origins: allowed_origins.clone(),
-                    database: app.database.clone(),
-                    api_key_secret: api_key_secret.clone(),
-                    clock: app.clock.clone(),
-                },
-                require_auth,
-            ));
+            let mcp = super::mcp::routes(app.analytics.clone(), app.files.clone(), ct).layer(
+                axum::middleware::from_fn_with_state(
+                    AuthState {
+                        auth_manager: auth_manager.clone(),
+                        allowed_origins: allowed_origins.clone(),
+                        database: app.database.clone(),
+                        api_key_secret: api_key_secret.clone(),
+                        clock: app.clock.clone(),
+                    },
+                    require_auth,
+                ),
+            );
             let mcp = if rate_limit_per_ip {
                 mcp.layer(axum::middleware::from_fn_with_state(
                     make_rate_limit_state(
