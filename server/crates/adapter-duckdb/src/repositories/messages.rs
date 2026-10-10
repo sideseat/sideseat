@@ -13,9 +13,9 @@ use crate::error::DuckdbError;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
-    RequestContextParams, RequestContextRows,
+    RequestContextParams, RequestContextRows, RequestFrameRecord, RequestFramesParams,
 };
-use sideseat_query_sql::{Backend, analytics, messages, request_context};
+use sideseat_query_sql::{Backend, analytics, messages, request_context, request_frames};
 
 fn duckdb_values(values: &[analytics::QueryValue]) -> Vec<&dyn duckdb::ToSql> {
     values
@@ -93,6 +93,7 @@ row_columns!(
         cost_output,
         request_thread,
         span_marks,
+        request_frame,
         log_messages,
     }
 );
@@ -278,6 +279,7 @@ fn parse_thread_row(
         cost_input: 0.0,
         cost_output: 0.0,
         request_thread: String::new(),
+        request_frame: String::new(),
     })
 }
 
@@ -331,7 +333,53 @@ fn parse_span_row(row: &duckdb::Row, at: &SpanColumns) -> Result<MessageSpanRow,
         cost_output: row.get(at.cost_output)?,
         request_thread: text(at.request_thread)?.unwrap_or_default(),
         span_marks: row.get(at.span_marks)?,
+        request_frame: text(at.request_frame)?.unwrap_or_default(),
     })
+}
+
+row_columns!(
+    /// What a frame read returns: `request_frames::FRAME_COLUMNS`.
+    FrameColumns {
+        trace_id,
+        span_id,
+        timestamp_us,
+        log_digest,
+        ordinal,
+        messages,
+    }
+);
+
+/// The frame records a framed request span's view opens with: one keyed statement, bounded in itself.
+pub fn get_request_frames(
+    conn: &Connection,
+    params: &RequestFramesParams,
+) -> Result<Vec<RequestFrameRecord>, DuckdbError> {
+    let query = request_frames::frames_in_trace(
+        params.project_id.as_str(),
+        &params.trace_id,
+        params.key,
+        params.ingested_before_us,
+        Backend::Duckdb,
+    );
+    let values = duckdb_values(query.params());
+    let mut stmt = conn.prepare(query.sql())?;
+    let mut rows = stmt.query(values.as_slice())?;
+    let Some(statement) = rows.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let at = FrameColumns::resolve(statement)?;
+    let mut out = Vec::new();
+    while let Some(row) = rows.next()? {
+        out.push(RequestFrameRecord {
+            trace_id: row.get(at.trace_id)?,
+            span_id: row.get(at.span_id)?,
+            timestamp: micros_to_datetime(row.get::<_, i64>(at.timestamp_us)?),
+            log_digest: row.get(at.log_digest)?,
+            ordinal: row.get(at.ordinal)?,
+            messages_json: row.get::<_, Option<String>>(at.messages)?,
+        });
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

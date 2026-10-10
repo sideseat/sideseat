@@ -439,6 +439,15 @@ impl MessageStore for DedupAnalyticsRepository {
         rows.calls = deduplicate_by_span_identity(rows.calls);
         Ok(rows)
     }
+
+    /// Passed through: the store reads each frame record's winning revision once, keyed by its identity, so there
+    /// is no span-level copy to collapse.
+    async fn get_request_frames(
+        &self,
+        params: &sideseat_ports::types::RequestFramesParams,
+    ) -> Result<Vec<sideseat_ports::types::RequestFrameRecord>, DataError> {
+        self.inner.get_request_frames(params).await
+    }
 }
 
 #[async_trait]

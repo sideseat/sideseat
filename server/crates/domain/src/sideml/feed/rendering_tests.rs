@@ -28,6 +28,7 @@ fn message(key: &str, content: serde_json::Value, rendering: bool) -> RawMessage
 
 fn row(messages: &[RawMessage]) -> MessageSpanRow {
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: "trace".to_string(),
         span_id: "span".to_string(),
         parent_span_id: None,

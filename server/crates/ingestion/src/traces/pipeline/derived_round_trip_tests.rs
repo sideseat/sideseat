@@ -85,6 +85,8 @@ fn export(answer: &str) -> ExportTraceServiceRequest {
             text("session.id", "session-1"),
             text("user.id", "user-1"),
             text("probe.options", r#"{"stream": true, "temperature": 0.5}"#),
+            // The key the embedded corpus frames requests by, so the span is framed.
+            text("system_prompt_hash", "sp_probe"),
             text("gen_ai.operation.name", "chat"),
             text("gen_ai.system", "openai"),
             text("gen_ai.request.model", "gpt-4o"),
@@ -217,6 +219,12 @@ async fn every_derived_span_column_survives_the_store() {
         "request_thread",
         row.request_thread.clone(),
         span.request_thread.clone(),
+        String::new(),
+    );
+    check(
+        "request_frame",
+        row.request_frame.clone(),
+        span.request_frame.clone(),
         String::new(),
     );
     check(

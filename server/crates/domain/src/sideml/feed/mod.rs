@@ -147,6 +147,7 @@ mod block_hash;
 mod extraction;
 mod prefix;
 mod request_context;
+mod request_frames;
 mod session;
 mod tool_merge;
 
@@ -327,6 +328,16 @@ pub fn process_span_cached(
 /// its thread's earlier requests sent composed in where its delta stands - see `request_context`.
 pub fn process_request_span(rows: RequestContextRows, options: &FeedOptions) -> FeedResult {
     apply_role_filter(request_context::compose(rows), options.role.as_deref())
+}
+
+/// A framed request span's view: `view`, its own unfiltered view, opened with the frames recorded apart from it
+/// that its trace's store answered with - see `request_frames`.
+pub fn process_framed_request(
+    view: FeedResult,
+    frames: Vec<sideseat_ports::types::RequestFrameRecord>,
+    options: &FeedOptions,
+) -> FeedResult {
+    apply_role_filter(request_frames::frame(view, frames), options.role.as_deref())
 }
 
 /// [`process_spans`], memoised on the rows - see [`cache::ReconstructionCache`] for why that is safe.

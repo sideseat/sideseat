@@ -164,6 +164,7 @@ fn insert_spans(
             // NULL for no thread, which the thread index then does not hold (the column's comment in `schema.rs`).
             (!span.request_thread.is_empty()).then_some(span.request_thread.as_str()),
             span.span_marks,
+            span.request_frame.as_str(),
         ])?;
     }
 

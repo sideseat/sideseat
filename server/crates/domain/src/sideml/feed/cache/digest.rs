@@ -97,6 +97,7 @@ pub(super) fn digest_with(
             row.response_id.as_deref(),
             row.finish_reasons.as_deref(),
             Some(row.request_thread.as_str()),
+            Some(row.request_frame.as_str()),
         ] {
             match field {
                 // Length-prefixed, so `("ab", "c")` and `("a", "bc")` are different inputs.

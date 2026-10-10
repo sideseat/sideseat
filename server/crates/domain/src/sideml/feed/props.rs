@@ -97,6 +97,7 @@ fn malformed() -> impl Strategy<Value = String> {
 fn row(trace_seq: u32, span_seq: u32, offset: i64, messages_json: String) -> MessageSpanRow {
     let start = at(offset);
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: format!("trace{trace_seq}"),
         span_id: format!("span{span_seq}"),
         parent_span_id: None,

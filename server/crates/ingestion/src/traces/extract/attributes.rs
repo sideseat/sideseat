@@ -249,6 +249,9 @@ pub struct SpanData {
     /// Derived here, from the span's attributes, because the read path holds a span's messages and not its
     /// attributes. A cache a re-parse rebuilds identically, like every other extracted column.
     pub request_thread: String,
+    /// The key a detached request frame names this span by, where a carrier frames requests; empty otherwise.
+    /// Derived here for the reason the thread key is.
+    pub request_frame: String,
     /// The declared read-time facts this span answers, one bit each (`sideseat_domain::rules::span_marks`).
     pub span_marks: u16,
     /// The instrumentation scope that produced this span - `ScopeSpans.scope.name`/`.version`.

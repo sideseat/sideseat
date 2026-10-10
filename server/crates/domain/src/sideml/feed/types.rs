@@ -99,7 +99,8 @@ pub struct BlockEntry {
     pub span_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
-    /// Position in source messages
+    /// Position in source messages. Below zero for the messages of a frame recorded apart from the request it
+    /// opens (`frames_requests`), which are numbered per span so that they repeat no other message's index.
     pub message_index: i32,
     /// Position within message content array
     pub entry_index: i32,
@@ -567,6 +568,15 @@ pub struct FeedMetadata {
     /// said here rather than left for a reader to assume.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub composition_truncated: bool,
+    /// How many frame records recorded apart from a request its view opened with (`frames_requests`) - zero
+    /// where no frame joined it.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub framed_by_records: usize,
+    /// The request's trace held more frame records under its key than one view joins, or more bytes of them
+    /// than it parses, or the merge of its frames was past the table it may tabulate: the view opens with what
+    /// fit, in record order and with both sides' order kept, and says so here.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub frames_truncated: bool,
 }
 
 impl Default for FeedMetadata {
@@ -579,6 +589,8 @@ impl Default for FeedMetadata {
             replay_matching_complete: true,
             composed_from_requests: 0,
             composition_truncated: false,
+            framed_by_records: 0,
+            frames_truncated: false,
         }
     }
 }

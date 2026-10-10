@@ -20,7 +20,8 @@ use super::truth::Truth;
 
 /// Reconstructions the catalogue edits: clean or nearly clean fixtures that between them hold
 /// parallel tool calls, sessions, visible reasoning, attachments with bytes, an echoed system
-/// prompt, a failed-then-retried attempt and a terminal answer tool.
+/// prompt, a failed-then-retried attempt, a terminal answer tool, and requests opened with a frame
+/// recorded apart from them.
 const POOL: &[&str] = &[
     "strands/sdk/tool_use",
     "strands/sdk/session",
@@ -33,6 +34,7 @@ const POOL: &[&str] = &[
     "smolagents/sdk/tool_use",
     "claude-agent-sdk/sdk/streaming",
     "logfire/sdk/files",
+    "claude-code/native/multi_turn",
 ];
 
 #[derive(Clone, Copy)]
@@ -475,6 +477,35 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         "show a block only another thread carried",
         Expect::Caught,
         leak_another_threads_block,
+    ),
+    // `Caught`: the altered text is also something the request was not sent, and the rubric says both; what this
+    // pins is that a framing span's block is held to the frame records' own occurrences, not to the span.
+    (
+        "show a framing span's block no frame recorded for the request holds",
+        Expect::Caught,
+        forge_a_frame_occurrence,
+    ),
+    (
+        "show a frame's block from a carrier no frame recorded for the request wrote",
+        Expect::Only(&["request.provenance"]),
+        relabel_a_frame_carrier,
+    ),
+    (
+        "show a frame's block at a place no frame recorded for the request holds it",
+        Expect::Only(&["request.provenance"]),
+        move_a_frame_block,
+    ),
+    (
+        "show a frame's block at a place in its message the record does not hold it",
+        Expect::Only(&["request.provenance"]),
+        move_a_frame_block_within_its_message,
+    ),
+    // `Caught`: a block shown twice is also a duplicate, and the rubric says both; what this pins is that a frame
+    // occurrence is shown at most as often as the records hold it.
+    (
+        "show a frame's block more often than its record holds it",
+        Expect::Caught,
+        repeat_a_frame_block,
     ),
 ];
 

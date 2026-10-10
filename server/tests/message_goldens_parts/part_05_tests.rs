@@ -24,6 +24,7 @@ fn bench_session_scaling() {
         t: chrono::DateTime<chrono::Utc>,
     ) -> MessageSpanRow {
         MessageSpanRow {
+            request_frame: String::new(),
             trace_id: format!("trace-{trace}"),
             span_id: format!("span-{trace}-{span}"),
             parent_span_id: None,

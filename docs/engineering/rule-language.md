@@ -496,6 +496,19 @@ by any of the `signals` of any asset.
 }
 ```
 
+A detached request frame recorded apart from the requests it framed - one instruction, logged once on the span that
+started a run - declares them with `frames_requests`: the attribute of the frame's own record that holds its key
+(`frame`) and the attribute of a request span that holds the same key (`request`), both `attr:<key>`. The keys are
+read at ingest, because a read holds a span's messages and not its attributes, and stored as derived columns: the
+request's on its span, the frame's on its log record. A request's span view then opens with the frame records of
+its trace stating its key - read exactly, each record's winning revision once, in record order, at most 16 records
+and 4 MB - merged with the frame the request carries itself: the two sequences' longest common subsequence by role
+and content once, as the request's own blocks, and everything else in its place, so a request whose own copy of
+the frame is a cut preview shows the whole frame once and in order. Refused: a carrier whose facts do not make it a
+detached frame, one not matched by event name alone (the frame's key is read where no span context exists), a key
+that is not an attribute, and two framing carriers keying requests by different attributes. Trace and session
+views are unchanged: a frame is shown where it was recorded.
+
 An overlay either **replaces** the flattened content (`content_from`, becoming `as_member`) or **prepends** to it
 (`prepend_from`): a counterpart's list of blocks goes before the flattened members, which are kept and renumbered
 after it. Prepending is for a family that loses a *kind* of block rather than the content - a dialect that flattens
@@ -740,6 +753,7 @@ One carrier declaration: what to match, and what the matched carrier is evidence
 | `match` (required) | [`MatchSpec`](#matchspec) |  |
 | `facts` (required) | [`Facts`](#facts) | The preset this clause resolves to, optionally with named overrides. |
 | `ordering_family` | string | The ordering family this carrier belongs to, when it is a *fragmented ordered input*: several attribute keys that are one array (`llm.input_messages.0.message` and `.1.message`). |
+| `frames_requests` | [`FramesRequests`](#framesrequests) or null | The requests this carrier frames, where the frame is reported apart from them: a detached request frame recorded once, on another span, for every request it was sent with. Joined by a key both state. |
 
 ### `MatchSpec`
 
@@ -799,6 +813,29 @@ has to remember to.
 - `"snapshot"`: A conversation re-listed in order, positions in sequence.
 - `"accumulated_state"`: Framework state that restates earlier observations.
 
+### `FramesRequests`
+
+How a detached request frame names the requests it frames: by a key the frame states and each request
+states, equal.
+
+A producer that records one system instruction once, on the span that started a run, and states its digest
+on every request that was sent it, frames those requests from afar: the instruction is the head of each
+request, and only the shared key says which. Declared on an event carrier, read from the record the frame
+was read from; the request's key is read from the request span. Equal keys within one trace join.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string |  |
+| `frame` (required) | [`SourceName`](#sourcename) | The frame's key: an attribute of the record the frame was read from, as `attr:<key>`. |
+| `request` (required) | [`SourceName`](#sourcename) | The request's key: an attribute of the request span, as `attr:<key>`. Every framing carrier names the same one, so a span is keyed once. |
+
+### `SourceName`
+
+`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.
+
+- one of `"span_name"`, `"attr_keys"`, `"scope.name"`, `"scope.version"`
+- string
+
 ### `DetectRule`
 
 One detection rule: signals that identify a producer, and the label they yield.
@@ -851,13 +888,6 @@ The source or sources a condition reads.
 - [`SourceName`](#sourcename): One source.
 - list of [`SourceName`](#sourcename): Every one of these that has a value.
 - [`FirstOfSources`](#firstofsources): Only the first of these that has a value.
-
-### `SourceName`
-
-`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.
-
-- one of `"span_name"`, `"attr_keys"`, `"scope.name"`, `"scope.version"`
-- string
 
 ### `FirstOfSources`
 

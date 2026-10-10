@@ -729,6 +729,18 @@ impl MessageStore for ClickhouseRepository {
             params
         )
     }
+
+    async fn get_request_frames(
+        &self,
+        params: &sideseat_ports::types::RequestFramesParams,
+    ) -> Result<Vec<sideseat_ports::types::RequestFrameRecord>, DataError> {
+        tenant_query!(
+            self,
+            &params.project_id,
+            messages::get_request_frames,
+            params
+        )
+    }
 }
 
 #[async_trait]

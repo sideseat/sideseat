@@ -206,7 +206,11 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- (sideseat_domain::rules::span_marks); 0 where no mark holds, which is almost every span. Derived at ingest
     -- for the same reason as the thread key: a read holds a span's messages and not its attributes, and storing
     -- the answers bounds what that costs where storing the attributes again would not.
-    span_marks                 USMALLINT NOT NULL DEFAULT 0
+    span_marks                 USMALLINT NOT NULL DEFAULT 0,
+    -- The key a detached request frame names this span by, where a carrier frames requests
+    -- (CarrierRule::frames_requests); '' on every other span, which is almost all of them. Derived at ingest for
+    -- the thread key's reason, and read only on the row a span view already holds, so no index.
+    request_frame              VARCHAR NOT NULL DEFAULT ''
 );
 
 -- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose
@@ -414,7 +418,12 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     messages                  VARCHAR DEFAULT '[]' USING COMPRESSION zstd,
     -- The search fields this record indexed and those it truncated, as on otel_spans.
     search_fields             UTINYINT NOT NULL DEFAULT 0,
-    search_truncated          UTINYINT NOT NULL DEFAULT 0
+    search_truncated          UTINYINT NOT NULL DEFAULT 0,
+    -- The key the frame this record carries states, in its project's and trace's form (RequestFrames::stored_key):
+    -- sixteen bytes, where its messages were read from a carrier that frames requests
+    -- (CarrierRule::frames_requests); NULL on every other record, which a run of costs nothing. Derived at ingest
+    -- like `messages`. A framed request's view reads by it.
+    frame_key                 UHUGEINT
 );
 -- The identity's uniqueness, which no scan reads: a write replaces an identity's row, and this makes a second
 -- row for it an error rather than a duplicate. The lookups a write and its confirmation make are bounded by the
@@ -422,6 +431,10 @@ CREATE TABLE IF NOT EXISTS otel_logs (
 -- 68 bytes per record. See the span indexes for why no other compound index is kept.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_identity
     ON otel_logs(project_id, log_digest, ordinal);
+-- The frames read, keyed by the one column it asks about: a trace's frames sit in whatever row groups their records
+-- landed in, which statistics cannot skip once frames are spread over most of them. A record that frames nothing
+-- stores NULL, which the index holds no entry for, so a store without frames pays nothing for it.
+CREATE INDEX IF NOT EXISTS idx_logs_frame_key ON otel_logs(frame_key);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Raw telemetry: every received export as an SSR1 record, the authority the other tables are derived from.

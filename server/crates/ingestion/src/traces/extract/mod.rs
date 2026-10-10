@@ -526,6 +526,12 @@ pub fn extract_attributes_batch(
                     .request_threads
                     .thread_key(&otlp_span.name, &span_attrs)
                     .unwrap_or_default();
+                // The key a detached request frame names this span by, where a carrier frames requests from
+                // afar (`frames_requests`): the read joins the frames of its trace stating the same key. Read
+                // through the renderer a frame record's key is read through, from the attribute's own value.
+                span.request_frame =
+                    crate::frame_keys::request_key(rules.carriers.frames(), &otlp_span.attributes)
+                        .unwrap_or_default();
                 // And the declared facts a read needs that a read cannot see, as one word of bits
                 // (`span_marks`). Nothing is stored about the attributes themselves: only the answers.
                 span.span_marks = rules.span_marks.marks_of(

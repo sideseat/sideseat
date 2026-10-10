@@ -5,6 +5,7 @@
 #![deny(clippy::iter_over_hash_type)]
 
 mod accounting;
+mod frame_keys;
 pub mod logs;
 mod message_events;
 pub mod metrics;

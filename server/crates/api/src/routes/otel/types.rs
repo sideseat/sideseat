@@ -237,6 +237,7 @@ pub struct BlockDto {
     pub span_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// The message's place among its span's: below zero for a frame recorded apart from the request it opens.
     pub message_index: i32,
     pub entry_index: i32,
 
@@ -357,6 +358,15 @@ pub struct MessagesMetadataDto {
     /// a budget-limited result from an exhaustive reconstruction.
     #[serde(skip_serializing_if = "is_true")]
     pub replay_matching_complete: bool,
+    /// A request's view was composed from fewer of its thread's earlier requests than the thread holds, because
+    /// the thread is longer than one view reads. Absent when false.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub composition_truncated: bool,
+    /// A request's view opens with fewer of the frames recorded for it than its trace holds, because there are
+    /// more of them, or more bytes of them, than one view reads - or merged them with the request's own past the
+    /// table the merge may tabulate, keeping both orders but perhaps a shared block twice. Absent when false.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub frames_truncated: bool,
 }
 
 /// Serde helper: omit a flag that is in its ordinary state.
@@ -644,6 +654,8 @@ mod serialisation_tests {
             start_time: DateTime::from_timestamp(0, 0),
             end_time: None,
             replay_matching_complete: false,
+            composition_truncated: false,
+            frames_truncated: false,
         };
         let json = serde_json::to_string(&incomplete).expect("serialise");
         assert!(
@@ -657,8 +669,21 @@ mod serialisation_tests {
         };
         let json = serde_json::to_string(&complete).expect("serialise");
         assert!(
-            !json.contains("replay_matching_complete"),
+            !json.contains("replay_matching_complete")
+                && !json.contains("composition_truncated")
+                && !json.contains("frames_truncated"),
             "the ordinary case stays absent, so the field means something when it appears: {json}"
+        );
+        let cut = MessagesMetadataDto {
+            composition_truncated: true,
+            frames_truncated: true,
+            ..complete
+        };
+        let json = serde_json::to_string(&cut).expect("serialise");
+        assert!(
+            json.contains("\"composition_truncated\":true")
+                && json.contains("\"frames_truncated\":true"),
+            "a view cut short says so: {json}"
         );
 
         let feed = FeedMessagesMetadata {

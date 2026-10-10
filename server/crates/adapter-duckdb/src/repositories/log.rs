@@ -88,6 +88,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 log.messages.as_deref().unwrap_or("[]"),
                 search_fields,
                 search_truncated,
+                log.frame_key,
             ])?;
         }
         appender.flush()?;

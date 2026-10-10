@@ -315,6 +315,10 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     -- than a column per mark, because the marks are one bounded set and a run of zeroes compresses to nothing.
     -- No index: a projection asks about a mark for a row it is already reading, never to find rows.
     span_marks                 UInt16 DEFAULT 0 CODEC(ZSTD(1)),
+    -- The key a detached request frame names this span by, where a carrier frames requests
+    -- (CarrierRule::frames_requests); '' on every other span. Not Nullable, for the thread key's reason. No index:
+    -- it is read only on the row a span view already holds.
+    request_frame              String DEFAULT '' CODEC(ZSTD(1)),
 
     -- INDICES for fast lookups
     INDEX idx_request_thread request_thread TYPE bloom_filter GRANULARITY 1,
@@ -510,6 +514,10 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- than a column per mark, because the marks are one bounded set and a run of zeroes compresses to nothing.
     -- No index: a projection asks about a mark for a row it is already reading, never to find rows.
     span_marks                 UInt16 DEFAULT 0 CODEC(ZSTD(1)),
+    -- The key a detached request frame names this span by, where a carrier frames requests
+    -- (CarrierRule::frames_requests); '' on every other span. Not Nullable, for the thread key's reason. No index:
+    -- it is read only on the row a span view already holds.
+    request_frame              String DEFAULT '' CODEC(ZSTD(1)),
 
     -- INDICES for fast lookups
     INDEX idx_request_thread request_thread TYPE bloom_filter GRANULARITY 1,
@@ -820,6 +828,11 @@ fn otel_logs_columns() -> &'static str {
     search_attributes Array(String) DEFAULT [],
     search_attributes_truncated UInt8 DEFAULT 0,
     messages String DEFAULT '[]' CODEC(ZSTD(3)),
+    -- The key the frame this record carries states, in its project's and trace's form (RequestFrames::stored_key),
+    -- where its messages were read from a carrier that frames requests (CarrierRule::frames_requests); zero on every
+    -- other record, which the key never is. A framed request's view reads by it within one trace, which
+    -- `idx_trace_id` already narrows to that trace's granules, so no index of its own.
+    frame_key UInt128 DEFAULT 0 CODEC(ZSTD(1)),
     INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_search_body search_body TYPE text(tokenizer = 'array') GRANULARITY 1,

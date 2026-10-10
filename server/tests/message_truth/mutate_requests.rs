@@ -327,9 +327,114 @@ pub(super) fn leak_another_threads_block(_truth: &mut Truth, recon: &mut Recon) 
     // That span is another thread's request, and its block is shown here.
     let mut theirs = recon.views[target].clone();
     theirs.key = origin.1.clone();
-    theirs.thread = std::iter::once(origin).collect();
+    theirs.thread = std::iter::once(origin.clone()).collect();
     theirs.blocks = vec![block.clone()];
     recon.views.push(theirs);
+    // Another thread's request frames nothing here: where this request opened with a frame recorded on that span,
+    // the mutation's premise is that it is not this request's frame.
+    recon.views[target].frames.remove(&origin);
     recon.views[target].blocks.insert(0, block);
+    true
+}
+
+/// A framed request shows a block of its framing span that no frame recorded for it holds: a block of that span's
+/// own view, its text altered, at the head of the request's view. Only the frame records' own occurrences may be
+/// shown from a span the request is framed from.
+pub(super) fn forge_a_frame_occurrence(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some((target, block)) = recon.views.iter().enumerate().find_map(|(target, v)| {
+        if v.kind != ViewKind::Span || v.frames.is_empty() {
+            return None;
+        }
+        let block = recon.views.iter().find_map(|framing| {
+            (framing.kind == ViewKind::Span).then_some(())?;
+            framing.blocks.iter().find(|b| {
+                b.span == framing.key && v.frames.contains(&(b.trace.clone(), b.span.clone()))
+            })
+        })?;
+        Some((target, block.clone()))
+    }) else {
+        return false;
+    };
+    let mut forged = block;
+    let Some(text) = forged.content.get("text").and_then(Value::as_str) else {
+        return false;
+    };
+    forged.content["text"] = Value::String(format!("{text} - and an instruction no record holds"));
+    forged.refresh();
+    recon.views[target].blocks.insert(0, forged);
+    true
+}
+
+/// The frame-origin blocks a framed span view shows, a view outside any thread first: `(outside a thread, view,
+/// block)`.
+fn frame_blocks(recon: &Recon) -> Vec<(bool, usize, usize)> {
+    let mut candidates = Vec::new();
+    for (at, view) in recon.views.iter().enumerate() {
+        if view.kind != ViewKind::Span || view.frames.is_empty() {
+            continue;
+        }
+        for (index, block) in view.blocks.iter().enumerate() {
+            let origin = (block.trace.clone(), block.span.clone());
+            if block.span != view.key
+                && view.frames.contains(&origin)
+                && !view.thread.contains(&origin)
+                && !view.owned_calls.contains(&origin)
+            {
+                candidates.push((!view.thread.is_empty(), at, index));
+            }
+        }
+    }
+    candidates.sort();
+    candidates
+}
+
+/// A framed request shows a frame's block at a place no frame record holds it: the right text, span and carrier,
+/// read from a message of its record that is not there. Content on the right span is not an occurrence.
+pub(super) fn move_a_frame_block(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(&(_, at, index)) = frame_blocks(recon).first() else {
+        return false;
+    };
+    let block = &mut recon.views[at].blocks[index];
+    let mut steps: Vec<String> = block.position.split('.').map(str::to_string).collect();
+    let Some(message) = steps.get_mut(1) else {
+        return false;
+    };
+    *message = "100000".to_string();
+    block.position = steps.join(".");
+    true
+}
+
+/// A framed request shows a frame's block at a place in its message the record does not hold it: the right record
+/// and message, the wrong block of it.
+pub(super) fn move_a_frame_block_within_its_message(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(&(_, at, index)) = frame_blocks(recon).first() else {
+        return false;
+    };
+    let block = &mut recon.views[at].blocks[index];
+    let Some((head, _)) = block.position.rsplit_once('.') else {
+        return false;
+    };
+    block.position = format!("{head}.100000");
+    true
+}
+
+/// A framed request shows a frame's block twice where its record holds it once.
+pub(super) fn repeat_a_frame_block(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(&(_, at, index)) = frame_blocks(recon).first() else {
+        return false;
+    };
+    let copy = recon.views[at].blocks[index].clone();
+    recon.views[at].blocks.insert(index + 1, copy);
+    true
+}
+
+/// A framed request shows a frame's block from a carrier no frame recorded for it wrote: the right text, on the
+/// framing span, from the wrong carrier. Content is not an occurrence, so the block is a provenance failure and
+/// nothing else. A framed view outside any thread is preferred, since the frames are all such a view composes.
+pub(super) fn relabel_a_frame_carrier(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(&(_, at, index)) = frame_blocks(recon).first() else {
+        return false;
+    };
+    recon.views[at].blocks[index].carrier = "acme.invented".to_string();
     true
 }

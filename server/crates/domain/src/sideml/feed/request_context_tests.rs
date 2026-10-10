@@ -72,6 +72,7 @@ fn frame(text: &str, second: i64) -> RawMessage {
 
 fn span(id: &str, second: i64, observation: &str, messages: &[RawMessage]) -> MessageSpanRow {
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: "trace".to_string(),
         span_id: id.to_string(),
         parent_span_id: Some("interaction".to_string()),

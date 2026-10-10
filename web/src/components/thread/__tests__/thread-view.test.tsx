@@ -118,6 +118,31 @@ describe("ThreadView states", () => {
     );
   });
 
+  it("says when a request's view was cut or its instructions could not all be shown", async () => {
+    await renderThread({
+      blocks: [block({ type: "text", text: "the answer" })],
+      metadata: { composition_truncated: true, frames_truncated: true },
+    });
+    const notices = Array.from(container.querySelectorAll('[role="status"]')).map(
+      (node) => node.textContent ?? "",
+    );
+    expect(notices.some((text) => text.includes("more history than is shown"))).toBe(true);
+    expect(notices.some((text) => text.includes("instructions may be incomplete"))).toBe(true);
+  });
+
+  it("says so in the empty state too", async () => {
+    await renderThread({ blocks: [], metadata: { frames_truncated: true } });
+    expect(container.textContent).toContain("No messages");
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "instructions may be incomplete",
+    );
+  });
+
+  it("warns of nothing when nothing was cut", async () => {
+    await renderThread({ blocks: [block({ type: "text", text: "the answer" })], metadata: {} });
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
   it("reports a load failure as an alert", async () => {
     await renderThread({ blocks: [], error: new Error("boom") });
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("boom");

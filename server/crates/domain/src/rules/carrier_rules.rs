@@ -21,6 +21,9 @@ use crate::sideml::carrier::CarrierSemantics;
 
 use super::schema::{CarrierRule, Facts, MatchSpec, PrimaryKey};
 
+mod frames;
+pub use frames::RequestFrames;
+
 /// What the pipeline knows about an observation when it asks what its carrier means.
 ///
 /// Deliberately does **not** carry a framework label. Nothing that decides behaviour may consume one:
@@ -84,6 +87,7 @@ pub struct CarrierPlan {
     by_event: HashMap<String, Vec<CompiledClause>>,
     by_attribute: HashMap<String, Vec<CompiledClause>>,
     by_attribute_prefix: Vec<CompiledClause>,
+    frames: RequestFrames,
 }
 
 /// Why a ruleset would not compile.
@@ -116,6 +120,11 @@ pub enum CompileError {
     EmptyLiteral {
         clause: String,
     },
+    /// A `frames_requests` declaration the clause cannot make.
+    Frames {
+        clause: String,
+        detail: &'static str,
+    },
 }
 
 impl std::fmt::Display for CompileError {
@@ -147,6 +156,7 @@ impl std::fmt::Display for CompileError {
                 f,
                 "clause `{clause}` has an empty name or prefix, which would match every observation"
             ),
+            Self::Frames { clause, detail } => write!(f, "carrier clause `{clause}` {detail}"),
         }
     }
 }
@@ -327,6 +337,7 @@ fn incoherent(
 pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, CompileError> {
     let mut clauses: Vec<CompiledClause> = Vec::new();
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
+    let mut request_frames = RequestFrames::default();
 
     for file in assets.files() {
         for rule in &file.carriers {
@@ -336,6 +347,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
                 match_spec,
                 facts,
                 ordering_family,
+                frames_requests,
             } = rule;
             if seen_ids.insert(id.clone(), ()).is_some() {
                 return Err(CompileError::DuplicateClauseId { clause: id.clone() });
@@ -396,12 +408,16 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
                     }
                 }
             }
+            let semantics = resolve_facts(id, facts, ordering_family)?;
+            if let Some(declared) = frames_requests {
+                frames::declare(&mut request_frames, id, match_spec, &semantics, declared)?;
+            }
             clauses.push(CompiledClause {
                 rule_file: file.id.clone(),
                 clause_id: id.clone(),
                 doc: doc.clone(),
                 match_spec: match_spec.clone(),
-                semantics: resolve_facts(id, facts, ordering_family)?,
+                semantics,
                 ordering_family: ordering_family.clone(),
             });
         }
@@ -409,7 +425,10 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
 
     reject_ambiguity(&clauses)?;
 
-    let mut plan = CarrierPlan::default();
+    let mut plan = CarrierPlan {
+        frames: request_frames,
+        ..CarrierPlan::default()
+    };
     for clause in clauses {
         match clause.match_spec.primary_key() {
             Some(PrimaryKey::Event(event)) => plan
@@ -586,6 +605,11 @@ impl CarrierPlan {
             }
         }
         best
+    }
+
+    /// The requests detached frames are joined to, by key (`CarrierRule::frames_requests`).
+    pub fn frames(&self) -> &RequestFrames {
+        &self.frames
     }
 
     /// How many clauses the plan holds, for the coverage test.

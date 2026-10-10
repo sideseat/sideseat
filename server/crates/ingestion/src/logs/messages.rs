@@ -40,6 +40,56 @@ pub(super) fn log_record_messages(record: &LogRecord, scope: Option<&str>) -> Ve
     )
 }
 
+/// The key the frame this record carries states, where its messages were read from a carrier that frames requests
+/// (`frames_requests`): the attribute the declaration names, read from the payload the frame was read from -
+/// the record's attributes or its body's members - through the renderer a request's key is read through
+/// (`crate::frame_keys`). `None` where no message is such a frame, and where two of them state different keys,
+/// which names no one request.
+pub(super) fn log_record_frame_key(record: &LogRecord, messages: &[RawMessage]) -> Option<String> {
+    let frames = sideseat_domain::rules::ruleset().carriers.frames();
+    if frames.is_empty() {
+        return None;
+    }
+    // The carriers are asked first, so a record whose messages frame nothing is not read again.
+    let attributes: Vec<&str> = messages
+        .iter()
+        .filter_map(|message| match &message.source {
+            sideseat_domain::observations::MessageSource::Event { name, .. } => {
+                frames.frame_attribute(name)
+            }
+            sideseat_domain::observations::MessageSource::Attribute { .. } => None,
+        })
+        .collect();
+    if attributes.is_empty() {
+        return None;
+    }
+    let (_, payload, _) = recognised(record)?;
+    let mut keys = attributes.iter().filter_map(|attribute| match payload {
+        LogEventPayload::Attributes => {
+            crate::frame_keys::attribute_key(&record.attributes, attribute)
+        }
+        LogEventPayload::BodyMembers => body_member_key(record, attribute),
+    });
+    let first = keys.next()?;
+    keys.all(|key| key == first).then_some(first)
+}
+
+/// The key a member of the record's body states, read as `body_members` reads the body.
+fn body_member_key(record: &LogRecord, member: &str) -> Option<String> {
+    match record.body.as_ref().and_then(|body| body.value.as_ref())? {
+        any_value::Value::KvlistValue(members) => {
+            crate::frame_keys::attribute_key(&members.values, member)
+        }
+        any_value::Value::StringValue(text) => match serde_json::from_str(text) {
+            Ok(serde_json::Value::Object(members)) => members
+                .get(member)
+                .and_then(crate::frame_keys::json_key_text),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 /// The message event a log record is declared to carry: its name, and the attributes the event reader
 /// takes - the record's body members or its own attributes, as the `log_events` declaration says.
 ///
@@ -48,6 +98,22 @@ pub(super) fn log_record_messages(record: &LogRecord, scope: Option<&str>) -> Ve
 pub fn log_event_payload(
     record: &LogRecord,
 ) -> Option<(String, std::collections::HashMap<String, String>)> {
+    let (name, payload, body) = recognised(record)?;
+    let payload = match payload {
+        LogEventPayload::BodyMembers => body,
+        LogEventPayload::Attributes => structured_attributes(&record.attributes),
+    };
+    Some((name, payload))
+}
+
+/// The declaration that recognises a record: the event's name, where its attributes are, and the body's members.
+fn recognised(
+    record: &LogRecord,
+) -> Option<(
+    String,
+    LogEventPayload,
+    std::collections::HashMap<String, String>,
+)> {
     let attributes = extract_attributes(&record.attributes);
     let event_name = (!record.event_name.is_empty()).then_some(record.event_name.as_str());
     // The body's members, read once: a declaration may name the event from one of them, and `body_members`
@@ -58,11 +124,7 @@ pub fn log_event_payload(
         |key| attributes.get(key).map(String::as_str),
         |member| body.get(member).map(String::as_str),
     )?;
-    let payload = match declared.payload {
-        LogEventPayload::BodyMembers => body,
-        LogEventPayload::Attributes => structured_attributes(&record.attributes),
-    };
-    Some((declared.name.clone(), payload))
+    Some((declared.name.clone(), declared.payload, body))
 }
 
 /// The record's body as the members an event's attributes would be: a map as it stands, or text that parses as
@@ -331,5 +393,112 @@ mod tests {
             json!({"role": "assistant", "content": "Paris"})
         );
         assert_eq!(messages[0].content["finish_reason"], json!("stop"));
+    }
+
+    /// A record a framing carrier's messages are read from states the frame's key, read from its own payload; a
+    /// record without the key, or one whose messages frame nothing, states none.
+    #[test]
+    fn a_frame_record_states_its_key() {
+        let system_prompt = |extra: Vec<KeyValue>| {
+            let mut attributes = vec![
+                kv("event.name", text("system_prompt")),
+                kv("system_prompt", text("You are a researcher.")),
+                kv("system_prompt_length", text("21")),
+            ];
+            attributes.extend(extra);
+            linked(LogRecord {
+                attributes,
+                ..Default::default()
+            })
+        };
+        let keyed = system_prompt(vec![kv("system_prompt_hash", text("sp_a47e"))]);
+        let messages = log_record_messages(&keyed, None);
+        assert!(!messages.is_empty(), "the instruction is read");
+        assert_eq!(
+            log_record_frame_key(&keyed, &messages).as_deref(),
+            Some("sp_a47e")
+        );
+        let unkeyed = system_prompt(Vec::new());
+        assert_eq!(
+            log_record_frame_key(&unkeyed, &log_record_messages(&unkeyed, None)),
+            None,
+            "a frame record without its key frames nothing"
+        );
+        let blank = system_prompt(vec![kv("system_prompt_hash", text(" "))]);
+        assert_eq!(
+            log_record_frame_key(&blank, &log_record_messages(&blank, None)),
+            None,
+            "nor with a blank one"
+        );
+        let prompt = linked(LogRecord {
+            attributes: vec![
+                kv("event.name", text("user_prompt")),
+                kv("prompt", text("hi")),
+                kv("system_prompt_hash", text("sp_a47e")),
+            ],
+            ..Default::default()
+        });
+        assert_eq!(
+            log_record_frame_key(&prompt, &log_record_messages(&prompt, None)),
+            None,
+            "a record whose messages frame nothing states no frame key, whatever it carries"
+        );
+        // The record's key and a request span's are read through one renderer, from the value itself: a number is
+        // a key on both sides alike, and a list or a map - which the two sides' general renderings write
+        // differently - is a key on neither.
+        let frames = sideseat_domain::rules::ruleset().carriers.frames();
+        let both = |value: AnyValue| {
+            let record = system_prompt(vec![kv("system_prompt_hash", value.clone())]);
+            (
+                log_record_frame_key(&record, &log_record_messages(&record, None)),
+                crate::frame_keys::request_key(frames, &[kv("system_prompt_hash", value)]),
+            )
+        };
+        let number = || AnyValue {
+            value: Some(any_value::Value::IntValue(42)),
+        };
+        assert_eq!(both(number()), (Some("42".into()), Some("42".into())));
+        let list = AnyValue {
+            value: Some(any_value::Value::ArrayValue(ArrayValue {
+                values: vec![number()],
+            })),
+        };
+        assert_eq!(both(list), (None, None));
+        let map = AnyValue {
+            value: Some(any_value::Value::KvlistValue(KeyValueList {
+                values: vec![kv("a", number())],
+            })),
+        };
+        assert_eq!(both(map), (None, None));
+    }
+
+    /// A body's member states a key as an attribute of the same value would: from a map, or from JSON text.
+    #[test]
+    fn a_body_member_states_a_key_as_an_attribute_would() {
+        let with_body = |body: AnyValue| LogRecord {
+            body: Some(body),
+            ..Default::default()
+        };
+        let members = with_body(AnyValue {
+            value: Some(any_value::Value::KvlistValue(KeyValueList {
+                values: vec![
+                    kv(
+                        "key",
+                        AnyValue {
+                            value: Some(any_value::Value::IntValue(42)),
+                        },
+                    ),
+                    kv("blank", text(" ")),
+                ],
+            })),
+        });
+        assert_eq!(body_member_key(&members, "key").as_deref(), Some("42"));
+        assert_eq!(body_member_key(&members, "blank"), None);
+        assert_eq!(body_member_key(&members, "absent"), None);
+        let json = with_body(text(r#"{"key": 42, "list": [42], "text": "sp_1"}"#));
+        assert_eq!(body_member_key(&json, "key").as_deref(), Some("42"));
+        assert_eq!(body_member_key(&json, "text").as_deref(), Some("sp_1"));
+        assert_eq!(body_member_key(&json, "list"), None);
+        assert_eq!(body_member_key(&with_body(text("not json")), "key"), None);
     }
 }

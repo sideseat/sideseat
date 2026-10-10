@@ -39,6 +39,44 @@ fn log_exports_beside(paths: &[PathBuf]) -> Vec<PathBuf> {
     exports
 }
 
+// ============================================================================
+// Replay: OTLP bytes -> MessageSpanRow
+// ============================================================================
+
+fn decode_request(path: &Path) -> ExportTraceServiceRequest {
+    let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("json") => serde_json::from_slice(&bytes)
+            .unwrap_or_else(|e| panic!("decode JSON {}: {e}", path.display())),
+        _ => ExportTraceServiceRequest::decode(bytes.as_slice())
+            .unwrap_or_else(|e| panic!("decode protobuf {}: {e}", path.display())),
+    }
+}
+
+/// Run the real ingestion path over every captured request, in capture order.
+/// Returns `(span_name, row)`: `MessageSpanRow` carries no span name, but the golden keys
+/// span views by name so a diff points at a recognisable span rather than a raw id.
+/// Whether a file in a sample directory is a captured request the golden runner will replay.
+///
+/// One predicate, shared with `the_corpus_matches_the_support_matrix`. They had two: discovery required a
+/// `req-` prefix while the matrix counted every `.pb`/`.json` that was not `expected.json`. So renaming
+/// `req-001.pb` to `capture.pb` left the documented count unchanged while silently removing that request
+/// from every golden check - the corpus would still claim to cover it.
+fn is_captured_request(name: &str) -> bool {
+    name.starts_with("req-") && (name.ends_with(".pb") || name.ends_with(".json"))
+}
+
+fn rows_for(paths: &[PathBuf]) -> Vec<(String, MessageSpanRow)> {
+    let pricing = PricingService::init_for_test().expect("offline pricing service");
+    let mut rows = Vec::new();
+    for path in paths {
+        let request = decode_request(path);
+        rows.extend(normalize_for_test(&request, &pricing));
+    }
+    attach_log_messages(paths, &mut rows);
+    rows
+}
+
 /// Join log-carried messages to their spans exactly as the message queries do.
 ///
 /// The real log extraction reads each record; the stored winner is one per `(log_digest, ordinal)`, so a
@@ -79,6 +117,117 @@ fn attach_log_messages(paths: &[PathBuf], rows: &mut [(String, MessageSpanRow)])
             let inner: Vec<&str> = entries.iter().map(|entry| entry.3.as_str()).collect();
             row.log_messages_json = format!("[{}]", inner.join(","));
         }
+    }
+}
+
+/// The frame records each `(trace, frame key)` holds, as `get_request_frames` answers them: each stored record's
+/// winner once, in `(timestamp, log_digest, ordinal)` order, read one past the record bound.
+fn frame_records_beside(
+    paths: &[PathBuf],
+) -> BTreeMap<(String, u128), Vec<sideseat_ports::types::RequestFrameRecord>> {
+    let mut records: BTreeMap<(String, u32), sideseat_ports::types::NormalizedLog> =
+        BTreeMap::new();
+    for export in log_exports_beside(paths) {
+        let logs = sideseat_ingestion::logs::extract_logs_batch(
+            &decode_logs(&export),
+            chrono::DateTime::UNIX_EPOCH,
+        );
+        for log in logs {
+            records.insert((log.log_digest.clone(), log.ordinal), log);
+        }
+    }
+    let mut by_key: BTreeMap<(String, u128), Vec<sideseat_ports::types::RequestFrameRecord>> =
+        BTreeMap::new();
+    for log in records.into_values() {
+        let (Some(trace_id), Some(span_id), Some(key), Some(messages)) =
+            (log.trace_id, log.span_id, log.frame_key, log.messages)
+        else {
+            continue;
+        };
+        if messages == "[]" {
+            continue;
+        }
+        by_key.entry((trace_id.clone(), key)).or_default().push(
+            sideseat_ports::types::RequestFrameRecord {
+                trace_id,
+                span_id,
+                timestamp: log.timestamp,
+                log_digest: log.log_digest,
+                ordinal: log.ordinal,
+                messages_json: Some(messages),
+            },
+        );
+    }
+    for frames in by_key.values_mut() {
+        frames.sort_by(|a, b| {
+            (a.timestamp, &a.log_digest, a.ordinal).cmp(&(b.timestamp, &b.log_digest, b.ordinal))
+        });
+        frames.truncate(sideseat_core::constants::REQUEST_FRAMES_MAX_RECORDS + 1);
+    }
+    by_key
+}
+
+/// The occurrences a request's frame records hold, each as many times as they hold it: `(trace, span, carrier,
+/// position, content)`, where the position names the record, its message's index in it, and the block's place in
+/// that message - `frame:<digest>:<ordinal>.<index>...` - so a block shown from the right span and carrier but from
+/// another record, message or place, or more often than the records hold it, is not an occurrence. Each record's
+/// messages are read on their own.
+pub(crate) type FrameOccurrences = BTreeMap<(String, String, String, String, String), usize>;
+
+fn frame_occurrences(frames: &[sideseat_ports::types::RequestFrameRecord]) -> FrameOccurrences {
+    let mut out = FrameOccurrences::new();
+    for record in frames {
+        let raw: Vec<sideseat_domain::observations::RawMessage> = record
+            .messages_json
+            .as_deref()
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_default();
+        for (index, message) in raw.iter().enumerate() {
+            for message in sideseat_domain::sideml::to_sideml(std::slice::from_ref(message)) {
+                // The message's path within its observation, after the observation's own place.
+                let path = message.position.to_string();
+                let within = path
+                    .split_once('.')
+                    .map_or(String::new(), |(_, rest)| format!(".{rest}"));
+                let carrier = match &message.source {
+                    sideseat_domain::observations::MessageSource::Event { name, .. } => {
+                        format!("event:{name}")
+                    }
+                    sideseat_domain::observations::MessageSource::Attribute { key, .. } => {
+                        format!("attr:{key}")
+                    }
+                };
+                for (entry, block) in message.sideml.content.iter().enumerate() {
+                    *out.entry((
+                        record.trace_id.clone(),
+                        record.span_id.clone(),
+                        carrier.clone(),
+                        format!(
+                            "frame:{}:{}.{index}{within}.{entry}",
+                            record.log_digest, record.ordinal
+                        ),
+                        serde_json::to_string(block).expect("a content block serialises"),
+                    ))
+                    .or_default() += 1;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A request's view opened with its frame records, as the span route opens it; unchanged where none joined.
+fn framed(
+    view: sideseat_domain::sideml::FeedResult,
+    frames: &[sideseat_ports::types::RequestFrameRecord],
+) -> sideseat_domain::sideml::FeedResult {
+    match frames.is_empty() {
+        true => view,
+        false => sideseat_domain::sideml::process_framed_request(
+            view,
+            frames.to_vec(),
+            &FeedOptions::new(),
+        ),
     }
 }
 

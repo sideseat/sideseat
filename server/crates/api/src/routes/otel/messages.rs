@@ -15,10 +15,12 @@ use crate::auth::{SessionRead, SpanRead, TraceRead};
 use crate::types::{ApiError, parse_timestamp_param};
 use sideseat_domain::sideml::{
     BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, RequestContextRows,
-    apply_time_window, calls_a_thread_answers, extract_tools_from_rows, process_request_span,
-    process_span_cached, process_spans_cached,
+    apply_time_window, calls_a_thread_answers, extract_tools_from_rows, process_framed_request,
+    process_request_span, process_span, process_span_cached, process_spans_cached,
 };
-use sideseat_ports::types::{MessageQueryParams, MessageSpanRow, RequestContextParams};
+use sideseat_ports::types::{
+    MessageQueryParams, MessageSpanRow, RequestContextParams, RequestFramesParams,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct MessagesQuery {
@@ -101,20 +103,85 @@ pub async fn get_span_messages(
     // A span whose producer exports each request as what it added shows less than the call was sent, so its view
     // is composed from the thread the ingest derived for it. Two more keyed reads, and only for such a span:
     // every other span takes the path it always did.
-    if let Some(thread) = result
-        .rows
-        .first()
+    //
+    // And a span a detached request frame names by key opens with the frame records of its trace stating it: one
+    // more keyed read, again only for such a span.
+    let first = result.rows.first();
+    let thread = first
         .map(|row| row.request_thread.clone())
-        .filter(|thread| !thread.is_empty())
-    {
-        let composed =
-            compose_request(repo, project_id, &result.rows, thread, to_timestamp).await?;
-        let processed = feed_arc_after_window(Arc::new(composed), from_timestamp, to_timestamp);
+        .filter(|thread| !thread.is_empty());
+    // Read in the form the frame records store it, the project's and trace's (`RequestFrames::stored_key`).
+    let frame_key = first.and_then(|row| {
+        sideseat_domain::rules::carrier_rules::RequestFrames::stored_key(
+            project_id.as_str(),
+            &row.trace_id,
+            &row.request_frame,
+        )
+    });
+    if thread.is_some() || frame_key.is_some() {
+        let view = match thread {
+            Some(thread) => {
+                compose_request(repo, project_id, &result.rows, thread, to_timestamp).await?
+            }
+            None => process_span(result.rows.clone(), &FeedOptions::new()),
+        };
+        let (frames, unread) = match frame_key {
+            Some(key) => {
+                frames_or_none(
+                    repo.get_request_frames(&RequestFramesParams {
+                        project_id: project_id.clone(),
+                        trace_id: trace_id.to_string(),
+                        key,
+                        // No ingestion cutoff: `to_timestamp` bounds event time, which the window below applies
+                        // to the frame's blocks as to every other; a frame re-delivered later is the same frame.
+                        ingested_before_us: None,
+                    }),
+                    trace_id,
+                    key,
+                )
+                .await
+            }
+            None => (Vec::new(), false),
+        };
+        // The role filter applies to the finished view, as on every other span view.
+        let mut view = process_framed_request(view, frames, &options);
+        view.metadata.frames_truncated |= unread;
+        let processed = feed_arc_after_window(Arc::new(view), from_timestamp, to_timestamp);
         return stream_messages_response(processed, None, envelopes);
     }
     let reconstructed = process_span_cached(&state.reconstruction, result.rows, &options);
     let processed = feed_arc_after_window(reconstructed, from_timestamp, to_timestamp);
     stream_messages_response(processed, None, envelopes)
+}
+
+/// The frame records a framed request opens with, and whether they could not be read.
+///
+/// A read that fails - past its statement timeout, or out of memory, on a trace holding pathologically many frames
+/// under one key - leaves the view without them rather than failing it: the request's own messages answer, the
+/// view says its frames were cut, and the failure is logged with the trace and the key. One feature degrades;
+/// the conversation stays readable.
+pub(super) async fn frames_or_none(
+    read: impl std::future::Future<
+        Output = Result<
+            Vec<sideseat_ports::types::RequestFrameRecord>,
+            sideseat_ports::error::DataError,
+        >,
+    >,
+    trace_id: &str,
+    key: u128,
+) -> (Vec<sideseat_ports::types::RequestFrameRecord>, bool) {
+    match read.await {
+        Ok(frames) => (frames, false),
+        Err(error) => {
+            tracing::warn!(
+                trace_id,
+                frame_key = %format!("{key:032x}"),
+                %error,
+                "the request's frames could not be read; its view answers without them"
+            );
+            (Vec::new(), true)
+        }
+    }
 }
 
 /// One request span's view, composed from its thread.
@@ -386,6 +453,8 @@ fn stream_messages_response(
         start_time,
         end_time,
         replay_matching_complete: processed.metadata.replay_matching_complete,
+        composition_truncated: processed.metadata.composition_truncated,
+        frames_truncated: processed.metadata.frames_truncated,
     };
     let trailing = [
         ("metadata", serde_json::to_string(&metadata)),
@@ -499,6 +568,8 @@ pub(crate) fn build_messages_response(
             // Carried from the pipeline, not recomputed: this is the one place a caller can learn that
             // the answer may repeat history.
             replay_matching_complete: processed.metadata.replay_matching_complete,
+            composition_truncated: processed.metadata.composition_truncated,
+            frames_truncated: processed.metadata.frames_truncated,
         },
         tool_definitions: processed.tool_definitions.clone(),
         tool_names: processed.tool_names.clone(),

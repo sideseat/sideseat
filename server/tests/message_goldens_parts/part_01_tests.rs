@@ -51,6 +51,7 @@ fn normalize_for_test_with_mode(
 /// The message row the query layer would return for one normalised span.
 fn message_row(span: &sideseat_ports::types::NormalizedSpan) -> MessageSpanRow {
     MessageSpanRow {
+        request_frame: span.request_frame.clone(),
         trace_id: span.trace_id.clone(),
         span_id: span.span_id.clone(),
         parent_span_id: span.parent_span_id.clone(),
@@ -146,44 +147,6 @@ fn collect(root: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<PathBuf>>) {
             out.entry(label).or_default().push(path);
         }
     }
-}
-
-// ============================================================================
-// Replay: OTLP bytes -> MessageSpanRow
-// ============================================================================
-
-fn decode_request(path: &Path) -> ExportTraceServiceRequest {
-    let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("json") => serde_json::from_slice(&bytes)
-            .unwrap_or_else(|e| panic!("decode JSON {}: {e}", path.display())),
-        _ => ExportTraceServiceRequest::decode(bytes.as_slice())
-            .unwrap_or_else(|e| panic!("decode protobuf {}: {e}", path.display())),
-    }
-}
-
-/// Run the real ingestion path over every captured request, in capture order.
-/// Returns `(span_name, row)`: `MessageSpanRow` carries no span name, but the golden keys
-/// span views by name so a diff points at a recognisable span rather than a raw id.
-/// Whether a file in a sample directory is a captured request the golden runner will replay.
-///
-/// One predicate, shared with `the_corpus_matches_the_support_matrix`. They had two: discovery required a
-/// `req-` prefix while the matrix counted every `.pb`/`.json` that was not `expected.json`. So renaming
-/// `req-001.pb` to `capture.pb` left the documented count unchanged while silently removing that request
-/// from every golden check - the corpus would still claim to cover it.
-fn is_captured_request(name: &str) -> bool {
-    name.starts_with("req-") && (name.ends_with(".pb") || name.ends_with(".json"))
-}
-
-fn rows_for(paths: &[PathBuf]) -> Vec<(String, MessageSpanRow)> {
-    let pricing = PricingService::init_for_test().expect("offline pricing service");
-    let mut rows = Vec::new();
-    for path in paths {
-        let request = decode_request(path);
-        rows.extend(normalize_for_test(&request, &pricing));
-    }
-    attach_log_messages(paths, &mut rows);
-    rows
 }
 
 // ============================================================================
@@ -444,6 +407,8 @@ enum View<'a> {
     RequestSpan {
         thread: &'a [MessageSpanRow],
         calls: &'a [MessageSpanRow],
+        /// The frame records of its trace stating its frame key, as the store answers them (`frames_requests`).
+        frames: &'a [sideseat_ports::types::RequestFrameRecord],
     },
     /// `/sessions/{id}/messages` - rows for one session.
     Session,
@@ -497,7 +462,11 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             &FeedOptions::new().with_session_of_trace((*session_of_trace).clone()),
         ),
         View::Span => process_span(rows, &options),
-        View::RequestSpan { thread, calls } => {
+        View::RequestSpan {
+            thread,
+            calls,
+            frames,
+        } => {
             let (call_ids, _) = calls_a_thread_answers(thread);
             // The store answers with the tool spans of the thread's traces whose call id a delta names; here the
             // ids are matched against the stored messages, which is the same set for a fixture.
@@ -506,13 +475,16 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 .filter(|row| call_ids.iter().any(|id| row.messages_json.contains(id)))
                 .cloned()
                 .collect();
-            process_request_span(
-                RequestContextRows {
-                    target: rows,
-                    thread: thread.to_vec(),
-                    calls: answered,
-                },
-                &options,
+            framed(
+                process_request_span(
+                    RequestContextRows {
+                        target: rows,
+                        thread: thread.to_vec(),
+                        calls: answered,
+                    },
+                    &options,
+                ),
+                frames,
             )
         }
         _ => process_spans(rows, &options),
@@ -609,6 +581,10 @@ enum Scope {
         /// ordered by id, which is not the thread's order and would read as one.
         thread: Vec<(String, String)>,
         calls: std::collections::BTreeSet<(String, String)>,
+        /// The spans of the frame records its view opens with, recorded apart from it, and the occurrences those
+        /// records hold (`FrameOccurrences`), the only blocks of those spans the view may show.
+        frames: std::collections::BTreeSet<(String, String)>,
+        frame_occurrences: FrameOccurrences,
     },
     Trace {
         trace_id: String,
@@ -792,6 +768,7 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             .insert(trace_id.clone());
     }
 
+    let frame_records = frame_records_beside(paths);
     // The rows of each derived thread, and every tool span's rows: what a composed request's two reads return.
     let mut by_thread: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
     let mut tool_rows: Vec<MessageSpanRow> = Vec::new();
@@ -871,15 +848,32 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             .unwrap_or_default()
             .to_string();
         let thread = by_thread.get(&thread_key).cloned().unwrap_or_default();
-        let view_kind = match thread_key.is_empty() {
-            true => View::Span,
-            false => View::RequestSpan {
+        // And a span a detached frame names by key opens with the frame records of its trace stating it, in the
+        // form the records store, as the route reads them - the default project's, as no fixture names one.
+        let frames = span_rows
+            .iter()
+            .find(|row| !row.request_frame.is_empty())
+            .and_then(|row| {
+                let stored = sideseat_domain::rules::carrier_rules::RequestFrames::stored_key(
+                    sideseat_core::constants::DEFAULT_PROJECT_ID,
+                    &row.trace_id,
+                    &row.request_frame,
+                )?;
+                frame_records.get(&(row.trace_id.clone(), stored))
+            })
+            .cloned()
+            .unwrap_or_default();
+        let composed = !thread_key.is_empty() || !frames.is_empty();
+        let view_kind = match composed {
+            false => View::Span,
+            true => View::RequestSpan {
                 thread: &thread,
                 calls: &tool_rows,
+                frames: &frames,
             },
         };
         let (view, inv) = build_view(sorted_by_timestamp(span_rows.clone()), view_kind);
-        let scope = match thread_key.is_empty() {
+        let scope = match !composed {
             true => Scope::Span {
                 trace_id: trace_id.clone(),
                 span_id: span_id.clone(),
@@ -909,6 +903,11 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
                     .iter()
                     .map(|row| (row.trace_id.clone(), row.span_id.clone()))
                     .collect(),
+                frames: frames
+                    .iter()
+                    .map(|record| (record.trace_id.clone(), record.span_id.clone()))
+                    .collect(),
+                frame_occurrences: frame_occurrences(&frames),
             },
         };
         invariants.push((format!("span {key}"), scope, inv));

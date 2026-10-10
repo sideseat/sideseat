@@ -111,6 +111,16 @@ impl PositionPath {
         self.0.len()
     }
 
+    /// This path with its first segment - the observation's place in its list - replaced by `root`: the place of the
+    /// same observation in another list.
+    pub(crate) fn with_root(&self, root: impl IntoIterator<Item = PathSegment>) -> Self {
+        Self(
+            root.into_iter()
+                .chain(self.0.iter().skip(1).cloned())
+                .collect(),
+        )
+    }
+
     /// The path of the container this observation sits in, or `None` at the root.
     pub fn parent(&self) -> Option<Self> {
         (!self.0.is_empty()).then(|| Self(self.0[..self.0.len() - 1].to_vec()))

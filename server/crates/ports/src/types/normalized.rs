@@ -196,6 +196,11 @@ pub struct NormalizedLog {
     /// computed without it, and the read path joins it to the span it names rather than copying it into
     /// that span's row.
     pub messages: Option<String>,
+    /// The key the frame this record carries states, in its project's and trace's form
+    /// (`RequestFrames::stored_key`), where its messages are read from a carrier that frames requests
+    /// (`CarrierRule::frames_requests`); `None` on every other record. Derived like `messages`, and what a framed
+    /// request's view reads frames by.
+    pub frame_key: Option<u128>,
 }
 
 // ============================================================================
@@ -368,6 +373,11 @@ pub struct NormalizedSpan {
     /// conditions read - the answer is bounded, the attributes are not.
     #[serde(default, skip_serializing_if = "is_unmarked")]
     pub span_marks: u16,
+    /// The key a detached request frame names this span by, where a carrier frames requests
+    /// (`domain::rules::carrier_rules::RequestFrames`); empty on every other span. Derived at ingest, as the
+    /// thread key is.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub request_frame: String,
     /// Which export of an ingest batch the span came from: ingestion's own bookkeeping, never stored. Carried
     /// on the span because a batch drops spans at several fences and must still answer each export for its own,
     /// and because two exports in one batch can carry the same span identity, which therefore cannot say whose

@@ -203,6 +203,54 @@ identical on both; the backend parity suites gain a delta-producer fixture.
 The expected effect on the ledger is the 127 Claude Code `request.missing` entries, with none added; any entry the
 change adds is a defect of the change until shown otherwise.
 
+## Frames recorded apart from the request
+
+A request's frame is its own and is never inherited from its thread, but it need not be on its own span. Claude
+Code records a run's whole system instruction once, as a `system_prompt` log record on the span that started the
+run - the interaction for the main agent, the Agent tool's execution for a subagent - while each request carries
+only a preview cut at 500 characters. The carrier declares the requests it frames by a key both state
+(`frames_requests`, `system_prompt_hash` on the record and on the request span); the keys are derived at ingest, and
+the span route reads the frame records of the request's trace stating the request's key and merges them into the
+head of the view, after the thread composition, with the preview's whole sections kept once as the request's own
+(`sideml::feed::request_frames`). The rule language guide has the grammar.
+
+A record stores its key in its project's and trace's form (`RequestFrames::stored_key`): a blake3 digest of the
+project, the trace and the key, each length-prefixed, truncated to 128 bits and stored as an unsigned integer that
+is never zero. The key alone is not selective: every session sent with one system prompt states the same hash, so
+the records stating it grow with the store's history, and a read keyed by it alone would cost what the history
+holds. The project is in the digest because a client's trace ids are not unique across projects. In this form the
+rows a key finds are one trace's frames. The key is read from both sides through one renderer of the telemetry's
+own values, and only a scalar - text, an integer, a boolean - is a key.
+
+DuckDB reads the frames through a single-column index on `otel_logs.frame_key`, which holds no entry for the NULL
+every other record stores; ClickHouse stores zero there and narrows by its trace bloom filter. The read is one
+statement of two passes: the first chooses at most one record past `REQUEST_FRAMES_MAX_RECORDS`, within
+`REQUEST_FRAMES_MAX_BYTES` of messages, from the records' identities and lengths; the second reads messages for the
+chosen alone, so a trace with more frames than memory holds is still answered. The merge into the view is the
+longest common subsequence of the request's own frame and the joined one, within `REQUEST_FRAMES_MERGE_MAX_CELLS`
+cells; past it, an order-preserving greedy match. The view says when any of the three bounds shaped it, and when
+the read failed: a read past its statement timeout or out of memory leaves the view without its frames, flagged and
+logged with the trace and the key, rather than failing the view.
+
+What a read costs grows with one trace's frames under one key, which the answer has to cover, and never with the
+store's history:
+
+- **DuckDB.** Each pass keeps the first records with `min_by(.., n)`, an aggregate of the bound's size, over the
+  key's index scan. The scan itself holds the key's row ids outside the buffer manager, so outside `memory_limit`:
+  a `std::set` of them while it initialises, about 50 B a record, then an array of 8 B a record for the rest of
+  the read (DuckDB 1.5.6, `ART::Scan` and `DuckIndexScanInitGlobal`). Within the limit, what the read holds is the
+  blocks its row fetches pin, whatever the count: a hundred thousand frames among 400,000 log records read under a
+  24 MB limit (`keyed_scan_frames_tests`), where the materialised and windowed form first read under 32 MB. Time is
+  the cost that grows: DuckDB fetches an index scan's rows one at a time, roughly 30 µs a record across the columns
+  read, so a million frames under one key in one trace reach the 30-second statement timeout - and then the view
+  answers without them. Peak buffer memory for the statement, 63 MB at a million consecutive frames and 153 MB at
+  three million, is mostly the scanned blocks the buffer manager caches and evicts at need.
+- **ClickHouse.** Each pass reads `FINAL`, so the key and the conditions apply to an identity's winning delivery -
+  every delivery of a log record lands in one partition, by the times its identity covers - and keeps the first
+  records by `ORDER BY ... LIMIT`, which holds the top rows alone: about 14 MB at a million records under one key,
+  and 75 MB for 200 MB of frames over twelve unmerged parts, where a window over every keyed row buffered them with
+  their messages, 610 MB. Two shards answer alike, through `GLOBAL IN`.
+
 ## Open questions
 
 - Retries and compaction have no capture. A long Claude Code session with a forced retry is the capture that would

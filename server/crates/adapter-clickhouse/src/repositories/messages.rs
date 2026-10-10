@@ -9,9 +9,9 @@ use serde::Deserialize;
 use crate::ClickhouseError;
 use sideseat_ports::types::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
-    RequestContextParams, RequestContextRows,
+    RequestContextParams, RequestContextRows, RequestFrameRecord, RequestFramesParams,
 };
-use sideseat_query_sql::{Backend, analytics, messages, request_context};
+use sideseat_query_sql::{Backend, analytics, messages, request_context, request_frames};
 
 use super::query::bind_analytics_values;
 
@@ -57,6 +57,7 @@ struct ChMessageSpanRow {
     log_messages: String,
     request_thread: String,
     span_marks: u16,
+    request_frame: String,
 }
 
 impl From<ChMessageSpanRow> for MessageSpanRow {
@@ -101,6 +102,7 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
             finish_reasons: row.finish_reasons,
             request_thread: row.request_thread,
             span_marks: row.span_marks,
+            request_frame: row.request_frame,
             cache_read_tokens: row.cache_read_tokens,
             cache_write_tokens: row.cache_write_tokens,
             reasoning_tokens: row.reasoning_tokens,
@@ -235,6 +237,7 @@ fn thread_row_defaults() -> MessageSpanRow {
         cost_output: 0.0,
         request_thread: String::new(),
         span_marks: 0,
+        request_frame: String::new(),
     }
 }
 
@@ -283,6 +286,46 @@ async fn fetch_thread(
         .fetch_all()
         .await?;
     Ok(rows.into_iter().map(MessageSpanRow::from).collect())
+}
+
+/// One frame record, as `request_frames::FRAME_COLUMNS` names it.
+#[derive(Row, Deserialize)]
+struct ChFrameRow {
+    trace_id: String,
+    span_id: String,
+    timestamp_us: i64,
+    log_digest: String,
+    ordinal: u32,
+    messages: Option<String>,
+}
+
+/// The frame records a framed request span's view opens with: one keyed statement, bounded in itself.
+pub async fn get_request_frames(
+    client: &Client,
+    params: &RequestFramesParams,
+) -> Result<Vec<RequestFrameRecord>, ClickhouseError> {
+    let query = request_frames::frames_in_trace(
+        params.project_id.as_str(),
+        &params.trace_id,
+        params.key,
+        params.ingested_before_us,
+        Backend::Clickhouse,
+    );
+    let rows: Vec<ChFrameRow> = bind_analytics_values(client.query(query.sql()), query.params())
+        .fetch_all()
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| RequestFrameRecord {
+            trace_id: row.trace_id,
+            span_id: row.span_id,
+            timestamp: DateTime::from_timestamp_micros(row.timestamp_us)
+                .unwrap_or(DateTime::UNIX_EPOCH),
+            log_digest: row.log_digest,
+            ordinal: row.ordinal,
+            messages_json: row.messages,
+        })
+        .collect())
 }
 
 /// Repository-level regression tests.

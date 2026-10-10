@@ -393,3 +393,173 @@ fn an_attribute_answers_starts_with_in_three_values() {
     assert!(equals("[TOOL RESULT]").excludes(&atom("[USER]")));
     assert!(!atom("[USER]").excludes(&atom("[US")));
 }
+
+/// **A detached request frame frames requests by a key both state**, and only a frame matched by event name alone
+/// can: its key is read from the record it was read from, with no span to qualify it. Each refusal says the
+/// declaration cannot mean what it says; the attributes the keys are read from are named; and the stored form is the
+/// project's and the trace's, never zero.
+#[test]
+fn a_frame_carrier_frames_requests_by_a_key_both_state() {
+    let compiled = |carriers: serde_json::Value| {
+        let asset = serde_json::json!({"id": "probe", "doc": "d", "carriers": carriers});
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
+    };
+    let frame_facts = serde_json::json!({
+        "preset": "snapshot", "carrier_is_detached_request_frame": true, "carrier_holds_span_input": true
+    });
+    let by_key = serde_json::json!({"frame": "attr:probe.digest", "request": "attr:probe.digest"});
+    let frame = |id: &str,
+                 matched: serde_json::Value,
+                 facts: serde_json::Value,
+                 frames: serde_json::Value| {
+        serde_json::json!({"id": id, "doc": "d", "match": matched, "facts": facts, "frames_requests": frames})
+    };
+
+    let plan = compiled(serde_json::json!([frame(
+        "probe.frame",
+        serde_json::json!({"event": "probe.instruction"}),
+        frame_facts.clone(),
+        by_key.clone()
+    )]))
+    .expect("an event frame keyed by an attribute both state");
+    let frames = plan.frames();
+    assert!(!frames.is_empty());
+    assert_eq!(frames.request_attribute(), Some("probe.digest"));
+    assert_eq!(
+        frames.frame_attribute("probe.instruction"),
+        Some("probe.digest")
+    );
+    assert_eq!(
+        frames.frame_attribute("probe.other"),
+        None,
+        "a carrier that frames nothing states no frame key"
+    );
+    assert!(
+        compiled(serde_json::json!([]))
+            .expect("no carriers")
+            .frames()
+            .is_empty(),
+        "nothing declared frames nothing"
+    );
+    // The stored form is the project's and the trace's: one key in two traces, or in one trace id of two
+    // projects, is two keys; one key in one trace of one project is one; a record outside a trace or a project,
+    // or one stating a blank key, frames nothing.
+    let stored = |project: &str, trace: &str, key: &str| {
+        crate::rules::carrier_rules::RequestFrames::stored_key(project, trace, key)
+    };
+    let trace = "0af7651916cd43dd8448eb211c80319c";
+    let one = stored("p", trace, "d1").expect("keyed");
+    assert_ne!(one, 0, "zero is what a record that frames nothing holds");
+    assert_eq!(Some(one), stored("p", trace, "d1"));
+    assert_ne!(
+        Some(one),
+        stored("p", "b7ad6b7169203331b7ad6b7169203331", "d1")
+    );
+    assert_ne!(
+        Some(one),
+        stored("q", trace, "d1"),
+        "another project's trace id"
+    );
+    assert_ne!(Some(one), stored("p", trace, "d2"));
+    assert_ne!(
+        stored("ab", "c", "k"),
+        stored("a", "bc", "k"),
+        "the parts are delimited"
+    );
+    assert_eq!(stored("p", "", "d1"), None, "outside a trace");
+    assert_eq!(stored("", trace, "d1"), None, "outside a project");
+    assert_eq!(stored("p", trace, " "), None, "blank");
+    // Never zero, by construction rather than by the odds: the digest zero is stored as one.
+    let from_digest = crate::rules::carrier_rules::RequestFrames::key_from_digest;
+    assert_eq!(from_digest([0; 16]), 1, "zero is the absence of a key");
+    let mut low = [0; 16];
+    low[15] = 1;
+    assert_eq!(from_digest(low), 1);
+    assert_eq!(from_digest([0xff; 16]), u128::MAX);
+    let mut high = [0; 16];
+    high[0] = 1;
+    assert_eq!(
+        from_digest(high),
+        1 << 120,
+        "the digest's bytes, most significant first"
+    );
+
+    for (why, carriers) in [
+        (
+            "a carrier that is not a detached frame",
+            serde_json::json!([frame(
+                "a",
+                serde_json::json!({"event": "probe.a"}),
+                serde_json::json!({"preset": "snapshot", "carrier_holds_span_input": true}),
+                by_key.clone()
+            )]),
+        ),
+        (
+            "a frame read from an attribute",
+            serde_json::json!([frame(
+                "a",
+                serde_json::json!({"attribute": "probe.a"}),
+                frame_facts.clone(),
+                by_key.clone()
+            )]),
+        ),
+        (
+            "a frame qualified by the span",
+            serde_json::json!([frame(
+                "a",
+                serde_json::json!({"event": "probe.a", "observation_type": ["generation"]}),
+                frame_facts.clone(),
+                by_key.clone()
+            )]),
+        ),
+        (
+            "a key that is not an attribute",
+            serde_json::json!([frame(
+                "a",
+                serde_json::json!({"event": "probe.a"}),
+                frame_facts.clone(),
+                serde_json::json!({"frame": "span_name", "request": "attr:probe.digest"})
+            )]),
+        ),
+        (
+            "an empty attribute key",
+            serde_json::json!([frame(
+                "a",
+                serde_json::json!({"event": "probe.a"}),
+                frame_facts.clone(),
+                serde_json::json!({"frame": "attr:probe.digest", "request": "attr:"})
+            )]),
+        ),
+        (
+            "two frames keying requests by different attributes",
+            serde_json::json!([
+                frame(
+                    "a",
+                    serde_json::json!({"event": "probe.a"}),
+                    frame_facts.clone(),
+                    by_key.clone()
+                ),
+                frame(
+                    "b",
+                    serde_json::json!({"event": "probe.b"}),
+                    frame_facts.clone(),
+                    serde_json::json!({"frame": "attr:probe.digest", "request": "attr:probe.other"})
+                ),
+            ]),
+        ),
+    ] {
+        let refused = compiled(carriers)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {why}"));
+        assert!(
+            matches!(refused, CompileError::Frames { .. }),
+            "wrong refusal for {why}: {refused}"
+        );
+    }
+}

@@ -727,6 +727,7 @@ mod tests {
         let t = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap()
             + chrono::Duration::seconds(second);
         MessageSpanRow {
+            request_frame: String::new(),
             trace_id: trace.to_string(),
             span_id: span.to_string(),
             parent_span_id: None,
@@ -906,6 +907,49 @@ mod tests {
             page_local > before_dedup,
             "the page-local reconstruction returned {page_local} blocks and the trace-complete one \
              {before_dedup}; if they agree this test no longer distinguishes them"
+        );
+    }
+
+    /// **A frames read that fails leaves the view answering without them, and saying so.** A statement timeout -
+    /// what a trace holding a million frames under one key meets - is injected into the span route's frames read;
+    /// the request's own view answers, opened with no frame, and states that its frames were cut.
+    #[tokio::test]
+    async fn a_failed_frames_read_leaves_the_view_answering_without_them() {
+        use super::super::messages::frames_or_none;
+        use sideseat_domain::sideml::{FeedOptions, process_framed_request, process_span};
+        let (frames, unread) = frames_or_none(
+            async { Err(sideseat_ports::error::DataError::timeout("duckdb", 30)) },
+            "trace",
+            7,
+        )
+        .await;
+        assert!(frames.is_empty());
+        assert!(unread);
+        let row = feed_row(
+            "trace",
+            "request",
+            r#"[{"source":{"attribute":{"key":"gen_ai.prompt","time":"2025-01-15T10:30:00Z"}},"content":{"role":"user","content":"question"}}]"#,
+            0,
+        );
+        let mut view = process_framed_request(
+            process_span(vec![row], &FeedOptions::new()),
+            frames,
+            &FeedOptions::new(),
+        );
+        view.metadata.frames_truncated |= unread;
+        assert!(
+            !view.messages.is_empty(),
+            "the request's own messages answer"
+        );
+        assert!(
+            view.metadata.frames_truncated,
+            "and the view says its frames were cut"
+        );
+
+        let (frames, unread) = frames_or_none(async { Ok(Vec::new()) }, "trace", 7).await;
+        assert!(
+            frames.is_empty() && !unread,
+            "a read that answers is no cut"
         );
     }
 }

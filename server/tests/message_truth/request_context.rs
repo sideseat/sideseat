@@ -48,10 +48,12 @@ pub(super) fn check_composition(recon: &Recon, out: &mut Vec<Violation>) {
         }
     }
 
+    // A view composed from its thread, or opened with frames recorded apart from it, or both: a framed request
+    // need not be part of a thread to be held to its frames.
     for view in recon
         .views
         .iter()
-        .filter(|v| v.kind == ViewKind::Span && !v.thread.is_empty())
+        .filter(|v| v.kind == ViewKind::Span && (!v.thread.is_empty() || !v.frames.is_empty()))
     {
         let own: BTreeSet<(String, String)> = view
             .blocks
@@ -59,7 +61,8 @@ pub(super) fn check_composition(recon: &Recon, out: &mut Vec<Violation>) {
             .filter(|block| block.span == view.key)
             .map(|block| (block.trace.clone(), block.span.clone()))
             .collect();
-        // The spans this view may draw on: itself, its thread, and the tool spans it owns.
+        // The spans this view may draw on: itself, its thread, and the tool spans it owns. A span whose frame
+        // record the view opens with is not among them: from it, only the occurrences that record holds.
         let allowed: BTreeSet<(String, String)> = view
             .thread
             .iter()
@@ -78,10 +81,39 @@ pub(super) fn check_composition(recon: &Recon, out: &mut Vec<Violation>) {
             .map(|(at, span)| (span.clone(), at))
             .collect();
 
+        // The frame records' occurrences, each to be shown at most as often as the records hold it.
+        let mut unshown = view.frame_occurrences.clone();
         let mut last_rank = 0usize;
         for (index, block) in view.blocks.iter().enumerate() {
             let origin = (block.trace.clone(), block.span.clone());
             let subject = format!("{}:{index}", view.key);
+            // A frame recorded apart from the request: the block must be one its frame records hold, on that
+            // span, from that carrier and at that place - not anything else the framing span carried, and not
+            // more often than the records hold it. A frame's block says it is one by naming its record
+            // (`frame:<digest>:<ordinal>`), and is held to the records whatever else the span is to this view.
+            if view.frames.contains(&origin) && block.position.starts_with("frame:") {
+                let held = unshown.get_mut(&(
+                    block.trace.clone(),
+                    block.span.clone(),
+                    block.carrier.clone(),
+                    block.position.clone(),
+                    block.content.to_string(),
+                ));
+                match held {
+                    Some(count) if *count > 0 => *count -= 1,
+                    _ => out.push(Violation::new(
+                        ViolationView::Request,
+                        "request.provenance",
+                        &subject,
+                        format!(
+                            "shows a block of {}/{} carrier `{}` at `{}` that no frame recorded for this request \
+                             holds there, or holds fewer times",
+                            origin.0, origin.1, block.carrier, block.position
+                        ),
+                    )),
+                }
+                continue;
+            }
             if !allowed.contains(&origin) {
                 // A span outside the thread: either another thread's request, or a span this request has no
                 // claim on at all. The first is the isolation failure and is reported as one.

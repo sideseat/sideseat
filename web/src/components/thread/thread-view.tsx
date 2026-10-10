@@ -42,7 +42,7 @@ import { useForcedOpenState } from "./use-forced-open-state";
 import { ModelLink } from "@/components/model-link";
 import { SpanErrorRow } from "./span-error-row";
 import { placeSpanErrors } from "./span-errors";
-import type { SpanEnvelope } from "@/api/otel/types";
+import type { MessagesMetadata, SpanEnvelope } from "@/api/otel/types";
 import type { ThreadViewProps, ThreadTab } from "./types";
 
 /**
@@ -489,6 +489,7 @@ export function ThreadView({
             No conversation messages were recorded here.
           </p>
         </div>
+        <ThreadNotices metadata={metadata} />
       </div>
     );
   }
@@ -507,22 +508,7 @@ export function ThreadView({
         onMarkdownToggle={handleMarkdownToggle}
       />
 
-      {/*
-        An incomplete answer must not look complete. `replay_matching_complete` is false when cross-trace
-        replay matching hit its search budget, so this thread may repeat history it would otherwise have
-        collapsed. The server omits the flag when true, so only an explicit `false` warns. Without this the
-        duplicated turns are indistinguishable from a model that actually repeated itself - exactly the wrong
-        conclusion to hand someone debugging one.
-      */}
-      {metadata?.replay_matching_complete === false && (
-        <div
-          role="status"
-          className="mx-4 mt-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
-        >
-          Repeated history may appear twice below: this conversation was large enough that
-          duplicate-detection stopped short of a complete answer.
-        </div>
-      )}
+      <ThreadNotices metadata={metadata} />
 
       {activeTab === "messages" ? (
         <MediaGalleryProvider blocks={blocks} projectId={projectId}>
@@ -616,5 +602,49 @@ export function ThreadView({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * What the server says it left out of, or could not finish in, this view. An incomplete answer must not look
+ * complete: each flag is omitted when false, so only one the server sets warns.
+ *
+ * - `replay_matching_complete === false`: cross-trace replay matching hit its search budget, so repeated
+ *   history may appear twice - otherwise indistinguishable from a model that repeated itself.
+ * - `composition_truncated`: a request's view was composed from fewer of its thread's earlier requests than the
+ *   thread holds.
+ * - `frames_truncated`: a request's view opens with fewer of the instructions recorded for it than its trace
+ *   holds, or they could not be read, or they were merged past the merge's bound.
+ */
+function ThreadNotices({ metadata }: { metadata?: Partial<MessagesMetadata> }) {
+  const notices: string[] = [];
+  if (metadata?.replay_matching_complete === false) {
+    notices.push(
+      "Repeated history may appear twice below: this conversation was large enough that duplicate-detection stopped short of a complete answer.",
+    );
+  }
+  if (metadata?.composition_truncated) {
+    notices.push(
+      "This request was sent more history than is shown: its conversation is longer than one view composes.",
+    );
+  }
+  if (metadata?.frames_truncated) {
+    notices.push(
+      "This request's instructions may be incomplete: some of what was recorded for it could not be read or shown here.",
+    );
+  }
+  if (notices.length === 0) return null;
+  return (
+    <>
+      {notices.map((notice) => (
+        <div
+          key={notice}
+          role="status"
+          className="mx-4 mt-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+        >
+          {notice}
+        </div>
+      ))}
+    </>
   );
 }

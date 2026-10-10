@@ -228,6 +228,17 @@
             "null"
           ],
           "default": null
+        },
+        "frames_requests": {
+          "description": "The requests this carrier frames, where the frame is reported apart from them: a detached request frame\nrecorded once, on another span, for every request it was sent with. Joined by a key both state.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FramesRequests"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -403,6 +414,48 @@
           "description": "Framework state that restates earlier observations.",
           "type": "string",
           "const": "accumulated_state"
+        }
+      ]
+    },
+    "FramesRequests": {
+      "description": "How a detached request frame names the requests it frames: by a key the frame states and each request\nstates, equal.\n\nA producer that records one system instruction once, on the span that started a run, and states its digest\non every request that was sent it, frames those requests from afar: the instruction is the head of each\nrequest, and only the shared key says which. Declared on an event carrier, read from the record the frame\nwas read from; the request's key is read from the request span. Equal keys within one trace join.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "frame": {
+          "description": "The frame's key: an attribute of the record the frame was read from, as `attr:<key>`.",
+          "$ref": "#/$defs/SourceName"
+        },
+        "request": {
+          "description": "The request's key: an attribute of the request span, as `attr:<key>`. Every framing carrier names the\nsame one, so a span is keyed once.",
+          "$ref": "#/$defs/SourceName"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "frame",
+        "request"
+      ]
+    },
+    "SourceName": {
+      "description": "`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.",
+      "anyOf": [
+        {
+          "enum": [
+            "span_name",
+            "attr_keys",
+            "scope.name",
+            "scope.version"
+          ]
+        },
+        {
+          "type": "string"
         }
       ]
     },
@@ -644,22 +697,6 @@
         {
           "description": "Only the first of these that has a value.",
           "$ref": "#/$defs/FirstOfSources"
-        }
-      ]
-    },
-    "SourceName": {
-      "description": "`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.",
-      "anyOf": [
-        {
-          "enum": [
-            "span_name",
-            "attr_keys",
-            "scope.name",
-            "scope.version"
-          ]
-        },
-        {
-          "type": "string"
         }
       ]
     },

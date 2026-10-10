@@ -337,6 +337,30 @@ pub struct CarrierRule {
     /// Rust, that no rule file could state.
     #[serde(default)]
     pub ordering_family: Option<String>,
+    /// The requests this carrier frames, where the frame is reported apart from them: a detached request frame
+    /// recorded once, on another span, for every request it was sent with. Joined by a key both state.
+    #[serde(default)]
+    pub frames_requests: Option<FramesRequests>,
+}
+
+/// How a detached request frame names the requests it frames: by a key the frame states and each request
+/// states, equal.
+///
+/// A producer that records one system instruction once, on the span that started a run, and states its digest
+/// on every request that was sent it, frames those requests from afar: the instruction is the head of each
+/// request, and only the shared key says which. Declared on an event carrier, read from the record the frame
+/// was read from; the request's key is read from the request span. Equal keys within one trace join.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct FramesRequests {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The frame's key: an attribute of the record the frame was read from, as `attr:<key>`.
+    pub frame: SourceName,
+    /// The request's key: an attribute of the request span, as `attr:<key>`. Every framing carrier names the
+    /// same one, so a span is keyed once.
+    pub request: SourceName,
 }
 
 /// A read-time projection decision for one producer-owned span shape.

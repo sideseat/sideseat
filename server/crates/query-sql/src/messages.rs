@@ -45,7 +45,8 @@ fn message_projection(backend: Backend) -> &'static str {
     gen_ai_cost_input::DOUBLE AS cost_input,
     gen_ai_cost_output::DOUBLE AS cost_output,
     request_thread,
-    span_marks"#
+    span_marks,
+    request_frame"#
         }
         Backend::Clickhouse => {
             r#"trace_id,
@@ -86,7 +87,8 @@ fn message_projection(backend: Backend) -> &'static str {
     toFloat64(gen_ai_cost_input) AS cost_input,
     toFloat64(gen_ai_cost_output) AS cost_output,
     request_thread,
-    span_marks"#
+    span_marks,
+    request_frame"#
         }
     }
 }
@@ -242,6 +244,7 @@ const MESSAGE_COLUMNS: &[&str] = &[
     "cost_output",
     "request_thread",
     "span_marks",
+    "request_frame",
 ];
 
 /// Every non-empty `otel_logs.messages` array for the selected spans, one row per `(trace, span)`.

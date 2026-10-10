@@ -27,6 +27,7 @@ fn make_span_row(
     // Use fixed_time() to match the timestamps in test JSON messages
     let ts = fixed_time();
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: trace_id.to_string(),
         span_id: span_id.to_string(),
         parent_span_id: parent_span_id.map(String::from),
@@ -102,6 +103,7 @@ fn make_span_row_full(
     observation_type: Option<&str>,
 ) -> MessageSpanRow {
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: trace_id.to_string(),
         span_id: span_id.to_string(),
         parent_span_id: parent_span_id.map(String::from),

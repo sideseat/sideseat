@@ -112,6 +112,10 @@ pub struct MessageSpanRow {
     /// The declared read-time facts the span answered at ingest, one bit each (`domain::rules::span_marks`).
     /// What lets a read-time rule ask about a span's attributes without the read carrying them.
     pub span_marks: u16,
+    /// The key a detached request frame names this span by, where a carrier frames requests
+    /// (`CarrierRule::frames_requests`); empty on every other span. What lets a request span's view read the
+    /// frames recorded apart from it - see `domain::sideml::feed::request_frames`.
+    pub request_frame: String,
 }
 
 impl SpanIdentity for MessageSpanRow {
@@ -158,6 +162,35 @@ pub struct RequestContextParams {
     pub call_trace_ids: Vec<String>,
     /// The traversal watermark, as every other read applies it.
     pub ingested_before_us: Option<i64>,
+}
+
+/// What a framed request span's view reads beside its own rows: the frame records of its trace stating its key.
+#[derive(Debug, Default, Clone)]
+pub struct RequestFramesParams {
+    pub project_id: ProjectId,
+    /// The trace the request sits in: a frame joins only the requests of its own trace.
+    pub trace_id: String,
+    /// The frame key the records store, matched exactly: the project's and trace's form of the request's key
+    /// (`MessageSpanRow::request_frame`), which `sideseat_domain`'s `RequestFrames::stored_key` derives.
+    pub key: u128,
+    /// The traversal watermark, as every other read applies it.
+    pub ingested_before_us: Option<i64>,
+}
+
+/// One frame record a framed request's view opens with: the messages a log record carries, and the record's
+/// identity, which orders frames totally.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequestFrameRecord {
+    pub trace_id: String,
+    /// The span the record names, which the frame's blocks keep as their provenance.
+    pub span_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub log_digest: String,
+    pub ordinal: u32,
+    /// The record's messages, the same JSON array a span's `messages` column holds - or `None` where the records
+    /// read before it already reach `REQUEST_FRAMES_MAX_BYTES`, so the statement returned its identity and not its
+    /// bytes: a cut the view then reports.
+    pub messages_json: Option<String>,
 }
 
 /// The rows those two reads answered with, kept apart because they are different evidence.

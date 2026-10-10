@@ -33,6 +33,8 @@ pub(in crate::sideml::feed) fn compute_metadata(
         replay_matching_complete,
         composed_from_requests: 0,
         composition_truncated: false,
+        framed_by_records: 0,
+        frames_truncated: false,
     }
 }
 

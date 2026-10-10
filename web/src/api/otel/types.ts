@@ -419,6 +419,13 @@ export interface MessagesMetadata {
    * the duplicated turns are indistinguishable from a model that actually repeated itself.
    */
   replay_matching_complete?: boolean;
+  /** A request's view was composed from fewer of its thread's earlier requests than the thread holds. Omitted when false. */
+  composition_truncated?: boolean;
+  /**
+   * A request's view opens with fewer of the frames recorded for it than its trace holds, could not read them, or
+   * merged them past the merge's bound. Omitted when false.
+   */
+  frames_truncated?: boolean;
 }
 
 // One envelope per span in scope: the request's parameters, models, ids, usage and cost breakdown,

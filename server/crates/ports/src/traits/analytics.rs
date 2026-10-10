@@ -433,6 +433,15 @@ pub trait MessageStore: Send + Sync {
         &self,
         params: &crate::types::RequestContextParams,
     ) -> Result<crate::types::RequestContextRows, DataError>;
+
+    /// The frame records a framed request span's view opens with: the log records of `trace_id` whose frame key
+    /// is exactly `key`, each record's winning revision once, in `(timestamp, log_digest, ordinal)` order, and at
+    /// most one past `REQUEST_FRAMES_MAX_RECORDS` of them, so a caller can tell the bound was reached. Keyed by
+    /// trace and key in the statement itself, so it is never proportional to the project.
+    async fn get_request_frames(
+        &self,
+        params: &crate::types::RequestFramesParams,
+    ) -> Result<Vec<crate::types::RequestFrameRecord>, DataError>;
 }
 
 /// Deletes, counts and the watermark - what a sweep needs and a read path does not.

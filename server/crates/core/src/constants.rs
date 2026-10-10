@@ -252,6 +252,26 @@ pub const CONTENT_BLOCK_MAX_DEPTH: usize = 32;
 /// 600; no capture approaches either.
 pub const REQUEST_THREAD_MAX_BYTES: usize = 64 * 1024 * 1024;
 
+/// How many frame records one framed request's view reads from its trace.
+///
+/// A detached request frame is recorded once per distinct frame - a system instruction per agent of a run - and
+/// a request is joined to the records of its own trace stating its key, so the corpus's largest answer is one.
+/// The bound is the statement's `LIMIT`: a trace whose producer wrote more records under one key is read up to
+/// it, first in record order, and the view says it was cut.
+pub const REQUEST_FRAMES_MAX_RECORDS: usize = 16;
+
+/// How many bytes of frame records one framed request's view parses. Past it, the later records are left out
+/// and the view says it was cut, as a composed thread does past `REQUEST_THREAD_MAX_BYTES`.
+pub const REQUEST_FRAMES_MAX_BYTES: usize = 4 * 1024 * 1024;
+
+/// How many cells the merge of a request's own frame with its joined frames may tabulate: one more than each side's
+/// block count left once their common head and tail are set aside, multiplied - the table's real size. Within it
+/// the merge is the exact longest common subsequence; past it - frames of a thousand sections on both sides, which
+/// no producer records - the shared blocks are matched greedily in order, which keeps both sides' order and every
+/// block but may keep a shared block twice, and the view says the merge was not exact. Four bytes a cell, so the
+/// table stays within 4 MiB.
+pub const REQUEST_FRAMES_MERGE_MAX_CELLS: usize = 1 << 20;
+
 /// How many observations one rule may produce from one span's carrier.
 ///
 /// A rule reading an array emits one observation per element, so a payload holding a hundred thousand elements

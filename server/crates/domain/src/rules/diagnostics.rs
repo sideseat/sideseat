@@ -322,7 +322,8 @@ impl SectionDefect for super::carrier_rules::CompileError {
             | E::UnknownObservationType { clause, .. }
             | E::NoPrimaryKey { clause }
             | E::DuplicateClauseId { clause }
-            | E::EmptyLiteral { clause } => vec![clause],
+            | E::EmptyLiteral { clause }
+            | E::Frames { clause, .. } => vec![clause],
             E::Ambiguous { first, second, .. } => vec![first, second],
         }
     }

@@ -97,6 +97,8 @@ pub(super) fn process_multi_trace_spans(
             replay_matching_complete,
             composed_from_requests: 0,
             composition_truncated: false,
+            framed_by_records: 0,
+            frames_truncated: false,
         },
     }
 }
@@ -450,6 +452,8 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
                 replay_matching_complete,
                 composed_from_requests: 0,
                 composition_truncated: false,
+                framed_by_records: 0,
+                frames_truncated: false,
             },
         },
         options.role.as_deref(),

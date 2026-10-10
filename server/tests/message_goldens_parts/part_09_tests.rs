@@ -393,6 +393,8 @@ fn assert_composed_scope(label: &str, view_name: &str, scope: &Scope, rows: &[In
         span_id,
         thread,
         calls,
+        frames,
+        ..
     } = scope
     else {
         panic!("{label} / {view_name}: not a composed request scope");
@@ -401,9 +403,9 @@ fn assert_composed_scope(label: &str, view_name: &str, scope: &Scope, rows: &[In
         let own = (&r.trace_id, &r.span_id) == (trace_id, span_id);
         let origin = (r.trace_id.clone(), r.span_id.clone());
         assert!(
-            own || thread.contains(&origin) || calls.contains(&origin),
+            own || thread.contains(&origin) || calls.contains(&origin) || frames.contains(&origin),
             "{label} / {view_name}: a block from {origin:?} - neither this request, nor its thread, nor a tool \
-             span it owns - leaked into a composed span view"
+             span it owns, nor a frame recorded for it - leaked into a composed span view"
         );
     }
 }

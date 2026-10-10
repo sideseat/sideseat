@@ -23,6 +23,11 @@
         "preset": "snapshot",
         "carrier_is_detached_request_frame": true,
         "carrier_holds_span_input": true
+      },
+      "frames_requests": {
+        "doc": "The record sits on the span that started the run - the interaction for the main agent, the Agent tool's execution for a subagent - and not on the requests it framed, which are its children's children. Both state the instruction's digest: the record as `system_prompt_hash` beside the instruction, and every `claude_code.llm_request` sent it as its own `system_prompt_hash`. Two agents of one run hold different instructions and so different digests, which is why the record frames by key and not by where it sits: the main agent's interaction encloses every subagent's requests too.",
+        "frame": "attr:system_prompt_hash",
+        "request": "attr:system_prompt_hash"
       }
     },
     {

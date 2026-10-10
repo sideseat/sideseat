@@ -502,6 +502,7 @@ fn session_rows(turns: usize) -> Vec<sideseat_ports::types::MessageSpanRow> {
                 ts = t.to_rfc3339()
             );
             sideseat_ports::types::MessageSpanRow {
+                request_frame: String::new(),
                 trace_id: format!("trace-{turn}"),
                 span_id: format!("span-{turn}-0"),
                 parent_span_id: None,

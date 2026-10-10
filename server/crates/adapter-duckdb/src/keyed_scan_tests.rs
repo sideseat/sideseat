@@ -684,3 +684,6 @@ async fn a_composed_request_reads_its_thread_and_its_calls_through_the_index() {
         "the thread read scanned {scanned} of {total} rows for 5 matching, so it read the store"
     );
 }
+
+#[path = "keyed_scan_frames_tests.rs"]
+mod frames;

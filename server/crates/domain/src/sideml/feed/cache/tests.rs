@@ -4,6 +4,7 @@ use chrono::{TimeZone, Utc};
 fn row(span: &str, messages: &str) -> MessageSpanRow {
     let t = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).single().unwrap();
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: "trace-1".to_string(),
         span_id: span.to_string(),
         parent_span_id: None,

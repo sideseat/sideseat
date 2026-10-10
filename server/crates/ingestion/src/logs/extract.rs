@@ -9,6 +9,7 @@ use crate::otlp::{
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::common::v1::AnyValue;
+use sideseat_core::constants::DEFAULT_PROJECT_ID;
 use sideseat_core::utils::time::nanos_to_datetime;
 use sideseat_ports::types::NormalizedLog;
 
@@ -62,9 +63,23 @@ pub fn extract_logs_batch(
                     .map(|scope| scope.name.as_str())
                     .filter(|n| !n.is_empty());
                 let messages = super::messages::log_record_messages(record, scope_name);
+                let trace_id = nonempty_hex(&record.trace_id);
+                let project_id = resource_map.get(PROJECT_ID_ATTR).cloned();
+                // Stored in the project's and trace's form, which keeps the frames read to the trace's frames
+                // (`RequestFrames::stored_key`). A record no request named a project for is attributed to the
+                // default one, as the write fence attributes it.
+                let frame_key = super::messages::log_record_frame_key(record, &messages)
+                    .zip(trace_id.as_deref())
+                    .and_then(|(key, trace)| {
+                        sideseat_domain::rules::carrier_rules::RequestFrames::stored_key(
+                            project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                            trace,
+                            &key,
+                        )
+                    });
 
                 let mut log = NormalizedLog {
-                    project_id: resource_map.get(PROJECT_ID_ATTR).cloned(),
+                    project_id,
                     log_digest: digest,
                     ordinal: this_ordinal,
                     timestamp: time.or(observed_time).unwrap_or(received_at),
@@ -77,7 +92,7 @@ pub fn extract_logs_batch(
                     attributes: attrs_to_typed_json(&record.attributes),
                     dropped_attributes_count: record.dropped_attributes_count,
                     flags: record.flags,
-                    trace_id: nonempty_hex(&record.trace_id),
+                    trace_id,
                     span_id: nonempty_hex(&record.span_id),
                     event_name: nonempty(&record.event_name),
                     session_id: get_session_id(&attributes_map)
@@ -102,6 +117,7 @@ pub fn extract_logs_batch(
                     search: Default::default(),
                     messages: (!messages.is_empty())
                         .then(|| serde_json::to_string(&messages).unwrap_or_default()),
+                    frame_key,
                 };
                 log.logical_bytes = crate::accounting::log_logical_bytes(&mut log);
                 result.push(log);
@@ -261,6 +277,76 @@ mod tests {
             first[0].log_digest,
             super::super::identity::log_digest(&record, None, "", None, ""),
             "the digest is the record's, not the derived column's"
+        );
+        assert_eq!(
+            first[0].frame_key, None,
+            "a record that frames nothing stores no frame key, not an empty one"
+        );
+    }
+
+    /// A frame record's key is stored in its project's and trace's form, which is what the frames read binds:
+    /// one trace id and one key under two projects are two keys. Outside a trace the record frames nothing.
+    #[test]
+    fn a_frame_record_stores_its_key_in_its_projects_and_traces_form() {
+        let member = |key: &str, value: &str| opentelemetry_proto::tonic::common::v1::KeyValue {
+            key: key.to_string(),
+            value: Some(AnyValue {
+                value: Some(any_value::Value::StringValue(value.to_string())),
+            }),
+        };
+        let record = |trace_id: Vec<u8>| LogRecord {
+            time_unix_nano: 1_700_000_000_000_000_000,
+            trace_id,
+            span_id: vec![2; 8],
+            attributes: vec![
+                member("event.name", "system_prompt"),
+                member("system_prompt", "You are a researcher."),
+                member("system_prompt_hash", "sp_a47e"),
+            ],
+            ..Default::default()
+        };
+        let export = |project: Option<&str>, records: Vec<LogRecord>| {
+            let mut request = ExportLogsServiceRequest {
+                resource_logs: vec![ResourceLogs {
+                    scope_logs: vec![ScopeLogs {
+                        log_records: records,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            };
+            if let Some(project) = project {
+                crate::otlp::inject_project_id_logs(&mut request, project);
+            }
+            extract_logs_batch(
+                &request,
+                DateTime::from_timestamp(1_700_000_100, 0).unwrap(),
+            )
+        };
+        let stored = |project: &str, trace: &str| {
+            sideseat_domain::rules::carrier_rules::RequestFrames::stored_key(
+                project, trace, "sp_a47e",
+            )
+        };
+        let trace = "01".repeat(16);
+        let mine = export(Some("mine"), vec![record(vec![1; 16]), record(Vec::new())]);
+        assert_eq!(mine[0].trace_id.as_deref(), Some(trace.as_str()));
+        assert!(
+            mine[0].frame_key.is_some(),
+            "the instruction frames requests"
+        );
+        assert_eq!(mine[0].frame_key, stored("mine", &trace));
+        assert_eq!(mine[1].frame_key, None, "outside a trace");
+        let theirs = export(Some("theirs"), vec![record(vec![1; 16])]);
+        assert_eq!(theirs[0].frame_key, stored("theirs", &trace));
+        assert_ne!(
+            mine[0].frame_key, theirs[0].frame_key,
+            "one trace id and one key in two projects are two keys"
+        );
+        assert_eq!(
+            export(None, vec![record(vec![1; 16])])[0].frame_key,
+            stored(DEFAULT_PROJECT_ID, &trace),
+            "a record no request named a project for is the default project's"
         );
     }
 }

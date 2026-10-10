@@ -114,6 +114,26 @@ pub(super) struct View {
     /// told from a plain one.
     pub thread: Vec<(String, String)>,
     pub owned_calls: BTreeSet<(String, String)>,
+    /// For a span view opened with frames recorded apart from it (`frames_requests`): the spans those frame
+    /// records name, and the occurrences they hold, each as often as they hold it (`crate::FrameOccurrences`).
+    /// Empty for every other view.
+    pub frames: BTreeSet<(String, String)>,
+    pub frame_occurrences: crate::FrameOccurrences,
+}
+
+impl View {
+    /// A span view that is neither composed from a thread nor opened with frames.
+    pub(super) fn plain_span(key: String, blocks: Vec<Block>) -> Self {
+        Self {
+            kind: ViewKind::Span,
+            key,
+            blocks,
+            thread: Default::default(),
+            owned_calls: Default::default(),
+            frames: Default::default(),
+            frame_occurrences: Default::default(),
+        }
+    }
 }
 
 /// What a span reports about the model call it may have recorded, beside its messages.
@@ -342,9 +362,25 @@ pub(super) fn from_built(
                 raw: replayed.raw.take(),
             });
         }
-        let (thread, owned_calls) = match scope {
-            Scope::RequestSpan { thread, calls, .. } => (thread.clone(), calls.clone()),
-            _ => (Vec::new(), BTreeSet::new()),
+        let (thread, owned_calls, frames, frame_occurrences) = match scope {
+            Scope::RequestSpan {
+                thread,
+                calls,
+                frames,
+                frame_occurrences,
+                ..
+            } => (
+                thread.clone(),
+                calls.clone(),
+                frames.clone(),
+                frame_occurrences.clone(),
+            ),
+            _ => (
+                Vec::new(),
+                BTreeSet::new(),
+                BTreeSet::new(),
+                Default::default(),
+            ),
         };
         views.push(View {
             kind,
@@ -352,6 +388,8 @@ pub(super) fn from_built(
             blocks,
             thread,
             owned_calls,
+            frames,
+            frame_occurrences,
         });
     }
     let session_of_trace = built

@@ -541,13 +541,9 @@ pub(super) fn failed_span(truth: &mut Truth, recon: &mut Recon, speaks: bool) ->
         block.refresh();
         blocks.push(block);
     }
-    recon.views.push(super::recon::View {
-        kind: ViewKind::Span,
-        key: span,
-        blocks,
-        thread: Default::default(),
-        owned_calls: Default::default(),
-    });
+    recon
+        .views
+        .push(super::recon::View::plain_span(span, blocks));
     true
 }
 
@@ -810,13 +806,9 @@ pub(super) fn unexpected_generation(_: &mut Truth, recon: &mut Recon) -> bool {
         response_id: None,
         ..template
     });
-    recon.views.push(super::recon::View {
-        kind: ViewKind::Span,
-        key: span,
-        thread: Default::default(),
-        owned_calls: Default::default(),
-        blocks: vec![block],
-    });
+    recon
+        .views
+        .push(super::recon::View::plain_span(span, vec![block]));
     true
 }
 

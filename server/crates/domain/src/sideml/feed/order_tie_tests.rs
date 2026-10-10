@@ -35,6 +35,7 @@ fn row(span: &str, trace: &str, messages: Vec<serde_json::Value>) -> MessageSpan
         direction: None,
     }];
     MessageSpanRow {
+        request_frame: String::new(),
         trace_id: trace.to_string(),
         span_id: span.to_string(),
         parent_span_id: None,

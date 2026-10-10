@@ -867,4 +867,19 @@ impl MessageStore for DuckdbRepository {
         .map_err(DataError::from)?
         .map_err(Into::into)
     }
+
+    async fn get_request_frames(
+        &self,
+        params: &sideseat_ports::types::RequestFramesParams,
+    ) -> Result<Vec<sideseat_ports::types::RequestFrameRecord>, DataError> {
+        let db = Arc::clone(&self.0);
+        let params = params.clone();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            messages::get_request_frames(&conn, &params)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
 }

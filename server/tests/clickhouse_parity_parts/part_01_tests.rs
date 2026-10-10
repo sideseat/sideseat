@@ -143,6 +143,7 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
                 // columns that are empty everywhere.
                 request_thread: r#"["parity.thread","session-1"]"#.to_string(),
                 span_marks: 0b101,
+                request_frame: "parity.frame".to_string(),
                 ..base("trace-a", "a-gen-1", "generation", 1)
             },
             100,
@@ -436,7 +437,7 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
          exception={:?}/{:?}/{:?} tokens=[{},{},{}] cost={} observation={:?} session={:?} \
          messages={} tools={} tool_names={} scope={:?}/{:?} span_name={:?} framework={:?} \
          response={:?}/{:?} params=[{:?},{:?},{:?}] finish={:?} \
-         usage=[{},{},{}] cost_split=[{},{}] thread={} marks={}",
+         usage=[{},{},{}] cost_split=[{},{}] thread={} marks={} frame={}",
         r.span_id,
         r.trace_id,
         r.parent_span_id,
@@ -477,6 +478,8 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
         // the pipeline different answers while every other column matched.
         r.request_thread,
         r.span_marks,
+        // And the key a detached frame names a request by.
+        r.request_frame,
     )
 }
 

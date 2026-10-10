@@ -195,7 +195,12 @@ what remains is one single-column index per key a read looks rows up by (`otel_s
 error. Every read keyed on one of them is written so the key is its scan's only filter
 (`sideseat_query_sql::keyed`), binds at most 512 keys, and stays on the index however many rows its keys find
 (DuckDB's `index_scan_max_count`, raised on the connection), so a long trace or a span id a client reuses costs the
-rows it asks for rather than the table; deletes go by the row ids a keyed read found. Log records and datapoints
+rows it asks for rather than the table; deletes go by the row ids a keyed read found. What an index scan holds of
+those rows sits outside `memory_limit`: DuckDB 1.5.6 gathers the key's row ids in a `std::set` while the scan
+initialises, about 50 B a row, then keeps them as an array of 8 B a row, neither through the buffer manager; and it
+fetches the rows one at a time, roughly 30 µs a row. Both grow with the rows a key finds, which the read has to
+answer anyway - a million rows under one key is about 50 MB of heap for a moment and 30 seconds of fetches
+(`docs/engineering/request-context.md` has the frames read's measurements). Log records and datapoints
 carry their own instant in their identity, so their reads take no index - one on `log_digest` measured 68 B per
 record and one on `datapoint_id` 85 B per point - but a list of the records' exact instants, which the row groups'
 zone maps answer one value at a time: a range from the earliest to the latest instant reads every row group
