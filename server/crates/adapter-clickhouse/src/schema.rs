@@ -829,11 +829,20 @@ fn otel_logs_columns() -> &'static str {
 "#
 }
 
+/// The log partition: the month of the record's own time, else its observed time - both the producer's, so every
+/// delivery of a record lands in one partition - and one partition for records with neither.
+///
+/// Not the month of `timestamp`, which falls back to the receipt for a record with no time of its own: the client
+/// resolves `FINAL` a partition at a time, so the same record delivered again in another month was two rows, and
+/// every read of it - its span's log messages among them - had it twice.
+pub(crate) const OTEL_LOGS_PARTITION: &str =
+    "toYYYYMM(coalesce(time, observed_time, toDateTime64(0, 6, 'UTC')))";
+
 fn otel_logs_local_table(config: &ClickhouseConfig) -> String {
     format!(
         "CREATE TABLE IF NOT EXISTS otel_logs_local ON CLUSTER {cluster} ({columns}) \
          ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_logs', \
-         '{{replica}}', ingested_at) PARTITION BY toYYYYMM(timestamp) \
+         '{{replica}}', ingested_at) PARTITION BY {OTEL_LOGS_PARTITION} \
          ORDER BY (project_id, log_digest, ordinal) \
          TTL greatest(timestamp + INTERVAL 90 DAY, coalesce(hold_until, toDateTime64(0, 6, 'UTC'))) DELETE SETTINGS index_granularity = 8192",
         cluster = safe_cluster_name(config),
@@ -854,7 +863,7 @@ fn otel_logs_distributed_table(config: &ClickhouseConfig) -> String {
 fn otel_logs_single_table() -> String {
     format!(
         "CREATE TABLE IF NOT EXISTS otel_logs ({}) \
-         ENGINE = ReplacingMergeTree(ingested_at) PARTITION BY toYYYYMM(timestamp) \
+         ENGINE = ReplacingMergeTree(ingested_at) PARTITION BY {OTEL_LOGS_PARTITION} \
          ORDER BY (project_id, log_digest, ordinal) \
          TTL greatest(timestamp + INTERVAL 90 DAY, coalesce(hold_until, toDateTime64(0, 6, 'UTC'))) DELETE SETTINGS index_granularity = 8192",
         otel_logs_columns()

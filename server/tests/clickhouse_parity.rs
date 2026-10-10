@@ -61,3 +61,4 @@ include!("clickhouse_parity_parts/part_14_tests.rs");
 include!("clickhouse_parity_parts/part_15_tests.rs");
 include!("clickhouse_parity_parts/part_16_tests.rs");
 include!("clickhouse_parity_parts/part_17_tests.rs");
+include!("clickhouse_parity_parts/part_18_tests.rs");

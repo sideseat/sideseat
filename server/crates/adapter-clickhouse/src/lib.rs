@@ -464,6 +464,7 @@ impl ClickhouseService {
         // Whichever the decision: on a cluster the version row is the shard's own, so a shard other than the one
         // that created the store finds none and would create - keeping, through `IF NOT EXISTS`, a table it holds.
         self.refuse_partitioned_raw_records().await?;
+        self.refuse_receipt_partitioned_logs().await?;
         match decision {
             SchemaCheck::Current => Ok(()),
             SchemaCheck::Create => self.apply_initial_schema().await,
@@ -480,6 +481,29 @@ impl ClickhouseService {
                 "SELECT name, partition_key FROM system.tables \
                  WHERE database = currentDatabase() AND name IN ('otel_raw', 'otel_raw_local') \
                    AND partition_key != ''",
+            )
+            .fetch_all()
+            .await
+            .map_err(ClickhouseError::from)?;
+        match partitioned.into_iter().next() {
+            Some((table, partition_key)) => Err(ClickhouseError::IncompatibleLayout {
+                table,
+                partition_key,
+            }),
+            None => Ok(()),
+        }
+    }
+
+    /// Refuse a store whose log records are partitioned by `timestamp`, as one created before they stopped being
+    /// is: `timestamp` falls back to the receipt, so a record delivered again in another month reads twice
+    /// (`schema::OTEL_LOGS_PARTITION`).
+    async fn refuse_receipt_partitioned_logs(&self) -> Result<(), ClickhouseError> {
+        let partitioned: Vec<(String, String)> = self
+            .client
+            .query(
+                "SELECT name, partition_key FROM system.tables \
+                 WHERE database = currentDatabase() AND name IN ('otel_logs', 'otel_logs_local') \
+                   AND partition_key = 'toYYYYMM(timestamp)'",
             )
             .fetch_all()
             .await
