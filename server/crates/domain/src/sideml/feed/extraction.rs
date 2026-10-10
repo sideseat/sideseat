@@ -754,7 +754,15 @@ fn classify_blocks_with_history(
         }
     }
     let mut terminal_assistant_roots = HashSet::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each span's roots decide its own entries, into a set"
+    )]
     for (trace_id, spans) in roots_by_span {
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each span's roots decide its own entries, into a set"
+        )]
         for (span_id, roots) in spans {
             let Some((&last, true)) = roots.last_key_value() else {
                 continue;

@@ -330,6 +330,10 @@ impl PrefixSearch<'_> {
         self.state.relations[trace].collect_ancestors(position, &mut reached);
         let known = self.must_precede.entry(trace).or_default();
         let mut added = Vec::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "the nodes added are only ever removed again, as a set"
+        )]
         for node in reached {
             if known.insert(node) {
                 added.push(node);

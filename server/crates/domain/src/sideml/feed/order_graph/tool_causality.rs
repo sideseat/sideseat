@@ -49,6 +49,10 @@ pub(super) fn exact_tool_pairs(
     }
 
     let mut pairs = HashSet::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each result decides its own pair alone, into a set"
+    )]
     for (result, ids) in result_ids {
         if survivors
             .get(result)
@@ -98,18 +102,29 @@ pub(super) fn parallel_tool_branches(
     }
 
     let mut results_by_call: HashMap<usize, Vec<usize>> = HashMap::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "a result has one call, and each list is only read to give its results that call's branch"
+    )]
     for &(call, result) in exact_pairs {
         results_by_call.entry(call).or_default().push(result);
     }
+    // In emission order, and a survivor two multi-call emissions both hold keeps the first one's branch: one
+    // call observed through two carriers is two emissions of it, and which of them claimed it was the map's
+    // hash order, so the branch - and the edges `causal_sequence_edges` relaxes by it - changed between runs.
+    let mut emissions: Vec<(usize, HashSet<usize>)> = calls_by_emission.into_iter().collect();
+    emissions.sort_unstable_by_key(|(emission, _)| *emission);
     let mut branches = HashMap::new();
-    for (emission, calls) in calls_by_emission {
+    for (emission, calls) in emissions {
         if calls.len() < 2 {
             continue;
         }
+        let mut calls: Vec<usize> = calls.into_iter().collect();
+        calls.sort_unstable();
         for call in calls {
-            branches.insert(call, (emission, call));
+            branches.entry(call).or_insert((emission, call));
             for &result in results_by_call.get(&call).into_iter().flatten() {
-                branches.insert(result, (emission, call));
+                branches.entry(result).or_insert((emission, call));
             }
         }
     }
@@ -137,6 +152,10 @@ pub(super) fn causal_sequence_edges(
     }
 
     let mut parallel = HashSet::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each emission is judged alone, into a set"
+    )]
     for (&emission, branch_bounds) in &by_emission {
         if branch_bounds.len() < 2 {
             continue;
@@ -176,6 +195,10 @@ pub(super) fn causal_sequence_edges(
         }
     }
 
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "every edge goes into a set, and the bounds' minimum and maximum have no order"
+    )]
     for emission in parallel {
         let branch_bounds = &by_emission[&emission];
         let first = branch_bounds
@@ -189,11 +212,13 @@ pub(super) fn causal_sequence_edges(
             .max()
             .unwrap_or(0);
         if let Some(&before) = first.checked_sub(1).and_then(|index| sequence.get(index)) {
+            #[expect(clippy::iter_over_hash_type, reason = "into a set")]
             for &(branch_first, _) in branch_bounds.values() {
                 edges.insert((before, sequence[branch_first]));
             }
         }
         if let Some(&after) = sequence.get(last + 1) {
+            #[expect(clippy::iter_over_hash_type, reason = "into a set")]
             for &(_, branch_last) in branch_bounds.values() {
                 edges.insert((sequence[branch_last], after));
             }

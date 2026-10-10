@@ -485,3 +485,26 @@ fn a_history_copy_does_not_date_a_directly_observed_unit() {
         ["tool-b", "tool-a"]
     );
 }
+
+/// One call observed through two carriers is two multi-call emissions of it, and the call belongs to the first
+/// emission's branch in every run. Assigned in the hash order of the emissions, it moved between them, and the
+/// edges relaxed across parallel branches with it.
+#[test]
+fn a_call_two_emissions_hold_keeps_the_first_emission_s_branch_every_time() {
+    // Survivors 0 and 1 are one emission's calls; survivors 0 and 2 another's: survivor 0 is in both.
+    let call = |emission: usize, id: &str| OrderEvidence {
+        emission: Some(emission),
+        tool_reference: Some(ToolReference::Call(id.to_string())),
+        ..evidence(emission, 0)
+    };
+    let observations = vec![call(0, "a"), call(0, "b"), call(1, "a"), call(1, "c")];
+    let lineage = vec![Some(0), Some(1), Some(0), Some(2)];
+    let runs: std::collections::BTreeSet<Option<(usize, usize)>> = (0..64)
+        .map(|_| {
+            parallel_tool_branches(&observations, &lineage, &HashSet::new())
+                .get(&0)
+                .copied()
+        })
+        .collect();
+    assert_eq!(runs, std::collections::BTreeSet::from([Some((0, 0))]));
+}

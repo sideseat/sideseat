@@ -164,6 +164,7 @@ fn requests_of(rows: Vec<MessageSpanRow>, keep_bytes: usize) -> (Vec<Request>, b
         let items = raw_items(row);
         let restated = restates(&items, &seen).then(|| {
             let mut counts: HashMap<String, usize> = HashMap::new();
+            #[expect(clippy::iter_over_hash_type, reason = "into a map")]
             for carrier in seen.keys() {
                 counts.insert(carrier.clone(), seen[carrier].len());
             }

@@ -52,6 +52,10 @@ pub(super) fn resent_parts<'a>(
     }
     // The one call each orphaned part is re-sent with, or `None` once two messages disagree.
     let mut call_of: HashMap<DedupKey, Option<&str>> = HashMap::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "agreement is commutative: a part keeps its call only where every message re-sending it names that one call"
+    )]
     for parts in messages.values() {
         let calls: BTreeSet<&str> = parts
             .iter()

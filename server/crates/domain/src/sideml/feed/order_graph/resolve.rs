@@ -270,6 +270,7 @@ pub(in crate::sideml::feed) fn resolve(
         units.iter().map(|&u| (u, Vec::new())).collect();
     let mut indegree: HashMap<usize, usize> = units.iter().map(|&u| (u, 0)).collect();
     let mut edges: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+    #[expect(clippy::iter_over_hash_type, reason = "ready set is ordered")]
     for &(call_unit, result_unit) in &exact_tool_edges {
         add_edge(
             call_unit,
@@ -625,6 +626,7 @@ pub(in crate::sideml::feed) fn resolve(
 
         let mut already_seen: BTreeSet<usize> = BTreeSet::new();
         // Requests that only carry arrays still take part in first-seen accounting.
+        #[expect(clippy::iter_over_hash_type, reason = "sorted right after")]
         for span in arrays_by_span.keys() {
             if !requests.contains(span) {
                 requests.push(*span);

@@ -43,6 +43,10 @@ impl TypeIndex {
                 by_type.entry(name.clone()).or_default().push(index);
             }
         }
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each list is extended and sorted on its own"
+        )]
         for list in by_type.values_mut() {
             list.extend(&untyped);
             list.sort_unstable();

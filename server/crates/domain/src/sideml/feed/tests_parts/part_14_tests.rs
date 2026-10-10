@@ -110,3 +110,46 @@ fn the_declared_control_and_wrapper_members_match_the_literals_they_replace() {
         assert_eq!(wrapped(&object), object.get("json").cloned(), "{object}");
     }
 }
+
+/// A project feed holding two conversations lists their tools in one order, whatever map built it: each
+/// conversation states `search` differently, and the forms are kept in the order they are met. Met in a hash
+/// order of the conversations, the same page listed them either way round between runs.
+#[test]
+fn a_feed_of_two_conversations_lists_their_tools_in_one_order() {
+    let row = |trace: &str, session: &str, description: &str| {
+        let messages = json!([{
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+            "content": {"role": "user", "content": format!("a question in {session}")}
+        }]);
+        let tools = json!([{"name": "search", "description": description}]);
+        let mut row = make_span_row(
+            trace,
+            "span",
+            None,
+            &messages.to_string(),
+            &tools.to_string(),
+            "[]",
+        );
+        row.session_id = Some(session.to_string());
+        row
+    };
+    let rows = vec![
+        row("trace-b", "session-b", "the archive"),
+        row("trace-a", "session-a", "the web"),
+    ];
+    let runs: std::collections::BTreeSet<Vec<String>> = (0..64)
+        .map(|_| {
+            process_feed(rows.clone(), &FeedOptions::new())
+                .tool_definitions
+                .iter()
+                .map(|tool| tool.to_string())
+                .collect()
+        })
+        .collect();
+    assert_eq!(
+        runs.len(),
+        1,
+        "the tools came back in more than one order: {runs:?}"
+    );
+    assert_eq!(runs.first().map(Vec::len), Some(2), "{runs:?}");
+}

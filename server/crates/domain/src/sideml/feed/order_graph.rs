@@ -589,11 +589,19 @@ pub(super) fn causal_precedence(
                 sequence.push(survivor);
             }
         }
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "the relation is read by membership, ancestor closure and any-successor lookahead, never by the order of an adjacency list"
+        )]
         for (from, to) in causal_sequence_edges(&sequence, &parallel_branches) {
             add(from, to, &mut predecessors, &mut successors);
         }
     }
 
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "the relation is read by membership, ancestor closure and any-successor lookahead, never by the order of an adjacency list"
+    )]
     for (call, result) in exact_pairs {
         add(call, result, &mut predecessors, &mut successors);
     }

@@ -404,7 +404,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     // ids, so a trace whose session was literally named `trace:B` grouped with the sessionless trace B -
     // two unrelated conversations reconstructed as one, where either can strip the other's messages as
     // replayed history. Session ids come from the client, so that is a collision a caller can cause.
-    #[derive(Clone, PartialEq, Eq, Hash)]
+    #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
     enum Conversation {
         Session(String),
         LoneTrace(String),
@@ -421,7 +421,11 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
         })
         .collect();
 
-    let mut spans_by_conversation: HashMap<Conversation, Vec<MessageSpanRow>> = HashMap::new();
+    // Ordered, because the conversations' tool definitions are merged in the order they are met - the first form
+    // a definition does not contradict absorbs it - and their costs summed in it, and floating-point addition is
+    // not associative: in a hash order the same page listed its tools and stated its cost differently between
+    // runs.
+    let mut spans_by_conversation: BTreeMap<Conversation, Vec<MessageSpanRow>> = BTreeMap::new();
     for row in rows {
         let key = conversation_of_trace
             .get(&row.trace_id)

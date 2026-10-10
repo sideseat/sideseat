@@ -46,6 +46,10 @@ pub(super) fn redundant_relistings(
         }
     }
     let mut out = HashSet::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each instance is judged alone, into a set"
+    )]
     for (&instance, members) in &claimed {
         if members.is_empty() || instance_accumulator.get(&instance) != Some(&true) {
             continue;
@@ -107,6 +111,10 @@ pub(super) fn redundant_relistings(
         // by the one call that produced it.
         let merges_responses = || {
             let mut common: Option<HashSet<usize>> = None;
+            #[expect(
+                clippy::iter_over_hash_type,
+                reason = "an intersection: whether it empties does not depend on the order it is taken in"
+            )]
             for member in members {
                 let witnesses = witnesses(member);
                 let narrowed: HashSet<usize> = match common {

@@ -523,6 +523,10 @@ pub(super) fn indexed_entries(
     let family_dot = format!("{family}.");
     let mut buckets: std::collections::BTreeMap<usize, Vec<(&str, &String)>> =
         std::collections::BTreeMap::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "every key lands in its own (index, member) slot, and each bucket is sorted by member below"
+    )]
     for (key, value) in attrs {
         if let Some(rest) = key.strip_prefix(&family_dot)
             && let Some(index) = rest.split('.').next()

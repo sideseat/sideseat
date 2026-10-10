@@ -466,6 +466,7 @@ fn tool_result_aliases<'a>(
     }
 
     let mut aliases: HashMap<DedupKey, MessageIdentity> = HashMap::new();
+    #[expect(clippy::iter_over_hash_type, reason = "keys differ per group")]
     for (group, idless) in without_id {
         let Some(candidates) = with_id.get(&group) else {
             continue;
@@ -482,6 +483,7 @@ fn tool_result_aliases<'a>(
             aliases.insert((identity, group.1), canonical.clone());
         }
     }
+    #[expect(clippy::iter_over_hash_type, reason = "keys differ per group")]
     for (group, copies) in anonymous {
         let Some(candidates) = named.get(&group) else {
             continue;
@@ -703,7 +705,7 @@ fn deduplicate_with_lineage(
     // cannot break (same span, same timestamp, same indices). Leaving those ties to hash
     // order lets two identical requests return the message list in different orders.
     // Anchor it here so the pipeline is a pure function of its input.
-    result.sort_by(|(a, _), (b, _)| {
+    result.sort_by(|(a, a_key), (b, b_key)| {
         a.trace_id
             .cmp(&b.trace_id)
             .then_with(|| a.span_id.cmp(&b.span_id))
@@ -719,6 +721,10 @@ fn deduplicate_with_lineage(
             // requests returned the same messages in a different order. Observed directly:
             // repeated runs over one fixture disagreed on 3 then 4 views.
             .then_with(|| a.content_hash.cmp(&b.content_hash))
+            // A content hash leaves out a call's id, so two calls of one shape a span's two carriers place at
+            // one position tie on all of it, and their rank and id are what tell them apart.
+            .then_with(|| a_key.1.cmp(&b_key.1))
+            .then_with(|| a.tool_use_id.cmp(&b.tool_use_id))
     });
 
     tracing::trace!(

@@ -116,6 +116,10 @@ pub(super) fn apply_plain_occurrence_ordinals(blocks: &[BlockEntry], ordinals: &
     }
 
     let mut anchors_by_group: HashMap<OccurrenceGroup<'_>, Vec<Anchor<'_>>> = HashMap::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each group's anchors are sorted below by a key that tells every two of them apart"
+    )]
     for &anchor in members_by_anchor.keys() {
         let block = &blocks[members_by_anchor[&anchor][0]];
         let group = if block.role == ChatRole::User {
@@ -130,6 +134,10 @@ pub(super) fn apply_plain_occurrence_ordinals(blocks: &[BlockEntry], ordinals: &
         anchors_by_group.entry(group).or_default().push(anchor);
     }
     let mut rank_by_anchor: HashMap<Anchor<'_>, u32> = HashMap::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "the groups are disjoint: each ranks its own anchors and writes only their members"
+    )]
     for (group, anchors) in &mut anchors_by_group {
         anchors.sort_by_key(|anchor| {
             let index = members_by_anchor[anchor][0];
@@ -159,7 +167,10 @@ pub(super) fn apply_plain_occurrence_ordinals(blocks: &[BlockEntry], ordinals: &
     let mut request_rank: HashMap<ScopedShape<'_>, u32> = HashMap::new();
     let mut output_ranks: HashMap<ScopedShape<'_>, std::collections::HashSet<u32>> = HashMap::new();
     let mut nested_generation_rank: HashMap<ScopedShape<'_>, (DateTime<Utc>, u32)> = HashMap::new();
-    for (&anchor, members) in &members_by_anchor {
+    // In anchor order, so what each key ends up holding depends on the anchors and not on a hash order.
+    let mut anchors: Vec<(&Anchor<'_>, &Vec<usize>)> = members_by_anchor.iter().collect();
+    anchors.sort_unstable_by_key(|(anchor, _)| **anchor);
+    for (&anchor, members) in anchors {
         let block = &blocks[members[0]];
         let rank = rank_by_anchor[&anchor];
         if block.role == ChatRole::Assistant {
@@ -174,8 +185,9 @@ pub(super) fn apply_plain_occurrence_ordinals(blocks: &[BlockEntry], ordinals: &
                 }
                 nested_generation_rank
                     .entry((block.trace_id.as_str(), ancestor.as_str(), anchor.2))
+                    // The latest output below the wrapper; of two at one instant, the later rank.
                     .and_modify(|current| {
-                        if block.timestamp > current.0 {
+                        if (block.timestamp, rank) > *current {
                             *current = (block.timestamp, rank);
                         }
                     })

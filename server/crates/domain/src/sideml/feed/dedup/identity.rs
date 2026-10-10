@@ -312,6 +312,7 @@ pub(in crate::sideml::feed) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Ve
             }
         }
     }
+    #[expect(clippy::iter_over_hash_type, reason = "each list is sorted on its own")]
     for calls in calls_by_carrier.values_mut() {
         calls.sort_unstable();
     }
@@ -546,6 +547,7 @@ fn apply_reused_execution_id_ordinals(
             .push((occurrence, index, rank));
         previous_rank_by_id.insert((group.0, id), rank);
     }
+    #[expect(clippy::iter_over_hash_type, reason = "each list is sorted on its own")]
     for events in ranks_by_id.values_mut() {
         events.sort_unstable();
     }

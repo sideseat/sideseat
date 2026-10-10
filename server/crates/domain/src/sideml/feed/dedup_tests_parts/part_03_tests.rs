@@ -657,3 +657,56 @@ fn a_replay_below_a_wrapper_does_not_displace_the_wrapper_s_emission() {
     assert_eq!(survivors.len(), 1);
     assert_eq!(survivors[0].span_id, "wrapper");
 }
+
+/// Two model calls under one step answer the same text at the same instant: the step's copy restates the later
+/// rank, and every reconstruction says so. Chosen by the hash order of the anchors, the step took either rank -
+/// a different one between two maps built from the same blocks.
+#[test]
+fn a_wrapper_over_two_simultaneous_answers_restates_the_later_rank_every_time() {
+    let answer = |path: &[&str]| {
+        let span = path.last().expect("a span");
+        let mut block = make_test_block("trace1", span, ChatRole::Assistant, "same answer", utc(0));
+        block.observation_type = Some("generation".to_string());
+        block.source_type = "attribute".to_string();
+        block.source_attribute = Some("gen_ai.output.messages".to_string());
+        block.span_path = path.iter().map(|s| s.to_string()).collect();
+        block.uses_span_end = true;
+        block
+    };
+    let blocks = vec![
+        answer(&["wrapper"]),
+        answer(&["wrapper", "first"]),
+        answer(&["wrapper", "second"]),
+    ];
+    // Each call builds its maps afresh, and every map is seeded anew, so the runs see different hash orders.
+    let runs: std::collections::BTreeSet<Vec<u32>> =
+        (0..64).map(|_| call_repeat_ordinals(&blocks)).collect();
+    assert_eq!(
+        runs,
+        std::collections::BTreeSet::from([vec![1, 0, 1]]),
+        "the step's copy restates the later of two simultaneous answers, whatever the hash order"
+    );
+}
+
+/// One span's two carriers place two calls of one shape, under two ids, at one position: both survive, in one
+/// order every run. Their content hash leaves the id out, so the survivors tied on every key the sort read and
+/// kept the order the dedup map iterated them in.
+#[test]
+fn two_calls_of_one_shape_at_one_position_survive_in_one_order() {
+    let args = serde_json::json!({"city": "Paris"});
+    let mut first = generation_call(&["model"], "x", args.clone(), 0);
+    first.source_type = "event".to_string();
+    first.source_attribute = None;
+    first.event_name = Some("gen_ai.choice".to_string());
+    let second = generation_call(&["model"], "y", args, 0);
+    let runs: std::collections::BTreeSet<Vec<String>> = (0..64)
+        .map(|_| {
+            process_dedup(vec![first.clone(), second.clone()], HashMap::new())
+                .iter()
+                .filter_map(|b| b.tool_use_id.clone())
+                .collect()
+        })
+        .collect();
+    assert_eq!(runs.len(), 1, "{runs:?}");
+    assert_eq!(runs.first().map(Vec::len), Some(2), "{runs:?}");
+}
