@@ -947,18 +947,18 @@ fn a_span_delivered_twice_is_counted_once() {
     }]);
     let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
 
-    let once = process_spans(vec![row.clone()], &FeedOptions::new());
-    let twice = process_spans(vec![row.clone(), row], &FeedOptions::new());
+    let once = process_span(vec![row.clone()], &FeedOptions::new());
+    let twice = process_span(vec![row.clone(), row], &FeedOptions::new());
 
     assert_eq!(
         twice.messages.len(),
         once.messages.len(),
         "the duplicate delivery added a message"
     );
+    assert!(once.metadata.span_usage.is_some());
     assert_eq!(
-        twice.metadata.total_tokens, once.metadata.total_tokens,
+        twice.metadata.span_usage, once.metadata.span_usage,
         "the duplicate delivery was billed twice"
     );
-    assert_eq!(twice.metadata.total_cost, once.metadata.total_cost);
     assert_eq!(twice.metadata.span_count, 1);
 }

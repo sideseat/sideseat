@@ -195,7 +195,7 @@ use history::{mark_history, mark_span_history};
 
 // Re-exports for public API
 pub use request_context::{RequestContextRows, calls_a_thread_answers};
-pub use types::{BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult};
+pub use types::{BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, SpanUsage};
 
 // The dedup tie-break hook, for the test that varies which copy survives.
 #[doc(hidden)]
@@ -557,7 +557,7 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
     out.push(("resolve", t.elapsed()));
 
     let t = std::time::Instant::now();
-    let _ = compute_metadata(&resolved, &rows, true);
+    let _ = compute_metadata(&resolved, &rows, true, false);
     out.push(("metadata", t.elapsed()));
     out
 }
@@ -804,7 +804,12 @@ fn reconstruct_trace(
     }
 
     // Stage 7: Compute metadata and return
-    let metadata = compute_metadata(&blocks, &rows, replay_matching_complete);
+    let metadata = compute_metadata(
+        &blocks,
+        &rows,
+        replay_matching_complete,
+        matches!(replay_policy, ReplayPolicy::Preserve),
+    );
 
     (
         FeedResult {

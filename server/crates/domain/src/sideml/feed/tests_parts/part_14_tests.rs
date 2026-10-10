@@ -153,3 +153,14 @@ fn a_feed_of_two_conversations_lists_their_tools_in_one_order() {
     );
     assert_eq!(runs.first().map(Vec::len), Some(2), "{runs:?}");
 }
+
+/// A span view with no row has no span, so it states no usage rather than a recorded zero.
+#[test]
+fn a_span_view_of_no_row_states_no_usage() {
+    assert_eq!(
+        process_span(Vec::new(), &FeedOptions::new())
+            .metadata
+            .span_usage,
+        None
+    );
+}

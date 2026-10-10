@@ -303,8 +303,6 @@ pub async fn get_feed_messages(
                 replay_matching_complete: true,
                 message_count: 0,
                 span_count: 0,
-                total_tokens: 0,
-                total_cost: 0.0,
                 // An empty page touched no session, so it saw all of every session it touched.
                 session_scoped: true,
                 pages_are_globally_ordered: false,
@@ -319,27 +317,18 @@ pub async fn get_feed_messages(
         .iter()
         .map(|s| (s.trace_id.clone(), s.span_id.clone()))
         .collect();
-    // Envelopes for the page's own spans, before the context load widens the row set - the same
-    // scope the totals use, and for the same reason: the pipeline sees more than the page shows.
+    // Envelopes for the page's own spans, before the context load widens the row set: the pipeline sees more
+    // than the page shows.
     let mut envelope_seen: HashSet<(&str, &str)> = HashSet::new();
     let envelopes: Vec<super::types::SpanEnvelopeDto> = spans
         .iter()
         .filter(|row| envelope_seen.insert((row.trace_id.as_str(), row.span_id.as_str())))
         .map(super::types::SpanEnvelopeDto::from_row)
         .collect();
-    // Totals from the page's own rows, before the context load widens the row set. Counted once per
-    // span: a re-ingested span is two rows on DuckDB, which reads the raw table, and one on
-    // ClickHouse, which reads it with FINAL.
-    let mut counted: HashSet<(&str, &str)> = HashSet::new();
-    let mut page_tokens = 0i64;
-    let mut page_cost = 0.0f64;
-    for row in &spans {
-        if counted.insert((row.trace_id.as_str(), row.span_id.as_str())) {
-            page_tokens += row.total_tokens;
-            page_cost += row.cost_total;
-        }
-    }
-    let page_span_count = counted.len() as u32;
+    // The page's own spans, once each: a re-ingested span is two rows on DuckDB, which reads the raw table, and
+    // one on ClickHouse, which reads it with FINAL. No totals: a page is cut by ingestion time through its
+    // traces, so it bills no well-defined set of model calls - the trace and session reads state theirs.
+    let page_span_count = envelope_seen.len() as u32;
 
     // The tools a page offers are the tools its own spans declared. Taken from the reconstruction
     // instead, a page would list tools that exist only on spans it does not show - the trace view
@@ -423,17 +412,12 @@ pub async fn get_feed_messages(
     let tool_definitions = page_tools.tool_definitions;
     let tool_names = page_tools.tool_names;
 
-    // The page's totals come from its selected rows rather than the session-wide reconstruction context.
-    //
-    // Sum over spans, not returned blocks, so replay and role filtering cannot remove billed usage.
     let metadata = FeedMessagesMetadata {
         // Carried from the pipeline: a page whose replay matching was cut short may repeat history, and
         // the caller has no other way to know.
         replay_matching_complete: processed.metadata.replay_matching_complete,
         message_count: all_messages.len() as u32,
         span_count: page_span_count,
-        total_tokens: page_tokens,
-        total_cost: page_cost,
         // Every page trace contributes its resolved session; a trace without a session has no wider context.
         session_scoped: true,
         // Always false, and said out loud: pages are selected by ingestion time while their messages are

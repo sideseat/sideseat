@@ -30,8 +30,6 @@ pub(super) fn process_multi_trace_spans(
     let mut all_blocks: Vec<BlockEntry> = Vec::new();
     let mut all_tool_defs: Vec<serde_json::Value> = Vec::new();
     let mut all_tool_names: Vec<String> = Vec::new();
-    let mut total_tokens: i64 = 0;
-    let mut total_cost: f64 = 0.0;
     // One incomplete match anywhere makes the session's answer possibly-repeating, so it is reported.
     let mut replay_matching_complete = true;
 
@@ -40,20 +38,6 @@ pub(super) fn process_multi_trace_spans(
         // The last trace's relation is never consulted, and building one is a second graph over the
         // whole trace.
         let more_traces_follow = trace_idx + 1 < trace_count;
-        // Once per span, not once per row, for the same reason `compute_metadata` does it: a
-        // re-ingested span is two rows in the DuckDB row set (that query reads the raw table,
-        // ClickHouse reads it with FINAL), and summing rows billed the retry as a second call.
-        // The session view was the last place still summing rows, so a session and the traces
-        // inside it disagreed about their totals whenever a delivery had been retried.
-        let mut counted: HashSet<(&str, &str)> = HashSet::new();
-        let mut trace_tokens = 0i64;
-        let mut trace_cost = 0.0f64;
-        for row in &trace_rows {
-            if counted.insert((row.trace_id.as_str(), row.span_id.as_str())) {
-                trace_tokens += row.total_tokens;
-                trace_cost += row.cost_total;
-            }
-        }
 
         // First trace: no prefix. Subsequent traces: pass accumulated prefix
         // for pre-dedup marking of history re-sends.
@@ -89,12 +73,6 @@ pub(super) fn process_multi_trace_spans(
             all_tool_defs.extend(result.tool_definitions);
             all_tool_names.extend(result.tool_names);
         }
-
-        // Counted whether or not the trace contributed a message. Cost is what the spans in scope
-        // were billed, not what survived history removal: a trace that only re-sent an earlier turn
-        // still called the model, and skipping it reported a session as cheaper than it was.
-        total_tokens += trace_tokens;
-        total_cost += trace_cost;
     }
 
     let block_count = all_blocks.len();
@@ -113,8 +91,7 @@ pub(super) fn process_multi_trace_spans(
         metadata: FeedMetadata {
             block_count,
             span_count,
-            total_tokens,
-            total_cost,
+            span_usage: None,
             // False if any trace's replay matching was cut short - the session's answer may then repeat
             // history, and saying so is the point.
             replay_matching_complete,
@@ -422,9 +399,8 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
         .collect();
 
     // Ordered, because the conversations' tool definitions are merged in the order they are met - the first form
-    // a definition does not contradict absorbs it - and their costs summed in it, and floating-point addition is
-    // not associative: in a hash order the same page listed its tools and stated its cost differently between
-    // runs.
+    // a definition does not contradict absorbs it: in a hash order the same page listed its tools differently
+    // between runs.
     let mut spans_by_conversation: BTreeMap<Conversation, Vec<MessageSpanRow>> = BTreeMap::new();
     for row in rows {
         let key = conversation_of_trace
@@ -438,21 +414,16 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     let mut all_blocks: Vec<BlockEntry> = Vec::new();
     let mut all_tool_defs: Vec<JsonValue> = Vec::new();
     let mut all_tool_names: Vec<String> = Vec::new();
-    let mut total_tokens: i64 = 0;
-    let mut total_cost: f64 = 0.0;
     let mut span_ids: HashSet<(String, String)> = HashSet::new();
     // One conversation's incomplete match makes the page possibly-repeating, so the page says so.
     let mut replay_matching_complete = true;
 
     for (_, conversation_spans) in spans_by_conversation {
-        for row in &conversation_spans {
-            // Once per span: a re-ingested span appears twice in the DuckDB row set, and summing
-            // rows doubled the page's tokens and cost.
-            if span_ids.insert((row.trace_id.clone(), row.span_id.clone())) {
-                total_tokens += row.total_tokens;
-                total_cost += row.cost_total;
-            }
-        }
+        span_ids.extend(
+            conversation_spans
+                .iter()
+                .map(|row| (row.trace_id.clone(), row.span_id.clone())),
+        );
         let processed = process_spans_unfiltered(conversation_spans);
         replay_matching_complete &= processed.metadata.replay_matching_complete;
         all_blocks.extend(processed.messages);
@@ -475,8 +446,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
             metadata: FeedMetadata {
                 block_count,
                 span_count: span_ids.len(),
-                total_tokens,
-                total_cost,
+                span_usage: None,
                 replay_matching_complete,
                 composed_from_requests: 0,
                 composition_truncated: false,

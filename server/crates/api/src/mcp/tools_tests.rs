@@ -824,3 +824,38 @@ fn every_guide_integration_is_one_the_sdk_registers() {
         );
     }
 }
+
+/// A trace's messages read through the MCP tool state the trace's totals when its record is there, and none at
+/// all when it is not: the reconstruction over its spans has no totals of its own to offer in their place. A
+/// span view states its one span's usage.
+#[test]
+fn a_trace_whose_record_is_missing_states_no_totals() {
+    use crate::routes::otel::messages::build_messages_response;
+    use sideseat_domain::sideml::feed::{FeedMetadata, FeedResult, SpanUsage};
+
+    let now = chrono::Utc::now();
+    let reconstructed = FeedResult::default();
+    let missing = build_messages_response(&reconstructed, None, Vec::new(), now);
+    let json = serde_json::to_string(&missing.metadata).expect("serialise");
+    assert!(
+        !json.contains("total_tokens") && !json.contains("total_cost"),
+        "no trace record, so no totals: {json}"
+    );
+
+    let known = build_messages_response(&reconstructed, Some((350, 0.018)), Vec::new(), now);
+    assert_eq!(known.metadata.total_tokens, Some(350));
+    assert_eq!(known.metadata.total_cost, Some(0.018));
+
+    let span_view = FeedResult {
+        metadata: FeedMetadata {
+            span_usage: Some(SpanUsage {
+                total_tokens: 12,
+                total_cost: 0.5,
+            }),
+            ..FeedMetadata::default()
+        },
+        ..FeedResult::default()
+    };
+    let span = build_messages_response(&span_view, None, Vec::new(), now);
+    assert_eq!(span.metadata.total_tokens, Some(12));
+}

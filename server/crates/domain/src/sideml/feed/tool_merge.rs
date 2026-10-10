@@ -4,35 +4,32 @@ use super::*;
 // INTERNAL: METADATA
 // ============================================================================
 
-/// Compute metadata from processed blocks.
+/// Compute metadata from processed blocks. `span_view` asks for the usage of the one span the view shows.
 pub(in crate::sideml::feed) fn compute_metadata(
     blocks: &[BlockEntry],
     span_rows: &[MessageSpanRow],
     replay_matching_complete: bool,
+    span_view: bool,
 ) -> FeedMetadata {
     // Keyed by (trace, span): a span id is unique only within a trace, and a session view holds
     // several traces, so counting by span id alone under-reported the span count.
     let span_ids: HashSet<_> = blocks.iter().map(|b| (&b.trace_id, &b.span_id)).collect();
 
-    // Summed once per span, not once per row. A re-ingested span appears twice in the DuckDB row
-    // set - that query reads the raw table, while ClickHouse reads it with FINAL - so summing rows
-    // doubled the tokens and cost of a conversation whose spans had been delivered twice, even
-    // though the messages themselves are deduplicated and appear once.
-    let mut counted: HashSet<(&str, &str)> = HashSet::new();
-    let mut total_tokens = 0i64;
-    let mut total_cost = 0.0f64;
-    for row in span_rows {
-        if counted.insert((row.trace_id.as_str(), row.span_id.as_str())) {
-            total_tokens += row.total_tokens;
-            total_cost += row.cost_total;
-        }
-    }
+    // The span's own row, once: a re-ingested span appears twice in the DuckDB row set - that query reads the
+    // raw table, while ClickHouse reads it with FINAL.
+    // No row, no span: nothing recorded usage, which is not a recorded zero.
+    let span_usage = span_rows
+        .first()
+        .filter(|_| span_view)
+        .map(|row| SpanUsage {
+            total_tokens: row.total_tokens,
+            total_cost: row.cost_total,
+        });
 
     FeedMetadata {
         block_count: blocks.len(),
         span_count: span_ids.len(),
-        total_tokens,
-        total_cost,
+        span_usage,
         replay_matching_complete,
         composed_from_requests: 0,
         composition_truncated: false,

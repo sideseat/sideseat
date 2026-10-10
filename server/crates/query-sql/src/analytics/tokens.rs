@@ -2,7 +2,7 @@
 //! applies.
 //!
 //! A span counts when it carries usage - any token count above zero, or a cost - and either
-//! - it is a generation, and none of its generation children carries usage; or
+//! - it is a generation, and no direct generation child of it carries usage; or
 //! - it is not a generation, no generation of its trace carries usage, and its parent carries none.
 //!
 //! Every span the rule compares with carries usage itself, so it is evaluated over those spans alone: the ones a

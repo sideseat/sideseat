@@ -41,103 +41,43 @@ fn the_feed_groups_a_trace_by_its_root_session_id() {
     );
 }
 
-/// A session's cost covers every trace in it, including one that only re-sent an earlier turn.
-///
-/// The multi-trace path added a trace's tokens only when it contributed a message the feed kept, so
-/// a trace whose content was all history counted as free. It still called the model. The response
-/// documents its totals as covering the spans in scope, and that is what they now do.
+/// A view over several spans states no totals of its own: a reconstruction is handed only the spans with
+/// something to show, and applies no parent/child billing rule, so a session's or a feed page's sum over its
+/// rows counted a model call twice where a framework's step around it carried the same usage, and dropped one
+/// that showed nothing. The trace and session totals are the store's.
 #[test]
-fn a_replayed_trace_still_counts_towards_the_session() {
-    let first = json!([
-        {
-            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
-            "content": {"role": "user", "content": "the question"}
-        },
-        {
-            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
-            "content": {"role": "assistant", "content": "the answer"}
-        }
-    ]);
-    // The second trace re-sends the same turn and adds nothing.
-    let replay = first.clone();
-
-    let mut a = make_span_row("trace1", "span1", None, &first.to_string(), "[]", "[]");
+fn a_view_over_several_spans_states_no_totals_of_its_own() {
+    let turn = |text: &str, at: &str| {
+        json!([{
+            "source": {"event": {"name": "gen_ai.user.message", "time": at}},
+            "content": {"role": "user", "content": text}
+        }])
+    };
+    let mut a = make_span_row(
+        "trace1",
+        "span1",
+        None,
+        &turn("one", "2025-01-01T00:00:00Z").to_string(),
+        "[]",
+        "[]",
+    );
     a.session_id = Some("session-1".to_string());
-    let mut b = make_span_row("trace2", "span2", None, &replay.to_string(), "[]", "[]");
+    let mut b = make_span_row(
+        "trace2",
+        "span2",
+        None,
+        &turn("two", "2025-01-01T00:00:10Z").to_string(),
+        "[]",
+        "[]",
+    );
     b.session_id = Some("session-1".to_string());
     b.span_timestamp = a.span_timestamp + chrono::Duration::seconds(10);
-    let per_trace_tokens = a.total_tokens;
-    let per_trace_cost = a.cost_total;
 
-    let result = process_spans(vec![a, b], &FeedOptions::new());
-
-    assert_eq!(
-        result.metadata.total_tokens,
-        per_trace_tokens * 2,
-        "the replayed trace called the model and must be counted"
-    );
-    assert!(
-        (result.metadata.total_cost - per_trace_cost * 2.0).abs() < f64::EPSILON,
-        "the replayed trace's cost is missing: {}",
-        result.metadata.total_cost
-    );
-}
-
-/// A span delivered twice is billed once, in a session exactly as in a trace.
-///
-/// The DuckDB session query reads the raw span table, so a retried OTLP delivery is two rows for
-/// one span; ClickHouse reads it with FINAL and returns one. The single-trace path collapsed them
-/// in `compute_metadata` and the multi-trace path summed rows, so a session reported double the
-/// tokens of the traces it contains - and the two backends disagreed with each other.
-#[test]
-fn a_span_delivered_twice_is_counted_once_in_a_session() {
-    let turn = json!([
-        {
-            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
-            "content": {"role": "user", "content": "the question"}
-        },
-        {
-            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
-            "content": {"role": "assistant", "content": "the answer"}
-        }
-    ]);
-    let second = json!([
-        {
-            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:10Z"}},
-            "content": {"role": "user", "content": "a second question"}
-        },
-        {
-            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:11Z"}},
-            "content": {"role": "assistant", "content": "a second answer"}
-        }
-    ]);
-
-    let mut a = make_span_row("trace1", "span1", None, &turn.to_string(), "[]", "[]");
-    a.session_id = Some("session-1".to_string());
-    // The same span, delivered again: identical trace and span id, as a retry produces.
-    let redelivered = a.clone();
-    let mut b = make_span_row("trace2", "span2", None, &second.to_string(), "[]", "[]");
-    b.session_id = Some("session-1".to_string());
-    b.span_timestamp = a.span_timestamp + chrono::Duration::seconds(10);
-    let per_span_tokens = a.total_tokens;
-    let per_span_cost = a.cost_total;
-
-    let result = process_spans(vec![a, redelivered, b], &FeedOptions::new());
-
-    assert_eq!(
-        result.metadata.total_tokens,
-        per_span_tokens * 2,
-        "the retried delivery was billed a second time"
-    );
-    assert!(
-        (result.metadata.total_cost - per_span_cost * 2.0).abs() < f64::EPSILON,
-        "the retried delivery was charged twice: {}",
-        result.metadata.total_cost
-    );
-    assert_eq!(
-        result.metadata.span_count, 2,
-        "one span delivered twice is still one span"
-    );
+    let session = process_spans(vec![a.clone(), b.clone()], &FeedOptions::new());
+    assert_eq!(session.metadata.span_usage, None);
+    let feed = process_feed(vec![a, b], &FeedOptions::new());
+    assert_eq!(feed.metadata.span_usage, None);
+    assert_eq!(feed.metadata.span_count, 2);
 }
 
 /// Two identical calls in one response are two calls.

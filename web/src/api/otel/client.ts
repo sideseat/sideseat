@@ -22,8 +22,6 @@ import type {
   SSEHandlers,
   TraceDetail,
   TraceSummary,
-  FeedMessagesParams,
-  FeedMessagesResponse,
   FeedSpansParams,
   FeedSpansResponse,
 } from "./types";
@@ -238,16 +236,6 @@ export class OtelClient {
   }
 
   // === Feed ===
-  async getFeedMessages(
-    projectId: string,
-    params?: FeedMessagesParams,
-  ): Promise<FeedMessagesResponse> {
-    return this.client.get<FeedMessagesResponse>(
-      `${this.basePath(projectId)}/feed/messages`,
-      params as Record<string, unknown>,
-    );
-  }
-
   async getFeedSpans(projectId: string, params?: FeedSpansParams): Promise<FeedSpansResponse> {
     return this.client.get<FeedSpansResponse>(
       `${this.basePath(projectId)}/feed/spans`,

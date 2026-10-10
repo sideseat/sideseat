@@ -707,12 +707,18 @@ fn test_metadata() {
 
     let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
     let options = FeedOptions::default();
-    let result = process_spans(vec![row], &options);
+    let result = process_spans(vec![row.clone()], &options);
 
     assert_eq!(result.metadata.block_count, 1);
     assert_eq!(result.metadata.span_count, 1);
-    assert_eq!(result.metadata.total_tokens, 150);
-    assert!((result.metadata.total_cost - 0.01).abs() < 0.001);
+    // A trace's totals are the store's (its counted-usage rule): a reconstruction states none of its own.
+    assert_eq!(result.metadata.span_usage, None);
+
+    // A span view states what its one span recorded.
+    let span = process_span(vec![row], &options);
+    let usage = span.metadata.span_usage.expect("a span view's own usage");
+    assert_eq!(usage.total_tokens, 150);
+    assert!((usage.total_cost - 0.01).abs() < 0.001);
 }
 
 // ============================================================================

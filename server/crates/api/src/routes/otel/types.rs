@@ -339,8 +339,13 @@ impl BlockDto {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MessagesMetadataDto {
     pub total_messages: i64,
-    pub total_tokens: i64,
-    pub total_cost: f64,
+    /// The trace's or session's totals as the store counts them, or what a span view's one span recorded.
+    /// Absent where neither is known: a reconstruction over several spans states no totals of its own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<i64>,
+    /// The cost beside `total_tokens`, present exactly when it is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_cost: Option<f64>,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
     /// False when cross-trace replay matching hit its search budget, so this answer may repeat history it
@@ -582,10 +587,6 @@ pub struct FeedMessagesMetadata {
     pub message_count: u32,
     /// Number of unique spans contributing messages
     pub span_count: u32,
-    /// Total tokens from contributing spans
-    pub total_tokens: i64,
-    /// Total cost from contributing spans
-    pub total_cost: f64,
     /// Whether reconstruction saw every trace of every session touched by this page.
     ///
     /// Always true: page traces are resolved to their sessions and each session is loaded in full. A trace
@@ -614,7 +615,7 @@ pub struct FeedMessagesResponse {
     pub tool_definitions: Vec<serde_json::Value>,
     /// Deduplicated tool names
     pub tool_names: Vec<String>,
-    /// One envelope per span on this page - the page's own spans, the same scope the totals use.
+    /// One envelope per span on this page: the page's own spans.
     pub envelopes: Vec<SpanEnvelopeDto>,
 }
 
@@ -636,8 +637,8 @@ mod serialisation_tests {
     fn incompleteness_reaches_the_response_and_silence_means_complete() {
         let incomplete = MessagesMetadataDto {
             total_messages: 1,
-            total_tokens: 0,
-            total_cost: 0.0,
+            total_tokens: Some(0),
+            total_cost: Some(0.0),
             start_time: DateTime::from_timestamp(0, 0).unwrap(),
             end_time: None,
             replay_matching_complete: false,
@@ -662,8 +663,6 @@ mod serialisation_tests {
             replay_matching_complete: false,
             message_count: 1,
             span_count: 1,
-            total_tokens: 0,
-            total_cost: 0.0,
             session_scoped: true,
             pages_are_globally_ordered: false,
         };
@@ -680,6 +679,11 @@ mod serialisation_tests {
         assert!(
             json.contains("\"pages_are_globally_ordered\":false"),
             "and that concatenating pages is not a transcript: {json}"
+        );
+        // A page bills no well-defined set of model calls, so it states no totals.
+        assert!(
+            !json.contains("total_tokens") && !json.contains("total_cost"),
+            "{json}"
         );
     }
 }

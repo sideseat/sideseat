@@ -379,10 +379,7 @@ fn stream_messages_response(
             end_time = Some(block.timestamp);
         }
     }
-    let (total_tokens, total_cost) = trace_totals.unwrap_or((
-        processed.metadata.total_tokens,
-        processed.metadata.total_cost,
-    ));
+    let (total_tokens, total_cost) = totals(&processed, trace_totals).unzip();
     let metadata = MessagesMetadataDto {
         total_messages: processed.messages.len() as i64,
         total_tokens,
@@ -415,6 +412,18 @@ fn stream_messages_response(
         move |index| serde_json::to_string(&BlockDto::from_block_entry(&processed.messages[index])),
         trailing,
     ))
+}
+
+/// The totals a messages response states: the store's for a trace or a session, or what the one span of a span
+/// view recorded - and none where neither is known, since a reconstruction over several spans has no totals of
+/// its own to offer.
+fn totals(processed: &FeedResult, store_totals: Option<(i64, f64)>) -> Option<(i64, f64)> {
+    store_totals.or_else(|| {
+        processed
+            .metadata
+            .span_usage
+            .map(|usage| (usage.total_tokens, usage.total_cost))
+    })
 }
 
 /// Scope a session-loaded FeedResult to a single trace.
@@ -452,8 +461,8 @@ pub fn scope_feed_to_trace(
 
 /// Build messages response from processed messages.
 ///
-/// If `trace_totals` is provided, use trace-level token/cost totals.
-/// Otherwise, aggregate from message spans.
+/// `trace_totals` are the store's totals for the trace or session read; without them the response states the
+/// span view's own usage, or no totals at all (`totals`).
 pub(crate) fn build_messages_response(
     processed: &FeedResult,
     trace_totals: Option<(i64, f64)>,
@@ -476,15 +485,9 @@ pub(crate) fn build_messages_response(
     }
 
     let total_messages = messages_dto.len() as i64;
-    // The pipeline's totals, which are sums over the spans in scope, not over the blocks returned.
-    //
-    // Summing the returned blocks made a billed span contribute nothing whenever its messages were
-    // all dropped - as history, or by a role or time filter - so the reported cost of a conversation
-    // fell when a filter was applied. The spans were still billed.
-    let (total_tokens, total_cost) = trace_totals.unwrap_or((
-        processed.metadata.total_tokens,
-        processed.metadata.total_cost,
-    ));
+    // Never summed over the blocks returned: a billed span whose messages were all dropped - as history, or by
+    // a role or time filter - would contribute nothing, and a filter would lower a conversation's cost.
+    let (total_tokens, total_cost) = totals(processed, trace_totals).unzip();
 
     MessagesResponseDto {
         envelopes,

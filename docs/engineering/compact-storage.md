@@ -216,8 +216,9 @@ for the server and its embedded backend, at 10,000 spans/s - and fails if the ke
 slows it below 90% of the rate.
 
 **Token totals read only the traces a read is about.** Every list, detail and statistic applies one rule to token
-and cost usage: a span counts when it carries usage and is a generation none of whose generation children carries
-any, or is not a generation, its trace holds no generation with usage and its parent carries none. DuckDB checked
+and cost usage: a span counts when it carries usage and is a generation no direct generation child of which carries
+any, or is not a generation, its trace holds no generation with usage and its parent carries none. The trace and
+session message reads state those totals; a span view states its one span's own, and a feed page none. DuckDB checked
 it with three anti-joins over every winning span of the project, whichever traces the read was about, and the
 trace and session lists computed it for every trace and session in scope before choosing the fifty they show. The
 rule only ever compares spans that carry usage, so it is now evaluated over those of the traces the read selects

@@ -401,8 +401,12 @@ export interface Block {
 
 export interface MessagesMetadata {
   total_messages: number;
-  total_tokens: number;
-  total_cost: number;
+  /**
+   * The trace's or session's totals as the store counts them, or what a span view's one span recorded. The
+   * server omits both where neither is known: a reconstruction over several spans states no totals of its own.
+   */
+  total_tokens?: number;
+  total_cost?: number;
   start_time: string;
   end_time: string | null;
   /**
@@ -533,49 +537,9 @@ export interface FeedPagination {
   has_more: boolean;
 }
 
-export interface FeedMessagesMetadata {
-  message_count: number;
-  span_count: number;
-  total_tokens: number;
-  total_cost: number;
-  /** See {@link MessagesMetadata.replay_matching_complete}; omitted by the server when true. */
-  replay_matching_complete?: boolean;
-  /**
-   * Whether reconstruction saw every trace of every session touched by this page.
-   *
-   * Always true: the server resolves page traces to sessions and loads each session in full. A trace without
-   * a session has no wider context to load. The field is always present.
-   */
-  session_scoped: boolean;
-  /**
-   * Always false, and said out loud by the server: pages are selected by *ingestion* time while each page's
-   * messages are ordered by *message* time. A page is a correct window on activity; a concatenation of pages
-   * is not a transcript - the trace and session views are where a conversation is read in order.
-   */
-  pages_are_globally_ordered: boolean;
-}
-
-export interface FeedMessagesResponse {
-  data: Block[];
-  pagination: FeedPagination;
-  metadata: FeedMessagesMetadata;
-  tool_definitions: Record<string, unknown>[];
-  tool_names: string[];
-  // The page's own spans, the same scope the totals use.
-  envelopes: SpanEnvelope[];
-}
-
 export interface FeedSpansResponse {
   data: SpanSummary[];
   pagination: FeedPagination;
-}
-
-export interface FeedMessagesParams {
-  limit?: number;
-  cursor?: string;
-  start_time?: string;
-  end_time?: string;
-  role?: string;
 }
 
 export interface FeedSpansParams {

@@ -533,13 +533,23 @@ pub struct ExtractedTools {
     pub tool_names: Vec<String>,
 }
 
+/// The tokens and cost one span recorded.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct SpanUsage {
+    pub total_tokens: i64,
+    pub total_cost: f64,
+}
+
 /// Metadata about the processed feed.
 #[derive(Debug, Clone, Serialize)]
 pub struct FeedMetadata {
     pub block_count: usize,
     pub span_count: usize,
-    pub total_tokens: i64,
-    pub total_cost: f64,
+    /// What the one span a span view shows recorded; `None` for a view over several spans. A reconstruction
+    /// sees only the spans with something to show, and no parent/child billing rule, so the totals of a trace,
+    /// a session or a feed page are the store's to give (its counted-usage rule), never a sum over these rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span_usage: Option<SpanUsage>,
     /// False when a cross-trace replay match hit its search budget, so this answer may repeat history it
     /// would otherwise have collapsed.
     ///
@@ -564,8 +574,7 @@ impl Default for FeedMetadata {
         Self {
             block_count: 0,
             span_count: 0,
-            total_tokens: 0,
-            total_cost: 0.0,
+            span_usage: None,
             // Complete until something says otherwise: an empty answer hid nothing.
             replay_matching_complete: true,
             composed_from_requests: 0,
