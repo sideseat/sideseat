@@ -500,3 +500,153 @@ async fn exports_sharing_spans_are_stored_alike_in_any_order() {
     }
     assert_eq!(records.len(), 2, "one version of each export's own record");
 }
+
+/// The image the media exports carry.
+fn image() -> Vec<u8> {
+    (0..3_000u32)
+        .map(|n| (n.wrapping_mul(2_654_435_761) >> 13) as u8)
+        .collect()
+}
+
+/// The image as base64, the way a model call carries one inline.
+fn image_text() -> String {
+    use base64::Engine;
+
+    base64::engine::general_purpose::STANDARD.encode(image())
+}
+
+/// An export of one span in trace `trace` whose prompt carries the image: the same image in every export.
+fn media_export(trace: u8) -> ExportTraceServiceRequest {
+    let prompt = format!(
+        r#"[{{"role":"user","content":[{{"type":"image","source":{{"type":"base64","media_type":"image/png","data":"{}"}}}}]}}]"#,
+        image_text()
+    );
+    let mut export = trace_export();
+    let spans = &mut export.resource_spans[0].scope_spans[0].spans;
+    spans.truncate(1);
+    spans[0].trace_id = vec![trace; 16];
+    spans[0].attributes[1].value = Some(text(&prompt));
+    export
+}
+
+/// Every file under `directory`, as its path's components below it.
+fn files_under(directory: &std::path::Path) -> Vec<Vec<String>> {
+    let mut found = Vec::new();
+    let mut pending = vec![directory.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let entries = match std::fs::read_dir(&next) {
+            Ok(entries) => entries,
+            // A store that never wrote here has no directory.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => panic!("{}: {error}", next.display()),
+        };
+        for entry in entries {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                found.push(
+                    path.strip_prefix(directory)
+                        .expect("under the directory")
+                        .components()
+                        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                        .collect(),
+                );
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+/// Two exports that carry one image, each delivered several times and all at once, store the image once: one
+/// object in the blob store, at the image's address and holding its bytes, one file row, an association per trace,
+/// and nothing left of the staging blobs or of any write's temporary files.
+///
+/// The deliveries overlap while they wait on the stores; the inline batcher then writes their media one batch at a
+/// time. Two writers of one object at the same instant - two processes on one blob store - are the blob store's
+/// own test (`store_publishes_atomically_and_leaves_no_temporary_files`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn exports_sharing_an_image_delivered_at_once_store_it_once() {
+    let harness = harness().await;
+    let stores = &harness.stores;
+    let exports = [media_export(0x51), media_export(0x52)];
+    let bodies: Vec<Vec<u8>> = exports.iter().map(Message::encode_to_vec).collect();
+    let deliveries: Vec<(usize, ReceivedPayload)> = (0..8)
+        .map(|n| (n % 2, received(&bodies[n % 2], n as i64)))
+        .collect();
+    let answers = futures::future::join_all(deliveries.iter().map(|(index, delivery)| {
+        export_signal(
+            &stores.traces,
+            exports[*index].clone(),
+            stores.context(PROJECT, delivery),
+        )
+    }))
+    .await;
+    for answer in answers {
+        answer.expect("every delivery is answered");
+    }
+    assert_eq!(
+        stores
+            .staging
+            .redrive_once(&stores.pipeline, 10)
+            .await
+            .expect("the redrive"),
+        0,
+        "a delivery is left unsettled"
+    );
+
+    let storage =
+        sideseat_core::storage::AppStorage::init_for_test(harness._dir.path().to_path_buf());
+    let files = storage.subdir(sideseat_core::storage::DataSubdir::Files);
+    let [media] = sideseat_domain::raw_payload::media_in(image_text().as_bytes())
+        .try_into()
+        .expect("the image is one media object");
+    let hash = media.hash_hex();
+    let address = vec![
+        PROJECT.to_string(),
+        hash[..2].to_string(),
+        hash[2..4].to_string(),
+        hash.clone(),
+    ];
+    assert_eq!(
+        files_under(&files),
+        vec![address.clone()],
+        "one object, at the image's address"
+    );
+    assert_eq!(
+        std::fs::read(address.iter().fold(files, |path, part| path.join(part)))
+            .expect("the object"),
+        image(),
+        "the object holds the image"
+    );
+    assert_eq!(
+        files_under(&storage.subdir(sideseat_core::storage::DataSubdir::FilesTemp)),
+        Vec::<Vec<String>>::new(),
+        "a write left a temporary file"
+    );
+    let TransactionalService::Sqlite(sqlite) = stores.database.as_ref() else {
+        panic!("embedded stores");
+    };
+    let rows: Vec<(String, i64)> =
+        sqlx::query_as("SELECT file_hash, size_bytes FROM files WHERE project_id = ?")
+            .bind(PROJECT)
+            .fetch_all(sqlite.pool())
+            .await
+            .expect("the file rows");
+    assert_eq!(rows, vec![(hash.clone(), 3_000)], "one file row, the image");
+    let traces: Vec<(String, i64, i64)> = sqlx::query_as(
+        "SELECT trace_id, pending_writers, durable FROM trace_files \
+         WHERE project_id = ? AND file_hash = ? ORDER BY trace_id",
+    )
+    .bind(PROJECT)
+    .bind(&hash)
+    .fetch_all(sqlite.pool())
+    .await
+    .expect("the associations");
+    assert_eq!(
+        traces,
+        vec![("51".repeat(16), 0, 1), ("52".repeat(16), 0, 1)],
+        "one settled, durable association per trace that carries the image"
+    );
+}
