@@ -53,11 +53,51 @@
       ]
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "5d32b7e06e03f968",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes total. I'm working through the sequence: the two fastest cross together, one returns, the two slowest cr…[5741 chars]",
+          "content_digest": "23670e84d42c0852",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The fastest total time is 17 minutes.** ## Schedule | Step | Move | Time | Elapsed | On far side afterwards | |---|---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | 1, 2 | | 2 | 1 returns with the torch | 1 | 3 | 2 | | 3 | 5 and 10 cross | 1…[1367 chars]",
+          "content_digest": "808605d4fc260ef5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/invocation/span-2": {
       "message_count": 0,
@@ -114,7 +154,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes total. I'm working through the sequence: the two fastest cross together, one returns, the two slowest cr…[5741 chars]",
-          "content_digest": "de6e8aa90f78f31c",
+          "content_digest": "23670e84d42c0852",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -163,7 +203,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes total. I'm working through the sequence: the two fastest cross together, one returns, the two slowest cr…[5741 chars]",
-          "content_digest": "de6e8aa90f78f31c",
+          "content_digest": "23670e84d42c0852",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -195,7 +235,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes total. I'm working through the sequence: the two fastest cross together, one returns, the two slowest cr…[5741 chars]",
-        "content_digest": "de6e8aa90f78f31c",
+        "content_digest": "23670e84d42c0852",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

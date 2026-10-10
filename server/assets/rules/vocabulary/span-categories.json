@@ -92,6 +92,36 @@
       "result": "llm"
     },
     {
+      "id": "category.generate_content_under_an_agent",
+      "priority": 61,
+      "doc": "A multimodal model call is a model call, for the reason `observation.generate_content` gives, also where the span names the agent that made it - ADK for Python's do, which the retired sweep read as an agent. Split from `category.generate_content` and `category.chat` only because each rule names the one retired answer it replaces.",
+      "where": {
+        "all": [
+          {
+            "source": "attr:gen_ai.operation.name",
+            "equals": "generate_content"
+          },
+          {
+            "source": "attr:gen_ai.agent.name",
+            "exists": true
+          }
+        ]
+      },
+      "result": "llm",
+      "replaces_legacy_result": "agent"
+    },
+    {
+      "id": "category.generate_content",
+      "priority": 62,
+      "doc": "A multimodal model call is a model call, for the reason `observation.generate_content` gives. ADK for Go names no agent on the span, and the retired sweep, which knew no `generate_content`, left it `other`.",
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "generate_content"
+      },
+      "result": "llm",
+      "replaces_legacy_result": "other"
+    },
+    {
       "id": "category.embeddings",
       "priority": 70,
       "where": {

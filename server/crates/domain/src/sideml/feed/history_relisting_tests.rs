@@ -241,3 +241,46 @@ fn withheld_reasoning_is_not_intermediate_output() {
     );
     assert!(!blocks[3].is_history, "the withheld reasoning is kept");
 }
+
+/// A framework's model-call step that reports its call's tool call yields to the call below it that emitted
+/// the same copy: the call is where it happened, though both are model calls emitting it.
+#[test]
+fn a_wrapper_s_emission_yields_to_the_model_call_below_that_emitted_it() {
+    let mut step = call(
+        "step",
+        "generation",
+        "gen_ai.output.messages",
+        Some("call_1"),
+    );
+    let mut model = call(
+        "model",
+        "generation",
+        "gen_ai.output.messages",
+        Some("call_1"),
+    );
+    step.span_path = vec!["step".to_string()];
+    model.span_path = vec!["step".to_string(), "model".to_string()];
+    let mut blocks = vec![step, model];
+    mark_duplicate_history(&mut blocks, &HashMap::new());
+    assert!(blocks[0].is_history, "the step restates its call");
+    assert!(!blocks[1].is_history, "the model call emitted it");
+}
+
+/// Only an emission below takes the step's place: a replay of the step's response below it, in a carrier that
+/// restates earlier observations, leaves the step's emission the original.
+#[test]
+fn a_replay_below_a_wrapper_does_not_take_its_emission() {
+    let mut step = call(
+        "step",
+        "generation",
+        "gen_ai.output.messages",
+        Some("call_1"),
+    );
+    let mut replay = call("model", "generation", "output.value", Some("call_1"));
+    step.span_path = vec!["step".to_string()];
+    replay.span_path = vec!["step".to_string(), "model".to_string()];
+    let mut blocks = vec![step, replay];
+    mark_duplicate_history(&mut blocks, &HashMap::new());
+    assert!(!blocks[0].is_history, "the step emitted the response");
+    assert!(blocks[1].is_history, "the replay restates it");
+}

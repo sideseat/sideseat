@@ -481,3 +481,179 @@ fn an_unsigned_copy_takes_the_rank_of_the_signed_block_it_copies() {
         [Some("sig-a".to_string()), Some("sig-b".to_string())]
     );
 }
+
+/// A call a generation reports as its own output, on the span `path` ends with.
+fn generation_call(path: &[&str], id: &str, input: serde_json::Value, at: i64) -> BlockEntry {
+    let span = path.last().expect("a span");
+    let mut block = make_tool_use_block("trace1", span, id, "get_weather", utc(at));
+    block.content = ContentBlock::tool_use(Some(id.to_string()), "get_weather", input);
+    block.observation_type = Some("generation".to_string());
+    block.source_type = "attribute".to_string();
+    block.source_attribute = Some("gen_ai.output.messages".to_string());
+    block.span_path = path.iter().map(|s| s.to_string()).collect();
+    block.parent_span_id = (path.len() > 1).then(|| path[path.len() - 2].to_string());
+    block
+}
+
+/// A tool span's result for `id`, answering the call before it.
+fn executed_result(span: &str, id: &str, value: &str, at: i64) -> BlockEntry {
+    let mut block = make_tool_result_block("trace1", span, id, value, utc(at));
+    block.observation_type = Some("tool".to_string());
+    block.source_type = "attribute".to_string();
+    block.source_attribute = Some("gen_ai.tool.call.result".to_string());
+    block.span_path = vec!["wrapper".to_string(), span.to_string()];
+    block
+}
+
+fn tool_calls(blocks: &[BlockEntry]) -> Vec<(String, serde_json::Value)> {
+    let mut calls: Vec<_> = blocks
+        .iter()
+        .filter_map(|b| match &b.content {
+            ContentBlock::ToolUse { id, input, .. } => Some((id.clone()?, input.clone())),
+            _ => None,
+        })
+        .collect();
+    calls.sort_by_key(|call| call.1.to_string());
+    calls
+}
+
+/// A framework's model-call step lists a call of its own that no model call below it made: that call is an
+/// execution, beside the one the model call below made.
+#[test]
+fn a_wrapper_call_no_nested_generation_made_stays_an_execution() {
+    let blocks = vec![
+        generation_call(
+            &["wrapper"],
+            "call_w",
+            serde_json::json!({"city": "Paris"}),
+            0,
+        ),
+        generation_call(
+            &["wrapper", "model"],
+            "call_m",
+            serde_json::json!({"city": "Rome"}),
+            1,
+        ),
+    ];
+    assert_eq!(call_repeat_ordinals(&blocks), vec![0, 0]);
+    let calls = tool_calls(&process_dedup(blocks, HashMap::new()));
+    assert_eq!(calls.len(), 2, "{calls:?}");
+}
+
+/// Two model calls under one step reuse the provider's id `call_0` with the same arguments, as ADK's
+/// LiteLLM adapter does: two executions, ranks 0 and 1. The step's copy - stamped at its span's start, before
+/// either - restates the latest, not the first, and is no third execution.
+#[test]
+fn a_wrapper_copy_of_a_reused_call_id_restates_the_latest_nested_execution() {
+    let args = serde_json::json!({"city": "Paris"});
+    let blocks = vec![
+        generation_call(&["wrapper"], "call_0", args.clone(), 0),
+        generation_call(&["wrapper", "first"], "call_0", args.clone(), 1),
+        generation_call(&["wrapper", "second"], "call_0", args, 2),
+    ];
+    assert_eq!(call_repeat_ordinals(&blocks), vec![1, 0, 1]);
+    let survivors = process_dedup(blocks, HashMap::new());
+    let calls = tool_calls(&survivors);
+    assert_eq!(calls.len(), 2, "{calls:?}");
+    let spans: std::collections::BTreeSet<&str> = survivors
+        .iter()
+        .filter(|b| b.is_tool_use())
+        .map(|b| b.span_id.as_str())
+        .collect();
+    assert_eq!(
+        spans,
+        std::collections::BTreeSet::from(["first", "second"]),
+        "each execution is shown on the model call that made it, not on the step around them"
+    );
+}
+
+/// The same id with other arguments is another call, not the nested one restated: two executions, and the
+/// result each tool span returned for its own call stays apart.
+#[test]
+fn a_wrapper_call_with_other_arguments_under_the_same_id_is_its_own_execution() {
+    let blocks = vec![
+        generation_call(
+            &["wrapper"],
+            "call_0",
+            serde_json::json!({"city": "Paris"}),
+            0,
+        ),
+        executed_result("tool-paris", "call_0", "sunny", 1),
+        generation_call(
+            &["wrapper", "model"],
+            "call_0",
+            serde_json::json!({"city": "Rome"}),
+            2,
+        ),
+        executed_result("tool-rome", "call_0", "rain", 3),
+    ];
+    let survivors = process_dedup(blocks, HashMap::new());
+    assert_eq!(tool_calls(&survivors).len(), 2);
+    let mut results: Vec<String> = survivors
+        .iter()
+        .filter_map(|b| match &b.content {
+            ContentBlock::ToolResult { content, .. } => Some(content.to_string()),
+            _ => None,
+        })
+        .collect();
+    results.sort();
+    assert_eq!(results, ["\"rain\"", "\"sunny\""]);
+}
+
+/// Three executions: one id with two argument shapes, and the second shape again under another id. Every one
+/// is its own call, in either arrival order. A rank carried over from the first shape gave the two `Rome` calls
+/// one rank, and their shared shape made them one message.
+#[test]
+fn a_rank_carried_across_shapes_never_merges_two_calls_of_one_shape() {
+    let rome = || serde_json::json!({"city": "Rome"});
+    let calls = vec![
+        generation_call(&["first"], "a", serde_json::json!({"city": "Paris"}), 0),
+        generation_call(&["second"], "a", rome(), 1),
+        generation_call(&["third"], "b", rome(), 2),
+    ];
+    let mut reversed = calls.clone();
+    reversed.reverse();
+    for blocks in [calls, reversed] {
+        let survivors = tool_calls(&process_dedup(blocks, HashMap::new()));
+        assert_eq!(survivors.len(), 3, "{survivors:?}");
+    }
+}
+
+/// A step around a step around a model call, and a later execution under the outer step alone: the inner step's
+/// copy - stamped after both - restates the call below it, and the outer one the latest execution below it, not
+/// the inner step's restatement of an earlier one.
+#[test]
+fn a_wrapper_of_a_wrapper_restates_the_latest_execution_not_a_restatement() {
+    let args = serde_json::json!({"city": "Paris"});
+    let blocks = vec![
+        generation_call(&["outer"], "call_0", args.clone(), 0),
+        generation_call(&["outer", "inner"], "call_0", args.clone(), 5),
+        generation_call(&["outer", "inner", "early"], "call_0", args.clone(), 1),
+        generation_call(&["outer", "late"], "call_0", args, 3),
+    ];
+    assert_eq!(call_repeat_ordinals(&blocks), vec![1, 0, 0, 1]);
+}
+
+/// A model call below a step can replay the step's own response in a carrier that restates earlier
+/// observations. The step's emission is the response; the replay has no claim on it.
+#[test]
+fn a_replay_below_a_wrapper_does_not_displace_the_wrapper_s_emission() {
+    let block = |path: &[&str], attribute: &str| {
+        let span = path.last().expect("a span");
+        let mut block = make_test_block("trace1", span, ChatRole::Assistant, "the answer", utc(0));
+        block.observation_type = Some("generation".to_string());
+        block.source_type = "attribute".to_string();
+        block.source_attribute = Some(attribute.to_string());
+        block.span_path = path.iter().map(|s| s.to_string()).collect();
+        block
+    };
+    let survivors = process_dedup(
+        vec![
+            block(&["wrapper"], "gen_ai.output.messages"),
+            block(&["wrapper", "model"], "output.value"),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 1);
+    assert_eq!(survivors[0].span_id, "wrapper");
+}

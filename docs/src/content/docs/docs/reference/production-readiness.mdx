@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **222 suites, 1084 samples, and 1380 captured OTLP requests**:
+The current tracked corpus contains **222 suites, 1084 samples, and 1375 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -145,9 +145,7 @@ describes those captures, not every release of the framework.
 
 | Framework | Missing | Why | Proven absent from |
 | --- | --- | --- | --- |
-| adk | attachment (2 in 1 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: files |
 | adk | finish reason (58 in 56 captures) | why a response that called tools ended: ADK records every response's finish as `stop`, and no payload keeps the provider's `tool_use` | `native`: error, mcp_tools, multi_agent, streaming, structured_output, tool_use; `native@1.17.0`: streaming, tool_use; `native@1.22.1`: streaming, tool_use; `native@1.23.0`: streaming, tool_use; `native@1.24.1`: streaming, tool_use; `native@1.27.2`: streaming, tool_use; `native@1.27.2+semconv-latest`: streaming, tool_use; `native@1.31.1+semconv-latest`: streaming, tool_use; `native@1.39.1`: streaming, tool_use; `native@1.39.1+semconv-latest`: streaming, tool_use; `native@2.0.0`: streaming, tool_use; `native@2.0.0+semconv-latest`: streaming, tool_use; `native@2.11.0+semconv-latest`: streaming, tool_use; `native@2.2.0`: streaming, tool_use; `native@2.2.0+semconv-latest`: streaming, tool_use; `native@2.6.3`: streaming, tool_use; `native@2.6.3+semconv-latest`: streaming, tool_use; `native@2.7.0`: streaming, tool_use; `native@2.7.0+semconv-latest`: streaming, tool_use; `native@2.7.1`: streaming, tool_use; `native@2.7.1+semconv-latest`: streaming, tool_use; `native@2.9.2`: streaming, tool_use; `native@2.9.2+semconv-latest`: streaming, tool_use; `sdk`: error, mcp_tools, multi_agent, streaming, structured_output, tool_use |
-| adk | reasoning signature (2 in 2 captures) | the signature of reasoning the model withheld the text of: ADK's telemetry exports the reasoning step as an empty thought part and drops its signature, which no payload holds | `native`: session; `sdk`: session |
 | adk-java | reasoning (7 in 7 captures) | reasoning the model signed and withheld the text of: ADK for Java's telemetry exports no reasoning part for it, and no payload holds one | `native`: structured_output, tool_use; `native@0.9.0`: tool_use; `native@1.3.0`: tool_use; `native@1.5.0`: tool_use; `sdk`: structured_output, tool_use |
 | ag2 | attachment (4 in 2 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: files; `sdk`: files |
 | ag2 | attachment (4 in 2 captures) | the attachments the user sent: AG2's telemetry records a message's text only, and their bytes are in no payload | `native`: files; `sdk`: files |

@@ -289,7 +289,8 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         }
     }
 
-    // What is left: typed generation spans that spoke but recorded no asserted call.
+    // What is left: typed generation spans that spoke but recorded no asserted call, other than a framework's
+    // model-call step around the call it restates.
     let matched: BTreeSet<usize> = matching.span_of.values().copied().collect();
     let mut unclaimed: Vec<usize> = (0..recon.generations.len())
         .filter(|i| {
@@ -298,6 +299,7 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
                 && !g.failed
                 && !matched.contains(i)
                 && gen_outputs[*i].iter().any(|b| b.role == "assistant")
+                && !restates_calls_below(truth, recon, &matching, &gen_outputs[*i], *i)
         })
         .collect();
     unclaimed.sort_by_key(|&i| {
@@ -491,6 +493,75 @@ fn relists_from_below(recon: &Recon, signature: &[&Fact], candidate: usize) -> b
                         .any(|g| g.span == *at && g.ancestors.contains(span))
                 })
         })
+}
+
+/// A generation wrapping the spans of calls it restates: each assistant block it outputs shows, exactly, an
+/// asserted output of a call tied to a generation below it, and no two show one: a framework's model-call step
+/// around the model call (ADK's `call_llm` over `generate_content`) is then one execution, which the
+/// reconstruction shows once, on the call's span. The step's copy may drop a reasoning signature the call's own
+/// span keeps; it may not rename a call, repeat one, or add a block of its own.
+fn restates_calls_below(
+    truth: &Truth,
+    recon: &Recon,
+    matching: &Matching,
+    outputs: &[&Block],
+    wrapper: usize,
+) -> bool {
+    let span = &recon.generations[wrapper].span;
+    let facts: Vec<&Fact> = truth
+        .calls
+        .iter()
+        .filter(|call| {
+            matching
+                .span_of
+                .get(&call.id)
+                .is_some_and(|&g| recon.generations[g].ancestors.contains(span))
+        })
+        .flat_map(|call| signature(truth, call))
+        .collect();
+    let restates = |block: &Block, fact: &Fact| {
+        let exact = |shown: Shows| matches!(shown, Shows::Yes | Shows::Assigned(_));
+        exact(shows_on_span(fact, block)) || {
+            let mut unsigned = fact.clone();
+            unsigned.value["signed"] = serde_json::Value::Bool(false);
+            fact.kind == "reasoning" && exact(shows(&unsigned, block, None))
+        }
+    };
+    let spoken: Vec<&Block> = outputs
+        .iter()
+        .copied()
+        .filter(|b| b.role == "assistant")
+        .collect();
+    // Each block to a fact of its own: augmenting paths over a graph as small as one response.
+    fn assign(
+        block: usize,
+        edges: &[Vec<usize>],
+        taken: &mut [Option<usize>],
+        seen: &mut [bool],
+    ) -> bool {
+        for &fact in &edges[block] {
+            if !seen[fact] {
+                seen[fact] = true;
+                if taken[fact].is_none_or(|other| assign(other, edges, taken, seen)) {
+                    taken[fact] = Some(block);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    let edges: Vec<Vec<usize>> = spoken
+        .iter()
+        .map(|block| {
+            (0..facts.len())
+                .filter(|&f| restates(block, facts[f]))
+                .collect()
+        })
+        .collect();
+    let mut taken: Vec<Option<usize>> = vec![None; facts.len()];
+    !spoken.is_empty()
+        && (0..spoken.len())
+            .all(|block| assign(block, &edges, &mut taken, &mut vec![false; facts.len()]))
 }
 
 /// Candidates with no candidate below them: the model call is the innermost span showing its output,

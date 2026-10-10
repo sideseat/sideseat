@@ -258,15 +258,17 @@ fn reused_tool_ids_are_paired_by_occurrence() {
     );
 }
 
-/// SDK fixtures whose framework leaves media out of its native telemetry entirely - no placeholder
-/// marks where it was - and whose SideSeat integration exports it, with the reason.
+/// SDK fixtures whose framework leaves media out of one span's native telemetry entirely - no placeholder
+/// marks where it was - and whose SideSeat integration exports it there, with the reason.
 ///
-/// Parity then compares the SDK side without its media messages, and requires that the native side
-/// has none and the SDK side has some, so the declaration cannot outlive the behaviour it describes.
+/// Parity then compares that span's SDK view without its media messages, for each span whose native view has
+/// none and whose SDK view has some, and requires one such span, so the declaration cannot outlive the
+/// behaviour it describes. The conversation views are compared whole: another carrier of the native capture
+/// holds the media.
 const MEDIA_DROPPED_NATIVELY: &[(&str, &str)] = &[(
     "adk/sdk/files",
-    "ADK's trace copy of a model request leaves out every inline image and document part; the \
-     google-adk integration restores them",
+    "ADK's `call_llm` copy of a model request leaves out every inline image and document part, which the \
+     google-adk integration restores; its `generate_content` log events carry them natively",
 )];
 
 fn is_media(entry_type: &str) -> bool {
@@ -276,28 +278,18 @@ fn is_media(entry_type: &str) -> bool {
     )
 }
 
-fn without_media(mut golden: Golden) -> Golden {
-    let strip = |view: &mut GoldenView| {
-        view.messages
-            .retain(|message| !is_media(&message.entry_type));
-        for (index, message) in view.messages.iter_mut().enumerate() {
-            message.index = index;
-        }
-        view.message_count = view.messages.len();
-        view.role_sequence = view
-            .messages
-            .iter()
-            .map(|message| message.role.clone())
-            .collect();
-    };
-    golden
-        .span_views
-        .values_mut()
-        .chain(golden.trace_views.values_mut())
-        .chain(golden.session_views.values_mut())
-        .chain(std::iter::once(&mut golden.feed_view))
-        .for_each(strip);
-    golden
+fn without_media(view: &mut GoldenView) {
+    view.messages
+        .retain(|message| !is_media(&message.entry_type));
+    for (index, message) in view.messages.iter_mut().enumerate() {
+        message.index = index;
+    }
+    view.message_count = view.messages.len();
+    view.role_sequence = view
+        .messages
+        .iter()
+        .map(|message| message.role.clone())
+        .collect();
 }
 
 /// The form `capture.py`'s `anonymise` pins a Claude Code subagent's measured duration to.

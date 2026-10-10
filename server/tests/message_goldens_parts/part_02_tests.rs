@@ -935,20 +935,26 @@ fn with_restored_media_aligned(label: &str, native: Golden, sdk: Golden) -> (Gol
         .iter()
         .any(|(declared, _)| *declared == label)
     {
-        let count = |golden: &Golden| {
-            golden
-                .trace_views
-                .values()
-                .flat_map(|view| &view.messages)
+        let media = |view: &GoldenView| {
+            view.messages
+                .iter()
                 .filter(|message| is_media(&message.entry_type))
                 .count()
         };
+        let mut sdk = sdk;
+        let mut restored = 0;
+        for (key, view) in sdk.span_views.iter_mut() {
+            if native.span_views.get(key).is_some_and(|n| media(n) == 0) && media(view) > 0 {
+                without_media(view);
+                restored += 1;
+            }
+        }
         assert!(
-            count(&native) == 0 && count(&sdk) > 0,
-            "{label}: declared as media the native telemetry drops and the SDK restores, which no \
+            restored > 0,
+            "{label}: declared as media one native span drops and the SDK restores there, which no \
              longer holds - remove the declaration"
         );
-        return (native, without_media(sdk));
+        return (native, sdk);
     }
     if !serde_json::to_string(&native)
         .expect("golden is serializable")

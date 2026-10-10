@@ -36,6 +36,7 @@ mod mutate_matching;
 mod mutate_requests;
 mod mutations;
 mod mutations_spans;
+mod mutations_wrappers;
 mod order;
 mod predicates;
 mod propagation;

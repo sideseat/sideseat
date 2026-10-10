@@ -108,18 +108,99 @@
       "messages": []
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ba614e498d3b9f89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_viNhKxyUQPIEtmWJ39j3mp\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+          "content_digest": "be7495724f4743ef",
+          "tool_name": "trip_plan",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-8": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ba614e498d3b9f89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_viNhKxyUQPIEtmWJ39j3mp\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+          "content_digest": "be7495724f4743ef",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_viNhKxyUQPIEtmWJ39j3mp\",\"name\":\"trip_plan\",\"content\":{\"result\":\"Plan recorded.\"}}",
+          "content_digest": "e2ee6d3b671318fe",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. That figure is my own rough estimate. I didn't call any weather or booking tools, because none were available here. - **Day 1:** Explore the Innere Stadt, including St. S…[583 chars]",
+          "content_digest": "a43a8c0d87e3b3f6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/invocation/span-2": {
       "message_count": 0,
@@ -268,9 +349,9 @@
     "role_sequence": [
       "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -295,6 +376,16 @@
       },
       {
         "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_viNhKxyUQPIEtmWJ39j3mp\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+        "content_digest": "be7495724f4743ef",
+        "tool_name": "trip_plan",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
@@ -302,21 +393,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Plan a two-day trip to Vienna.",
         "content_digest": "5f56235d64bfe00d",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_viNhKxyUQPIEtmWJ39j3mp\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
-        "content_digest": "be7495724f4743ef",
-        "tool_name": "trip_plan",
-        "finish_reason": "Stop",
         "observation_type": "generation"
       }
     ]

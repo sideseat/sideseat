@@ -50,11 +50,41 @@
       "messages": []
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines, traditional geisha districts, and beautifully preserved historic culture.",
+          "content_digest": "32e8bde6f892cc77",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/invocation/span-2": {
       "message_count": 0,

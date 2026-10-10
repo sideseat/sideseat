@@ -55,20 +55,7 @@ pub(super) fn apply_plain_occurrence_ordinals(blocks: &[BlockEntry], ordinals: &
         .filter(|block| block.is_generation_span())
         .map(|block| (block.trace_id.as_str(), block.span_id.as_str()))
         .collect();
-    let mut generation_wrappers: std::collections::HashSet<Span<'_>> =
-        std::collections::HashSet::new();
-    for block in blocks.iter().filter(|block| block.is_generation_span()) {
-        for ancestor in block
-            .span_path
-            .iter()
-            .take(block.span_path.len().saturating_sub(1))
-        {
-            let span = (block.trace_id.as_str(), ancestor.as_str());
-            if generation_spans.contains(&span) {
-                generation_wrappers.insert(span);
-            }
-        }
-    }
+    let generation_wrappers = generation_wrappers(blocks);
 
     // A request snapshot may contain the whole conversation. Only its last user member is the
     // current request. The same rule on descendant generation spans identifies the copy that should

@@ -270,12 +270,6 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "signature_not_exported",
-   "detail": "the signature of reasoning the model withheld the text of: ADK's telemetry exports the reasoning step as an empty thought part and drops its signature, which no payload holds",
-   "subject": "fact-004"
   }
  ],
  "requests": {

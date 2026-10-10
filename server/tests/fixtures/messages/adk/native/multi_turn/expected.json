@@ -1,6 +1,6 @@
 {
   "label": "adk/native/multi_turn",
-  "request_count": 2,
+  "request_count": 1,
   "span_count": 13,
   "trace_count": 1,
   "session_count": 1,
@@ -171,25 +171,169 @@
       ]
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-13": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood, known for its winding streets, fado music, and views over the Tagus River. It's walkable to major sights like the Castelo de São Jorge and the Sé Cathedral, which makes it great for a short…[351 chars]",
+          "content_digest": "87f715a282f0537c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you want something sweeter, pair your trip with a **pastel de nata** for dess…[244 chars]",
+          "content_digest": "a69c8742ad57bc94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama for its historic charm and walkable sights, and try bacalhau à Brás (with a pastel de nata for dessert) for a taste of classic Lisbon cuisine.",
+          "content_digest": "ae6d06786456a999",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood, known for its winding streets, fado music, and views over the Tagus River. It's walkable to major sights like the Castelo de São Jorge and the Sé Cathedral, which makes it great for a short…[351 chars]",
+          "content_digest": "87f715a282f0537c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-9": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood, known for its winding streets, fado music, and views over the Tagus River. It's walkable to major sights like the Castelo de São Jorge and the Sé Cathedral, which makes it great for a short…[351 chars]",
+          "content_digest": "87f715a282f0537c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you want something sweeter, pair your trip with a **pastel de nata** for dess…[244 chars]",
+          "content_digest": "a69c8742ad57bc94",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
     "trace-1/invocation/span-10": {
       "message_count": 0,

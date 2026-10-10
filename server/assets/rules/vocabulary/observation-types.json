@@ -68,6 +68,17 @@
       "result": "generation"
     },
     {
+      "id": "observation.generate_content",
+      "priority": 31,
+      "doc": "The GenAI semantic conventions' operation name for a multimodal model call, which ADK writes on the span of the call itself - nested inside its own `call_llm` step, which is a generation too. The span is the model call: the step around it is a wrapper, and which of the two a response is shown on is SideML's reading (`generation_wrappers`), not this rule's. Split from `observation.chat` only because each rule names the one retired answer it replaces: the span also carries `gen_ai.agent.name`, which the retired sweep read as an agent.",
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "generate_content"
+      },
+      "result": "generation",
+      "replaces_legacy_result": "agent"
+    },
+    {
       "id": "observation.embeddings",
       "priority": 40,
       "where": {

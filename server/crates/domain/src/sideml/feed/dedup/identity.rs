@@ -3,12 +3,15 @@ use super::*;
 mod agent_occurrence;
 mod canonical_json;
 mod plain_occurrence;
+mod wrappers;
 
 #[cfg(test)]
 pub(in crate::sideml::feed) use canonical_json::normalize_structured_json_for_hash;
 pub(in crate::sideml::feed) use canonical_json::{
     hash_json_into, hash_structured_json_into, hash_tool_input_into, normalize_json_for_hash,
 };
+use wrappers::{call_id, restates};
+pub(in crate::sideml::feed) use wrappers::{emitted_below_a_wrapper, generation_wrappers};
 
 // ============================================================================
 // MESSAGE IDENTITY
@@ -395,6 +398,36 @@ fn apply_reused_execution_id_ordinals(
     type ExecutionsById<'a> = HashMap<(&'a str, &'a str), Vec<RankedExecution<'a>>>;
 
     let base_ordinals = ordinals.to_vec();
+    let wrappers = generation_wrappers(blocks);
+    // Every id-bearing call a generation reports as its own output, for finding the call a wrapper restates.
+    let mut anchors_by_id: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
+    for (index, block) in blocks.iter().enumerate() {
+        if let ContentBlock::ToolUse { id: Some(id), .. } = &block.content
+            && !id.is_empty()
+            && is_generation_execution_anchor(block)
+        {
+            anchors_by_id
+                .entry((block.trace_id.as_str(), id.as_str()))
+                .or_default()
+                .push(index);
+        }
+    }
+    // The wrappers' copies of a call made below them: no execution of their own (`restates`).
+    let restating: std::collections::HashSet<usize> = anchors_by_id
+        .values()
+        .flatten()
+        .copied()
+        .filter(|&index| {
+            let block = &blocks[index];
+            wrappers.contains(&(block.trace_id.as_str(), block.span_id.as_str()))
+                && call_id(block).is_some_and(|id| {
+                    anchors_by_id[&(block.trace_id.as_str(), id)]
+                        .iter()
+                        .any(|&other| restates(blocks, index, other))
+                })
+        })
+        .collect();
+    let mut restated: Vec<usize> = Vec::new();
     let mut executions: HashMap<Group<'_>, Vec<(usize, &str, Occurrence<'_>)>> = HashMap::new();
     let mut prior_calls: HashMap<Group<'_>, Vec<(usize, &str)>> = HashMap::new();
     let mut prior_results: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
@@ -436,6 +469,10 @@ fn apply_reused_execution_id_ordinals(
             }
             continue;
         }
+        if restating.contains(&index) {
+            restated.push(index);
+            continue;
+        }
         if shape_count.get(&response).copied().unwrap_or(1) > 1 {
             continue;
         }
@@ -467,31 +504,47 @@ fn apply_reused_execution_id_ordinals(
 
     let mut execution_ranks: HashMap<usize, u32> = HashMap::new();
     let mut ranks_by_id: ExecutionsById<'_> = HashMap::new();
-    for (group, entries) in &mut executions {
-        entries.sort_by_key(|(_, _, occurrence)| *occurrence);
-        let mut previous_rank_by_id: HashMap<&str, u32> = HashMap::new();
-        for &(index, id, occurrence) in entries.iter() {
-            let mut prior_rank = previous_rank_by_id.get(id).copied();
-            for &(prior, prior_id) in prior_calls.get(group).into_iter().flatten() {
-                if prior_id == id && observation_precedes(blocks, prior, index) {
-                    prior_rank = Some(prior_rank.unwrap_or(0).max(base_ordinals[prior]));
-                }
+    // In one order across call shapes, so a reused id ranks per id rather than per shape: two executions under
+    // one id with different arguments are two calls, and the results that answer them are told apart only by
+    // these ranks - their identity is the id. Ranked per shape, both were rank 0 and their results one message.
+    let mut ordered: Vec<(Group<'_>, usize, &str, Occurrence<'_>)> = executions
+        .iter()
+        .flat_map(|(group, entries)| {
+            entries
+                .iter()
+                .map(|&(index, id, occurrence)| (*group, index, id, occurrence))
+        })
+        .collect();
+    ordered.sort_by_key(|&(group, index, _, occurrence)| (occurrence, group.1, index));
+    let mut previous_rank_by_id: HashMap<(&str, &str), u32> = HashMap::new();
+    // The ranks each call shape has given out: a shape is a call's identity, so two executions of one shape
+    // must not share a rank, which a rank carried over from another shape under the same id could make them.
+    let mut taken: HashMap<Group<'_>, std::collections::HashSet<u32>> = HashMap::new();
+    for &(group, index, id, occurrence) in &ordered {
+        let mut prior_rank = previous_rank_by_id.get(&(group.0, id)).copied();
+        for &(prior, prior_id) in prior_calls.get(&group).into_iter().flatten() {
+            if prior_id == id && observation_precedes(blocks, prior, index) {
+                prior_rank = Some(prior_rank.unwrap_or(0).max(base_ordinals[prior]));
             }
-            for &prior in prior_results.get(&(group.0, id)).into_iter().flatten() {
-                if observation_precedes(blocks, prior, index) {
-                    prior_rank = Some(prior_rank.unwrap_or(0).max(base_ordinals[prior]));
-                }
-            }
-            let rank = prior_rank
-                .map(|prior| base_ordinals[index].max(prior.saturating_add(1)))
-                .unwrap_or(base_ordinals[index]);
-            execution_ranks.insert(index, rank);
-            ranks_by_id
-                .entry((blocks[index].trace_id.as_str(), id))
-                .or_default()
-                .push((occurrence, index, rank));
-            previous_rank_by_id.insert(id, rank);
         }
+        for &prior in prior_results.get(&(group.0, id)).into_iter().flatten() {
+            if observation_precedes(blocks, prior, index) {
+                prior_rank = Some(prior_rank.unwrap_or(0).max(base_ordinals[prior]));
+            }
+        }
+        let mut rank = prior_rank
+            .map(|prior| base_ordinals[index].max(prior.saturating_add(1)))
+            .unwrap_or(base_ordinals[index]);
+        let used = taken.entry(group).or_default();
+        while !used.insert(rank) {
+            rank += 1;
+        }
+        execution_ranks.insert(index, rank);
+        ranks_by_id
+            .entry((blocks[index].trace_id.as_str(), id))
+            .or_default()
+            .push((occurrence, index, rank));
+        previous_rank_by_id.insert((group.0, id), rank);
     }
     for events in ranks_by_id.values_mut() {
         events.sort_unstable();
@@ -551,12 +604,53 @@ fn apply_reused_execution_id_ordinals(
         if preserve_prior_rank {
             continue;
         }
+        // A call's copy is an occurrence of a call of its own shape where there is one: a rank is counted per
+        // shape, so another shape's execution under the same id says nothing about this one's.
+        let shape_of = |index: usize| match &blocks[index].content {
+            ContentBlock::ToolUse { name, input, .. } => Some(compute_tool_call_hash(name, input)),
+            _ => None,
+        };
+        let own_shape = shape_of(index);
+        let same_shape: Vec<&RankedExecution<'_>> = events
+            .iter()
+            .filter(|(_, execution, _)| own_shape.is_some() && shape_of(*execution) == own_shape)
+            .collect();
+        let events: Vec<&RankedExecution<'_>> = if same_shape.is_empty() {
+            events.iter().collect()
+        } else {
+            same_shape
+        };
         ordinals[index] = events
             .iter()
             .rev()
             .find(|(_, execution, _)| observation_precedes(blocks, *execution, index))
             .or_else(|| events.first())
             .map_or(0, |(_, _, rank)| *rank);
+    }
+
+    // A wrapper's copy is the occurrence of the call it restates, not the execution its own timestamp
+    // precedes: a wrapper's attributes carry its span's start, which comes before every call below it. Of the
+    // executions below - never another wrapper's restatement, whose own time says nothing - the latest.
+    for wrapper in restated {
+        let block = &blocks[wrapper];
+        let latest = call_id(block).and_then(|id| {
+            anchors_by_id[&(block.trace_id.as_str(), id)]
+                .iter()
+                .copied()
+                .filter(|&other| !restating.contains(&other) && restates(blocks, wrapper, other))
+                .max_by_key(|&other| {
+                    let execution = &blocks[other];
+                    (
+                        execution.timestamp,
+                        execution.span_id.as_str(),
+                        execution.message_index,
+                        execution.entry_index,
+                    )
+                })
+        });
+        if let Some(nested) = latest {
+            ordinals[wrapper] = ordinals[nested];
+        }
     }
 }
 

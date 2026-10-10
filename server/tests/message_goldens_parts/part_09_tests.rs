@@ -441,13 +441,11 @@ fn a_request_listed_on_two_carriers_keeps_each_quoted_step_with_its_preamble() {
             "step {at} is not preceded by its own preamble, from its own carrier: {texts:#?}"
         );
     }
-    // Without the occurrence the event carrier proves, four preambles in one trace are a duplicate: the check
-    // that caught the split still holds the line.
+    // Without the occurrence their carrier proves, four preambles in one trace are a duplicate: the check that
+    // caught the split still holds the line.
+    let carrier = users[steps[0]].carrier.clone();
     let mut unproven = rows.clone();
-    for row in unproven
-        .iter_mut()
-        .filter(|r| r.carrier.starts_with("event:"))
-    {
+    for row in unproven.iter_mut().filter(|r| r.carrier == carrier) {
         row.carrier_proves_occurrence = false;
     }
     let caught = std::panic::catch_unwind(|| assert_no_duplicates(label, "trace", &unproven));

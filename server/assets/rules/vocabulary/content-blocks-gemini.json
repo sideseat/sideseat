@@ -162,7 +162,14 @@
       },
       "thinking": {
         "text": "$.text",
-        "doc": "A text part flagged as a thought."
+        "signature": {
+          "first_of": [
+            "$.thoughtSignature",
+            "$.thought_signature"
+          ],
+          "mode": "usable"
+        },
+        "doc": "A text part flagged as a thought, with the signature a later request replays - under the API's member name or the Python SDK's, whichever holds one. The Python SDK carries it as bytes, which a log event's body keeps."
       }
     },
     {

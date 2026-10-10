@@ -86,6 +86,10 @@ use timing::{build_birth_times, get_birth_time};
 mod quality {
     /// Non-history blocks are strongly preferred over history copies.
     pub const NON_HISTORY: u32 = 100;
+    /// A model call's own emission, below a generation that encloses it (`generation_wrappers`), over the copy
+    /// that framework step restates - and over nothing else: a replay below it has no claim. Above the finish
+    /// weight, because the wrapper is often the one stating the finish, which the survivor adopts.
+    pub const EMITTED_BELOW_A_WRAPPER: u32 = 20;
     /// Complete responses (with finish_reason) preferred over streaming chunks.
     pub const HAS_FINISH_REASON: u32 = 10;
     /// Enrichment content (thinking blocks) adds value.
@@ -104,8 +108,12 @@ mod quality {
 ///
 /// Higher score = more complete/enriched version.
 /// When deduplicating, keep the highest quality version.
-fn compute_quality(block: &BlockEntry) -> u32 {
+fn compute_quality(block: &BlockEntry, emitted_below_a_wrapper: bool) -> u32 {
     let mut score = 0u32;
+
+    if emitted_below_a_wrapper {
+        score += quality::EMITTED_BELOW_A_WRAPPER;
+    }
 
     // Strong preference for non-history blocks
     // History blocks only win if there's no non-history equivalent
@@ -590,6 +598,7 @@ fn deduplicate_with_lineage(
     // The input index rides along so each observation can be told which key it ended up under; a
     // block dropped here has no key, which is what `None` in the lineage means.
     let mut input_keys: Vec<Option<DedupKey>> = vec![None; input_count];
+    let emitted_below_a_wrapper = emitted_below_a_wrapper(&blocks);
     let blocks: Vec<(usize, BlockEntry, u32)> = blocks
         .into_iter()
         .zip(ordinals)
@@ -648,7 +657,7 @@ fn deduplicate_with_lineage(
             Some(canonical) => (canonical.clone(), ordinal),
             None => signature_alias.get(&own).cloned().unwrap_or(own),
         };
-        let quality = compute_quality(&block);
+        let quality = compute_quality(&block, emitted_below_a_wrapper[input_index]);
         input_keys[input_index] = Some(identity.clone());
 
         candidates

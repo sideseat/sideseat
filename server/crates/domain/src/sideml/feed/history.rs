@@ -647,7 +647,15 @@ fn original_copy(
 ) -> usize {
     let (first, is_output, _, time) = sorted[0];
     if is_output {
-        if is_fresh_emission(&blocks[first]) {
+        // A model call's own emission is the original, unless a model call below it emitted the same copy:
+        // it is then a framework step restating that call's response, and the walk below finds the call.
+        if is_fresh_emission(&blocks[first])
+            && !sorted.iter().any(|&(index, other_output, _, _)| {
+                other_output
+                    && is_fresh_emission(&blocks[index])
+                    && encloses(&blocks[first], &blocks[index])
+            })
+        {
             return 0;
         }
         // Bounded by the number of copies, so a span path that loops cannot.

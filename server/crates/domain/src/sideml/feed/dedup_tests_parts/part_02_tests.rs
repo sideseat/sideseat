@@ -891,18 +891,18 @@ fn test_quality_scoring() {
 
     // Base block
     let base = make_test_block("trace1", "span1", ChatRole::Assistant, "Hello", t0);
-    let base_quality = compute_quality(&base);
+    let base_quality = compute_quality(&base, false);
 
     // Block with finish_reason has higher quality
     let mut with_finish = base.clone();
     with_finish.finish_reason = Some(FinishReason::Stop);
-    let with_finish_quality = compute_quality(&with_finish);
+    let with_finish_quality = compute_quality(&with_finish, false);
     assert!(with_finish_quality > base_quality);
 
     // Block with model info has higher quality
     let mut with_model = base.clone();
     with_model.model = Some("gpt-4".to_string());
-    let with_model_quality = compute_quality(&with_model);
+    let with_model_quality = compute_quality(&with_model, false);
     assert!(with_model_quality > base_quality);
 
     // Event source has higher quality than attribute
@@ -910,7 +910,7 @@ fn test_quality_scoring() {
     from_event.source_type = "event".to_string();
     let mut from_attribute = base;
     from_attribute.source_type = "attribute".to_string();
-    assert!(compute_quality(&from_event) > compute_quality(&from_attribute));
+    assert!(compute_quality(&from_event, false) > compute_quality(&from_attribute, false));
 }
 
 /// Two copies of one attachment, one with its filename: they are one block, and the name survives
