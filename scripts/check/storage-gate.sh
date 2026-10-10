@@ -120,14 +120,28 @@ if [ -z "$work" ]; then
   work="$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX")"
 fi
 
+# The gate's test binary, built as `make test` builds the workspace's: resolved for the whole workspace, so the
+# build `make check` has just made is reused rather than a `-p sideseat-server` variant compiled beside it, which
+# resolves the members' features differently and rebuilt a dozen crates on every push.
+gate_test() {
+  cargo test --locked -q --workspace ${1:+"$1"} --test storage_gate "${@:2}"
+}
+
 # replay DIR [cargo profile flag] [DuckDB threads]: the corpus, PASSES times, into DIR.
 replay() {
   local log
   log="$(mktemp "${TMPDIR:-/tmp}/$name-log.XXXXXX")"
+  if ! (cd server && gate_test "${2:-}" --no-run) >"$log" 2>&1; then
+    tail -30 "$log" >&2
+    rm -f "$log"
+    echo "[storage-gate] FAIL: the replay did not build" >&2
+    exit 1
+  fi
+  built=$SECONDS
   if ! (cd server && SIDESEAT_STORAGE_GATE_DIR="$1" SIDESEAT_STORAGE_GATE_PASSES="$PASSES" \
     SIDESEAT_STORAGE_GATE_THREADS="${3:-1}" \
-    cargo test --locked -q ${2:+"$2"} -p sideseat-server --test storage_gate -- --ignored --exact \
-    the_pinned_corpus_replays_into_the_same_stores --nocapture) >"$log" 2>&1; then
+    gate_test "${2:-}" -- --ignored --exact the_pinned_corpus_replays_into_the_same_stores --nocapture) \
+    >"$log" 2>&1; then
     tail -30 "$log" >&2
     rm -f "$log"
     echo "[storage-gate] FAIL: the replay did not finish" >&2
@@ -161,4 +175,5 @@ fi
 uv run --locked --script scripts/perf/storage-footprint.py embedded --store "$work/store" --passes "$PASSES" \
   --baseline scripts/perf/storage-gate-baseline.json $update
 # The gate's time, by phase, so its growth shows: it runs in every `make check`.
-echo "[storage-gate] build and replay $((replayed - started))s, measurement $((SECONDS - replayed))s, total $((SECONDS - started))s"
+echo "[storage-gate] build $((built - started))s, replay $((replayed - built))s, measurement $((SECONDS - replayed))s," \
+  "total $((SECONDS - started))s"

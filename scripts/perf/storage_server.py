@@ -43,15 +43,13 @@ def log_tail(work: Path, lines: int = 40) -> str:
 
 
 def free_ports() -> int:
-    """A base port with the two after it free too: the server listens on three."""
+    """A base port with the two after it free too: the server listens on three. Drawn from below the range the
+    system hands out for outgoing connections, which it fills from the top."""
+    import random
     import socket
 
-    for _ in range(50):
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", 0))
-            base = probe.getsockname()[1]
-        if base > 65000:
-            continue
+    for _ in range(200):
+        base = random.randrange(20000, 40000)
         held = []
         try:
             for port in (base, base + 1, base + 2):
