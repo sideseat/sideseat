@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
@@ -204,14 +204,15 @@ fn default_vault_version() -> u32 {
 pub(crate) struct SecretVault {
     #[serde(default = "default_vault_version")]
     pub version: u32,
-    pub secrets: HashMap<String, Secret>,
+    /// By key, so the vault serialises the same bytes whatever process wrote it.
+    pub secrets: BTreeMap<String, Secret>,
 }
 
 impl Default for SecretVault {
     fn default() -> Self {
         Self {
             version: VAULT_VERSION,
-            secrets: HashMap::new(),
+            secrets: BTreeMap::new(),
         }
     }
 }
@@ -305,7 +306,7 @@ mod tests {
     fn test_vault_migration_v1_to_v2() {
         let mut vault = SecretVault {
             version: 1,
-            secrets: HashMap::from([
+            secrets: BTreeMap::from([
                 ("jwt_signing_key".into(), test_secret("abc")),
                 ("api_key_secret".into(), test_secret("def")),
             ]),
@@ -392,6 +393,24 @@ mod tests {
             assert_eq!(vault.secrets.len(), 1);
             assert_eq!(vault.secrets["global/key"].value, "scoped");
         }
+    }
+
+    /// A vault serialises its secrets by key, whatever order they were stored in: in a hash map's order the same
+    /// vault was different bytes each time a process wrote it.
+    #[test]
+    fn a_vault_serialises_its_secrets_by_key() {
+        let mut vault = SecretVault::default();
+        let keys: Vec<String> = (0..20)
+            .map(|n| format!("global/key{:02}", (n * 7) % 20))
+            .collect();
+        for key in &keys {
+            vault.secrets.insert(key.clone(), test_secret(key));
+        }
+        let json = serde_json::to_value(&vault).unwrap();
+        let written: Vec<&String> = json["secrets"].as_object().unwrap().keys().collect();
+        let mut sorted = keys.iter().collect::<Vec<_>>();
+        sorted.sort();
+        assert_eq!(written, sorted);
     }
 
     #[test]

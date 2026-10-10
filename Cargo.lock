@@ -5695,6 +5695,7 @@ dependencies = [
  "futures",
  "memchr",
  "opentelemetry-proto 0.28.0",
+ "proc-macro2",
  "prost 0.13.5",
  "reqwest",
  "semver",

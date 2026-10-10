@@ -377,10 +377,12 @@ pub struct FilterOptionsQuery {
     pub to_timestamp: Option<String>,
 }
 
-/// Response type for filter options
+/// Response type for filter options: each column's options, by column name.
+///
+/// Ordered by name: in a hash map's order the same answer was different bytes from one process to the next.
 #[derive(Debug, serde::Serialize, ToSchema)]
 pub struct FilterOptionsResponse {
-    pub options: std::collections::HashMap<String, Vec<FilterOptionDto>>,
+    pub options: std::collections::BTreeMap<String, Vec<FilterOptionDto>>,
 }
 
 /// Single filter option with value and count
@@ -410,7 +412,7 @@ pub async fn get_trace_filter_options(
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<FilterOptionsQuery>,
 ) -> Result<(HeaderMap, Json<FilterOptionsResponse>), ApiError> {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     // Parse timestamps
     let from_timestamp = parse_timestamp_param(&query.from_timestamp)?;
@@ -444,7 +446,7 @@ pub async fn get_trace_filter_options(
         .map_err(ApiError::from_data)?;
 
     // Convert to DTO format
-    let mut options: HashMap<String, Vec<FilterOptionDto>> = column_options
+    let mut options: BTreeMap<String, Vec<FilterOptionDto>> = column_options
         .into_iter()
         .map(|(k, v)| {
             (
@@ -478,4 +480,40 @@ pub async fn get_trace_filter_options(
     );
 
     Ok((headers, Json(FilterOptionsResponse { options })))
+}
+
+#[cfg(test)]
+mod filter_options_tests {
+    use super::{FilterOptionDto, FilterOptionsResponse};
+
+    /// The options serialise by column name, whatever order they were gathered in: in a hash map's order the same
+    /// answer was different bytes from one process to the next.
+    #[test]
+    fn filter_options_serialise_by_column_name() {
+        let columns: Vec<String> = (0..20)
+            .map(|n| format!("column{:02}", (n * 7) % 20))
+            .collect();
+        let response = FilterOptionsResponse {
+            options: columns
+                .iter()
+                .map(|column| {
+                    (
+                        column.clone(),
+                        vec![FilterOptionDto {
+                            value: column.clone(),
+                            count: 1,
+                        }],
+                    )
+                })
+                .collect(),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        let mut sorted = columns.clone();
+        sorted.sort();
+        let positions: Vec<usize> = sorted
+            .iter()
+            .map(|column| json.find(&format!("\"{column}\":")).expect("serialised"))
+            .collect();
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{json}");
+    }
 }

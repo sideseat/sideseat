@@ -434,7 +434,7 @@ pub async fn get_span_filter_options(
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<SpanFilterOptionsQuery>,
 ) -> Result<(HeaderMap, Json<FilterOptionsResponse>), ApiError> {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     // Parse timestamps
     let from_timestamp = parse_timestamp_param(&query.from_timestamp)?;
@@ -471,7 +471,7 @@ pub async fn get_span_filter_options(
         .map_err(ApiError::from_data)?;
 
     // Convert to DTO format
-    let options: HashMap<String, Vec<FilterOptionDto>> = column_options
+    let options: BTreeMap<String, Vec<FilterOptionDto>> = column_options
         .into_iter()
         .map(|(k, v)| {
             (

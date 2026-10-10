@@ -1,6 +1,6 @@
 //! OTLP log read and trace-correlation endpoints.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use axum::Json;
 use axum::extract::State;
@@ -199,7 +199,7 @@ pub async fn get_log_filter_options(
             .map(str::to_string)
             .collect()
         });
-    let options: HashMap<String, Vec<FilterOptionDto>> = state
+    let options: BTreeMap<String, Vec<FilterOptionDto>> = state
         .analytics
         .get_log_filter_options(
             &auth.project_id,

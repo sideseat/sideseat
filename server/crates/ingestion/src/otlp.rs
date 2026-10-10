@@ -38,18 +38,9 @@ pub mod keys {
 // CONTEXT EXTRACTION HELPERS
 // ============================================================================
 
-/// Convert HashMap<String, String> to JsonValue object
-pub fn attrs_to_json(attrs: &HashMap<String, String>) -> JsonValue {
-    let map: serde_json::Map<String, JsonValue> = attrs
-        .iter()
-        .map(|(k, v)| (k.clone(), serde_json::json!(v)))
-        .collect();
-    JsonValue::Object(map)
-}
-
 /// Convert OTLP KeyValue attributes to JsonValue preserving each value's original type.
 ///
-/// # Why not `attrs_to_json(extract_attributes(...))`
+/// # Why not the string form of `extract_attributes`
 ///
 /// The `extract_attributes` path stringifies every value on the way to a `HashMap<String, String>`. That
 /// is fine for display and for context lookups (session id, user id, environment), but it is wrong for
@@ -421,13 +412,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_attrs_to_json_empty() {
-        let attrs = HashMap::new();
-        let json = attrs_to_json(&attrs);
-        assert_eq!(json, JsonValue::Object(serde_json::Map::new()));
-    }
-
     /// OTLP integer 200 and string "200" are two different labelled series, not one.
     ///
     /// The old path stringified before it hashed, so a metric datapoint whose `code=200` (int) and
@@ -471,28 +455,6 @@ mod tests {
         let flag_text =
             attrs_to_typed_json(&[kv("ok", any_value::Value::StringValue("true".into()))]);
         assert_ne!(flag_true, flag_text);
-
-        // The string form stringifies both, so the old path answered equal - which is the failure this
-        // whole helper exists for.
-        let mut string_attrs = HashMap::new();
-        string_attrs.insert("code".to_string(), "200".to_string());
-        assert_eq!(
-            attrs_to_json(&string_attrs).get("code").unwrap().as_str(),
-            Some("200"),
-            "attrs_to_json is the path that loses the type; kept alive for display and lookups"
-        );
-    }
-
-    #[test]
-    fn test_attrs_to_json_with_values() {
-        let mut attrs = HashMap::new();
-        attrs.insert("key1".to_string(), "value1".to_string());
-        attrs.insert("key2".to_string(), "value2".to_string());
-
-        let json = attrs_to_json(&attrs);
-        let obj = json.as_object().unwrap();
-        assert_eq!(obj.get("key1").unwrap(), "value1");
-        assert_eq!(obj.get("key2").unwrap(), "value2");
     }
 
     #[test]

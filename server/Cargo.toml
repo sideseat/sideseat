@@ -77,6 +77,8 @@ flate2 = "1"
 memchr = "2"
 # The ingest hot-path benchmark measures the entropy coder the raw store uses.
 zstd = { workspace = true }
+# The repository tests read production Rust as tokens, so a string or a comment cannot pass for code.
+proc-macro2 = "1"
 
 [package.metadata.cargo-machete]
 # Present only to pin feature sets for cargo-hakari; nothing imports it.
