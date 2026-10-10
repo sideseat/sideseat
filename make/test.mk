@@ -3,7 +3,7 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-equivalence footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
 test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
 
@@ -120,6 +120,14 @@ bench-ingest: ## Measure sustained trace-ingest throughput
 # that fails the run when compression regresses.
 footprint-storage: ## Measure and gate stored bytes per signal (embedded)
 	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py embedded --gate --verify-raw --metrics-load)
+
+# The deterministic stored-bytes gate: the pinned corpus replayed in process on a fixed clock, three passes, held
+# to scripts/perf/storage-gate-baseline.json exactly. ARGS=--update writes the baseline in the commit that moves it.
+storage-gate: ## Hold the deterministic per-table stored bytes to their baseline
+	@./scripts/check/storage-gate.sh $(ARGS)
+
+storage-gate-equivalence: ## Prove the storage gate's figures do not depend on the disk or the build profile
+	@./scripts/check/storage-gate.sh --equivalence
 
 footprint-storage-distributed: ## Measure and gate stored bytes per signal (ClickHouse, in containers)
 	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py distributed --gate --metrics-load)

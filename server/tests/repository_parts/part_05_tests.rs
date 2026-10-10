@@ -348,8 +348,75 @@ fn every_fixture_the_storage_gate_pins_has_its_pinned_bytes() {
         drift.is_empty(),
         "fixtures the storage gate pins no longer have their pinned bytes, so `make footprint-storage` refuses \
          to measure. Pin them again in the commit that changed them and record the gate's figures there \
-         (`uv run --locked --script scripts/perf/storage-footprint.py embedded --gate --verify-raw --metrics-load \
-         --update-manifest`):\n  {}",
+         (`uv run --locked --script scripts/perf/storage-footprint.py embedded --update-manifest --pin-only`, then \
+         `make storage-gate ARGS=--update` and `make footprint-storage`):\n  {}",
         drift.join("\n  ")
+    );
+}
+
+/// The storage gates measure every tracked export, or say why one is left out: an export neither pinned in the
+/// corpus manifest nor named with a reason in `scripts/perf/storage-footprint-excluded.json` fails, and so does an
+/// exclusion without a reason or of a file no longer tracked. A capture that adds exports and forgets them leaves
+/// them unmeasured, which is how 54 had gone unpinned.
+#[test]
+fn every_tracked_export_is_pinned_or_excluded() {
+    let repo = repo_root();
+    let read = |path: &str| -> std::collections::BTreeMap<String, String> {
+        serde_json::from_str(
+            &std::fs::read_to_string(repo.join(path)).unwrap_or_else(|e| panic!("{path}: {e}")),
+        )
+        .unwrap_or_else(|e| panic!("{path} is a JSON object of paths: {e}"))
+    };
+    let pinned = read("scripts/perf/storage-footprint-corpus.json");
+    let excluded = read("scripts/perf/storage-footprint-excluded.json");
+    let listing = std::process::Command::new("git")
+        .args([
+            "ls-files",
+            "server/tests/fixtures/messages",
+            "server/tests/fixtures/metrics",
+        ])
+        .current_dir(repo)
+        .output()
+        .expect("git ls-files");
+    let tracked: std::collections::BTreeSet<String> = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|path| {
+            let name = path.rsplit('/').next().unwrap_or_default();
+            ["req-", "logs-", "metrics-"]
+                .iter()
+                .any(|prefix| name.starts_with(prefix))
+                && (name.ends_with(".pb") || name.ends_with(".json"))
+        })
+        .map(str::to_string)
+        .collect();
+    assert!(
+        tracked.len() > 1000,
+        "only {} tracked exports",
+        tracked.len()
+    );
+    let mut problems: Vec<String> = tracked
+        .iter()
+        .filter(|path| !pinned.contains_key(*path) && !excluded.contains_key(*path))
+        .map(|path| format!("neither pinned nor excluded: {path}"))
+        .collect();
+    problems.extend(
+        excluded
+            .iter()
+            .filter(|(path, reason)| !tracked.contains(*path) || reason.trim().is_empty())
+            .map(|(path, _)| {
+                format!("an exclusion without a reason, or of an untracked file: {path}")
+            }),
+    );
+    problems.extend(
+        pinned
+            .keys()
+            .filter(|path| excluded.contains_key(*path))
+            .map(|path| format!("both pinned and excluded: {path}")),
+    );
+    assert!(
+        problems.is_empty(),
+        "pin the corpus again (`uv run --locked --script scripts/perf/storage-footprint.py embedded \
+         --update-manifest --pin-only`) or exclude the exports with a reason, and re-measure in the same commit:\n  {}",
+        problems.join("\n  ")
     );
 }

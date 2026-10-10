@@ -31,8 +31,9 @@ This is what distinguishes SideSeat. Every change is judged on all three, and no
   back-pressure instead of unbounded queues, no per-request allocation that grows with history. CPU and
   disk work is proportional to new data, never to what is already stored.
 - **Measured, never estimated.** A claim about size, speed, or memory comes with a reproducible measurement
-  (`make footprint`, `make bench-http`, `scripts/perf/`) taken before and after the change. Regression gates fail
-  the build when a measured figure gets worse.
+  (`make storage-gate`, `make footprint`, `make bench-http`, `scripts/perf/`) taken before and after the change.
+  Regression gates fail the build when a measured figure gets worse: stored bytes are held to their deterministic
+  baseline by `make storage-gate`, and `make footprint-storage` measures a live server against the targets.
 
 ## Repository map
 

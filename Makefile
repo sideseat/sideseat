@@ -22,7 +22,7 @@ help: ## Show available commands
 quick: ## Format, lint, and test only what changed since main
 	@./scripts/check/quick.sh $(ARGS)
 
-check: fmt-check lint test ## Run every container-free gate
+check: fmt-check lint test storage-gate ## Run every container-free gate
 	@echo "[check] All checks passed"
 
 include make/setup.mk

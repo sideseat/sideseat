@@ -1,0 +1,83 @@
+{
+ "passes": 3,
+ "tables": {
+  "log_terms": {
+   "columns": 8912744,
+   "indexes": 0
+  },
+  "otel_logs": {
+   "columns": 5504968,
+   "indexes": 786432
+  },
+  "otel_metrics": {
+   "columns": 524272,
+   "indexes": 0
+  },
+  "otel_raw": {
+   "columns": 4194288,
+   "indexes": 786432
+  },
+  "otel_raw_traces": {
+   "columns": 524272,
+   "indexes": 1048576
+  },
+  "otel_spans": {
+   "columns": 9961280,
+   "indexes": 3670016
+  },
+  "schema_version": {
+   "columns": 262136,
+   "indexes": 0
+  },
+  "span_terms": {
+   "columns": 10485440,
+   "indexes": 0
+  }
+ },
+ "residual": 525064,
+ "analytics_used": 47185920,
+ "transactional": {
+  "api_keys": 20480,
+  "auth_methods": 20480,
+  "credential_project_permissions": 24576,
+  "credentials": 16384,
+  "deleted_projects": 12288,
+  "deleted_sessions": 12288,
+  "deleted_traces": 12288,
+  "deletion_journal": 8192,
+  "favorites": 24576,
+  "files": 45056,
+  "organization_members": 16384,
+  "organizations": 16384,
+  "project_holds": 12288,
+  "project_maintenance_leases": 12288,
+  "project_storage_usage": 8192,
+  "projects": 12288,
+  "retention_cleanup": 12288,
+  "schema_version": 4096,
+  "sqlite_schema": 28672,
+  "sqlite_sequence": 4096,
+  "staged_payload_anomalies": 8192,
+  "staged_payloads": 16384,
+  "trace_files": 266240,
+  "users": 12288
+ },
+ "media": 4145647,
+ "signals": {
+  "traces": {
+   "items": 40713,
+   "stored_excluding_media": 30981600,
+   "per_item": 760.98
+  },
+  "logs": {
+   "items": 6231,
+   "stored_excluding_media": 15204144,
+   "per_item": 2440.08
+  },
+  "metrics": {
+   "items": 1440,
+   "stored_excluding_media": 524272,
+   "per_item": 364.08
+  }
+ }
+}

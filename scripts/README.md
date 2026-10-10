@@ -6,7 +6,7 @@ its own location, so it works from any directory.
 
 | Directory   | Purpose                                                     | Entry points                                  |
 | ----------- | ----------------------------------------------------------- | --------------------------------------------- |
-| `check/`    | The inner loop, static gates, capped model checking, the durability proof and the supply-chain audit | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor`, `make harden-spec`, `make test-durability`, `make audit` |
+| `check/`    | The inner loop, static gates, capped model checking, the durability proof, the deterministic storage gate and the supply-chain audit | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor`, `make harden-spec`, `make test-durability`, `make storage-gate`, `make audit` |
 | `hooks/`    | Git hooks: pre-commit (format, file length, secrets), pre-push (`make check`) | `make setup-hooks` |
 | `test/`     | Suites that need containers, SDK toolchains or sample envs  | `make test-postgres` and the other `test-*` targets |
 | `perf/`     | Latency, ingest and read benchmarks, footprint ceilings, storage | `make bench-http`, `make bench-ingest`, `make bench-reads`, `make bench-reads-distributed`, `make footprint`, `make footprint-storage`, `storage-entropy.py` |

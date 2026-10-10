@@ -95,6 +95,54 @@ excluding media** - media is stored once per project at its floor (the unique de
 it - against the ruled ceilings of 480 B per span, 300 B per log record and 150 B per metric point, plus a regression
 ceiling at the last measured figure.
 
+### The deterministic gate
+
+A live run cannot be repeated byte for byte: every export is stored at its receipt, the instant it arrived, and a
+server's timed checkpoint lands wherever its timer does, so two runs of the same binary on the same corpus have
+differed by three blocks. `make storage-gate` replays the pinned corpus in process instead
+(`server/tests/storage_gate.rs`), through the path every export takes - `export_signal`, staging, admission, the
+trace pipeline and settlement - with each export's receipt fixed by its place in the corpus, every other clock at
+one instant, project ids derived from their tenants, and no timed checkpoint. Two replays leave one segment layout
+and the same figures, on a RAM disk, on an ordinary disk and from a release build alike
+(`make storage-gate-equivalence`).
+
+DuckDB runs on one thread there and in the measurement, where the server sizes its threads from the host. The
+requirement that what is stored and answered not depend on the core count is read as each table's byte count and
+every answer, not where the engine places a segment in its own file. Measured on the pinned corpus: one pass leaves
+the same 71 blocks and the same per-table bytes at 1, 2, 4 and 8 threads, with span_terms' segments in other
+blocks above one thread; three passes do not - four threads leave 185 blocks where one leaves 180, every extra one
+span_terms', whose 76 segments the checkpoint packs into 45 blocks on four threads and 40 on one. The answers -
+every read `make bench-reads` makes and each project's trace, session and span message views, 1,069 reads - are the
+same bytes at one thread and four. `make storage-gate-equivalence` replays on four threads and requires the same
+figures and the same answers as on one; until the checkpoint runs on one thread whatever the host, the figures do
+not match and it fails, by design. Its answers are read by servers on the host's own thread count; reading them at
+one and four too waits for the engine's thread count to be a server setting.
+
+The corpus goes through three times, the later passes as new telemetry (ids rewritten, instants a day on), so a
+256 KB block is a smaller share of each table. Each table is measured as its segments' bytes and its indexes'. An
+index is sized by dropping it on a copy, and the measurement refuses if a drop moved any table's segments, as the
+vacuum a table's last index holds back would. DuckDB says where a segment starts but not where it ends, so a
+segment runs to the next in its block and the last to the block's end: a block's unused tail is charged to the
+segment before it, and where two tables share a block a change to one can move that tail into the other's figure.
+What lies in no segment - headers, metadata, free-list blocks - is a residual, held to the baseline but charged to
+no signal, and media is reported apart. The figures are held to `scripts/perf/storage-gate-baseline.json` exactly:
+any change, a tail moving between tables included, fails until the commit that makes it writes the baseline
+(`make storage-gate ARGS=--update`) and says why. `make check`, which the pre-push hook runs, runs the gate.
+
+These are not the live gate's figures and do not compare with them: the live gate spreads the residue over the
+signals by rows and gates metrics on the derived million-point load, so its 784 and 815 B/span and 139 B/point were
+another measurement. Measured on all 1,654 pinned exports, three passes, excluding media and the residual:
+
+| Signal | Stored per item | Target | Largest parts |
+| --- | ---: | ---: | --- |
+| Traces | 761.0 B/span | 480 | `otel_spans` 244.7 and its three ART indexes 90.1, `span_terms` 257.5, `otel_raw` 103.0 and its index 19.3, `otel_raw_traces` 38.7 |
+| Logs | 2,440 B/record | 300 | `log_terms` 1,430.4, `otel_logs` 883.5 and its index 126.2 |
+| Metrics | 364 B/point | 150 | `otel_metrics` 364.1, on the 480 captured points: a block's worth, not a rate |
+
+The span indexes - on `span_id`, `trace_id` and the thread key - are the cheapest lever on the trace figure: 90 B of
+the 281 above the target. The log figure is mostly its terms and its body; the span re-send, index and log-encoding
+work is measured against this table.
+
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
 `used_blocks`: the per-column attribution from the segment map plus the residue (indexes, headers, the unused tail

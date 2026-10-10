@@ -55,6 +55,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import storage_raw  # noqa: E402  (a sibling module, importable once the script's directory is on the path)
+import storage_gate_figures  # noqa: E402  (the same)
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "server/tests/fixtures/messages"
@@ -64,6 +65,9 @@ CEILING = ROOT / "scripts/perf/storage-footprint-ceiling.json"
 # The exact fixture set the gate measures, with each file's SHA-256. Pinned so a growing corpus cannot move the
 # figure: a deliberate change rewrites this file (`--update-manifest`) and re-measures in the same commit.
 MANIFEST = ROOT / "scripts/perf/storage-footprint-corpus.json"
+# Tracked exports deliberately left out of the corpus, each with its reason. Every other tracked export is pinned,
+# and the repository tests fail on one that is neither.
+EXCLUDED = ROOT / "scripts/perf/storage-footprint-excluded.json"
 # Metric points the derived load carries (`scripts/perf/metrics-load.json`), which the metric ceilings are
 # stated on: 480 captured points cannot measure a store whose block is 256 KB.
 METRIC_LOAD_POINTS = json.loads((ROOT / "scripts/perf/metrics-load.json").read_text())[
@@ -118,10 +122,13 @@ def tracked_files() -> set[Path]:
 
 
 def corpus_paths() -> list[Path]:
-    """Every tracked export file the fixture trees hold now. Local-only (ignored) captures are left out, so
-    a figure measured here is one any checkout reproduces."""
+    """Every tracked export file the fixture trees hold now, but those excluded with a reason. Local-only
+    (ignored) captures are left out, so a figure measured here is one any checkout reproduces."""
+    excluded = set(json.loads(EXCLUDED.read_text())) if EXCLUDED.exists() else set()
     paths = []
     for path in sorted(tracked_files()):
+        if str(path.relative_to(ROOT)) in excluded:
+            continue
         prefix = path.name.split("-", 1)[0]
         if (
             prefix in ("req", "logs", "metrics")
@@ -524,7 +531,7 @@ def settle(projects: dict[str, str]) -> None:
 # --- measurement ---------------------------------------------------------------------------------------
 
 
-def duckdb_settle(path: Path) -> None:
+def duckdb_settle(path: Path, config: dict | None = None) -> None:
     """Flush everything to blocks, so a measurement does not depend on when it was taken.
 
     `FORCE CHECKPOINT` writes the write-ahead log into the database file and rewrites partially-filled blocks;
@@ -533,7 +540,7 @@ def duckdb_settle(path: Path) -> None:
     """
     import duckdb
 
-    connection = duckdb.connect(str(path))
+    connection = duckdb.connect(str(path), config=config or {})
     connection.execute("FORCE CHECKPOINT")
     connection.execute("VACUUM")
     connection.close()
@@ -635,7 +642,7 @@ def duckdb_rows(path: Path) -> dict[str, int]:
     return rows
 
 
-def measure_embedded(work: Path) -> dict:
+def measure_embedded(work: Path, config: dict | None = None) -> dict:
     """Measure the embedded store after settling it, so the figure is a property of the corpus.
 
     Everything counted per item is a used block: the per-column attribution from the segment map plus the
@@ -643,7 +650,7 @@ def measure_embedded(work: Path) -> dict:
     and any write-ahead log are reported beside it and excluded, since neither is bytes this corpus stores.
     """
     database = work / "duckdb/sideseat.duckdb"
-    duckdb_settle(database)
+    duckdb_settle(database, config)
     columns, used, free = duckdb_blocks(database)
     rows = duckdb_rows(database)
     wal = sum(
@@ -916,7 +923,13 @@ def main() -> int:
     parser.add_argument(
         "--keep", action="store_true", help="keep the data directory for inspection"
     )
+    storage_gate_figures.add_arguments(parser)
     args = parser.parse_args()
+    if args.update_manifest and args.pin_only:
+        write_manifest()
+        return 0
+    if args.store:
+        return storage_gate_figures.run(args, sys.modules[__name__])
     if args.update_manifest:
         write_manifest()
     binary = args.binary.resolve() if args.binary else None
