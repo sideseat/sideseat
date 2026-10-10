@@ -745,6 +745,12 @@ impl MessageStore for ClickhouseRepository {
 
 #[async_trait]
 impl AnalyticsMaintenance for ClickhouseRepository {
+    /// Never: the database is another process, so a failure of it is one a later request can outlast, and
+    /// nothing in this client is left unusable by an error.
+    fn fatal_failure(&self) -> Option<String> {
+        None
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

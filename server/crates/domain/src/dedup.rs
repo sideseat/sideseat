@@ -452,6 +452,10 @@ impl MessageStore for DedupAnalyticsRepository {
 
 #[async_trait]
 impl AnalyticsMaintenance for DedupAnalyticsRepository {
+    fn fatal_failure(&self) -> Option<String> {
+        self.inner.fatal_failure()
+    }
+
     // ==================== Project Data Operations (pass-through) ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

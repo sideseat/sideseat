@@ -139,3 +139,84 @@ async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
             .is_empty()
     );
 }
+
+/// While the analytics store has failed for good, a failed attempt is not counted: every attempt fails then,
+/// whatever the payload, and counting would quarantine - with a cap of one, at once - an export the restarted
+/// process writes. The caller is told the store failed, and the payload stays pending for that process.
+#[tokio::test]
+async fn attempts_failed_by_a_failed_store_are_not_counted() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let app_storage = AppStorage::init_for_test(temp.path().to_path_buf());
+    tokio::fs::create_dir_all(temp.path().join("duckdb"))
+        .await
+        .unwrap();
+    let clock: Arc<dyn Clock> = Arc::new(TestClock);
+    let database: Arc<dyn TransactionalRepository + Send + Sync> =
+        Arc::new(SqliteRepository(Arc::new(
+            SqliteService::init(&app_storage, Arc::clone(&clock))
+                .await
+                .unwrap(),
+        )));
+    let duck = Arc::new(
+        DuckdbService::init(&app_storage, Arc::clone(&clock))
+            .await
+            .unwrap(),
+    );
+    let analytics: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::new(DuckdbRepository(Arc::clone(&duck)));
+    let service = StagingService::new(
+        Arc::new(FilesystemStorage::new(temp.path().join("staging"))),
+        Arc::clone(&database),
+        Arc::clone(&analytics),
+        Arc::clone(&clock),
+        RetentionConfig::default(),
+        1,
+    );
+    let user = database
+        .create_user("failed@example.test", None)
+        .await
+        .unwrap();
+    let org = database
+        .create_organization_with_owner("Failed", "failed", &user.id)
+        .await
+        .unwrap();
+    let project = database.create_project(&org.id, "Failed").await.unwrap();
+    let staged = service
+        .stage(
+            &project.id,
+            StagedSignal::Metrics,
+            b"an-export",
+            clock.now(),
+            Vec::new(),
+            String::new(),
+        )
+        .await
+        .unwrap();
+
+    // The store fails as it does when a checkpoint cannot complete.
+    duck.write(|conn| {
+        conn.execute_batch(
+            "CREATE TABLE written (n INTEGER); INSERT INTO written VALUES (1); \
+             SET debug_checkpoint_abort = 'before_header'",
+        )
+        .map_err(Into::into)
+    })
+    .unwrap();
+    assert!(duck.checkpoint().await.is_err());
+    assert!(analytics.fatal_failure().is_some());
+
+    assert!(matches!(
+        service.note_failed_attempt(&staged.id).await,
+        Err(StagingError::StoreFailed(_))
+    ));
+    let pending = database
+        .get_staged_payload(&staged.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (pending.redrive_attempts, pending.unconfirmed),
+        (0, false),
+        "the attempt was counted"
+    );
+}

@@ -82,6 +82,10 @@ pub enum StagingError {
     Blob(String),
     #[error("staged payload {0} has no blob")]
     MissingBlob(String),
+    /// The analytics store has failed for good: the attempt said nothing about the payload, and only the process
+    /// that replaces this one can write it.
+    #[error("the analytics store has failed and the server must restart: {0}")]
+    StoreFailed(String),
 }
 
 /// Owns the blob/registry lifecycle and the signal-specific confirmation
@@ -541,7 +545,14 @@ impl StagingService {
 
     /// Record a failed write/read-back cycle. At the configured cap the row is
     /// quarantined and the bytes remain held indefinitely.
+    ///
+    /// Not while the analytics store has failed for good: every attempt fails then, whatever the payload, and
+    /// counting them would quarantine exports - acknowledged ones among them - that the restarted process
+    /// writes at once. The caller stops instead, leaving the payload as it was.
     pub async fn note_failed_attempt(&self, id: &str) -> Result<bool, StagingError> {
+        if let Some(failure) = self.analytics.fatal_failure() {
+            return Err(StagingError::StoreFailed(failure));
+        }
         let attempts = self
             .database
             .increment_staged_redrive_attempts(id)

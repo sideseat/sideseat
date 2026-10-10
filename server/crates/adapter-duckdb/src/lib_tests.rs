@@ -70,7 +70,7 @@ async fn the_engine_takes_the_declared_memory_limit() {
     // display code. Within 1 MiB, because that normalisation rounds.
     let reported = parse_duckdb_size(&limit)
         .unwrap_or_else(|| panic!("could not read a byte count out of {limit:?}"));
-    let declared = DUCKDB_MEMORY_LIMIT_BYTES as f64;
+    let declared = sideseat_core::constants::DUCKDB_MEMORY_LIMIT_BYTES as f64;
     assert!(
         (reported - declared).abs() < 1_048_576.0,
         "the engine reports a {limit} limit, which is not the declared {declared} bytes"

@@ -64,7 +64,7 @@ impl SpanStore for DuckdbRepository {
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::list_spans(&conn, &params)
         })
@@ -82,7 +82,7 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_spans_for_trace(&conn, &pid, &tid, limit)
         })
@@ -101,7 +101,7 @@ impl SpanStore for DuckdbRepository {
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         let sid = span_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_span(&conn, &pid, &tid, &sid)
         })
@@ -118,7 +118,7 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let keys = span_keys.to_vec();
-        let result = DuckdbService::run_query(move || {
+        let result = DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_span_counts_bulk(&conn, &pid, &keys)
         })
@@ -144,7 +144,7 @@ impl SpanStore for DuckdbRepository {
     async fn get_feed_spans(&self, params: &FeedSpansParams) -> Result<Vec<SpanRow>, DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_feed_spans(&conn, &params)
         })
@@ -164,7 +164,7 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let cols = columns.to_vec();
-        let result = DuckdbService::run_query(move || {
+        let result = DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_span_filter_options(
                 &conn,
@@ -203,10 +203,12 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let keys = span_keys.to_vec();
-        DuckdbService::run_query(move || db.write(|conn| query::delete_spans(conn, &pid, &keys)))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            db.write(|conn| query::delete_spans(conn, &pid, &keys))
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 
     // ==================== Ingestion Operations ====================
@@ -217,18 +219,20 @@ impl SpanStore for DuckdbRepository {
             span.ingested_at.get_or_insert(now);
         }
         let db = Arc::clone(&self.0);
-        DuckdbService::run_query(move || db.write(|conn| span::insert_batch(conn, &spans)))
-            .await
-            .map_err(|error| match error {
-                // The caller stopped waiting, not the write: the blocking task still holds the statement and
-                // can commit it after this returns.
-                DuckdbError::Timeout { .. } => DataError::InDoubt {
-                    project: None,
-                    source: Box::new(error.into()),
-                },
-                error => error.into(),
-            })?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            db.write(|conn| span::insert_batch(conn, &spans))
+        })
+        .await
+        .map_err(|error| match error {
+            // The caller stopped waiting, not the write: the blocking task still holds the statement and
+            // can commit it after this returns.
+            DuckdbError::Timeout { .. } => DataError::InDoubt {
+                project: None,
+                source: Box::new(error.into()),
+            },
+            error => error.into(),
+        })?
+        .map_err(Into::into)
     }
 
     async fn spans_match_content(
@@ -239,7 +243,7 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.to_string();
         let records = records.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             query::spans_match_content(&db.conn(), &project_id, &records)
         })
         .await
@@ -255,7 +259,7 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.to_string();
         let records = records.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             query::spans_with_matching_content(&db.conn(), &project_id, &records)
         })
         .await
@@ -270,10 +274,12 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.to_string();
         let spans = spans.to_vec();
-        DuckdbService::run_query(move || query::span_winners(&db.conn(), &project_id, &spans))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            query::span_winners(&db.conn(), &project_id, &spans)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 }
 
@@ -283,10 +289,12 @@ impl MetricStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let metrics = metrics.to_vec();
         let now = self.0.clock().now();
-        DuckdbService::run_query(move || db.write(|conn| metric::insert_batch(conn, &metrics, now)))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            db.write(|conn| metric::insert_batch(conn, &metrics, now))
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 
     async fn list_metrics(
@@ -295,7 +303,7 @@ impl MetricStore for DuckdbRepository {
     ) -> Result<(Vec<MetricRow>, u64), DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             metric::list_metrics(&conn, &params)
         })
@@ -312,7 +320,7 @@ impl MetricStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let datapoint_id = datapoint_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             metric::get_metric(&conn, &project_id, &datapoint_id)
         })
@@ -327,7 +335,7 @@ impl MetricStore for DuckdbRepository {
     ) -> Result<Vec<MetricAggregateRow>, DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             metric::aggregate_metrics(&conn, &params)
         })
@@ -346,7 +354,7 @@ impl MetricStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let columns = columns.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             metric::get_metric_filter_options(
                 &conn,
@@ -369,10 +377,12 @@ impl MetricStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let records = records.to_vec();
-        DuckdbService::run_query(move || metric::winners(&db.conn(), &project_id, &records))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            metric::winners(&db.conn(), &project_id, &records)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 }
 
@@ -385,16 +395,18 @@ impl LogStore for DuckdbRepository {
         for log in &mut logs {
             log.ingested_at.get_or_insert(now);
         }
-        DuckdbService::run_query(move || db.write(|conn| log::insert_batch(conn, &logs)))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            db.write(|conn| log::insert_batch(conn, &logs))
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 
     async fn list_logs(&self, params: &ListLogsParams) -> Result<(Vec<LogRow>, u64), DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             log::list_logs(&conn, &params)
         })
@@ -412,7 +424,7 @@ impl LogStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let log_digest = log_digest.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             log::get_log(&conn, &project_id, &log_digest, ordinal)
         })
@@ -431,7 +443,7 @@ impl LogStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let columns = columns.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             log::get_log_filter_options(&conn, &project_id, &columns, from_timestamp, to_timestamp)
         })
@@ -448,10 +460,12 @@ impl LogStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
         let records = records.to_vec();
-        DuckdbService::run_query(move || log::matches_content(&db.conn(), &project_id, &records))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            log::matches_content(&db.conn(), &project_id, &records)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 }
 
@@ -460,7 +474,7 @@ impl SearchIndex for DuckdbRepository {
     async fn search(&self, request: &SearchQuery) -> Result<SearchPage, DataError> {
         let db = Arc::clone(&self.0);
         let request = request.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             search::search(&conn, &request)
         })
@@ -477,7 +491,7 @@ impl SearchIndex for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let request = request.clone();
         let through = through.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             search::arrivals_detected(&conn, &request, &through)
         })
@@ -494,7 +508,7 @@ impl SearchIndex for DuckdbRepository {
     ) -> Result<Vec<SearchBackfillSource>, DataError> {
         let db = Arc::clone(&self.0);
         let project_id = project_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             search::backfill_page(&db.conn(), &project_id, signal, limit)
         })
         .await
@@ -511,7 +525,7 @@ impl SearchIndex for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let project_id = project_id.to_string();
         let documents = documents.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             db.write(|conn| search::write_backfill(conn, &project_id, signal, &documents))
         })
         .await
@@ -530,7 +544,7 @@ impl EntityQuery for DuckdbRepository {
     ) -> Result<(Vec<TraceRow>, u64), DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::list_traces(&conn, &params)
         })
@@ -547,7 +561,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_trace(&conn, &pid, &tid)
         })
@@ -566,7 +580,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let cols = columns.to_vec();
-        let result = DuckdbService::run_query(move || {
+        let result = DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_trace_filter_options(&conn, &pid, &cols, from_timestamp, to_timestamp)
         })
@@ -599,7 +613,7 @@ impl EntityQuery for DuckdbRepository {
     ) -> Result<Vec<FilterOptionRow>, DataError> {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
-        let result = DuckdbService::run_query(move || {
+        let result = DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_trace_tags_options(&conn, &pid, from_timestamp, to_timestamp)
         })
@@ -624,7 +638,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::traces_without_spans(&conn, &pid, &tids)
         })
@@ -641,10 +655,12 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || db.write(|conn| query::delete_traces(conn, &pid, &tids)))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            db.write(|conn| query::delete_traces(conn, &pid, &tids))
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 
     // ==================== Session Operations ====================
@@ -655,7 +671,7 @@ impl EntityQuery for DuckdbRepository {
     ) -> Result<(Vec<SessionRow>, u64), DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::list_sessions(&conn, &params)
         })
@@ -672,7 +688,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sid = session_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_session(&conn, &pid, &sid)
         })
@@ -689,7 +705,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sid = session_id.to_string();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_traces_for_session(&conn, &pid, &sid)
         })
@@ -707,7 +723,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_trace_session_pairs(&conn, &pid, &tids, as_of_us)
         })
@@ -725,7 +741,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_session_ids_for_traces(&conn, &pid, &tids, as_of_us)
         })
@@ -743,7 +759,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_trace_ids_for_sessions(&conn, &pid, &sids, as_of_us)
         })
@@ -762,7 +778,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let cols = columns.to_vec();
-        let result = DuckdbService::run_query(move || {
+        let result = DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::get_session_filter_options(&conn, &pid, &cols, from_timestamp, to_timestamp)
         })
@@ -794,10 +810,12 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();
-        DuckdbService::run_query(move || db.write(|conn| query::delete_sessions(conn, &pid, &sids)))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        DuckdbService::run_query(&self.0, move || {
+            db.write(|conn| query::delete_sessions(conn, &pid, &sids))
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
     }
 
     // ==================== Stats Operations ====================
@@ -809,7 +827,7 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let params = params.clone();
         let now = self.0.clock().now();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             stats::get_project_stats(&conn, &params, now)
         })
@@ -829,7 +847,7 @@ impl MessageStore for DuckdbRepository {
     ) -> Result<MessageQueryResult, DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             messages::get_messages(&conn, &params)
         })
@@ -844,7 +862,7 @@ impl MessageStore for DuckdbRepository {
     ) -> Result<MessageQueryResult, DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             messages::get_project_messages(&conn, &params)
         })
@@ -859,7 +877,7 @@ impl MessageStore for DuckdbRepository {
     ) -> Result<sideseat_ports::types::RequestContextRows, DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             messages::get_request_context(&conn, &params)
         })
@@ -874,7 +892,7 @@ impl MessageStore for DuckdbRepository {
     ) -> Result<Vec<sideseat_ports::types::RequestFrameRecord>, DataError> {
         let db = Arc::clone(&self.0);
         let params = params.clone();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             messages::get_request_frames(&conn, &params)
         })

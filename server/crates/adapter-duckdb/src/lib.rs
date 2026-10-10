@@ -8,6 +8,7 @@
 #![deny(clippy::iter_over_hash_type)]
 
 mod error;
+mod failure;
 mod migrations;
 mod repositories;
 mod repository_impl;
@@ -18,7 +19,11 @@ pub use wal::ConnectionGuard;
 use wal::WalDirectory;
 mod retention;
 mod schema;
+mod session;
 mod sql_types;
+#[cfg(test)]
+use session::DUCKDB_STORAGE_VERSION;
+use session::open_configured;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,8 +39,8 @@ use tokio::task::JoinHandle;
 
 use sideseat_core::config::RetentionConfig;
 use sideseat_core::constants::{
-    DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_MAX_THREADS,
-    DUCKDB_MEMORY_LIMIT_BYTES, DUCKDB_QUERY_TIMEOUT_SECS, DUCKDB_RETENTION_INTERVAL_SECS,
+    DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_QUERY_TIMEOUT_SECS,
+    DUCKDB_RETENTION_INTERVAL_SECS,
 };
 use sideseat_core::storage::{AppStorage, DataSubdir};
 
@@ -50,9 +55,6 @@ impl Clock for TestClock {
     }
 }
 
-/// Rows an index scan may find before DuckDB reads the whole table instead; see the connection settings.
-const INDEX_SCAN_MAX_COUNT: u64 = 1 << 40;
-
 /// DuckDB analytics service
 ///
 /// Handles database initialization and background tasks.
@@ -64,6 +66,7 @@ pub struct DuckdbService {
     conn: Mutex<Option<Connection>>,
     clock: Arc<dyn Clock>,
     wal: WalDirectory,
+    failure: failure::FatalFailure,
 }
 
 impl Drop for DuckdbService {
@@ -77,46 +80,6 @@ impl Drop for DuckdbService {
     }
 }
 
-/// The DuckDB storage format analytics files are created in: the first that compresses a column with zstd.
-const DUCKDB_STORAGE_VERSION: &str = "v1.5.0";
-
-/// Open the analytics file with the session settings every connection needs.
-fn open_configured(
-    db_path: &std::path::Path,
-    temp_dir: &std::path::Path,
-) -> Result<Connection, DuckdbError> {
-    // New files in the storage format that honours the schema's `USING COMPRESSION zstd`; DuckDB's default
-    // (`v0.10.2`) stores long strings uncompressed.
-    let config =
-        duckdb::Config::default().with("storage_compatibility_version", DUCKDB_STORAGE_VERSION)?;
-    let conn = Connection::open_with_flags(db_path, config)?;
-    // Doubled single quotes, because a path is not a literal until it is escaped and a user's data
-    // directory may contain an apostrophe. `SET` takes no bind parameters, so this is the escape.
-    let temp_dir_literal = temp_dir.display().to_string().replace('\'', "''");
-    // An index scan is taken only while the rows it finds stay under `index_scan_max_count` (2048 by default) or
-    // a thousandth of the table, and past that DuckDB reads the whole table instead. The keyed reads
-    // (`sideseat_query_sql::keyed`) are the only reads whose scans carry an indexed key alone, and they ask for
-    // rows by identity: a span corrected several times, a long trace, a span id a client reuses across projects.
-    // Their cost must follow what they ask for, so the index is kept however many rows a key finds.
-    conn.execute_batch(&format!(
-        "SET index_scan_max_count = {INDEX_SCAN_MAX_COUNT};
-         SET autoinstall_known_extensions = false;
-         SET autoload_known_extensions = false;
-         SET extension_directory = '';
-         SET force_compression = 'auto';
-         SET memory_limit = '{limit}B';
-         SET threads = {threads};
-         SET temp_directory = '{temp_dir_literal}';
-         PRAGMA enable_checkpoint_on_shutdown;
-         LOAD json;",
-        limit = DUCKDB_MEMORY_LIMIT_BYTES,
-        threads = std::thread::available_parallelism()
-            .map_or(1, std::num::NonZeroUsize::get)
-            .clamp(1, DUCKDB_MAX_THREADS),
-    ))?;
-    Ok(conn)
-}
-
 impl DuckdbService {
     /// Physical metric row count for a project. Test-only: production counts through
     /// `count_project_rows`, and the point of this is to see the rows *behind* that answer - a count that
@@ -128,7 +91,7 @@ impl DuckdbService {
     ) -> Result<u64, DuckdbError> {
         let db = Arc::clone(self);
         let id = project_id.to_string();
-        Self::run_query(move || {
+        self.run_query(move || {
             let conn = db.conn();
             let count: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM otel_metrics WHERE project_id = ?",
@@ -187,7 +150,19 @@ impl DuckdbService {
             conn: Mutex::new(Some(conn)),
             clock,
             wal,
+            failure: failure::FatalFailure::new(),
         })
+    }
+
+    /// The fatal error that invalidated the database, once one has: the service cannot serve past it, and the
+    /// process must restart to open the database again.
+    pub fn fatal_failure(&self) -> Option<Arc<str>> {
+        self.failure.get()
+    }
+
+    /// Changes when the database is invalidated, to the error that did it.
+    pub fn subscribe_fatal_failure(&self) -> watch::Receiver<Option<Arc<str>>> {
+        self.failure.subscribe()
     }
 
     /// Get exclusive access to the connection.
@@ -217,7 +192,8 @@ impl DuckdbService {
         let mut conn = self.conn();
         // Synced whatever the work returned: a failed statement can still have created the WAL, and what
         // the connection does next must not rest on a directory entry that may vanish.
-        let out = work(&conn);
+        // Settled with the connection still held: see `FatalFailure::settle`.
+        let out = work(&conn).map_err(|error| self.failure.settle(Some(&conn), error));
         let synced = self.wal.sync_if_new();
         conn.checked = true;
         drop(conn);
@@ -236,14 +212,20 @@ impl DuckdbService {
         self.conn.lock().is_some()
     }
 
-    /// Run a blocking DuckDB query with timeout
-    pub async fn run_query<T, F>(f: F) -> Result<T, DuckdbError>
+    /// Run blocking DuckDB work with the query timeout, recording a fatal error it returns - on the blocking
+    /// thread, so work that outlives the timeout, or a caller that stops waiting, still records it.
+    pub async fn run_query<T, F>(
+        self: &Arc<Self>,
+        f: F,
+    ) -> Result<Result<T, DuckdbError>, DuckdbError>
     where
         T: Send + 'static,
-        F: FnOnce() -> T + Send + 'static,
+        F: FnOnce() -> Result<T, DuckdbError> + Send + 'static,
     {
         let timeout = Duration::from_secs(DUCKDB_QUERY_TIMEOUT_SECS);
-        tokio::time::timeout(timeout, tokio::task::spawn_blocking(f))
+        let service = Arc::clone(self);
+        let work = move || f().map_err(|error| service.settle(error));
+        tokio::time::timeout(timeout, tokio::task::spawn_blocking(work))
             .await
             .map_err(|_| {
                 tracing::warn!(
@@ -263,6 +245,15 @@ impl DuckdbService {
             })
     }
 
+    /// `error`, settled against the connection: work that holds no guard when its error reaches here.
+    fn settle(&self, error: DuckdbError) -> DuckdbError {
+        if matches!(error, DuckdbError::Invalidated(_)) {
+            return error;
+        }
+        let conn = self.conn.lock();
+        self.failure.settle(conn.as_ref(), error)
+    }
+
     /// Run a checkpoint to flush WAL to the main database file.
     ///
     /// Returns `Ok(())` if the connection is already closed (no-op).
@@ -271,7 +262,9 @@ impl DuckdbService {
         tokio::task::spawn_blocking(move || {
             let conn_guard = db.conn.lock();
             if let Some(ref conn) = *conn_guard {
-                conn.execute("CHECKPOINT", [])?;
+                // A checkpoint that cannot complete invalidates the database, as the one after a commit does.
+                conn.execute("CHECKPOINT", [])
+                    .map_err(|error| db.failure.settle(Some(conn), error.into()))?;
                 tracing::debug!("DuckDB checkpoint completed");
             }
             Ok(())
@@ -287,6 +280,7 @@ impl DuckdbService {
             if let Some(conn) = conn_guard.take() {
                 // Best-effort checkpoint before close - log but don't fail on error
                 if let Err(e) = conn.execute("CHECKPOINT", []) {
+                    let e = self.failure.settle(Some(&conn), e.into());
                     tracing::warn!("CHECKPOINT failed during close: {}", e);
                 }
                 conn.close().map_err(|(_, e)| DuckdbError::Database(e))?;
@@ -963,6 +957,8 @@ where
         }
     }
 }
+#[cfg(test)]
+mod failure_tests;
 #[cfg(test)]
 mod keyed_scan_tests;
 #[cfg(test)]

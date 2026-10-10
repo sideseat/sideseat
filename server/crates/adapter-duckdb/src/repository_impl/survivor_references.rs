@@ -10,7 +10,7 @@ impl SurvivorReferences for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.clone();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             crate::repositories::raw::survivor_records(&db.conn(), &pid, &tids)
         })
         .await
@@ -26,7 +26,7 @@ impl SurvivorReferences for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
+        DuckdbService::run_query(&self.0, move || {
             let conn = db.conn();
             query::file_reference_fields_for_traces(&conn, &pid, &tids)
         })

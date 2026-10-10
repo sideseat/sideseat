@@ -124,6 +124,11 @@ Returns server health status:
 }
 ```
 
+It answers `503` with `"status": "failed"` once the embedded analytics database (DuckDB) has failed in a way only
+a restart recovers, such as a checkpoint that could not complete. The server then shuts down and exits with a
+non-zero status, so a supervisor starts it again; the reason is in the server's log. Nothing whose ingestion was
+acknowledged is lost: it is in the database when it reopens, or written again from staging.
+
 ## OTLP Ingestion
 
 Traces are ingested via OTLP endpoints:

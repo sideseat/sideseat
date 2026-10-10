@@ -46,6 +46,29 @@ impl AnalyticsService {
         }
     }
 
+    /// The backend's fatal failure, once it has had one: see `AnalyticsMaintenance::fatal_failure`.
+    pub fn fatal_failure(&self) -> Option<String> {
+        match self {
+            Self::Duckdb(d) => d.fatal_failure().map(|failure| failure.to_string()),
+            Self::Clickhouse(_) => None,
+        }
+    }
+
+    /// Wait for the backend's fatal failure; forever, for a backend that cannot have one.
+    pub async fn wait_for_fatal_failure(&self) -> String {
+        match self {
+            Self::Duckdb(d) => {
+                let mut failures = d.subscribe_fatal_failure();
+                if let Ok(failure) = failures.wait_for(Option::is_some).await {
+                    return failure.as_deref().unwrap_or_default().to_string();
+                }
+                // The service is gone, and with it anything that could fail.
+                std::future::pending().await
+            }
+            Self::Clickhouse(_) => std::future::pending().await,
+        }
+    }
+
     /// Run a checkpoint operation
     pub async fn checkpoint(&self) -> Result<(), DataError> {
         match self {

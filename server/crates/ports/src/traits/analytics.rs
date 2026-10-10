@@ -447,6 +447,11 @@ pub trait MessageStore: Send + Sync {
 /// Deletes, counts and the watermark - what a sweep needs and a read path does not.
 #[async_trait]
 pub trait AnalyticsMaintenance: Send + Sync {
+    /// Why this store has stopped serving for good, once it has: a failure no retry outlasts, after which the
+    /// process must restart to open the store again. Health reports it and the server exits on it. `None` while
+    /// the store serves, and while it is only unreachable, which a later attempt can outlast.
+    fn fatal_failure(&self) -> Option<String>;
+
     /// Distinct projects represented by any analytics signal.
     ///
     /// Restore repair cannot seed its traversal only from the transactional store: an analytics backup may

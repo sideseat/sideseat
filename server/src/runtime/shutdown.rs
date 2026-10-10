@@ -10,6 +10,9 @@ use crate::app::storage::{AnalyticsService, TransactionalService};
 use sideseat_core::constants::SHUTDOWN_TIMEOUT_SECS;
 use sideseat_messaging::TopicService;
 
+/// How long a server whose analytics store failed for good may drain before it exits anyway.
+pub const FATAL_DRAIN_DEADLINE: Duration = Duration::from_secs(30);
+
 /// Coordinates graceful shutdown across background tasks and storage backends.
 #[derive(Clone)]
 pub struct ShutdownService {
@@ -51,6 +54,43 @@ impl ShutdownService {
     /// Trigger shutdown.
     pub fn trigger(&self) {
         let _ = self.tx.send(true);
+    }
+
+    /// Shut the server down when the analytics store fails for good - also while it is already shutting down.
+    ///
+    /// The store refuses everything after such a failure, and only a new process opens it again: draining and
+    /// exiting - non-zero, see [`Self::fatal_failure`] - lets a supervisor start one, where serving on would
+    /// answer every request with an error for as long as the process lived. Draining is bounded: every request
+    /// that reaches the store fails at once, so one still open after [`FATAL_DRAIN_DEADLINE`] is a client that
+    /// stopped sending, and the process exits without it - as from a crash, which every store survives.
+    ///
+    /// Not a registered task: shutdown waits for those, and this one outlives shutdown on purpose.
+    pub fn stop_on_fatal_failure(&self) -> JoinHandle<()> {
+        self.watch_fatal_failure(FATAL_DRAIN_DEADLINE, || std::process::exit(1))
+    }
+
+    fn watch_fatal_failure(
+        &self,
+        deadline: Duration,
+        exit: impl FnOnce() + Send + 'static,
+    ) -> JoinHandle<()> {
+        let service = self.clone();
+        tokio::spawn(async move {
+            let failure = service.analytics.wait_for_fatal_failure().await;
+            tracing::error!(%failure, "The analytics store failed for good; shutting down to restart it");
+            service.trigger();
+            tokio::time::sleep(deadline).await;
+            tracing::error!(
+                deadline_secs = deadline.as_secs(),
+                "The server did not drain in time after the analytics store failed; exiting now"
+            );
+            exit();
+        })
+    }
+
+    /// The analytics store's fatal failure, if it had one: a server that stopped for it exits with an error.
+    pub fn fatal_failure(&self) -> Option<String> {
+        self.analytics.fatal_failure()
     }
 
     /// Trigger shutdown and wait for all registered tasks to complete.
@@ -194,6 +234,80 @@ mod tests {
         );
         let topics = Arc::new(TopicService::new(sideseat_adapter_topics::memory_backend()));
         ShutdownService::new(topics, database, analytics)
+    }
+
+    /// Make the analytics store fail for good, as a checkpoint that cannot complete does.
+    async fn fail_analytics(shutdown: &ShutdownService) {
+        let AnalyticsService::Duckdb(duckdb) = shutdown.analytics.as_ref() else {
+            panic!("embedded analytics");
+        };
+        duckdb
+            .write(|conn| {
+                conn.execute_batch(
+                    "CREATE TABLE checkpointed (n INTEGER); INSERT INTO checkpointed VALUES (1); \
+                     SET debug_checkpoint_abort = 'before_header'",
+                )
+                .map_err(Into::into)
+            })
+            .expect("the setup");
+        assert!(shutdown.analytics.checkpoint().await.is_err());
+    }
+
+    /// A fatal failure of the analytics store shuts the server down, is reported through the port health reads
+    /// and as the failure the server exits on, and ends the process if draining outlasts the deadline.
+    #[tokio::test]
+    async fn a_fatal_analytics_failure_shuts_the_server_down() {
+        let shutdown = make_shutdown().await;
+        let exited = Arc::new(AtomicBool::new(false));
+        let watcher = shutdown.watch_fatal_failure(Duration::from_millis(50), {
+            let exited = Arc::clone(&exited);
+            move || exited.store(true, Ordering::SeqCst)
+        });
+        fail_analytics(&shutdown).await;
+
+        let mut stopping = shutdown.subscribe();
+        tokio::time::timeout(Duration::from_secs(5), stopping.wait_for(|stop| *stop))
+            .await
+            .expect("the server shuts down")
+            .expect("the shutdown signal");
+        tokio::time::timeout(Duration::from_secs(5), watcher)
+            .await
+            .expect("the deadline passes")
+            .expect("the watcher");
+        assert!(exited.load(Ordering::SeqCst), "the process is ended");
+        assert!(
+            shutdown
+                .fatal_failure()
+                .is_some_and(|failure| failure.contains("Failed to create checkpoint")),
+            "the failure the server exits on"
+        );
+        assert!(
+            shutdown.analytics.repository().fatal_failure().is_some(),
+            "the failure health reads"
+        );
+    }
+
+    /// A failure while the server is already shutting down for another reason still bounds the drain.
+    #[tokio::test]
+    async fn a_failure_during_an_ordinary_shutdown_still_ends_the_process() {
+        let shutdown = make_shutdown().await;
+        let exited = Arc::new(AtomicBool::new(false));
+        let watcher = shutdown.watch_fatal_failure(Duration::from_millis(50), {
+            let exited = Arc::clone(&exited);
+            move || exited.store(true, Ordering::SeqCst)
+        });
+        shutdown.trigger();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !watcher.is_finished(),
+            "the watch outlives the shutdown signal"
+        );
+        fail_analytics(&shutdown).await;
+        tokio::time::timeout(Duration::from_secs(5), watcher)
+            .await
+            .expect("the deadline passes")
+            .expect("the watcher");
+        assert!(exited.load(Ordering::SeqCst), "the process is ended");
     }
 
     #[tokio::test]

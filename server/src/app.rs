@@ -273,6 +273,8 @@ impl CoreApp {
         }
 
         app.start_background_tasks().await?;
+        // Detached: it outlives shutdown, to end a drain that does not.
+        drop(app.shutdown.stop_on_fatal_failure());
         let api_key_secret = app.secrets.get_api_key_secret().await?;
         // One budget of OTLP bytes in flight for both transports: a client cannot double it by splitting its
         // exports between HTTP and gRPC.
@@ -399,6 +401,12 @@ impl CoreApp {
         shutdown.shutdown().await;
         drop(closed);
 
+        // The exit status tells a supervisor to start the process again, which opens the store again.
+        if let Some(failure) = shutdown.fatal_failure() {
+            anyhow::bail!(
+                "the analytics store failed and the server stopped; start it again to reopen the store: {failure}"
+            );
+        }
         Ok(())
     }
 }

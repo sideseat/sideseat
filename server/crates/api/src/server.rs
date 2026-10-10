@@ -476,7 +476,14 @@ impl ApiServer {
 
         let router = Router::new()
             .route("/", get(|| async { Redirect::temporary("/ui") }))
-            .route("/api/v1/health", get(health::health))
+            .route(
+                "/api/v1/health",
+                get(health::health).with_state({
+                    let analytics = app.analytics.clone();
+                    Arc::new(move || analytics.fatal_failure().is_some())
+                        as Arc<health::FatalFailureCheck>
+                }),
+            )
             .route("/api/openapi.json", get(openapi_json))
             .route("/api/docs", get(swagger_ui_html))
             .route("/api/docs/", get(swagger_ui_html))
