@@ -165,6 +165,58 @@ mod tests {
         );
     }
 
+    /// A record whose body is a key-value list stores the same body text and search terms however often it is
+    /// replayed. Rendered through a `HashMap`, each replay's map iterated in its own order, so the same export
+    /// stored different bytes each time - and a re-derivation could not rebuild them.
+    #[test]
+    fn a_key_value_body_replays_into_the_same_text_and_terms() {
+        use opentelemetry_proto::tonic::common::v1::{KeyValue, KeyValueList};
+        let members = (0..20)
+            .map(|n| KeyValue {
+                key: format!("member{:02}", (n * 7) % 20),
+                value: Some(AnyValue {
+                    value: Some(any_value::Value::StringValue(format!("value{n}"))),
+                }),
+            })
+            .collect();
+        let request = ExportLogsServiceRequest {
+            resource_logs: vec![ResourceLogs {
+                scope_logs: vec![ScopeLogs {
+                    log_records: vec![LogRecord {
+                        time_unix_nano: 1_700_000_000_000_000_000,
+                        body: Some(AnyValue {
+                            value: Some(any_value::Value::KvlistValue(KeyValueList {
+                                values: members,
+                            })),
+                        }),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+        let now = DateTime::from_timestamp(1_700_000_100, 0).unwrap();
+        let replays: Vec<(Option<String>, Vec<Vec<String>>)> = (0..8)
+            .map(|_| {
+                let mut logs = extract_logs_batch(&request, now);
+                sideseat_domain::search::index_logs(&mut logs);
+                let log = logs.remove(0);
+                (
+                    log.body_text,
+                    log.search
+                        .fields
+                        .into_iter()
+                        .map(|field| field.terms)
+                        .collect(),
+                )
+            })
+            .collect();
+        for replay in &replays[1..] {
+            assert_eq!(replay, &replays[0], "a replay stored other bytes");
+        }
+    }
+
     /// The derived messages are a function of the record alone: a re-delivery reads identically and keeps
     /// its identity, and the column is not part of what the digest covers.
     #[test]

@@ -170,20 +170,40 @@ pub fn any_value_to_string(value: &AnyValue) -> String {
             let values: Vec<String> = arr.values.iter().map(any_value_to_string).collect();
             serde_json::to_string(&values).unwrap_or_default()
         }
+        // In the order the producer sent it. Collected through a `HashMap`, the keys came out in the map's order,
+        // which differs from one process to the next: a log's body text, its search terms and a message's
+        // content stored different bytes each time the same export was ingested, so a re-derivation could not
+        // rebuild them. A later duplicate key replaces the value, in the first one's place.
         Some(any_value::Value::KvlistValue(kvlist)) => {
-            let map: HashMap<String, String> = kvlist
-                .values
-                .iter()
-                .filter_map(|kv| {
-                    kv.value
-                        .as_ref()
-                        .map(|v| (kv.key.clone(), any_value_to_string(v)))
-                })
-                .collect();
-            serde_json::to_string(&map).unwrap_or_default()
+            // Grown as members are kept: a list of absent values or repeated keys reserves nothing for them.
+            let mut pairs: Vec<(String, String)> = Vec::new();
+            let mut position: HashMap<&str, usize> = HashMap::new();
+            for kv in &kvlist.values {
+                let Some(value) = kv.value.as_ref() else {
+                    continue;
+                };
+                let rendered = any_value_to_string(value);
+                match position.get(kv.key.as_str()) {
+                    Some(&index) => pairs[index].1 = rendered,
+                    None => {
+                        position.insert(kv.key.as_str(), pairs.len());
+                        pairs.push((kv.key.clone(), rendered));
+                    }
+                }
+            }
+            serde_json::to_string(&InOrder(&pairs)).unwrap_or_default()
         }
         Some(any_value::Value::BytesValue(b)) => hex::encode(b),
         None => String::new(),
+    }
+}
+
+/// Key-value pairs serialised as a JSON object in their own order, whatever map serde_json is built with.
+struct InOrder<'a>(&'a [(String, String)]);
+
+impl serde::Serialize for InOrder<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(self.0.iter().map(|(key, value)| (key, value)))
     }
 }
 
@@ -302,6 +322,44 @@ pub fn inject_project_id_logs(request: &mut ExportLogsServiceRequest, project_id
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A key-value body renders in the order it was sent, with a repeated key's last value in its first place.
+    /// Collected through a `HashMap` it came out in the map's order, so the same export stored different bytes in
+    /// different processes: twenty keys out of their sorted order leave no room for that to pass by chance.
+    #[test]
+    fn a_key_value_list_renders_in_the_order_it_was_sent() {
+        use opentelemetry_proto::tonic::common::v1::{KeyValue, KeyValueList};
+        let text = |value: &str| AnyValue {
+            value: Some(any_value::Value::StringValue(value.to_string())),
+        };
+        let keys: Vec<String> = (0..20).map(|n| format!("k{:02}", (n * 7) % 20)).collect();
+        let mut values: Vec<KeyValue> = keys
+            .iter()
+            .map(|key| KeyValue {
+                key: key.clone(),
+                value: Some(text(key)),
+            })
+            .collect();
+        values.push(KeyValue {
+            key: keys[3].clone(),
+            value: Some(text("repeated")),
+        });
+        let rendered = any_value_to_string(&AnyValue {
+            value: Some(any_value::Value::KvlistValue(KeyValueList { values })),
+        });
+        let expected = format!(
+            "{{{}}}",
+            keys.iter()
+                .enumerate()
+                .map(|(index, key)| format!(
+                    "\"{key}\":\"{}\"",
+                    if index == 3 { "repeated" } else { key.as_str() }
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert_eq!(rendered, expected);
+    }
 
     /// Injecting the project id twice leaves it once, whatever the client sent.
     ///
