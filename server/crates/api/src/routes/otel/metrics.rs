@@ -230,9 +230,11 @@ pub async fn list_metrics(
 pub async fn get_metric(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
-    Path(datapoint_id): Path<String>,
+    // The route carries the project too: one parameter of two failed every read with a 500.
+    Path(path): Path<(String, String)>,
     ValidatedQuery(query): ValidatedQuery<MetricDetailQuery>,
 ) -> Result<Json<MetricDto>, ApiError> {
+    let (_, datapoint_id) = path;
     let row = state
         .analytics
         .get_metric(&auth.project_id, &datapoint_id)

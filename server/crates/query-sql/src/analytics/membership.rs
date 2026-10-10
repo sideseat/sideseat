@@ -665,6 +665,10 @@ pub fn traces_for_session(
 }
 
 /// Aggregate one session using canonical trace membership and shared token-dedup rules.
+///
+/// No row when no trace belongs to the session: an id seen only on a trace's later spans, after another session's,
+/// names no session. An aggregate over no spans is still one row, of nulls, which failed the read with a 500 where
+/// the answer is that there is no such session.
 pub fn session_by_id(project_id: &str, session_id: &str, backend: Backend) -> ParameterizedQuery {
     let dialect = analytics_dialect(backend);
     let session_relation = dialect.traces_of_session_relation();
@@ -761,7 +765,8 @@ pub fn session_by_id(project_id: &str, session_id: &str, backend: Backend) -> Pa
                 {projected_totals} \
          FROM {source} s CROSS JOIN session_totals gt \
          WHERE s.project_id = ? \
-           AND s.trace_id IN (SELECT trace_id FROM session_traces)"
+           AND s.trace_id IN (SELECT trace_id FROM session_traces) \
+         HAVING COUNT(*) > 0"
     );
     let mut params = dialect.traces_of_session_values(project_id, session_id);
     if backend == Backend::Clickhouse {

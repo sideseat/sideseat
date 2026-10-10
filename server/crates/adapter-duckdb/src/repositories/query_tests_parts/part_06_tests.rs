@@ -258,3 +258,43 @@ async fn deleting_a_session_takes_its_spans_search_terms() {
         .expect("count");
     assert_eq!(terms, 0, "the session's span terms outlived it");
 }
+
+/// A session is the traces whose earliest span carries its id. An id seen only on a trace's later spans names no
+/// session, and reading it finds none: the aggregate over no spans was a row of nulls, and the read failed.
+#[tokio::test]
+async fn a_session_no_trace_belongs_to_is_not_found() {
+    let (_dir, service) = create_test_service().await;
+    let conn = service.conn();
+    let start = chrono::Utc::now();
+    insert_batch(
+        &conn,
+        &[
+            NormalizedSpan {
+                session_id: Some("first".to_string()),
+                timestamp_start: start,
+                ..revision("root", "digest-root", 0)
+            },
+            NormalizedSpan {
+                session_id: Some("later".to_string()),
+                timestamp_start: start + chrono::TimeDelta::seconds(1),
+                ..revision("child", "digest-child", 0)
+            },
+        ],
+    )
+    .expect("insert");
+    assert!(
+        get_session(&conn, "project", "first")
+            .expect("read")
+            .is_some()
+    );
+    assert!(
+        get_session(&conn, "project", "later")
+            .expect("read")
+            .is_none()
+    );
+    assert!(
+        get_session(&conn, "project", "absent")
+            .expect("read")
+            .is_none()
+    );
+}

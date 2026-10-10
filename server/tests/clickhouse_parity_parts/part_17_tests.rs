@@ -494,3 +494,42 @@ async fn a_two_shard_store_with_month_partitioned_raw_records_is_refused_at_star
         ),
     }
 }
+
+/// A session is the traces whose earliest span carries its id, on both backends: an id seen only on a trace's later
+/// spans names no session, and reading it finds none - where an aggregate over no spans was a row of nulls that
+/// failed the read.
+#[tokio::test]
+async fn a_session_no_trace_belongs_to_is_not_found_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_session_membership").await;
+    let span = |span_id: &str, session: &str, second: i64| NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "membership-trace".to_string(),
+        span_id: span_id.to_string(),
+        span_name: span_id.to_string(),
+        session_id: Some(session.to_string()),
+        timestamp_start: ts(second),
+        ingested_at: Some(ts(100)),
+        ..Default::default()
+    };
+    let project = ProjectId::from(PROJECT);
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(vec![span("root", "first", 0), span("child", "later", 1)])
+            .await
+            .expect("spans");
+        let first = repo.get_session(&project, "first").await.expect("first");
+        assert_eq!(first.map(|session| session.trace_count), Some(1));
+        assert!(
+            repo.get_session(&project, "later")
+                .await
+                .expect("later")
+                .is_none(),
+            "a session no trace belongs to was found"
+        );
+    }
+}
