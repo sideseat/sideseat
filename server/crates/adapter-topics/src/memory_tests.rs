@@ -87,3 +87,36 @@ fn test_backend_name() {
     let backend = MemoryTopicBackend::new();
     assert_eq!(backend.backend_name(), "memory");
 }
+
+/// A claim takes the oldest idle messages, in their order. In the pending map's order, which messages a claim took
+/// and the order a consumer replayed - and so wrote - them differed from one process to the next.
+#[tokio::test]
+async fn a_claim_takes_the_oldest_idle_messages_in_order() {
+    let backend = MemoryTopicBackend::new();
+    for n in 0..20 {
+        backend
+            .stream_publish("stream", &format!("key-{n}"), format!("msg{n}").as_bytes())
+            .await
+            .unwrap();
+    }
+    let sub = backend
+        .stream_subscribe("stream", "group", "first")
+        .await
+        .unwrap();
+    let mut receiver = sub.receiver;
+    for _ in 0..20 {
+        tokio::time::timeout(tokio::time::Duration::from_millis(500), receiver.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
+    let claimed: Vec<String> = backend
+        .stream_claim("stream", "group", "second", 0, 5)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|message| message.id)
+        .collect();
+    assert_eq!(claimed, ["1", "2", "3", "4", "5"]);
+}

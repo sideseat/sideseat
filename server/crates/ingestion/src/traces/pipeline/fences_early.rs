@@ -100,6 +100,10 @@ impl TracePipeline {
         // Projects the store answered for. Absence from `stored` then means "no session", while absence from
         // here means "unknown" - two different answers that a single map cannot distinguish.
         let mut answered: HashSet<String> = HashSet::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's sessions are read into maps"
+        )]
         for (project, trace_ids) in by_project {
             let typed_project = ProjectId::from(project.as_str());
             let trace_ids: Vec<String> = trace_ids.into_iter().collect();
@@ -176,6 +180,10 @@ impl TracePipeline {
                 .push(trace.clone());
         }
         let mut session_of: HashMap<(String, String), String> = HashMap::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's sessions are read into a map"
+        )]
         for (project, mut trace_ids) in traces_by_project {
             let typed_project = ProjectId::from(project.as_str());
             trace_ids.sort_unstable();
@@ -207,7 +215,12 @@ impl TracePipeline {
             return affected;
         }
 
-        let mut sessions_by_project: HashMap<&str, Vec<String>> = HashMap::new();
+        // In order: what each project finds is journalled as tombstones, rows written in the order met.
+        let mut sessions_by_project: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "grouped into lists each sorted before it is read"
+        )]
         for ((project, _trace), session) in &session_of {
             sessions_by_project
                 .entry(project.as_str())
@@ -296,7 +309,8 @@ impl TracePipeline {
         if written.is_empty() {
             return removed;
         }
-        let mut by_project: HashMap<&str, Vec<(String, String)>> = HashMap::new();
+        // In order: what each project finds is deleted and its files released, writes made in the order met.
+        let mut by_project: BTreeMap<&str, Vec<(String, String)>> = BTreeMap::new();
         for (project, trace, span) in written {
             by_project
                 .entry(project.as_str())
@@ -523,7 +537,8 @@ impl TracePipeline {
         associations: &[(String, String, String)],
         in_doubt: &HashSet<String>,
     ) {
-        let mut by_trace = HashMap::new();
+        // In order, so the confirmations and releases are written in the same order every time.
+        let mut by_trace = BTreeMap::new();
         for association in associations {
             by_trace
                 .entry((association.0.as_str(), association.1.as_str()))

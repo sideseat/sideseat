@@ -266,7 +266,10 @@ impl FavoriteStore for PostgresRepository {
         let set = tenant_transaction!(self, project_id, |connection| {
             favorite::check_favorites(connection, user_id, project_id, entity_type, entity_ids)
         })?;
-        Ok(set.into_iter().collect())
+        // In order: the answer is a response's list, which a set's order made different each time.
+        let mut favorites: Vec<String> = set.into_iter().collect();
+        favorites.sort_unstable();
+        Ok(favorites)
     }
 
     async fn check_span_favorites(
@@ -278,7 +281,9 @@ impl FavoriteStore for PostgresRepository {
         let set = tenant_transaction!(self, project_id, |connection| {
             favorite::check_span_favorites(connection, user_id, project_id, span_ids)
         })?;
-        // Convert "trace_id:span_id" strings back to tuples
+        // Convert "trace_id:span_id" strings back to tuples, in order, as the answer is a response's list.
+        let mut set: Vec<String> = set.into_iter().collect();
+        set.sort_unstable();
         Ok(set
             .into_iter()
             .filter_map(|s| {

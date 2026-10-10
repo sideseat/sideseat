@@ -1,5 +1,9 @@
 //! In-process implementation of the SDK registration-store port.
 
+// A map's iteration order differs from one process to the next: where it reaches stored or answered bytes, a
+// hash or the order of a write, iterate in order; elsewhere say why order cannot matter.
+#![deny(clippy::iter_over_hash_type)]
+
 use std::collections::HashSet;
 use std::hash::Hash;
 
@@ -160,10 +164,12 @@ impl RegistrationStore for MemoryRegistrationStore {
         &self,
         connection_id: &str,
     ) -> Result<Vec<RegistrationEntry>, RegistrationStoreError> {
-        let keys: Vec<Key> = match self.by_connection.remove(connection_id) {
+        // In order: the removed entries are announced in the order they are returned.
+        let mut keys: Vec<Key> = match self.by_connection.remove(connection_id) {
             Some((_, set)) => set.into_iter().collect(),
             None => return Ok(Vec::new()),
         };
+        keys.sort_unstable();
         let mut removed = Vec::with_capacity(keys.len());
         for key in keys {
             let Some((_, entry)) = self
@@ -199,12 +205,14 @@ impl RegistrationStore for MemoryRegistrationStore {
         now_secs: u64,
         ttl_secs: u64,
     ) -> Result<Vec<RegistrationEntry>, RegistrationStoreError> {
-        let stale: Vec<Key> = self
+        // In order: the expired entries are announced in the order they are returned.
+        let mut stale: Vec<Key> = self
             .entries
             .iter()
             .filter(|entry| is_expired(entry.last_heartbeat_secs, now_secs, ttl_secs))
             .map(|entry| entry.key().clone())
             .collect();
+        stale.sort_unstable();
         let mut expired = Vec::with_capacity(stale.len());
         for key in stale {
             if let Some((_, entry)) = self.entries.remove_if(&key, |_, entry| {
@@ -252,6 +260,47 @@ mod tests {
             owning_instance_id: instance.into(),
             last_heartbeat_secs: 100,
         }
+    }
+
+    /// A connection's entries come back in order when it goes, as do expired ones: they are announced in the order
+    /// they are returned, and in a set's order that differed from one process to the next.
+    #[tokio::test]
+    async fn removed_and_expired_entries_come_back_in_order() {
+        let store = MemoryRegistrationStore::new();
+        let names: Vec<String> = (0..20)
+            .map(|n| format!("agent-{:02}", (n * 7) % 20))
+            .collect();
+        for name in &names {
+            store
+                .upsert(entry_on("p", name, "client", "conn", "instance"))
+                .await
+                .unwrap();
+        }
+        let mut sorted = names.clone();
+        sorted.sort();
+        let removed: Vec<String> = store
+            .remove_all_for_connection("conn")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect();
+        assert_eq!(removed, sorted);
+
+        for name in &names {
+            store
+                .upsert(entry_on("p", name, "client", "conn", "instance"))
+                .await
+                .unwrap();
+        }
+        let expired: Vec<String> = store
+            .expire_due(10_000, 10)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect();
+        assert_eq!(expired, sorted);
     }
 
     #[tokio::test]

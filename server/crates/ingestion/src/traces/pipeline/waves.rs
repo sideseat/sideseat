@@ -83,6 +83,10 @@ pub(super) fn conflict_free_waves(
             waves.push(Vec::new());
         }
         waves[wave].push(index);
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each trace records the same wave"
+        )]
         for trace in traces {
             latest.insert(trace, wave);
         }

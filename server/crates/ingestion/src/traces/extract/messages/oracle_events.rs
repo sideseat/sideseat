@@ -723,6 +723,10 @@ pub(crate) fn try_vercel_ai(
     }
 
     // Collect any other ai.response.* attributes (but not text/toolCalls/object)
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "a test oracle compared as a JSON map, whose equality does not depend on key order"
+    )]
     for (key, value) in attrs {
         if let Some(suffix) = key.strip_prefix("ai.response.") {
             if suffix != "text" && suffix != "toolCalls" && suffix != "object" {

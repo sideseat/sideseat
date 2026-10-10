@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::ProjectId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RegistrationKind {
     Agent,

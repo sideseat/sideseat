@@ -28,6 +28,10 @@ impl TracePipeline {
         }
         let repo = self.file_service.database().as_ref();
         let mut deleted: HashSet<(String, String)> = HashSet::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's sessions are read into a set, so the order of the reads cannot matter"
+        )]
         for (project, mut session_ids) in by_project {
             let typed_project = ProjectId::from(project);
             session_ids.sort_unstable();
@@ -37,9 +41,11 @@ impl TracePipeline {
                 .await
             {
                 Ok(found) => {
-                    for session_id in found {
-                        deleted.insert((project.to_string(), session_id));
-                    }
+                    deleted.extend(
+                        found
+                            .into_iter()
+                            .map(|session_id| (project.to_string(), session_id)),
+                    );
                 }
                 Err(e) => {
                     self.file_cache.invalidate_all();
@@ -96,12 +102,20 @@ impl TracePipeline {
                 })
                 .collect();
             let mut by_project: HashMap<String, Vec<String>> = HashMap::new();
+            #[expect(
+                clippy::iter_over_hash_type,
+                reason = "grouped into lists that are only read"
+            )]
             for (project, trace) in &deleted_traces {
                 by_project
                     .entry(project.clone())
                     .or_default()
                     .push(trace.clone());
             }
+            #[expect(
+                clippy::iter_over_hash_type,
+                reason = "each project's sessions are read; what is kept is removed from a set"
+            )]
             for (project, trace_ids) in by_project {
                 let typed_project = ProjectId::from(project.as_str());
                 match self
@@ -192,7 +206,13 @@ impl TracePipeline {
         // the redelivery writes the tombstone once the store recovers; the spans are dropped on that pass
         // instead, which is the same outcome one retry later.
         if !deleted_traces.is_empty() {
-            let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
+            // Projects and their traces in order: the tombstones are journal rows, and rows written in a
+            // hash map's order stored different bytes from one process to the next.
+            let mut by_project: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+            #[expect(
+                clippy::iter_over_hash_type,
+                reason = "grouped, then each project's traces are sorted before they are written"
+            )]
             for (project, trace) in &deleted_traces {
                 by_project
                     .entry(project.as_str())
@@ -200,7 +220,8 @@ impl TracePipeline {
                     .push(trace.clone());
             }
             let repo = self.file_service.database().as_ref();
-            for (project, trace_ids) in by_project {
+            for (project, mut trace_ids) in by_project {
+                trace_ids.sort_unstable();
                 let typed_project = ProjectId::from(project);
                 // Journalled with the tombstone, in one transaction - see the compensation path above for why a
                 // session entry alone does not cover these traces.
@@ -259,6 +280,10 @@ impl TracePipeline {
         }
         let repo = self.file_service.database().as_ref();
         let mut deleted = HashSet::<(String, String, String)>::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's journalled spans are read into a set"
+        )]
         for (project, mut identities) in by_project {
             identities.sort_unstable();
             identities.dedup();
@@ -332,15 +357,21 @@ impl TracePipeline {
         }
         let repo = self.file_service.database().as_ref();
         let mut deleted: HashSet<(String, String)> = HashSet::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's deleted traces are read into a set"
+        )]
         for (project, mut trace_ids) in by_project {
             let typed_project = ProjectId::from(project);
             trace_ids.sort_unstable();
             trace_ids.dedup();
             match repo.deleted_traces_among(&typed_project, &trace_ids).await {
                 Ok(found) => {
-                    for trace_id in found {
-                        deleted.insert((project.to_string(), trace_id));
-                    }
+                    deleted.extend(
+                        found
+                            .into_iter()
+                            .map(|trace_id| (project.to_string(), trace_id)),
+                    );
                 }
                 Err(e) => {
                     self.file_cache.invalidate_all();
@@ -433,6 +464,10 @@ impl TracePipeline {
         }
 
         let mut exact = HashSet::new();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's exact redeliveries are read into a set of batch indexes"
+        )]
         for (project, records) in by_project {
             let project_id = ProjectId::from(project.as_str());
             let digests = records

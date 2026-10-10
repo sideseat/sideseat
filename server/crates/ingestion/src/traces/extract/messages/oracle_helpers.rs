@@ -41,6 +41,10 @@ pub(super) fn extract_indexed_message(
     // Collect all raw attributes with this prefix (literal, no metadata)
     let mut raw = serde_json::Map::new();
     let attr_prefix = format!("{}.", msg_prefix);
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "a test oracle compared as a JSON map, whose equality does not depend on key order"
+    )]
     for (key, value) in attrs {
         if let Some(suffix) = key.strip_prefix(&attr_prefix) {
             let json_val = if value.starts_with('{') || value.starts_with('[') {
@@ -105,6 +109,10 @@ pub(super) fn extract_openinference_message(
 
     // Collect message.* attributes including nested content blocks
     let attr_prefix = format!("{}.", msg_prefix);
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "a test oracle compared as a JSON map, whose equality does not depend on key order"
+    )]
     for (key, value) in attrs {
         if let Some(suffix) = key.strip_prefix(&attr_prefix) {
             let json_val = if value.starts_with('{') || value.starts_with('[') {
@@ -118,6 +126,10 @@ pub(super) fn extract_openinference_message(
 
     // Also collect ALL item-level attributes (not just message.*)
     let item_attr_prefix = format!("{}.", item_prefix);
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "a test oracle compared as a JSON map, whose equality does not depend on key order"
+    )]
     for (key, value) in attrs {
         if let Some(suffix) = key.strip_prefix(&item_attr_prefix) {
             // Skip message.* as we already collected those above

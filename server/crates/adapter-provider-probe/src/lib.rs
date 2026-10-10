@@ -6,6 +6,10 @@
 //! asks for a one-token completion instead, and a "model not found" answer still counts as success:
 //! the provider had to accept the credential to say so.
 
+// A map's iteration order differs from one process to the next: where it reaches stored or answered bytes, a
+// hash or the order of a write, iterate in order; elsewhere say why order cannot matter.
+#![deny(clippy::iter_over_hash_type)]
+
 mod aws;
 mod azure;
 mod google;

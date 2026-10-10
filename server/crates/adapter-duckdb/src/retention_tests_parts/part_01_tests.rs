@@ -13,7 +13,7 @@ fn cleanup_by_time(
     conn: &Connection,
     minutes: u64,
     record_intent: CleanupRecorder<'_>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     super::cleanup_by_time(conn, minutes, record_intent, test_now())
 }
 
@@ -21,7 +21,7 @@ fn cleanup_by_count(
     conn: &Connection,
     max_spans: u64,
     record_intent: CleanupRecorder<'_>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     super::cleanup_by_count(conn, max_spans, record_intent, test_now())
 }
 
@@ -31,7 +31,7 @@ fn cleanup_by_count_within(
     identity_budget_for_cycle: i64,
     row_budget_for_cycle: u64,
     record_intent: CleanupRecorder<'_>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     super::cleanup_by_count_within(
         conn,
         max_spans,
@@ -49,7 +49,7 @@ fn trim_project_to_limit(
     batch_size: i64,
     row_budget: u64,
     record_intent: CleanupRecorder<'_>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     super::trim_project_to_limit(
         conn,
         project_id,
@@ -98,7 +98,7 @@ fn run_retention(
 ///
 /// Named rather than an inline closure at every call site, so `no_intent` reads as "this test does not
 /// exercise the record" instead of as noise.
-fn no_intent(_: &HashMap<String, Vec<String>>) -> Result<(), DuckdbError> {
+fn no_intent(_: &BTreeMap<String, Vec<String>>) -> Result<(), DuckdbError> {
     Ok(())
 }
 
@@ -600,7 +600,7 @@ async fn the_cleanup_intent_is_recorded_before_the_spans_are_deleted() {
 
     // What the recorder saw, and how many spans still existed when it saw it.
     let observed: std::sync::Mutex<Vec<(String, usize, i64)>> = std::sync::Mutex::new(Vec::new());
-    let recorder = |by_project: &HashMap<String, Vec<String>>| {
+    let recorder = |by_project: &BTreeMap<String, Vec<String>>| {
         let remaining: i64 = conn
             .query_row("SELECT COUNT(*) FROM otel_spans", [], |row| row.get(0))
             .expect("count spans");
@@ -642,7 +642,7 @@ async fn a_failed_intent_record_leaves_the_spans_in_place() {
 
     insert_test_span(&conn, "t1", "s1", "2020-01-01 00:00:00");
 
-    let failing = |_: &HashMap<String, Vec<String>>| {
+    let failing = |_: &BTreeMap<String, Vec<String>>| {
         Err(DuckdbError::Io(std::io::Error::other(
             "the transactional store is unavailable",
         )))

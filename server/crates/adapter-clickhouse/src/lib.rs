@@ -8,6 +8,10 @@
 //! - Async inserts for high-throughput ingestion
 //! - HTTP keep-alive for connection reuse
 
+// A map's iteration order differs from one process to the next: where it reaches stored or answered bytes, a
+// hash or the order of a write, iterate in order; elsewhere say why order cannot matter.
+#![deny(clippy::iter_over_hash_type)]
+
 mod consistency;
 mod error;
 mod repositories;
@@ -611,8 +615,12 @@ impl ClickhouseService {
                             .await
                         {
                             Ok(claimed) if !claimed.is_empty() => {
+                                // In order, projects and their traces, so the cleanup writes go out the same way
+                                // every time: the claim returns its rows in no order of its own.
+                                let mut claimed = claimed;
+                                claimed.sort_unstable();
                                 let mut by_project =
-                                    std::collections::HashMap::<String, Vec<(String, i64)>>::new();
+                                    std::collections::BTreeMap::<String, Vec<(String, i64)>>::new();
                                 for (project_id, trace_id, token) in claimed {
                                     by_project
                                         .entry(project_id)

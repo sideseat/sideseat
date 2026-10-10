@@ -697,10 +697,17 @@ pub(crate) fn extract_genai(
             + counted_beside_output,
     );
 
-    // Usage details: every `gen_ai.usage.*` member no declared counter reads.
+    // Usage details: every `gen_ai.usage.*` member no declared counter reads, by name. In the attribute map's
+    // order the members of one span's details came out differently from one process to the next, and the column
+    // stored different bytes for the same export.
     let already_read = counters_already_read(rules);
     let mut details = serde_json::Map::new();
-    for (key, value) in attrs {
+    let mut usage: Vec<(&String, &String)> = attrs
+        .iter()
+        .filter(|(key, _)| key.starts_with("gen_ai.usage."))
+        .collect();
+    usage.sort_unstable();
+    for (key, value) in usage {
         if let Some(field) = key.strip_prefix("gen_ai.usage.")
             && !already_read.contains(field)
         {

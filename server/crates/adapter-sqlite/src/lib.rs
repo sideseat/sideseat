@@ -9,6 +9,10 @@
 //! For scalable multi-tenant SaaS deployments, use PostgreSQL instead.
 //! All schema definitions and migrations are managed here.
 
+// A map's iteration order differs from one process to the next: where it reaches stored or answered bytes, a
+// hash or the order of a write, iterate in order; elsewhere say why order cannot matter.
+#![deny(clippy::iter_over_hash_type)]
+
 mod error;
 mod migrations;
 mod repositories;

@@ -863,6 +863,7 @@ mod tests {
         let json_obj = json_result.as_object().unwrap();
         // Both should have the same keys
         assert_eq!(json_obj.len(), string_result.len());
+        #[expect(clippy::iter_over_hash_type, reason = "membership assertions")]
         for key in string_result.keys() {
             assert!(json_obj.contains_key(key), "JSON missing key: {}", key);
         }

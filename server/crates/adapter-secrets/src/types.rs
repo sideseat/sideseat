@@ -223,14 +223,16 @@ impl SecretVault {
         if self.version >= VAULT_VERSION {
             return false;
         }
-        let old = std::mem::take(&mut self.secrets);
-        for (key, secret) in old {
-            let new_key = if key.contains('/') {
-                key
-            } else {
-                format!("global/{}", key)
-            };
-            self.secrets.insert(new_key, secret);
+        // A key already scoped wins over a flat one that maps onto it, being the later form; decided by rule,
+        // not by which the old map happened to yield last.
+        let (scoped, flat): (Vec<_>, Vec<_>) = std::mem::take(&mut self.secrets)
+            .into_iter()
+            .partition(|(key, _)| key.contains('/'));
+        self.secrets.extend(scoped);
+        for (key, secret) in flat {
+            self.secrets
+                .entry(format!("global/{key}"))
+                .or_insert(secret);
         }
         self.version = VAULT_VERSION;
         true
@@ -371,6 +373,25 @@ mod tests {
     fn test_new_vault_has_current_version() {
         let vault = SecretVault::default();
         assert_eq!(vault.version, VAULT_VERSION);
+    }
+
+    /// A version-1 vault holding a flat key and its scoped form keeps the scoped one: the later form, chosen by
+    /// rule. Chosen by the old map's order, either survived, depending on the process.
+    #[test]
+    fn migrating_a_flat_key_beside_its_scoped_form_keeps_the_scoped_one() {
+        for _ in 0..16 {
+            let mut vault = SecretVault {
+                version: 1,
+                ..SecretVault::default()
+            };
+            vault.secrets.insert("key".to_string(), test_secret("flat"));
+            vault
+                .secrets
+                .insert("global/key".to_string(), test_secret("scoped"));
+            assert!(vault.migrate());
+            assert_eq!(vault.secrets.len(), 1);
+            assert_eq!(vault.secrets["global/key"].value, "scoped");
+        }
     }
 
     #[test]

@@ -54,6 +54,10 @@ pub(crate) fn plan(
         new: vec![None; spans.len()],
         updates: Vec::new(),
     };
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each new span's value is set by its position, and the updates are sorted below"
+    )]
     for (identity, indices) in by_identity {
         // (instant, tier, position): a stored row precedes every new one at the same instant, as its row id does.
         let mut revisions: Vec<((i64, u8, i64), Revision)> = stored

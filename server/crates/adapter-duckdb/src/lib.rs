@@ -3,6 +3,10 @@
 //! Provides centralized analytics database management for the server.
 //! All schema definitions and migrations are managed here.
 
+// A map's iteration order differs from one process to the next: where it reaches stored or answered bytes, a
+// hash or the order of a write, iterate in order; elsewhere say why order cannot matter.
+#![deny(clippy::iter_over_hash_type)]
+
 mod error;
 mod migrations;
 mod repositories;
@@ -613,8 +617,12 @@ impl DuckdbService {
                             Ok(claimed) if !claimed.is_empty() => {
                                 // Grouped with their **claim tokens**, because completion is conditional on
                                 // them: a stale worker that finished old work must not delete a newer intent.
-                                let mut by_project: std::collections::HashMap<String, Vec<(String, i64)>> =
-                                    std::collections::HashMap::new();
+                                // In order, projects and their traces, so the cleanup writes go out the same way
+                                // every time: the claim returns its rows in no order of its own.
+                                let mut claimed = claimed;
+                                claimed.sort_unstable();
+                                let mut by_project: std::collections::BTreeMap<String, Vec<(String, i64)>> =
+                                    std::collections::BTreeMap::new();
                                 for (project_id, trace_id, token) in claimed {
                                     by_project
                                         .entry(project_id)
@@ -843,9 +851,9 @@ impl DuckdbService {
             //
             // A failure here **fails the batch**, deliberately: without a durable record the deletion would be
             // a loss with nothing able to find it afterwards, so not deleting is the correct outcome.
-            let tokens: std::sync::Mutex<std::collections::HashMap<String, Vec<(String, i64)>>> =
-                std::sync::Mutex::new(std::collections::HashMap::new());
-            let record_intent = |by_project: &std::collections::HashMap<String, Vec<String>>| {
+            let tokens: std::sync::Mutex<std::collections::BTreeMap<String, Vec<(String, i64)>>> =
+                std::sync::Mutex::new(std::collections::BTreeMap::new());
+            let record_intent = |by_project: &std::collections::BTreeMap<String, Vec<String>>| {
                 for (project_id, trace_ids) in by_project {
                     let typed_project_id = ProjectId::from(project_id.as_str());
                     let written = handle

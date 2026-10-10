@@ -273,7 +273,11 @@ impl RedpandaTopicBackend {
             .map(|entry| Arc::clone(entry.value()))
             .ok_or_else(|| TopicError::ConsumerGroup(format!("no consumer for {topic}/{group}")))?;
 
-        for (&partition, offsets) in offsets {
+        // In partition order: a failure stops the loop, and which partitions were committed before it must not
+        // depend on a map's order.
+        let mut partitions: Vec<(&i32, &Vec<u64>)> = offsets.iter().collect();
+        partitions.sort_unstable_by_key(|(partition, _)| **partition);
+        for (&partition, offsets) in partitions {
             let key = PartitionKey {
                 topic: topic.to_string(),
                 group: group.to_string(),

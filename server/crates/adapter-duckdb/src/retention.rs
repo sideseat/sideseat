@@ -3,7 +3,7 @@
 //! Efficient batch deletion with transaction-safe cascading deletes.
 //! Note: DuckDB doesn't support data-modifying CTEs, so we use explicit transactions.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use chrono::{TimeDelta, Utc};
 use duckdb::Connection;
@@ -17,7 +17,8 @@ use sideseat_query_sql::dml::{self, DmlStatement};
 ///
 /// A parameter rather than a call, because retention is synchronous DuckDB work and the record goes to the
 /// transactional store: the composition happens at the caller, which is the only place that has both.
-pub type CleanupRecorder<'a> = &'a dyn Fn(&HashMap<String, Vec<String>>) -> Result<(), DuckdbError>;
+pub type CleanupRecorder<'a> =
+    &'a dyn Fn(&BTreeMap<String, Vec<String>>) -> Result<(), DuckdbError>;
 pub type PressureRecorder<'a> = &'a dyn Fn(&str, &[(String, String)]) -> Result<(), DuckdbError>;
 
 #[cfg(test)]
@@ -31,13 +32,13 @@ pub struct RetentionResult {
     /// Total spans deleted
     pub deleted_count: u64,
     /// Trace IDs grouped by project for file cleanup
-    pub trace_ids_by_project: HashMap<String, Vec<String>>,
+    pub trace_ids_by_project: BTreeMap<String, Vec<String>>,
     /// The cleanup-intent token each recorded trace now carries, per project.
     ///
     /// Completion is conditional on the token, so the pass that recorded a candidate has to carry the value it
     /// wrote: guessing either fails to complete, leaving a record the sweep re-drives, or matches a *newer* row
     /// and discards work another pass recorded.
-    pub cleanup_tokens: HashMap<String, Vec<(String, i64)>>,
+    pub cleanup_tokens: BTreeMap<String, Vec<(String, i64)>>,
 }
 
 /// Run retention cleanup based on config
@@ -178,8 +179,8 @@ pub fn run_retention_for_project_with_pressure(
 
 /// Merge trace IDs from a batch into the cumulative result
 fn merge_trace_ids(
-    target: &mut HashMap<String, Vec<String>>,
-    source: HashMap<String, Vec<String>>,
+    target: &mut BTreeMap<String, Vec<String>>,
+    source: BTreeMap<String, Vec<String>>,
 ) {
     for (project_id, trace_ids) in source {
         target.entry(project_id).or_default().extend(trace_ids);
@@ -209,13 +210,13 @@ pub fn cleanup_by_time(
     minutes: u64,
     record_intent: CleanupRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = now - TimeDelta::minutes(minutes_i64);
     tracing::debug!(%cutoff, minutes, "Time-based retention check");
 
     let mut total_deleted = 0u64;
-    let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
+    let mut all_trace_ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     for _ in 0..MAX_TIME_CLEANUP_BATCHES {
         let batch = delete_spans_before(conn, cutoff, now, RETENTION_BATCH_SIZE, record_intent)?;
@@ -239,11 +240,11 @@ fn cleanup_project_by_time(
     minutes: u64,
     record_intent: CleanupRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = now - TimeDelta::minutes(minutes_i64);
     let mut total_deleted = 0u64;
-    let mut all_trace_ids = HashMap::new();
+    let mut all_trace_ids = BTreeMap::new();
 
     for _ in 0..MAX_TIME_CLEANUP_BATCHES {
         let batch = delete_project_spans_before(
@@ -319,7 +320,7 @@ pub fn cleanup_by_count(
     max_spans: u64,
     record_intent: CleanupRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     cleanup_by_count_within(
         conn,
         max_spans,
@@ -343,24 +344,24 @@ fn cleanup_by_count_within(
     row_budget_for_cycle: u64,
     record_intent: CleanupRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let max_spans_i64 = i64::try_from(max_spans).unwrap_or(i64::MAX);
 
     let over_limit = match projects_over_limit(conn, max_spans_i64) {
         Ok(projects) => projects,
         Err(e) => {
             tracing::warn!(error = %e, "Failed to query per-project span counts");
-            return Ok((0, HashMap::new()));
+            return Ok((0, BTreeMap::new()));
         }
     };
 
     if over_limit.is_empty() {
         tracing::debug!(max_spans, "Every project within its span limit");
-        return Ok((0, HashMap::new()));
+        return Ok((0, BTreeMap::new()));
     }
 
     let mut total_deleted = 0u64;
-    let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
+    let mut all_trace_ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     // Bounded per **cycle**, not merely per project. Each project may run `MAX_COUNT_CLEANUP_BATCHES`
     // batches of `RETENTION_BATCH_SIZE`, so with the limit applied per project a deployment with a thousand
@@ -429,10 +430,10 @@ fn cleanup_project_by_count(
     record_intent: CleanupRecorder<'_>,
     record_pressure: PressureRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let max_spans = i64::try_from(max_spans).unwrap_or(i64::MAX);
     let Some((_, span_count)) = project_over_limit(conn, project_id, max_spans)? else {
-        return Ok((0, HashMap::new()));
+        return Ok((0, BTreeMap::new()));
     };
     trim_project_to_limit(
         conn,
@@ -461,9 +462,9 @@ fn trim_project_to_limit(
     record_intent: CleanupRecorder<'_>,
     record_pressure: PressureRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let mut total_deleted = 0u64;
-    let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
+    let mut all_trace_ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut remaining = overage;
 
     for _ in 0..MAX_COUNT_CLEANUP_BATCHES {
@@ -559,7 +560,7 @@ struct BatchOutcome {
     identities: u64,
     /// Physical rows removed, which is what the caller reports.
     rows: u64,
-    trace_ids_by_project: HashMap<String, Vec<String>>,
+    trace_ids_by_project: BTreeMap<String, Vec<String>>,
 }
 
 /// Delete spans before cutoff timestamp (for time-based retention)
@@ -688,7 +689,7 @@ fn delete_spans_with_query(
 
 fn collect_selected_spans(
     conn: &Connection,
-) -> Result<HashMap<String, Vec<(String, String)>>, DuckdbError> {
+) -> Result<BTreeMap<String, Vec<(String, String)>>, DuckdbError> {
     let mut statement = conn.prepare(
         "SELECT project_id, trace_id, span_id
          FROM _retention_batch
@@ -701,7 +702,7 @@ fn collect_selected_spans(
             row.get::<_, String>(2)?,
         ))
     })?;
-    let mut selected = HashMap::new();
+    let mut selected = BTreeMap::new();
     for row in rows {
         let (project_id, trace_id, span_id) = row?;
         selected
@@ -718,7 +719,7 @@ fn collect_selected_spans(
 /// the same transaction will delete.
 fn collect_trace_ids_for_cleanup(
     conn: &Connection,
-) -> Result<HashMap<String, Vec<String>>, DuckdbError> {
+) -> Result<BTreeMap<String, Vec<String>>, DuckdbError> {
     let limit = MAX_TRACE_IDS_PER_CYCLE as i64;
     let query = dml::retention::retention_selected_traces(limit);
     let values = duckdb_values(query.params());
@@ -727,7 +728,7 @@ fn collect_trace_ids_for_cleanup(
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     })?;
 
-    let mut result: HashMap<String, Vec<String>> = HashMap::new();
+    let mut result: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for row in rows {
         let (project_id, trace_id) = row?;
         result.entry(project_id).or_default().push(trace_id);

@@ -611,6 +611,10 @@ fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, Str
     }
 
     let mut best: HashMap<TraceKey, (EarliestBy, String)> = HashMap::new();
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "the earliest by start and span id, a total order, whatever order they are met in"
+    )]
     for ((project, trace, span_id), (_, session, timestamp_start)) in latest {
         let Some(session_id) = session else {
             continue;

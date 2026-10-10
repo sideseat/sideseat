@@ -274,6 +274,10 @@ fn winning_indices(
             ids.push(key.1);
             instants.push(metrics[best[key]].timestamp.timestamp_micros());
         }
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each project's stored versions are read into a map"
+        )]
         for (project, (ids, mut instants)) in by_project {
             instants.sort_unstable();
             instants.dedup();
@@ -304,6 +308,10 @@ fn winning_indices(
         }
     }
 
+    #[expect(
+        clippy::iter_over_hash_type,
+        reason = "each identity clears only its own keep flag"
+    )]
     for (&(project, id), &index) in &best {
         if let Some(&stored_us) = stored.get(&(project.to_string(), id.to_string()))
             && stored_us > version(&metrics[index]).timestamp_micros()

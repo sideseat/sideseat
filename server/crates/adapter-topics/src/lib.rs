@@ -4,6 +4,10 @@
 //! `sideseat-messaging`. This crate implements the contract for in-process, Redis, and Redpanda
 //! backends.
 
+// A map's iteration order differs from one process to the next: where it reaches stored or answered bytes, a
+// hash or the order of a write, iterate in order; elsewhere say why order cannot matter.
+#![deny(clippy::iter_over_hash_type)]
+
 mod ack_window;
 mod memory;
 mod pubsub;

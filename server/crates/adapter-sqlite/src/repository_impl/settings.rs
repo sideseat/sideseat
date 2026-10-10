@@ -271,7 +271,10 @@ impl FavoriteStore for SqliteRepository {
             favorite::check_favorites(self.0.pool(), user_id, project_id, entity_type, entity_ids)
                 .await
                 .map_err(DataError::from)?;
-        Ok(set.into_iter().collect())
+        // In order: the answer is a response's list, which a set's order made different each time.
+        let mut favorites: Vec<String> = set.into_iter().collect();
+        favorites.sort_unstable();
+        Ok(favorites)
     }
 
     async fn check_span_favorites(
@@ -283,7 +286,9 @@ impl FavoriteStore for SqliteRepository {
         let set = favorite::check_span_favorites(self.0.pool(), user_id, project_id, span_ids)
             .await
             .map_err(DataError::from)?;
-        // Convert "trace_id:span_id" strings back to tuples
+        // Convert "trace_id:span_id" strings back to tuples, in order, as the answer is a response's list.
+        let mut set: Vec<String> = set.into_iter().collect();
+        set.sort_unstable();
         Ok(set
             .into_iter()
             .filter_map(|s| {
@@ -628,5 +633,57 @@ impl StorageGovernance for SqliteRepository {
         governance::project_ids(self.0.pool(), limit)
             .await
             .map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod favorite_order_tests {
+    use super::*;
+    use sideseat_core::storage::AppStorage;
+    use sideseat_ports::traits::FavoriteStore;
+
+    /// A favorites check answers in order: its list goes into a response, and in a set's order the same answer was
+    /// a different list from one process to the next.
+    #[tokio::test]
+    async fn a_favorites_check_answers_in_order() {
+        let root = tempfile::TempDir::new().expect("temp dir");
+        let storage = AppStorage::init_for_test(root.path().to_path_buf());
+        let repo = SqliteRepository(std::sync::Arc::new(
+            crate::SqliteService::init(&storage, std::sync::Arc::new(crate::TestClock))
+                .await
+                .expect("sqlite"),
+        ));
+        let project = ProjectId::from("default");
+        let ids: Vec<String> = (0..20)
+            .map(|n| format!("trace-{:02}", (n * 7) % 20))
+            .collect();
+        for id in &ids {
+            repo.add_favorite("local", "trace", id, None, &project)
+                .await
+                .expect("favorite");
+            repo.add_favorite("local", "span", id, Some("span"), &project)
+                .await
+                .expect("favorite");
+        }
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(
+            repo.check_favorites("local", "trace", &ids, &project)
+                .await
+                .expect("check"),
+            sorted
+        );
+        let spans: Vec<(String, String)> = ids
+            .iter()
+            .map(|id| (id.clone(), "span".to_string()))
+            .collect();
+        let mut sorted_spans = spans.clone();
+        sorted_spans.sort();
+        assert_eq!(
+            repo.check_span_favorites("local", &spans, &project)
+                .await
+                .expect("check"),
+            sorted_spans
+        );
     }
 }

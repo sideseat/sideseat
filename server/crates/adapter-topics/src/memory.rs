@@ -14,7 +14,7 @@
 //!
 //! For production durability and multi-machine deployments, use Redis backend.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -69,8 +69,11 @@ struct ConsumerGroup {
     /// limit after the group cap: a client reconnecting under a fresh name each time adds an entry per reconnect,
     /// while the group count stays at one and every entry and pending record is reclaimed.
     consumers: HashMap<String, Instant>,
-    /// Pending messages: message_id -> (consumer, delivery_time)
-    pending: HashMap<u64, (String, Instant)>,
+    /// Pending messages: message_id -> (consumer, delivery_time).
+    ///
+    /// Ordered by id, so a claim walks the oldest first and stops after the entries it takes, rather than
+    /// collecting and sorting the whole backlog under the streams lock.
+    pending: BTreeMap<u64, (String, Instant)>,
 }
 
 impl ConsumerGroup {
@@ -99,7 +102,7 @@ impl ConsumerGroup {
     /// Everything below this has been delivered *and* acknowledged, which is the only definition of consumed
     /// that makes an entry safe to drop.
     fn oldest_needed(&self) -> u64 {
-        match self.pending.keys().min() {
+        match self.pending.keys().next() {
             Some(oldest_pending) => *oldest_pending,
             None => self.last_delivered_id.saturating_add(1),
         }
@@ -578,7 +581,8 @@ impl TopicBackend for MemoryTopicBackend {
         let min_idle = std::time::Duration::from_millis(min_idle_ms);
         let mut claimed = Vec::new();
 
-        // Find pending messages that are idle
+        // The oldest idle messages first: in a hash map's order, which messages were claimed and the order they
+        // were replayed in - and so written - differed from one process to the next.
         let idle_ids: Vec<u64> = cg
             .pending
             .iter()

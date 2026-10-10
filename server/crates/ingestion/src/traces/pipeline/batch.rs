@@ -707,6 +707,10 @@ impl TracePipeline {
             return failed();
         }
         let mut outcomes = ledger.outcomes();
+        #[expect(
+            clippy::iter_over_hash_type,
+            reason = "each failed slot marks its own outcome"
+        )]
         for slot in failed_slots {
             outcomes[slot] = IngestOutcome::Failed;
         }
