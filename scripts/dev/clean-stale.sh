@@ -15,20 +15,23 @@ before="${before:-0}"
 
 # A running build reads and rewrites fingerprints and artifacts that cargo-sweep judges by timestamp, so sweeping
 # under it deletes files the build is about to write beside (`failed to write .../invoked.timestamp`).
+# Busy means busy for this target: a build holds its profile directory's .cargo-lock open while it runs, and rustc
+# names the target in its --out-dir. Several worktrees build into targets of their own, so a build anywhere on the
+# machine says nothing about this one. Without lsof every cargo or rustc counts, which keeps more, never less.
 build_running=false
-if pgrep -x cargo >/dev/null 2>&1 || pgrep -x rustc >/dev/null 2>&1; then
+if command -v lsof >/dev/null 2>&1; then
+  if lsof -t "$target_dir"/*/.cargo-lock >/dev/null 2>&1 || pgrep -f -- "$target_dir/" >/dev/null 2>&1; then
+    build_running=true
+  fi
+elif pgrep -x cargo >/dev/null 2>&1 || pgrep -x rustc >/dev/null 2>&1; then
   build_running=true
 fi
 
 if [ "$build_running" = true ]; then
-  # Several agents keep a build running nearly all the time, so cargo-sweep would never run. A unit nothing has
-  # rebuilt or reused for a day is not one a running build is about to link; if it is, cargo rebuilds it.
-  echo "[clean-stale] a cargo or rustc process is running; removing only units untouched for a day"
-  for profile_dir in "$target_dir"/*/; do
-    find "$profile_dir/deps" -maxdepth 1 -type f -mmin +1440 -delete 2>/dev/null || true
-    find "$profile_dir/.fingerprint" "$profile_dir/build" -mindepth 1 -maxdepth 1 -type d -mmin +1440 \
-      -exec rm -rf {} + 2>/dev/null || true
-  done
+  # A dependency's artifacts are written once and then only read, and reading leaves its timestamp alone: a
+  # day-old rlib can be the one the running build links next. Removing such units by age broke builds mid-link
+  # ("can't find crate"), so a busy target keeps every unit.
+  echo "[clean-stale] a build is using this target; keeping every unit"
 elif command -v cargo-sweep >/dev/null 2>&1; then
   # Not `--installed`: it decides which artifacts belong to an installed toolchain by fingerprinting every
   # one, and a toolchain rustup cannot fingerprint (a missing manifest) made it delete the active
@@ -56,12 +59,13 @@ stale_objects="$(find "$target_dir" -name '*.rcgu.o' -mmin "+$stale_minutes" -pr
 echo "[clean-stale] removed $stale_sessions incremental sessions and $stale_objects objects untouched for ${STALE_HOURS:-6} h"
 
 # Every edit of a crate links a new test executable beside the old ones (hundreds per day for the goldens), and
-# nothing reuses the old ones. A build judges an executable fresh only when nothing changed since it was linked,
-# so while builds run only a day-old one goes; on an idle target, anything untouched for STALE_HOURS.
-executable_minutes=$stale_minutes
-[ "$build_running" = true ] && executable_minutes=1440
-stale_executables="$(find "$target_dir"/*/deps -maxdepth 1 -type f -perm -u+x ! -name '*.*' -mmin "+$executable_minutes" -print -delete 2>/dev/null | wc -l | tr -d ' ')"
-echo "[clean-stale] removed $stale_executables linked executables untouched for $((executable_minutes / 60)) h"
+# nothing reuses the old ones - except a build that finds its crate unchanged, which runs the executable it linked
+# however long ago. So they go only from an idle target, when untouched for STALE_HOURS.
+stale_executables=0
+if [ "$build_running" = false ]; then
+  stale_executables="$(find "$target_dir"/*/deps -maxdepth 1 -type f -perm -u+x ! -name '*.*' -mmin "+$stale_minutes" -print -delete 2>/dev/null | wc -l | tr -d ' ')"
+fi
+echo "[clean-stale] removed $stale_executables linked executables untouched for ${STALE_HOURS:-6} h"
 
 incremental_dirs=0
 # Another build reads and writes the current ones while it runs, so deleting them under it fails that build

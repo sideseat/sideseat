@@ -158,13 +158,20 @@ fn stale_cleanup_discovers_every_incremental_directory() {
         "target_dir=\"$(bash scripts/dev/cargo-target-dir.sh)\"",
         "find \"$target_dir\" -type d -name incremental",
         "cargo sweep --time 3",
-        "removing only units untouched for a day",
+        "lsof -t \"$target_dir\"/*/.cargo-lock",
+        "a build is using this target; keeping every unit",
     ] {
         assert!(
             script.contains(required),
             "stale cleanup must contain `{required}`"
         );
     }
+    // Reading a dependency leaves its timestamp alone, so removing units by age under a running build deleted the
+    // rlibs it was about to link.
+    assert!(
+        !script.contains("-mmin +1440"),
+        "stale cleanup must not remove units by age while a build uses the target"
+    );
     // `--installed` fingerprints artifacts against installed toolchains and deleted the active toolchain's
     // builds mid-build when rustup could not fingerprint it.
     assert!(
