@@ -35,10 +35,15 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
-make check
+# `make push ARGS="origin <sha>:refs/heads/main"` runs this hook from inside make, which hands its command-line
+# variables to every nested make through MAKEFLAGS: a gate that takes ARGS would receive git's refspec as its own
+# arguments. The gates run with none of the pusher's variables.
+gate() { env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL -u ARGS make "$@"; }
+
+gate check
 
 # Last gate before anything becomes public: pre-commit can be bypassed with --no-verify, and a
 # rebuilt or rebased series can reintroduce content that was scrubbed.
-make secret-scan-range
+gate secret-scan-range
 
 echo "[pre-push] All checks passed"

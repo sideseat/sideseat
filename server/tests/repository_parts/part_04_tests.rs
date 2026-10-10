@@ -57,6 +57,24 @@ fn pre_commit_stays_cheap() {
     }
 }
 
+/// `make push ARGS=...` runs the pre-push hook inside make, and a nested make inherits ARGS through MAKEFLAGS:
+/// `make check` once handed git's refspec to the storage gate, which refused it and failed every push.
+#[test]
+fn pre_push_gates_run_without_the_pushers_make_variables() {
+    let hook =
+        std::fs::read_to_string(repo_root().join("scripts/hooks/pre-push")).expect("pre-push hook");
+    assert!(
+        hook.contains("gate() { env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL -u ARGS make \"$@\"; }"),
+        "pre-push must run its gates through a make that inherits none of the pusher's variables"
+    );
+    for line in hook.lines().map(str::trim) {
+        assert!(
+            !line.starts_with("make "),
+            "pre-push runs `{line}` with the pusher's make variables; use `gate` instead"
+        );
+    }
+}
+
 /// Unused dependencies fail `make lint`, with a pinned tool, rather than being reported when installed.
 #[test]
 fn lint_rejects_unused_rust_dependencies() {
