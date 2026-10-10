@@ -316,7 +316,8 @@ async fn an_error_of_work_on_its_own_guard_met_with_the_database_invalidated_is_
         .run_query({
             let service = Arc::clone(&service);
             move || {
-                if let Err(error) = service.conn().execute_batch("CHECKPOINT") {
+                let checkpointed = service.conn().execute_batch("CHECKPOINT");
+                if let Err(error) = checkpointed {
                     tracing::warn!(%error, "logged and dropped");
                 }
                 Err::<(), _>(crate::DuckdbError::Io(std::io::Error::other(
