@@ -18,6 +18,8 @@ import time
 import urllib.parse
 from pathlib import Path
 
+import storage_server
+
 
 def log(message: str) -> None:
     print(f"[storage] {message}", flush=True)
@@ -186,27 +188,29 @@ def answers(store: Path, requests: list[str], script, binary: Path) -> dict:
     with tempfile.TemporaryDirectory(dir=store.parent) as scratch:
         copy = Path(scratch) / "store"
         shutil.copytree(store, copy)
-        script.PORT = free_ports()
-        server = script.start_server(binary, copy, {})
+        port = free_ports()
+        server = storage_server.start_server(binary, copy, {}, port)
         try:
             time.sleep(0.5)
             if server.poll() is not None:
                 raise SystemExit("[storage] the server for the answers exited")
-            base = f"http://127.0.0.1:{script.PORT}"
-            status, body = script.http("GET", f"{base}/api/v1/projects?limit=100")
+            base = f"http://127.0.0.1:{port}"
+            status, body = storage_server.http(
+                "GET", f"{base}/api/v1/projects?limit=100"
+            )
             for project in projects_of(store):
                 if status != 200 or project.encode() not in body:
                     raise SystemExit(
-                        f"[storage] the server on {script.PORT} does not serve {project}"
+                        f"[storage] the server on {port} does not serve {project}"
                     )
 
             def get(path: str):
-                return script.http("GET", base + path)
+                return storage_server.http("GET", base + path)
 
             asked = requests + session_requests(get, projects_of(store))
             return {path: get(path) for path in asked}
         finally:
-            script.stop_server(server)
+            storage_server.stop_server(server)
 
 
 def same_answers(ours: Path, theirs: Path, script, given: Path | None) -> int:

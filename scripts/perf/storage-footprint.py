@@ -43,19 +43,18 @@ import hashlib
 import json
 import os
 import shutil
-import signal
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import storage_raw  # noqa: E402  (a sibling module, importable once the script's directory is on the path)
 import storage_gate_figures  # noqa: E402  (the same)
+import storage_server  # noqa: E402  (the same)
+from storage_server import http  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "server/tests/fixtures/messages"
@@ -273,17 +272,6 @@ def count_items(signal_name: str, message) -> int:
 # --- server lifecycle ----------------------------------------------------------------------------------
 
 
-def http(method: str, url: str, body: bytes | None = None, headers: dict | None = None):
-    request = urllib.request.Request(
-        url, data=body, method=method, headers=headers or {}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return response.status, response.read()
-    except urllib.error.HTTPError as error:
-        return error.code, error.read()
-
-
 def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["docker", *args], check=check, capture_output=True, text=True
@@ -418,114 +406,6 @@ def clickhouse(query: str) -> str:
     if status != 200:
         raise RuntimeError(f"clickhouse: {body.decode(errors='replace')[:500]}")
     return body.decode()
-
-
-def start_server(binary: Path, work: Path, extra_env: dict) -> subprocess.Popen:
-    env = {
-        "PATH": os.environ["PATH"],
-        "HOME": str(work),
-        "SIDESEAT_DATA_DIR": str(work),
-        "SIDESEAT_SECRETS_BACKEND": "file",
-        "SIDESEAT_PORT": str(PORT),
-        "SIDESEAT_UI_PORT": str(PORT + 1),
-        "SIDESEAT_OTEL_GRPC_PORT": str(PORT + 2),
-        "SIDESEAT_RATE_LIMIT_ENABLED": "false",
-        # The derived metric load alone is over a gigabyte of logical bytes in one project - above the default
-        # 1 GiB project quota, which the server enforces and reclaims against. A measurement must store all it
-        # sends, so the quota is set far above the load.
-        "SIDESEAT_FILES_QUOTA_BYTES": str(1 << 40),
-        **extra_env,
-    }
-    server = subprocess.Popen(
-        [str(binary), "--no-auth"],
-        cwd=work,
-        env=env,
-        stdout=open(work / "server.log", "wb"),
-        stderr=subprocess.STDOUT,
-    )
-    for _ in range(90):
-        try:
-            if http("GET", f"http://127.0.0.1:{PORT}/api/v1/health")[0] == 200:
-                return server
-        except OSError:
-            pass
-        if server.poll() is not None:
-            break
-        time.sleep(1)
-    sys.exit(
-        f"[storage] server did not start:\n{(work / 'server.log').read_text()[-3000:]}"
-    )
-
-
-def stop_server(server: subprocess.Popen) -> None:
-    server.send_signal(signal.SIGTERM)
-    try:
-        server.wait(timeout=60)
-    except subprocess.TimeoutExpired:
-        server.kill()
-        server.wait()
-
-
-def load(exports: list[dict]) -> dict[str, str]:
-    """One project per tenant; every export posted once. Returns tenant -> project id."""
-    projects = {}
-    base = f"http://127.0.0.1:{PORT}"
-    for tenant in sorted({e["tenant"] for e in exports}):
-        status, body = http(
-            "POST",
-            f"{base}/api/v1/projects",
-            json.dumps({"name": tenant[:100], "organization_id": "default"}).encode(),
-            {"Content-Type": "application/json"},
-        )
-        if status not in (200, 201):
-            sys.exit(
-                f"[storage] could not create project {tenant}: {status} {body[:200]!r}"
-            )
-        projects[tenant] = json.loads(body)["id"]
-    started = time.monotonic()
-    for export in exports:
-        content_type = (
-            "application/json" if export["json"] else "application/x-protobuf"
-        )
-        url = f"{base}/otel/{projects[export['tenant']]}/v1/{export['signal']}"
-        headers = {"Content-Type": content_type}
-        status, body = http("POST", url, export["body"], headers)
-        # 503 and 429 are back-pressure, not failure: the server is telling a collector to slow down, and a
-        # collector retries. Treating them as errors made a long load fail on a full durability buffer.
-        # Bounded by time, not attempts: how long a full buffer takes to drain depends on the disk - a Mac's
-        # F_FULLFSYNC makes it seconds - and only a server that never drains is a failure.
-        give_up = time.monotonic() + 600
-        attempt = 0
-        while status in (429, 503) and time.monotonic() < give_up:
-            attempt += 1
-            time.sleep(min(0.05 * attempt, 1.0))
-            status, body = http("POST", url, export["body"], headers)
-        if status != 200:
-            # A derived load lives in the work directory, not in the repository, so the path is named as it is.
-            path = export["path"]
-            named = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
-            sys.exit(f"[storage] {named} returned {status}: {body[:300]!r}")
-    log(f"posted {len(exports)} exports in {time.monotonic() - started:.1f}s")
-    return projects
-
-
-def settle(projects: dict[str, str]) -> None:
-    """Wait until every project's logical storage stops changing: ingestion is asynchronous past the ack."""
-    base = f"http://127.0.0.1:{PORT}"
-    previous, stable = None, 0
-    for _ in range(180):
-        totals = []
-        for project in projects.values():
-            status, body = http("GET", f"{base}/api/v1/projects/{project}/storage")
-            totals.append(
-                json.loads(body).get("logical_bytes") if status == 200 else None
-            )
-        stable = stable + 1 if totals == previous else 0
-        previous = totals
-        if stable >= 5:
-            return
-        time.sleep(1)
-    log("warning: storage accounting did not settle in 180s")
 
 
 # --- measurement ---------------------------------------------------------------------------------------
@@ -960,13 +840,16 @@ def main() -> int:
     log(f"corpus: {len(exports)} exports")
     extra_env = {}
     server = None
+    # A failed run keeps its work directory, the server's log among it: a run that deletes the evidence of its
+    # own failure leaves nothing to find the cause in.
+    outcome = 1
     try:
         if args.mode == "distributed":
             extra_env = start_distributed(work)
-        server = start_server(binary, work, extra_env)
-        projects = load(exports)
-        settle(projects)
-        stop_server(server)
+        server = storage_server.start_server(binary, work, extra_env, PORT)
+        projects = storage_server.load(exports, PORT, server, work, ROOT)
+        storage_server.settle(projects, PORT, server, work)
+        storage_server.stop_server(server)
         server = None
         measured = (
             measure_embedded(work) if args.mode == "embedded" else measure_distributed()
@@ -976,19 +859,22 @@ def main() -> int:
             if args.mode == "embedded" and args.verify_raw
             else 0
         )
+        result = report(exports, measured, args.mode)
+        if args.json:
+            args.json.write_text(json.dumps(result, indent=1, default=str))
+        outcome = max(gate(result, args.signal) if args.gate else 0, raw_failed)
+        return outcome
     finally:
         if server is not None:
-            stop_server(server)
+            storage_server.stop_server(server)
         if args.mode == "distributed":
             stop_distributed()
-        if args.keep:
+        if args.keep or outcome:
             log(f"data kept in {work}")
+            if outcome:
+                log(f"the server's last output:\n{storage_server.log_tail(work)}")
         else:
             shutil.rmtree(work, ignore_errors=True)
-    result = report(exports, measured, args.mode)
-    if args.json:
-        args.json.write_text(json.dumps(result, indent=1, default=str))
-    return max(gate(result, args.signal) if args.gate else 0, raw_failed)
 
 
 if __name__ == "__main__":

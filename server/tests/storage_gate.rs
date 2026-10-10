@@ -26,24 +26,16 @@ use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequ
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::tonic::metrics::v1::metric;
 use prost::Message;
-use sideseat_adapter_cache::CacheService;
-use sideseat_core::config::{
-    AnalyticsBackend, CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, RetentionConfig,
-    StorageBackend, TransactionalBackend,
-};
-use sideseat_core::storage::{AppStorage, DataSubdir};
-use sideseat_domain::files::FileService;
 use sideseat_domain::raw_payload::RawContent;
-use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_ingestion::received::ReceivedPayload;
-use sideseat_ingestion::signals::{
-    LogSignal, MetricsSignal, Signal, SignalContext, TraceSignal, export_signal,
-};
-use sideseat_ingestion::staging::StagingService;
-use sideseat_ingestion::traces::TracePipeline;
+use sideseat_ingestion::signals::{Signal, export_signal};
 use sideseat_ports::clock::Clock;
-use sideseat_ports::traits::{AnalyticsRepository, StorageGovernance, TransactionalRepository};
-use sideseat_server::app::storage::{AnalyticsService, TransactionalService};
+use sideseat_server::app::storage::AnalyticsService;
+
+#[path = "support/stack.rs"]
+mod stack;
+
+use stack::Stores;
 
 /// The instant every clock but an export's receipt reads.
 fn epoch() -> DateTime<Utc> {
@@ -255,151 +247,8 @@ fn metrics_for_pass(
     request
 }
 
-struct Stores {
-    _cache: Arc<CacheService>,
-    database: Arc<TransactionalService>,
-    analytics: Arc<AnalyticsService>,
-    staging: Arc<StagingService>,
-    governance: Arc<StorageGovernanceService>,
-    traces: TraceSignal,
-    metrics: MetricsSignal,
-    logs: LogSignal,
-}
-
-/// The server's stores and signals as `CoreApp::init` wires them for the embedded backends, on [`GateClock`].
-async fn stores(root: &Path) -> Stores {
-    let app_storage = AppStorage::init_for_test(root.to_path_buf());
-    std::fs::create_dir_all(app_storage.subdir(DataSubdir::FilesTemp)).expect("files temp dir");
-    let clock: Arc<dyn Clock> = Arc::new(GateClock);
-    let cache = Arc::new(
-        CacheService::new(&CacheConfig {
-            backend: CacheBackendType::Memory,
-            max_entries: 10_000,
-            eviction_policy: EvictionPolicy::TinyLfu,
-            redis_url: None,
-        })
-        .await
-        .expect("cache"),
-    );
-    let database = Arc::new(
-        TransactionalService::init(
-            TransactionalBackend::Sqlite,
-            &app_storage,
-            None,
-            Some(cache.clone()),
-            Arc::clone(&clock),
-        )
-        .await
-        .expect("sqlite"),
-    );
-    let analytics = Arc::new(
-        AnalyticsService::init(
-            AnalyticsBackend::Duckdb,
-            &app_storage,
-            None,
-            Arc::clone(&clock),
-        )
-        .await
-        .expect("duckdb"),
-    );
-    // One engine thread and the default checkpoint threshold, set rather than assumed, as
-    // `scripts/perf/storage_gate_figures.py` uses: DuckDB lays a checkpoint's segments out in the order its threads
-    // finish them, so a store checkpointed by several can differ between two runs of one input, and the server
-    // sizes its threads from the host.
-    let AnalyticsService::Duckdb(duckdb) = analytics.as_ref() else {
-        panic!("the gate replays into the embedded stores");
-    };
-    // `SIDESEAT_STORAGE_GATE_THREADS` replays on another count, to show the layout does not depend on it.
-    let threads: usize = std::env::var("SIDESEAT_STORAGE_GATE_THREADS")
-        .ok()
-        .map_or(1, |value| value.parse().expect("a thread count"));
-    duckdb
-        .conn()
-        .execute_batch(&format!(
-            "SET threads = {threads}; SET checkpoint_threshold = '16MiB';"
-        ))
-        .expect("the engine pinned");
-    let database_port: Arc<dyn TransactionalRepository + Send + Sync> =
-        Arc::from(database.repository());
-    let analytics_port: Arc<dyn AnalyticsRepository + Send + Sync> =
-        Arc::from(analytics.repository());
-    let governance_port: Arc<dyn StorageGovernance + Send + Sync> =
-        Arc::from(database.governance_repository());
-    // The quota the live gate sets: far above the corpus, so everything sent is stored.
-    let quota = 1_u64 << 40;
-    let governance = Arc::new(StorageGovernanceService::new(
-        Arc::clone(&database_port),
-        governance_port,
-        Arc::clone(&analytics_port),
-        Arc::clone(&clock),
-        quota,
-    ));
-    let files = Arc::new(
-        FileService::new_governed(
-            FilesConfig {
-                enabled: true,
-                storage: StorageBackend::Filesystem,
-                quota_bytes: quota,
-                filesystem_path: None,
-                s3: None,
-            },
-            app_storage.subdir(DataSubdir::FilesTemp),
-            Arc::new(sideseat_adapter_blob_storage::FilesystemStorage::new(
-                app_storage.subdir(DataSubdir::Files),
-            )),
-            Arc::clone(&database_port),
-            cache.clone(),
-            Arc::clone(&governance),
-        )
-        .await
-        .expect("files"),
-    );
-    let topics = Arc::new(sideseat_messaging::TopicService::new(
-        sideseat_adapter_topics::memory_backend(),
-    ));
-    let staging = Arc::new(StagingService::new(
-        Arc::clone(files.storage()),
-        Arc::clone(&database_port),
-        Arc::clone(&analytics_port),
-        Arc::clone(&clock),
-        RetentionConfig::default(),
-        5,
-    ));
-    let pipeline = Arc::new(
-        TracePipeline::new(
-            Arc::clone(&analytics_port),
-            Arc::new(
-                sideseat_domain::pricing::PricingService::init_for_test().expect("offline pricing"),
-            ),
-            Arc::clone(&topics),
-            Arc::clone(&files),
-            Arc::clone(&staging),
-        )
-        .with_storage_governance(Arc::clone(&governance)),
-    );
-    let trace_topic = Arc::new(
-        topics.stream_topic::<sideseat_ingestion::staging::StagedPayloadRef>(
-            sideseat_core::constants::TOPIC_TRACES,
-            sideseat_ingestion::staging::StagedPayloadRef::partition_key,
-        ),
-    );
-    Stores {
-        _cache: cache,
-        traces: TraceSignal::new(trace_topic, Some(pipeline)),
-        metrics: MetricsSignal::new(Arc::clone(&analytics_port), Arc::clone(&database_port)),
-        logs: LogSignal::new(analytics_port, database_port),
-        database,
-        analytics,
-        staging,
-        governance,
-    }
-}
-
 /// A project for each tenant, its id derived from the tenant's place among them.
 async fn projects(stores: &Stores, exports: &[Export]) -> BTreeMap<String, String> {
-    let TransactionalService::Sqlite(sqlite) = stores.database.as_ref() else {
-        panic!("the gate replays into the embedded stores");
-    };
     let tenants: std::collections::BTreeSet<&str> = exports
         .iter()
         .map(|export| export.tenant.as_str())
@@ -407,17 +256,7 @@ async fn projects(stores: &Stores, exports: &[Export]) -> BTreeMap<String, Strin
     let mut ids = BTreeMap::new();
     for (index, tenant) in tenants.into_iter().enumerate() {
         let id = format!("gate-{index:03}");
-        sqlx::query(
-            "INSERT INTO projects (id, organization_id, name, created_at, updated_at) \
-             VALUES (?, 'default', ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(tenant)
-        .bind(epoch().timestamp())
-        .bind(epoch().timestamp())
-        .execute(sqlite.pool())
-        .await
-        .expect("a tenant's project");
+        stores.create_project(&id, tenant, epoch()).await;
         ids.insert(tenant.to_string(), id);
     }
     ids
@@ -430,15 +269,7 @@ async fn send<S: Signal>(
     request: S::Request,
     received: &ReceivedPayload,
 ) {
-    let context = SignalContext {
-        project_id,
-        received,
-        debug_path: None,
-        clock: &GateClock,
-        staging: &stores.staging,
-        storage_governance: &stores.governance,
-    };
-    if let Err(error) = export_signal(signal, request, context).await {
+    if let Err(error) = export_signal(signal, request, stores.context(project_id, received)).await {
         panic!("an export of {project_id} was refused: {error:?}");
     }
 }
@@ -461,7 +292,24 @@ async fn the_pinned_corpus_replays_into_the_same_stores() {
         std::fs::remove_dir_all(&root).expect("a fresh directory");
     }
     let exports = corpus();
-    let stores = stores(&root).await;
+    let stores = stack::stores(&root, Arc::new(GateClock)).await;
+    // One engine thread and the default checkpoint threshold, set rather than assumed, as
+    // `scripts/perf/storage_gate_figures.py` uses: DuckDB lays a checkpoint's segments out in the order its threads
+    // finish them, so a store checkpointed by several can differ between two runs of one input, and the server
+    // sizes its threads from the host. `SIDESEAT_STORAGE_GATE_THREADS` replays on another count, to show what
+    // depends on it.
+    let AnalyticsService::Duckdb(duckdb) = stores.analytics.as_ref() else {
+        panic!("the gate replays into the embedded stores");
+    };
+    let threads: usize = std::env::var("SIDESEAT_STORAGE_GATE_THREADS")
+        .ok()
+        .map_or(1, |value| value.parse().expect("a thread count"));
+    duckdb
+        .conn()
+        .execute_batch(&format!(
+            "SET threads = {threads}; SET checkpoint_threshold = '16MiB';"
+        ))
+        .expect("the engine pinned");
     let projects = projects(&stores, &exports).await;
     let started = std::time::Instant::now();
     for pass in 0..passes {
@@ -491,6 +339,17 @@ async fn the_pinned_corpus_replays_into_the_same_stores() {
         }
     }
     let replayed = started.elapsed();
+    // Every export settled as it was answered: none is left for the redrive, which would write after the
+    // measurement.
+    assert_eq!(
+        stores
+            .staging
+            .redrive_once(&stores.pipeline, 1)
+            .await
+            .expect("the redrive"),
+        0,
+        "an export left a staged payload unsettled"
+    );
     stores
         .analytics
         .checkpoint()
