@@ -37,16 +37,29 @@
 (*                export's receipt, so the late row is superseded at once. *)
 (*                Without it the row's instant is the write's, and an      *)
 (*                ingest's late replay wins over the later revision.       *)
+(*   Recoverable - a live row's content missing from the latest record is  *)
+(*                only ever owed by a process that holds it and has yet to *)
+(*                act: the ingest still to check, or a reconciler that read *)
+(*                the record. A reconciler can die between its steps       *)
+(*                (WithCrash), so the one that deleted on a stale read may *)
+(*                never look again: with two calls - read who names the    *)
+(*                record, then delete it - an ingest whose rows and check   *)
+(*                fall between them loses its record for good. AtomicDelete *)
+(*                deletes in one step that finds no row, as DuckDB's single *)
+(*                connection allows, and the hole is gone.                 *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, TLC
 
 CONSTANTS Spans, Ingests, Reconcilers, MaxVer,
           WithHold,          \* explore legal holds
           WithRestore,       \* explore backup and restore
-          ReceiptPrecedence  \* a row's instant is its export's receipt, not its write
+          ReceiptPrecedence, \* a row's instant is its export's receipt, not its write
+          AtomicDelete,      \* the reconciler deletes in one step that finds no row naming the record
+          WithCrash          \* a reconciler can die between its steps
 
 ASSUME Spans # {} /\ Ingests # {} /\ Reconcilers # {} /\ MaxVer \in Nat
 ASSUME WithHold \in BOOLEAN /\ WithRestore \in BOOLEAN /\ ReceiptPrecedence \in BOOLEAN
+ASSUME AtomicDelete \in BOOLEAN /\ WithCrash \in BOOLEAN
 
 VARIABLES
     rows,      \* spans that currently have a row naming the record
@@ -60,12 +73,13 @@ VARIABLES
     cleared,   \* entries up to this one are processed
     ipc, ikept, iwritten,
     rpc, rrec, rhad, rlive, rtaken,
+    rtomb,     \* the deletion fences a reconciler read for its rewrite, after its delete
     backup,    \* one snapshot of the analytics store, when `taken`
     later,     \* spans a revision received after this export has been written for
     overtaken  \* ghost: a row of this export was written over a revision received after it
 
 vars == <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
-          rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+          rpc, rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 Version == [ver : 0..MaxVer, seq : Nat, content : SUBSET Spans]
 
@@ -92,7 +106,7 @@ TypeOK ==
     /\ hold \in BOOLEAN
     /\ cleared <= enq
     /\ ipc \in [Ingests -> {"fence", "insert", "write", "check", "done"}]
-    /\ rpc \in [Reconcilers -> {"idle", "act", "recheck", "clear"}]
+    /\ rpc \in [Reconcilers -> {"idle", "act", "rewrite", "recheck", "clear"}]
 
 Init ==
     /\ rows = {}
@@ -112,7 +126,8 @@ Init ==
     /\ rhad = [r \in Reconcilers |-> FALSE]
     /\ rlive = [r \in Reconcilers |-> {}]
     /\ rtaken = [r \in Reconcilers |-> 0]
-    /\ backup = [taken |-> FALSE, rows |-> {}, store |-> {}]
+    /\ rtomb = [r \in Reconcilers |-> {}]
+    /\ backup = [taken |-> FALSE, rows |-> {}, store |-> {}, pending |-> {}]
     /\ later = {}
     /\ overtaken = FALSE
 
@@ -125,7 +140,7 @@ Fence(i) ==
     /\ ikept' = [ikept EXCEPT ![i] = Spans \ tomb]
     /\ ipc' = [ipc EXCEPT ![i] = IF Spans \ tomb = {} THEN "done" ELSE "insert"]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 \* Insert-if-absent, at whatever version the writer's clock gives: a clock far behind the others or far
 \* ahead of them, the two extremes skew can produce.
@@ -136,7 +151,7 @@ Insert(i) ==
          ELSE \E v \in {1, MaxVer} : Append(v, ikept[i])
     /\ ipc' = [ipc EXCEPT ![i] = "write"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, enq, cleared, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 \* No fence between the record and the rows: a deletion in between leaves
 \* rows the existing tombstone re-check removes (Sweep).
@@ -152,7 +167,7 @@ Write(i) ==
     /\ iwritten' = [iwritten EXCEPT ![i] = ikept[i]]
     /\ ipc' = [ipc EXCEPT ![i] = "check"]
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ikept,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup>>
 
 \* The span write fails. A backend can have stored its rows all the same - a ClickHouse insert whose view
 \* throws after the block is written, one whose answer was lost - or none of them, and the caller cannot tell
@@ -167,10 +182,17 @@ Fail(i) ==
     /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "fence"]
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup>>
 
 \* The repair: absent or not covering, append the union two versions up. Exactly two: a repair further up
 \* only wins more often, so the least is the case that has to hold.
+\*
+\* The repair is appended and queued in one step, for the reason RRecheck gives.
+\*
+\* The order is load-bearing: the rows, then this check, then the acknowledgement (the ingest is done). With
+\* AtomicDelete a record deleted before the rows were written is absent here and written again from the ingest's
+\* own bytes, and one the rows were written before is not deleted at all; a check before the rows, or an
+\* acknowledgement before the check, would leave a row whose record a delete took in between.
 Check(i) ==
     /\ ipc[i] = "check"
     /\ IF Present /\ iwritten[i] \subseteq Latest.content
@@ -180,7 +202,7 @@ Check(i) ==
               /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "done"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, cleared, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 ----------------------------------------------------------------------------
 (* Deletion, the tombstone sweep, retention and holds.                     *)
@@ -197,7 +219,7 @@ Delete(s) ==
     /\ later' = later \ {s}
     /\ Enqueue
     /\ UNCHANGED <<store, seq, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, overtaken>>
 
 \* The existing compensating re-check: rows written for a deleted span go again.
 Sweep ==
@@ -206,7 +228,7 @@ Sweep ==
     /\ UNCHANGED <<later, overtaken>>
     /\ Enqueue
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup>>
 
 Expire(s) ==
     /\ ~hold
@@ -215,7 +237,7 @@ Expire(s) ==
     /\ later' = later \ {s}
     /\ Enqueue
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, overtaken>>
 
 SetHold ==
     /\ WithHold
@@ -225,14 +247,14 @@ SetHold ==
     /\ heldOnce' = TRUE
     /\ frozen' = LatestContent
     /\ UNCHANGED <<rows, store, seq, tomb, enq, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 ReleaseHold ==
     /\ hold
     /\ hold' = FALSE
     /\ frozen' = {}
     /\ UNCHANGED <<rows, store, seq, tomb, heldOnce, enq, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 ----------------------------------------------------------------------------
 (* Backup and restore. The journal and tombstones live in the transactional *)
@@ -240,26 +262,37 @@ ReleaseHold ==
 (* to the snapshot. Restore enqueues every restored record, and its replay  *)
 (* of the journal is the Sweep.                                            *)
 
+\* With AtomicDelete the store is DuckDB's, which is backed up and restored with the server stopped
+\* (`backup-restore.mdx`): no ingest or reconciler is part-way through, and SQLite is backed up with it, so an
+\* export refused and still staged for redelivery at the backup is staged again after the restore.
+Quiescent ==
+    /\ \A i \in Ingests : ipc[i] \in {"fence", "done"}
+    /\ \A r \in Reconcilers : rpc[r] = "idle"
+
 Backup ==
     /\ WithRestore
+    /\ AtomicDelete => Quiescent
     /\ ~backup.taken
-    /\ backup' = [taken |-> TRUE, rows |-> rows, store |-> store]
+    /\ backup' = [taken |-> TRUE, rows |-> rows, store |-> store,
+                  pending |-> IF AtomicDelete THEN {i \in Ingests : ipc[i] = "fence" /\ ikept[i] # {}} ELSE {}]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept,
-                   iwritten, rpc, rrec, rhad, rlive, rtaken, later, overtaken>>
+                   iwritten, rpc, rrec, rhad, rlive, rtaken, rtomb, later, overtaken>>
 
 \* A restore can take a later revision's rows back with it; `later` keeps them all the same. That over-approximates
 \* what a write can overtake, which matters only without ReceiptPrecedence, and keeps the snapshot to the rows and
 \* the store.
 Restore ==
     /\ backup.taken
+    /\ AtomicDelete => Quiescent
     /\ rows' = backup.rows
     /\ store' = backup.store
+    /\ ipc' = [i \in Ingests |-> IF i \in backup.pending THEN "fence" ELSE ipc[i]]
     /\ Enqueue
-    /\ backup' = [taken |-> FALSE, rows |-> {}, store |-> {}]
+    /\ backup' = [taken |-> FALSE, rows |-> {}, store |-> {}, pending |-> {}]
     \* An operator's restore under a hold is what the hold now protects.
     /\ frozen' = IF hold /\ backup.store # {} THEN LatestOf(backup.store).content ELSE {}
-    /\ UNCHANGED <<seq, tomb, hold, heldOnce, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, later, overtaken>>
+    /\ UNCHANGED <<seq, tomb, hold, heldOnce, cleared, ikept, iwritten,
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, later, overtaken>>
 
 \* Another export, received after this one, writes its revision of a span: the span's winner is no longer ours.
 Supersede(s) ==
@@ -267,7 +300,7 @@ Supersede(s) ==
     /\ s \notin later
     /\ later' = later \cup {s}
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
-                   rpc, rrec, rhad, rlive, rtaken, backup, overtaken>>
+                   rpc, rrec, rhad, rlive, rtaken, rtomb, backup, overtaken>>
 
 ----------------------------------------------------------------------------
 (* The reconciler: read the queue position, the latest record and the rows; *)
@@ -283,31 +316,69 @@ RRead(r) ==
     /\ rlive' = [rlive EXCEPT ![r] = rows]
     /\ rpc' = [rpc EXCEPT ![r] = "act"]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept,
-                   iwritten, backup, later, overtaken>>
+                   iwritten, rtomb, backup, later, overtaken>>
 
+\* With AtomicDelete the delete is one step that finds no row naming the record - rows written since the read keep
+\* it - and a record it finds named is rewritten in a step of its own (RRewrite), stored only while a version of
+\* the record is. Without it, both are decided from the read, and a reconciler that dies after acting on it leaves
+\* what it did unchecked: a record deleted under rows that appeared since, or one rewritten back after another
+\* reconciler collected it.
 RAct(r) ==
     /\ rpc[r] = "act"
     /\ ~hold
-    /\ \/ /\ ~rhad[r]
-          /\ UNCHANGED <<store, seq>>
-       \/ /\ rhad[r] /\ rlive[r] = {}
-          /\ store' = {}
-          /\ UNCHANGED seq
-       \/ /\ rhad[r] /\ rlive[r] # {}
-          /\ LET new == rrec[r].content \ tomb IN
-               IF new = rrec[r].content
-                 THEN UNCHANGED <<store, seq>>
-                 ELSE /\ rrec[r].ver + 1 <= MaxVer
-                      /\ Append(rrec[r].ver + 1, new)
-    /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
+    /\ IF AtomicDelete
+         THEN \/ /\ ~rhad[r]
+                 /\ UNCHANGED <<store, seq, rtomb>>
+                 /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
+              \/ /\ rhad[r] /\ rows = {}
+                 /\ store' = {}
+                 /\ UNCHANGED <<seq, rtomb>>
+                 /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
+              \* Named: the rewrite reads the deletion fences now and appends later, in steps of its own.
+              \/ /\ rhad[r] /\ rows # {}
+                 /\ UNCHANGED <<store, seq>>
+                 /\ rtomb' = [rtomb EXCEPT ![r] = tomb]
+                 /\ rpc' = [rpc EXCEPT ![r] = "rewrite"]
+         ELSE /\ UNCHANGED rtomb
+              /\ \/ /\ ~rhad[r]
+                    /\ UNCHANGED <<store, seq>>
+                 \/ /\ rhad[r] /\ rlive[r] = {}
+                    /\ store' = {}
+                    /\ UNCHANGED seq
+                 \/ /\ rhad[r] /\ rlive[r] # {}
+                    /\ LET new == rrec[r].content \ tomb IN
+                         IF new = rrec[r].content
+                           THEN UNCHANGED <<store, seq>>
+                           ELSE /\ rrec[r].ver + 1 <= MaxVer
+                                /\ Append(rrec[r].ver + 1, new)
+              /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
                    rrec, rhad, rlive, rtaken, backup, later, overtaken>>
 
+\* The record read, without what the deletion fences refused when they were read, one version up - appended only
+\* while a version of the record is stored, and queued, in the same step. A deletion since the fences were read
+\* stays in it and can win the version tie over a newer rewrite after that one's reconciler cleared the entries; the
+\* entry this rewrite queues brings a reconciler back to it, whether or not this one lives to look again.
+RRewrite(r) ==
+    /\ rpc[r] = "rewrite"
+    /\ ~hold
+    /\ LET new == rrec[r].content \ rtomb[r] IN
+         IF new = rrec[r].content \/ ~Present
+           THEN UNCHANGED <<store, seq, enq>>
+           ELSE /\ rrec[r].ver + 1 <= MaxVer
+                /\ Append(rrec[r].ver + 1, new)
+                /\ Enqueue
+    /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
+    /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
+                   rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
+
 \* After every action, look again. Rows that appeared after this reconciler's delete
 \* get back what it read - every version is the export minus some deleted spans, so it covers
-\* them. Anything else unsettled - a record no row names, deleted content, which a
-\* concurrent reconciler acting on an older read can leave - is enqueued again, so
-\* whichever reconciler acts last sees its own effect.
+\* them - appended and queued in one step: queued first, another reconciler can clear the entry
+\* before the append, and the restored record is left with nothing to look at it again; queued
+\* after, a reconciler that dies between the two leaves the same. Anything else unsettled - a
+\* record no row names, deleted content, which a concurrent reconciler acting on an older read
+\* can leave - is enqueued again, so whichever reconciler acts last sees its own effect.
 RRecheck(r) ==
     /\ rpc[r] = "recheck"
     /\ IF rows # {} /\ ~Present /\ rhad[r]
@@ -321,20 +392,29 @@ RRecheck(r) ==
                    ELSE UNCHANGED enq
     /\ rpc' = [rpc EXCEPT ![r] = "clear"]
     /\ UNCHANGED <<rows, tomb, hold, heldOnce, frozen, cleared, ipc, ikept, iwritten,
-                   rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 RClear(r) ==
     /\ rpc[r] = "clear"
     /\ cleared' = IF rtaken[r] > cleared THEN rtaken[r] ELSE cleared
     /\ rpc' = [rpc EXCEPT ![r] = "idle"]
     /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, ipc, ikept, iwritten,
-                   rrec, rhad, rlive, rtaken, backup, later, overtaken>>
+                   rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
+
+\* The reconciler's process dies between steps. What it read goes with it; its queue entries stay, uncleared,
+\* for the next reconciler.
+RCrash(r) ==
+    /\ WithCrash
+    /\ rpc[r] \in {"act", "rewrite", "recheck", "clear"}
+    /\ rpc' = [rpc EXCEPT ![r] = "idle"]
+    /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ipc, ikept, iwritten,
+                   rrec, rhad, rlive, rtaken, rtomb, backup, later, overtaken>>
 
 Next ==
     \/ \E i \in Ingests : Fence(i) \/ Insert(i) \/ Write(i) \/ Fail(i) \/ Check(i)
     \/ \E s \in Spans : Delete(s) \/ Expire(s) \/ Supersede(s)
     \/ Sweep \/ SetHold \/ ReleaseHold \/ Backup \/ Restore
-    \/ \E r \in Reconcilers : RRead(r) \/ RAct(r) \/ RRecheck(r) \/ RClear(r)
+    \/ \E r \in Reconcilers : RRead(r) \/ RAct(r) \/ RRewrite(r) \/ RRecheck(r) \/ RClear(r) \/ RCrash(r)
 
 Spec == Init /\ [][Next]_vars
 
@@ -362,6 +442,17 @@ VersionsAreFiltered == \A v \in store : Spans \ v.content \subseteq tomb
 
 \* A span a later revision has taken over is never this export's again.
 LaterReceiptWins == ~overtaken
+
+\* Content a live row needs and the latest record lacks is owed only by a process that holds it and has yet to act:
+\* an ingest still to check, or refused and to be delivered again, or a reconciler that read the record. Checked in
+\* every state, not only once settled: a reconciler that dies after a stale delete leaves the queue entry behind,
+\* and the next one finds nothing to restore, so the record is lost although no state ever settles.
+Recoverable ==
+    LET live == rows \ tomb IN
+    (live # {} /\ ~(live \subseteq LatestContent)) =>
+        \/ \E i \in Ingests : \/ ipc[i] \in {"insert", "write", "check"}
+                              \/ ipc[i] = "fence" /\ ikept[i] # {}
+        \/ \E r \in Reconcilers : rpc[r] \in {"act", "rewrite", "recheck"} /\ rhad[r]
 
 \* The model is symmetric in spans, ingests and reconcilers.
 Symmetry == Permutations(Spans) \cup Permutations(Ingests) \cup Permutations(Reconcilers)

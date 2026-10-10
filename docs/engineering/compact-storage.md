@@ -347,8 +347,14 @@ atomic across the record, the rows and the tombstones:
   or whose only naming row was a superseded revision a ClickHouse merge removed, is named by nothing and must still
   be reached;
 - the reconciler then rewrites each queued record without the spans the deletion fences refuse, or deletes it when no
-  row names it, and looks again afterwards, re-enqueueing anything still unsettled, so whichever reconciler acts last
-  sees its own effect;
+  row names it, and looks again afterwards - at the latest record's content, not only its version, since a rewrite
+  prepared before a deletion can win the version tie over a newer one - re-enqueueing anything still unsettled, so
+  whichever reconciler acts last sees its own effect. The delete decides who names the record in the same step, and a
+  rewrite is stored only while the record is and is queued as it is stored, so a reconciler that dies between its
+  steps loses nothing: decided from its earlier read, the delete took the record of an ingest whose rows and check
+  fell in between, and the look that would have restored it never came. DuckDB takes each step in one transaction
+  on its one connection; ClickHouse still reads and then deletes, and appends and then queues - the open defect
+  `ingestion-architecture.md` names under the acknowledgement contract;
 - an ingest whose rows the latest record does not hold appends the union of the two, at least two versions above what
   it read, so a concurrent reconciler's rewrite of an older version cannot win over it whatever the writers' clocks
   say, and supersedes a latest version that no longer decodes as if it held nothing;
@@ -356,7 +362,9 @@ atomic across the record, the rows and the tombstones:
   fenced before a deletion that landed meanwhile holds content the deletion removed, which only the reconciler
   takes out;
 - a legal hold stops both: the records and the index carry `hold_until` exactly as the span rows do, retention and
-  deletion skip a held row, and the reconciler leaves a held record queued.
+  deletion skip a held row, and the reconciler leaves a held record queued. **A known open defect:** the reconciler
+  looks for a hold before it acts, in separate calls, so a hold placed in between does not stop a delete or rewrite
+  it has already decided on; the model assumes a hold cannot begin mid-act.
 
 Media follows the same ownership as an extracted file (`trace_files`, `pending_writers`, `durable`), owned by every
 trace whose span text carries it; survivor reconciliation therefore keeps what a surviving record references, not
@@ -364,8 +372,13 @@ only what its derived columns do. Media the file store refused - a project over 
 is decodable whatever happened to the files.
 
 `server/specs/RawRecordOwnership.tla` models the protocol and `RawRecordReconcilers.cfg` the races between two
-reconcilers; four invariants are checked over every interleaving - every row's content is in the latest record, a
-settled record holds nothing deleted, a record no row names is collected, and a hold loses nothing.
+reconcilers, with reconcilers that can die between steps and DuckDB's single-step delete, rewrite and append, each
+with its queue entry; checked over every interleaving within the models' bounds: once settled, every row's content
+is in the latest record, the latest version holds nothing deleted, and a record no row names is collected; in every
+state, content a live row needs is missing only while a process that holds it has yet to act, and - on the
+assumption the open hold defect above breaks - a hold loses nothing. With the delete decided from an earlier read
+instead, TLC breaks `Recoverable`, the check on missing content: the reconciler reads, the ingest writes its rows
+and checks, the reconciler deletes and dies.
 
 ### Deferred: content-defined chunking of re-sent history
 

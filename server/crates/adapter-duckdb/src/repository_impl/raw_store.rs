@@ -26,7 +26,7 @@ impl RawStore for DuckdbRepository {
 
     async fn append_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError> {
         let records = records.to_vec();
-        run(&self.0, move |conn| raw::append_versions(conn, &records)).await
+        run(&self.0, move |conn| raw::append_queued(conn, &records)).await
     }
 
     async fn get_raw_records(
@@ -51,16 +51,24 @@ impl RawStore for DuckdbRepository {
         .await
     }
 
-    async fn delete_raw_records(
+    async fn delete_unnamed_raw_records(
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<(), DataError> {
+    ) -> Result<std::collections::HashSet<String>, DataError> {
         let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
         run(&self.0, move |conn| {
-            raw::delete(conn, &project_id, &raw_ids)
+            raw::delete_unnamed(conn, &project_id, &raw_ids)
         })
         .await
+    }
+
+    async fn append_raw_rewrites(
+        &self,
+        records: &[RawRecordRow],
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        let records = records.to_vec();
+        run(&self.0, move |conn| raw::append_rewrites(conn, &records)).await
     }
 
     async fn span_raw_ids(

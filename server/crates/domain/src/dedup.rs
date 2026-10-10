@@ -566,12 +566,21 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         self.inner.raw_records_page(project_id, after, limit).await
     }
 
-    async fn delete_raw_records(
+    async fn delete_unnamed_raw_records(
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<(), DataError> {
-        self.inner.delete_raw_records(project_id, raw_ids).await
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        self.inner
+            .delete_unnamed_raw_records(project_id, raw_ids)
+            .await
+    }
+
+    async fn append_raw_rewrites(
+        &self,
+        records: &[RawRecordRow],
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        self.inner.append_raw_rewrites(records).await
     }
 
     async fn span_raw_ids(

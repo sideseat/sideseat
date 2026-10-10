@@ -655,6 +655,13 @@ impl TracePipeline {
             publish_sse_events(&sse_events, &self.topics).await;
             // The rows are written: each latest record must hold them. A failure fails the batch, and the
             // redelivery - idempotent for rows and records alike - repeats the check.
+            //
+            // The order is load-bearing, and only this order makes the reconciler's delete safe: rows, then this
+            // check, then the answer. The delete decides who names a record in the same step
+            // (`delete_unnamed_raw_records`), so a record it took before these rows were written is absent here
+            // and written again from this request's own bytes, and one it found these rows naming it kept. A
+            // check before the rows, or an answer before the check, would let a record go under rows it already
+            // acknowledged (`RawRecordOwnership.tla`, `Check`).
             let mut written_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
             for ((project, trace, span), slot) in written.iter().zip(&written_slots) {
                 if surviving.contains(&(project.as_str(), trace.as_str(), span.as_str())) {

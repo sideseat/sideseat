@@ -298,3 +298,78 @@ async fn a_session_no_trace_belongs_to_is_not_found() {
             .is_none()
     );
 }
+
+/// The reconciler's delete takes only a record no row names, and its rewrite is stored only while the record is,
+/// each deciding in its own transaction: a row written up to the delete keeps its record, and a record collected
+/// since a rewrite was read stays collected.
+#[tokio::test]
+async fn the_reconciler_s_delete_and_rewrite_decide_in_their_own_step() {
+    let (_dir, service) = create_test_service().await;
+    let project = sideseat_ports::types::ProjectId::from("project");
+    let named_span = sideseat_ports::types::NormalizedSpan {
+        project_id: Some("project".to_string()),
+        trace_id: "t1".to_string(),
+        span_id: "s1".to_string(),
+        raw_id: Some("raw-a".to_string()),
+        span_name: "call".to_string(),
+        timestamp_start: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        ingested_at: Some(Utc.timestamp_opt(1_700_000_000, 0).unwrap()),
+        ..Default::default()
+    };
+    service
+        .write(|conn| {
+            crate::repositories::raw::insert(
+                conn,
+                &[
+                    raw_version("raw-a", 1, &["t1"], b"SSR1\0\0a"),
+                    raw_version("raw-b", 1, &["t2"], b"SSR1\0\0b"),
+                ],
+            )?;
+            crate::repositories::span::insert_batch(conn, std::slice::from_ref(&named_span))
+        })
+        .unwrap();
+    let ids = ["raw-a".to_string(), "raw-b".to_string()];
+
+    let deleted = service
+        .write(|conn| crate::repositories::raw::delete_unnamed(conn, &project, &ids))
+        .unwrap();
+    assert_eq!(deleted, ["raw-b".to_string()].into_iter().collect());
+    let stored = |service: &crate::DuckdbService| -> Vec<String> {
+        crate::repositories::raw::get(&service.conn(), &project, &ids)
+            .unwrap()
+            .into_iter()
+            .map(|row| format!("{}/{}", row.raw_id, row.version))
+            .collect()
+    };
+    assert_eq!(stored(&service), ["raw-a/1"], "the named record is kept");
+
+    let appended = service
+        .write(|conn| {
+            crate::repositories::raw::append_rewrites(
+                conn,
+                &[
+                    raw_version("raw-a", 2, &[], b"SSR1\0\0a2"),
+                    raw_version("raw-b", 2, &[], b"SSR1\0\0b2"),
+                ],
+            )
+        })
+        .unwrap();
+    assert_eq!(appended, ["raw-a".to_string()].into_iter().collect());
+    assert_eq!(
+        stored(&service),
+        ["raw-a/2"],
+        "the collected record stays collected"
+    );
+    // And the rewrite stored is queued with it: one prepared before a later deletion is looked at again, whatever
+    // becomes of the reconciler that appended it.
+    let queued: Vec<String> = crate::repositories::raw::pending(&service.conn(), 10)
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.raw_id)
+        .collect();
+    assert_eq!(
+        queued,
+        ["raw-a"],
+        "the rewrite is queued, the refused one is not"
+    );
+}

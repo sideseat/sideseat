@@ -186,12 +186,26 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
             .join(","),
     );
 
+    // The reconciler's delete takes only a record no row names: a span written for raw-a since keeps it.
+    store
+        .insert_spans(vec![span_of("trace-a", "span-a2", "raw-a")])
+        .await
+        .expect("a span naming raw-a again");
+    say(
+        &mut answers,
+        "deleted unnamed",
+        store
+            .delete_unnamed_raw_records(&project, &["raw-a".to_string(), "raw-b".to_string()])
+            .await
+            .expect("delete unnamed records")
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(","),
+    );
     // A record deleted by the reconciler goes entirely, index included - so a later deletion of the same
     // trace enqueues nothing.
-    store
-        .delete_raw_records(&project, &["raw-b".to_string()])
-        .await
-        .expect("delete a record");
     store
         .clear_raw_pending(&store.pending_raw_records(usize::MAX).await.expect("queue"))
         .await
@@ -216,6 +230,44 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
                 .expect("queue")
                 .len()
         ),
+    );
+
+    // A rewrite is stored only while its record is: raw-b was collected.
+    say(
+        &mut answers,
+        "rewrites appended",
+        store
+            .append_raw_rewrites(&[
+                raw_row("raw-a", 5, &[], b"rewritten-a5"),
+                raw_row("raw-b", 5, &[], b"rewritten-b5"),
+            ])
+            .await
+            .expect("append rewrites")
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+
+    say(
+        &mut answers,
+        "after the rewrites",
+        store
+            .get_raw_records(&project, &["raw-a".to_string(), "raw-b".to_string()])
+            .await
+            .expect("read the rewrites")
+            .iter()
+            .map(|row| {
+                format!(
+                    "{}/{}/{}",
+                    row.raw_id,
+                    row.version,
+                    String::from_utf8_lossy(&row.record)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(","),
     );
 
     // The project deletion takes the records, the index and the queue with it.
@@ -246,21 +298,33 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
 /// The store the reconciler stands on answers the same on both backends, step by step.
 #[tokio::test]
 async fn raw_record_lifecycle_matches_across_backends() {
+    // The embedded answers are checked on their own first, so two backends agreeing on a wrong answer fail too,
+    // and so this runs without ClickHouse.
+    let (_temp, duckdb) = duckdb_backend().await;
+    let embedded = raw_lifecycle_answers(&duckdb).await;
+    assert!(
+        embedded.iter().any(|answer| answer.contains("rewritten-a")),
+        "the latest version must be the rewrite: {embedded:?}"
+    );
+    for expected in [
+        "deleted unnamed: raw-b",
+        "rewrites appended: raw-a",
+        "after the rewrites: raw-a/5/rewritten-a5",
+    ] {
+        assert!(
+            embedded.iter().any(|answer| answer == expected),
+            "missing `{expected}`: {embedded:?}"
+        );
+    }
+
     let Ok(url) = std::env::var(URL_ENV) else {
         eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
         return;
     };
-    let (_temp, duckdb) = duckdb_backend().await;
     let clickhouse = clickhouse_backend(&url, "sideseat_parity_raw_lifecycle").await;
-
-    let embedded = raw_lifecycle_answers(&duckdb).await;
     let distributed = raw_lifecycle_answers(&clickhouse).await;
     assert_eq!(
         embedded, distributed,
         "the raw-record lifecycle differs between the backends"
-    );
-    assert!(
-        embedded.iter().any(|answer| answer.contains("rewritten-a")),
-        "the latest version must be the rewrite: {embedded:?}"
     );
 }

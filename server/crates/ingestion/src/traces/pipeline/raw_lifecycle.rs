@@ -6,9 +6,11 @@
 //!
 //! - every deletion and expiry of span rows enqueues the records holding those traces, before the rows go;
 //! - an ingest whose rows the latest record does not hold appends the union, two versions up, and enqueues;
-//! - the reconciler, unless a legal hold is active, deletes a record no row names (restoring it if rows
-//!   appear meanwhile) or rewrites it without the spans the deletion fences now refuse, then looks again and
-//!   re-enqueues anything still unsettled - so whichever reconciler acts last sees its own effect.
+//! - the reconciler, unless a legal hold is active, deletes a record no row names - deciding in the delete
+//!   itself, so rows written since it read the record keep it - or rewrites it without the spans the deletion
+//!   fences now refuse, appended only while the record is stored, then looks again and re-enqueues anything
+//!   still unsettled - so whichever reconciler acts last sees its own effect, and one that dies between its
+//!   steps loses nothing.
 //!
 //! A rewrite removes only spans the *deletion* fences refuse - a deleted trace or session, a journalled span -
 //! never spans that merely lack a row, because a row can be in flight: tombstones only grow, so a rewrite never
@@ -125,12 +127,9 @@ impl TracePipeline {
                     item.draft.received_at(),
                     item.hold_until,
                 )?;
+                // Appended and queued in one step (`append_raw_records`).
                 self.analytics
                     .append_raw_records(std::slice::from_ref(&repair))
-                    .await
-                    .map_err(|error| error.to_string())?;
-                self.analytics
-                    .enqueue_raw_records(&project_id, std::slice::from_ref(&repair.raw_id))
                     .await
                     .map_err(|error| error.to_string())?;
                 tracing::debug!(
@@ -251,63 +250,103 @@ impl TracePipeline {
         project_id: &ProjectId,
         raw_id: &str,
     ) -> Result<Reconciled, String> {
-        let ids = [raw_id.to_string()];
         if self.hold_active(project_id).await? {
             return Ok(Reconciled::Held);
         }
-        let read = self
-            .analytics
-            .get_raw_records(project_id, &ids)
-            .await
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .next();
-        let named = self.named(project_id, raw_id).await?;
+        let read = self.reconcile_read(project_id, raw_id).await?;
         if let Some(read) = &read
             && read.hold_until.is_some_and(|until| until > Utc::now())
         {
             return Ok(Reconciled::Held);
         }
+        let left = self.reconcile_act(project_id, read.as_ref()).await?;
+        self.reconcile_recheck(project_id, raw_id, read.as_ref(), left)
+            .await?;
+        Ok(Reconciled::Settled)
+    }
 
-        // What this reconciler leaves as the latest version, for the re-check.
-        let left: Option<i64> = match (&read, named) {
-            (None, _) => None,
-            (Some(_), false) => {
-                self.analytics
-                    .delete_raw_records(project_id, &ids)
-                    .await
-                    .map_err(|error| error.to_string())?;
-                None
-            }
-            (Some(read), true) => self.rewrite_without_deleted(project_id, read).await?,
-        };
-
-        // The re-check.
-        let named_now = self.named(project_id, raw_id).await?;
-        let latest_now = self
+    /// The model's `RRead`: the latest version of the record, if one is stored.
+    pub(super) async fn reconcile_read(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Option<RawRecordRow>, String> {
+        Ok(self
             .analytics
-            .get_raw_records(project_id, &ids)
+            .get_raw_records(project_id, &[raw_id.to_string()])
             .await
             .map_err(|error| error.to_string())?
             .into_iter()
-            .next();
-        if let (Some(read), None, true) = (&read, &latest_now, named_now) {
+            .next())
+    }
+
+    /// The model's `RAct`: delete the record if no row names it, else rewrite it without what the deletion
+    /// fences refuse. Returns the version this reconciler leaves as the latest, for the re-check.
+    ///
+    /// Who names the record is not read here: the delete decides it, in the same step
+    /// (`delete_unnamed_raw_records`), and the rewrite is appended only while the record is stored
+    /// (`append_raw_rewrites`). Decided from an earlier read, a reconciler that died after acting on it left an
+    /// ingest whose rows and check fell in between without its record, and nothing to restore it from.
+    pub(super) async fn reconcile_act(
+        &self,
+        project_id: &ProjectId,
+        read: Option<&RawRecordRow>,
+    ) -> Result<Option<i64>, String> {
+        let Some(read) = read else {
+            return Ok(None);
+        };
+        let deleted = self
+            .analytics
+            .delete_unnamed_raw_records(project_id, std::slice::from_ref(&read.raw_id))
+            .await
+            .map_err(|error| error.to_string())?;
+        if deleted.contains(&read.raw_id) {
+            return Ok(None);
+        }
+        self.rewrite_without_deleted(project_id, read).await
+    }
+
+    /// The model's `RRecheck`: look again, restore what was read if rows appeared under a delete, and queue the
+    /// record again if anything is unsettled - so whichever reconciler acts last sees its own effect.
+    pub(super) async fn reconcile_recheck(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        read: Option<&RawRecordRow>,
+        left: Option<i64>,
+    ) -> Result<(), String> {
+        let named_now = self.named(project_id, raw_id).await?;
+        let latest_now = self.reconcile_read(project_id, raw_id).await?;
+
+        if let (Some(read), None, true) = (read, &latest_now, named_now) {
             // Rows appeared after this reconciler's delete: they get back what it read, which holds them.
+            // Appended and queued in one step (`append_raw_records`).
             let restored = restored_version(read);
             self.analytics
                 .append_raw_records(std::slice::from_ref(&restored))
                 .await
                 .map_err(|error| error.to_string())?;
-            self.enqueue(project_id, raw_id).await?;
         } else {
-            let unsettled = (named_now && latest_now.is_none())
+            let mut unsettled = (named_now && latest_now.is_none())
                 || (!named_now && latest_now.is_some())
                 || latest_now.as_ref().map(|row| row.version) != left;
+            // By content too, not only by version: a rewrite prepared before a deletion and appended after
+            // another reconciler's newer one can win the version tie still holding the deleted spans, after that
+            // reconciler cleared the entries. Only looked at when the versions say it is settled.
+            if !unsettled
+                && named_now
+                && let Some(latest) = &latest_now
+            {
+                unsettled = !self
+                    .deleted_spans_of(project_id, &latest.record)
+                    .await?
+                    .is_empty();
+            }
             if unsettled {
                 self.enqueue(project_id, raw_id).await?;
             }
         }
-        Ok(Reconciled::Settled)
+        Ok(())
     }
 
     async fn hold_active(&self, project_id: &ProjectId) -> Result<bool, String> {
@@ -383,10 +422,15 @@ impl TracePipeline {
             record: encoded,
             ..read.clone()
         };
-        self.analytics
-            .append_raw_records(std::slice::from_ref(&row))
+        let appended = self
+            .analytics
+            .append_raw_rewrites(std::slice::from_ref(&row))
             .await
             .map_err(|error| error.to_string())?;
+        if !appended.contains(&row.raw_id) {
+            // Another reconciler collected the record since it was read: it stays collected.
+            return Ok(None);
+        }
         // The removed spans' media is no longer referenced by this record; their traces' survivors decide.
         let mut traces: Vec<String> = removed.into_iter().map(|(trace, _)| trace).collect();
         traces.sort_unstable();

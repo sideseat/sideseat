@@ -135,6 +135,24 @@ pub fn append_versions(conn: &Connection, records: &[RawRecordRow]) -> Result<()
     append(conn, &records.iter().collect::<Vec<_>>())
 }
 
+/// Store these versions and queue their records for the reconciler, in one transaction.
+pub fn append_queued(conn: &Connection, records: &[RawRecordRow]) -> Result<(), DuckdbError> {
+    crate::in_transaction(conn, |conn| {
+        append_versions(conn, records)?;
+        let mut by_project: BTreeMap<&ProjectId, Vec<String>> = BTreeMap::new();
+        for record in records {
+            by_project
+                .entry(&record.project_id)
+                .or_default()
+                .push(record.raw_id.clone());
+        }
+        for (project_id, raw_ids) in by_project {
+            enqueue(conn, project_id, &raw_ids)?;
+        }
+        Ok(())
+    })
+}
+
 fn row(project_id: &ProjectId, row: &duckdb::Row<'_>) -> duckdb::Result<RawRecordRow> {
     let signal: String = row.get(1)?;
     let origin: String = row.get(3)?;
@@ -258,6 +276,96 @@ pub fn delete(
         super::keyed::delete_rows(conn, table, &rowids)?;
     }
     Ok(())
+}
+
+/// Delete every version of those of these records no stored span row names, in one transaction on the one
+/// connection, so no row is written between the look and the delete. Returns the records deleted.
+pub fn delete_unnamed(
+    conn: &Connection,
+    project_id: &ProjectId,
+    raw_ids: &[String],
+) -> Result<HashSet<String>, DuckdbError> {
+    crate::in_transaction(conn, |conn| {
+        let named = named(conn, project_id, raw_ids)?;
+        let unnamed: Vec<String> = distinct_keys(raw_ids.iter().map(String::as_str))
+            .into_iter()
+            .filter(|raw_id| !named.contains(*raw_id))
+            .map(str::to_string)
+            .collect();
+        delete(conn, project_id, &unnamed)?;
+        Ok(unnamed.into_iter().collect())
+    })
+}
+
+/// Append these rewritten versions of the records still stored, and queue those appended, in one transaction: a
+/// record collected since its rewrite was read is not stored again, and one stored again is looked at again
+/// whatever becomes of the caller. Returns the records appended.
+pub fn append_rewrites(
+    conn: &Connection,
+    records: &[RawRecordRow],
+) -> Result<HashSet<String>, DuckdbError> {
+    crate::in_transaction(conn, |conn| {
+        let mut by_project: BTreeMap<&ProjectId, Vec<String>> = BTreeMap::new();
+        for record in records {
+            by_project
+                .entry(&record.project_id)
+                .or_default()
+                .push(record.raw_id.clone());
+        }
+        let mut stored: HashSet<(ProjectId, String)> = HashSet::new();
+        for (project_id, raw_ids) in by_project {
+            for raw_id in stored_ids(conn, project_id, &raw_ids)? {
+                stored.insert((project_id.clone(), raw_id));
+            }
+        }
+        let kept: Vec<&RawRecordRow> = records
+            .iter()
+            .filter(|record| stored.contains(&(record.project_id.clone(), record.raw_id.clone())))
+            .collect();
+        if !kept.is_empty() {
+            append(conn, &kept)?;
+        }
+        let mut queued: BTreeMap<&ProjectId, Vec<String>> = BTreeMap::new();
+        for record in &kept {
+            queued
+                .entry(&record.project_id)
+                .or_default()
+                .push(record.raw_id.clone());
+        }
+        for (project_id, raw_ids) in queued {
+            enqueue(conn, project_id, &raw_ids)?;
+        }
+        Ok(kept.iter().map(|record| record.raw_id.clone()).collect())
+    })
+}
+
+/// Which of these records have a version stored, read through the index without their bodies.
+fn stored_ids(
+    conn: &Connection,
+    project_id: &ProjectId,
+    raw_ids: &[String],
+) -> Result<std::collections::BTreeSet<String>, DuckdbError> {
+    let keys = distinct_keys(raw_ids.iter().map(String::as_str));
+    let mut stored = std::collections::BTreeSet::new();
+    for chunk in keys.chunks(KEYED_CHUNK) {
+        let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, raw_id", chunk.len());
+        let values: Vec<duckdb::types::Value> = chunk
+            .iter()
+            .map(|key| duckdb::types::Value::Text((*key).to_string()))
+            .chain(std::iter::once(duckdb::types::Value::Text(
+                project_id.to_string(),
+            )))
+            .collect();
+        let mut statement = conn.prepare(&format!(
+            "SELECT DISTINCT raw_id FROM {keyed} WHERE project_id = ?"
+        ))?;
+        let rows =
+            statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, String>(0))?;
+        for row in rows {
+            stored.insert(row?);
+        }
+    }
+    Ok(stored)
 }
 
 /// Which of these records a stored span row still names.

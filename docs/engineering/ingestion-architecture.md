@@ -149,6 +149,19 @@ an error, and acknowledges only once that record is durable. Any other missing r
 lost sequence reused by a payload that is itself retired before the old reference is read, which SQLite's
 `AUTOINCREMENT` permits and PostgreSQL's sequences do not.
 
+An acknowledged export's raw record is kept while a row names it. The ingest writes its rows, then checks that
+the latest record holds them - writing it again from its own bytes if not - and only then reports the export
+written, which is what settles its staged payload and, without a durable queue, what the response waits for; the
+reconciler
+deletes a record only in a step that itself finds no row naming it, so a record it took before the rows were
+written is written again by that check, and one the rows already name is not taken. On DuckDB that step is one
+transaction on the one connection. **On ClickHouse it is still two calls - who names the record, then the delete -
+and that is a known open defect:** a reconciler that dies between them, after an ingest's rows and check fell in
+between, loses the record of an acknowledged export, with nothing left to restore it from
+(`RawRecordOwnership.tla`, `Recoverable` with `WithCrash`). The fix is to arbitrate ownership in the transactional
+store, as media files are (`pending_writers`, `durable`, `deleting_at`), with ClickHouse deleting only what that
+store says no one owns.
+
 Metrics and logs use `PersistBeforeAck`. Traces can use `DurableQueue` because their processing path is
 larger and supports asynchronous batching.
 

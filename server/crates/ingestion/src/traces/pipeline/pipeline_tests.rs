@@ -42,6 +42,41 @@ pub(super) async fn pipeline_over_a_temp_store_with(
     Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
     TracePipeline,
 ) {
+    let store = temp_pipeline(files_enabled).await;
+    (store.temp, store.analytics, store.database, store.pipeline)
+}
+
+/// The same, with the DuckDB service behind the analytics port, for a test that must reach the store in a way no
+/// port offers - losing a record its rows still name.
+pub(super) async fn pipeline_over_a_temp_duckdb(
+    files_enabled: bool,
+) -> (
+    tempfile::TempDir,
+    Arc<sideseat_adapter_duckdb::DuckdbService>,
+    Arc<dyn AnalyticsRepository + Send + Sync>,
+    Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
+    TracePipeline,
+) {
+    let store = temp_pipeline(files_enabled).await;
+    (
+        store.temp,
+        store.duckdb,
+        store.analytics,
+        store.database,
+        store.pipeline,
+    )
+}
+
+/// A pipeline over temporary DuckDB and SQLite stores, with the services behind its ports.
+pub(super) struct TempPipeline {
+    pub temp: tempfile::TempDir,
+    pub duckdb: Arc<sideseat_adapter_duckdb::DuckdbService>,
+    pub analytics: Arc<dyn AnalyticsRepository + Send + Sync>,
+    pub database: Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
+    pub pipeline: TracePipeline,
+}
+
+pub(super) async fn temp_pipeline(files_enabled: bool) -> TempPipeline {
     use chrono::{TimeZone, Utc};
     use sideseat_adapter_blob_storage::FilesystemStorage;
     use sideseat_adapter_cache::CacheService;
@@ -130,7 +165,13 @@ pub(super) async fn pipeline_over_a_temp_store_with(
             5,
         )),
     );
-    (temp, analytics, database, pipeline)
+    TempPipeline {
+        temp,
+        duckdb,
+        analytics,
+        database,
+        pipeline,
+    }
 }
 
 #[tokio::test]

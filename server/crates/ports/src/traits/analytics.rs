@@ -527,7 +527,10 @@ pub trait RawStore: Send + Sync {
     /// Store the records whose `raw_id` is not stored yet; a record already present is left as it is.
     async fn insert_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError>;
 
-    /// Store these versions unconditionally: a repair, a rewrite, or a record restored after a delete.
+    /// Store these versions unconditionally - an ingest's repair, or a record restored after a delete - and queue
+    /// their records for the reconciler, as one step. Queued before the append, another reconciler could clear the
+    /// entry before the version is there; after it, a writer that dies between the two leaves a version nothing
+    /// will look at again. DuckDB does both in one transaction; ClickHouse appends and then queues.
     async fn append_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError>;
 
     /// The latest version of each requested record that exists.
@@ -546,12 +549,29 @@ pub trait RawStore: Send + Sync {
         limit: usize,
     ) -> Result<Vec<RawRecordRow>, DataError>;
 
-    /// Delete every version of these records.
-    async fn delete_raw_records(
+    /// Delete every version of those of these records no stored row names, deciding and deleting as one step:
+    /// a row written up to the delete keeps its record. Returns the records deleted.
+    ///
+    /// One step, not "read who names it, then delete": a reconciler that dies between the two leaves the
+    /// record of an ingest whose rows and check fell in between deleted for good, with nothing left to restore
+    /// it (`RawRecordOwnership.tla`, `Recoverable` with `WithCrash`). DuckDB decides and deletes in one
+    /// transaction on its one connection. ClickHouse cannot yet: it still reads and then deletes, the open
+    /// defect `docs/engineering/compact-storage.md` names, until the transactional store arbitrates.
+    async fn delete_unnamed_raw_records(
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<(), DataError>;
+    ) -> Result<std::collections::HashSet<String>, DataError>;
+
+    /// Append these rewritten versions of the records still stored, and queue those appended, deciding, appending
+    /// and queueing as one step: a record another reconciler collected since the caller read it stays collected,
+    /// and a rewrite prepared before a later deletion - which can win the version tie over a newer one - is looked
+    /// at again whether or not the caller lives to. Returns the records appended. One step for the reason
+    /// [`Self::delete_unnamed_raw_records`] gives, with the same ClickHouse exception.
+    async fn append_raw_rewrites(
+        &self,
+        records: &[RawRecordRow],
+    ) -> Result<std::collections::HashSet<String>, DataError>;
 
     /// The record each of these spans was derived from, for the winning row of each identity.
     async fn span_raw_ids(

@@ -25,11 +25,15 @@ impl RawStore for ClickhouseRepository {
         Ok(())
     }
 
+    /// Appended, then queued: not one step, so a writer that dies between the two leaves a version nothing looks at
+    /// again until its time-to-live - part of the open defect the port names.
     async fn append_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError> {
         for (project_id, records) in by_project(records) {
             let result: Result<(), DataError> =
                 tenant_query!(self, project_id, raw::append, &records);
             result?;
+            let raw_ids: Vec<String> = records.iter().map(|record| record.raw_id.clone()).collect();
+            self.enqueue_raw_records(project_id, &raw_ids).await?;
         }
         Ok(())
     }
@@ -51,25 +55,71 @@ impl RawStore for ClickhouseRepository {
         tenant_query!(self, project_id, raw::page, project_id, after, limit)
     }
 
-    async fn delete_raw_records(
+    /// Not one step: ClickHouse reads who names the records and then deletes, so a row written in between
+    /// loses its record if the caller dies before it looks again - the open defect the port names, until the
+    /// transactional store arbitrates.
+    async fn delete_unnamed_raw_records(
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<(), DataError> {
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        let named = self.raw_records_named(project_id, raw_ids).await?;
+        let mut unnamed: Vec<String> = raw_ids
+            .iter()
+            .filter(|raw_id| !named.contains(*raw_id))
+            .cloned()
+            .collect();
+        unnamed.sort_unstable();
+        unnamed.dedup();
+        if unnamed.is_empty() {
+            return Ok(std::collections::HashSet::new());
+        }
         let tables = [
             self.0.delete_table("otel_raw"),
             self.0.delete_table("otel_raw_traces"),
         ];
         let on_cluster = self.0.on_cluster_clause();
-        tenant_query!(
+        let deleted: Result<(), DataError> = tenant_query!(
             self,
             project_id,
             raw::delete,
             &tables,
             &on_cluster,
             project_id,
-            raw_ids
-        )
+            &unnamed
+        );
+        deleted?;
+        Ok(unnamed.into_iter().collect())
+    }
+
+    /// Not one step either, for the same reason as the delete.
+    async fn append_raw_rewrites(
+        &self,
+        records: &[RawRecordRow],
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        let mut appended = std::collections::HashSet::new();
+        for (project_id, records) in by_project(records) {
+            let ids: Vec<String> = records.iter().map(|record| record.raw_id.clone()).collect();
+            let stored: std::collections::HashSet<String> = self
+                .get_raw_records(project_id, &ids)
+                .await?
+                .into_iter()
+                .map(|row| row.raw_id)
+                .collect();
+            let kept: Vec<RawRecordRow> = records
+                .into_iter()
+                .filter(|record| stored.contains(&record.raw_id))
+                .collect();
+            if kept.is_empty() {
+                continue;
+            }
+            let result: Result<(), DataError> = tenant_query!(self, project_id, raw::append, &kept);
+            result?;
+            let raw_ids: Vec<String> = kept.into_iter().map(|record| record.raw_id).collect();
+            self.enqueue_raw_records(project_id, &raw_ids).await?;
+            appended.extend(raw_ids);
+        }
+        Ok(appended)
     }
 
     async fn span_raw_ids(

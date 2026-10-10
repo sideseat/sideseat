@@ -10,7 +10,7 @@ use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
 use prost::Message;
 use sideseat_ports::types::{ProjectId, RawRecordRow, StagedSignal};
 
-use super::pipeline_tests::pipeline_over_a_temp_store_with;
+use super::pipeline_tests::{pipeline_over_a_temp_duckdb, pipeline_over_a_temp_store_with};
 use super::*;
 use crate::staging::StagingDisposition;
 
@@ -82,17 +82,15 @@ async fn covered(
         .len()
 }
 
-async fn delete_records(analytics: &(dyn AnalyticsRepository + Send + Sync)) {
-    let project = ProjectId::from("default");
-    let records = analytics
-        .raw_records_page(&project, None, 64)
-        .await
-        .expect("records");
-    let ids: Vec<String> = records.into_iter().map(|record| record.raw_id).collect();
-    analytics
-        .delete_raw_records(&project, &ids)
-        .await
-        .expect("delete records");
+/// Lose every record under the rows that name it: what no port does - the reconciler deletes only a record no
+/// row names - and what a defect or an operator could.
+fn lose_records(duckdb: &sideseat_adapter_duckdb::DuckdbService) {
+    duckdb
+        .write(|conn| {
+            conn.execute_batch("DELETE FROM otel_raw; DELETE FROM otel_raw_traces")
+                .map_err(Into::into)
+        })
+        .expect("lose the records");
 }
 
 /// The same export again, encoded as JSON: its rows already name a record that holds it, so it is stored, and
@@ -190,10 +188,10 @@ async fn an_unreadable_record_is_superseded_by_a_redelivery() {
 /// is not skipped as a redelivery while its authority is missing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rows_without_their_record_are_written_again() {
-    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let (_temp, duckdb, analytics, _database, pipeline) = pipeline_over_a_temp_duckdb(false).await;
     let request = export();
     pipeline.ingest_now(&request, &protobuf(&request)).await;
-    delete_records(analytics.as_ref()).await;
+    lose_records(&duckdb);
     assert_eq!(covered(analytics.as_ref(), &request).await, 0);
 
     assert_eq!(
@@ -210,7 +208,7 @@ async fn rows_without_their_record_are_written_again() {
 /// A staged export whose rows are in place but whose record is not is pending, not confirmed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_export_settles_only_when_its_record_holds_it() {
-    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let (_temp, duckdb, _analytics, _database, pipeline) = pipeline_over_a_temp_duckdb(false).await;
     let request = export();
     let received = protobuf(&request);
     pipeline.ingest_now(&request, &received).await;
@@ -241,7 +239,7 @@ async fn an_export_settles_only_when_its_record_holds_it() {
         StagingDisposition::Confirmed
     );
 
-    delete_records(analytics.as_ref()).await;
+    lose_records(&duckdb);
     assert_eq!(
         pipeline
             .staging

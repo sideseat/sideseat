@@ -289,3 +289,94 @@ async fn an_ingest_repairs_a_record_that_lost_its_spans() {
     );
     drain(&pipeline).await;
 }
+
+/// A reconciler that read a record no row named, then acted after an ingest's rows and check fell in between,
+/// keeps the record - and dies before it looks again, as a process can. Its delete decides who names the record
+/// in the same step; decided from the read, the record of an acknowledged export was gone for good, its rows
+/// naming nothing and nothing left to restore it from.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_record_named_after_the_reconciler_read_it_survives_the_reconciler() {
+    let (_temp, duckdb, analytics, _database, pipeline) =
+        super::pipeline_tests::pipeline_over_a_temp_duckdb(false).await;
+    let body = export(vec![span(1, 1, None), span(1, 2, None)]);
+    ingest(&pipeline, &body).await;
+    // The rows expire; the record waits for the reconciler, named by nothing.
+    duckdb
+        .write(|conn| {
+            conn.execute_batch("DELETE FROM otel_spans")
+                .map_err(Into::into)
+        })
+        .unwrap();
+    let project = ProjectId::from(PROJECT);
+    let record = only_record(&analytics).await;
+
+    let read = pipeline
+        .reconcile_read(&project, &record.raw_id)
+        .await
+        .unwrap();
+    assert!(read.is_some(), "the reconciler reads the record");
+    // The export again: its rows are written, and its check finds the record present and holding them.
+    ingest(&pipeline, &body).await;
+    pipeline
+        .reconcile_act(&project, read.as_ref())
+        .await
+        .unwrap();
+    // No re-check: the reconciler died.
+
+    let stored = analytics
+        .get_raw_records(&project, std::slice::from_ref(&record.raw_id))
+        .await
+        .unwrap();
+    assert_eq!(
+        stored.len(),
+        1,
+        "the record of an acknowledged export is kept"
+    );
+    assert_eq!(
+        crate::raw_coverage::covered(analytics.as_ref(), &project, &[key(1, 1), key(1, 2)])
+            .await
+            .unwrap()
+            .len(),
+        2,
+        "and it holds the rows that name it"
+    );
+}
+
+/// A re-check finds the latest record holding a deleted span - a rewrite prepared before the deletion won the
+/// version tie over a newer one - and queues it again, though the version is the one this reconciler left: the
+/// look is at the content, not only at the version.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_recheck_queues_a_latest_record_that_still_holds_deleted_content() {
+    let (_temp, analytics, database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    ingest(
+        &pipeline,
+        &export(vec![span(1, 1, None), span(2, 2, None), span(3, 3, None)]),
+    )
+    .await;
+    let project = ProjectId::from(PROJECT);
+    let record = only_record(&analytics).await;
+    database
+        .record_deleted_traces_journalled(&project, &[trace(1)])
+        .await
+        .unwrap();
+    analytics
+        .delete_traces(&project, &[trace(1)])
+        .await
+        .unwrap();
+    let queued = analytics.pending_raw_records(64).await.unwrap();
+    analytics.clear_raw_pending(&queued).await.unwrap();
+
+    pipeline
+        .reconcile_recheck(
+            &project,
+            &record.raw_id,
+            Some(&record),
+            Some(record.version),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !analytics.pending_raw_records(64).await.unwrap().is_empty(),
+        "the record holding deleted content is queued again"
+    );
+}
