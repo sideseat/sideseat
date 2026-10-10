@@ -533,3 +533,52 @@ async fn a_session_no_trace_belongs_to_is_not_found_on_both_backends() {
         );
     }
 }
+
+/// Frameworks that tie on their trace count come back by name on both backends: in the order an engine's threads
+/// finished, one window's breakdown was a different list from one server to the next.
+#[tokio::test]
+async fn tied_frameworks_come_back_by_name_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_stats_ties").await;
+    let names: Vec<String> = (0..20)
+        .map(|n| format!("framework-{:02}", (n * 7) % 20))
+        .collect();
+    let spans: Vec<NormalizedSpan> = names
+        .iter()
+        .map(|name| NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: format!("trace-{name}"),
+            span_id: "span".to_string(),
+            span_name: "generation".to_string(),
+            framework: Some(name.clone()),
+            observation_type: Some(sideseat_ports::types::ObservationType::Generation),
+            timestamp_start: ts(0),
+            ingested_at: Some(ts(100)),
+            ..Default::default()
+        })
+        .collect();
+    let params = sideseat_ports::types::StatsParams {
+        project_id: ProjectId::from(PROJECT),
+        from_timestamp: ts(-3600),
+        to_timestamp: ts(3600),
+        timezone: "UTC".parse().unwrap(),
+    };
+    let mut sorted = names.clone();
+    sorted.sort();
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(spans.clone()).await.expect("spans");
+        let stats = repo.get_project_stats(&params).await.expect("stats");
+        let listed: Vec<String> = stats
+            .by_framework
+            .iter()
+            .filter_map(|breakdown| breakdown.framework.clone())
+            .collect();
+        assert!(!listed.is_empty());
+        assert_eq!(listed, sorted[..listed.len()].to_vec());
+    }
+}

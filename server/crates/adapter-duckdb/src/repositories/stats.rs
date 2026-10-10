@@ -252,6 +252,68 @@ mod tests {
         assert_eq!(windows[3].start.hour(), 5);
     }
 
+    /// Frameworks that tie on their trace count come back by name, every time: in the order the engine's threads
+    /// finished, one window's breakdown was a different list from one server to the next.
+    #[tokio::test]
+    async fn tied_frameworks_come_back_by_name() {
+        use sideseat_ports::types::{NormalizedSpan, ObservationType, ProjectId};
+
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let storage = sideseat_core::storage::AppStorage::init_for_test(temp.path().to_path_buf());
+        std::fs::create_dir_all(storage.subdir(sideseat_core::storage::DataSubdir::Duckdb))
+            .expect("duckdb dir");
+        let service = crate::DuckdbService::init(&storage, std::sync::Arc::new(crate::TestClock))
+            .await
+            .expect("duckdb");
+        let start = Utc
+            .with_ymd_and_hms(2024, 1, 17, 12, 0, 0)
+            .single()
+            .expect("instant");
+        let names: Vec<String> = (0..20)
+            .map(|n| format!("framework-{:02}", (n * 7) % 20))
+            .collect();
+        let spans: Vec<NormalizedSpan> = names
+            .iter()
+            .map(|name| NormalizedSpan {
+                project_id: Some("project".to_string()),
+                trace_id: format!("trace-{name}"),
+                span_id: "span".to_string(),
+                span_name: "generation".to_string(),
+                framework: Some(name.clone()),
+                observation_type: Some(ObservationType::Generation),
+                timestamp_start: start,
+                ..Default::default()
+            })
+            .collect();
+        let conn = service.conn();
+        super::super::span::insert_batch(&conn, &spans).expect("spans");
+        let stats = get_project_stats(
+            &conn,
+            &StatsParams {
+                project_id: ProjectId::from("project"),
+                from_timestamp: start - Duration::hours(1),
+                to_timestamp: start + Duration::hours(1),
+                timezone: chrono_tz::UTC,
+            },
+            start,
+        )
+        .expect("stats");
+        let listed: Vec<&str> = stats
+            .by_framework
+            .iter()
+            .filter_map(|f| f.framework.as_deref())
+            .collect();
+        let mut sorted = names.clone();
+        sorted.sort();
+        let expected: Vec<&str> = sorted
+            .iter()
+            .map(String::as_str)
+            .take(listed.len())
+            .collect();
+        assert!(!listed.is_empty());
+        assert_eq!(listed, expected);
+    }
+
     #[test]
     fn daily_windows_preserve_local_midnight() {
         let from = DateTime::parse_from_rfc3339("2024-01-16T23:30:00Z")

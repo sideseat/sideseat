@@ -231,6 +231,8 @@ FROM traces"#,
     )
 }
 
+/// The frameworks by their traces, then by name: ties came back in whatever order the engine's threads finished,
+/// so one window's breakdown was a different list from one server to the next, and under the limit another set.
 fn framework_breakdown(params: &StatsParams, backend: Backend) -> ParameterizedQuery {
     let source = winning_spans(backend);
     let count = match backend {
@@ -271,7 +273,7 @@ SELECT
     fc.count,
     {round}(100.0 * fc.count / t.total, 1) AS percentage
 FROM framework_counts fc, total t
-ORDER BY fc.count DESC
+ORDER BY fc.count DESC, fc.framework
 LIMIT {QUERY_MAX_TOP_STATS}"#,
             first_from = timestamp_predicate("timestamp_start", ">=", backend),
             first_to = timestamp_predicate("timestamp_start", "<=", backend),
@@ -282,6 +284,7 @@ LIMIT {QUERY_MAX_TOP_STATS}"#,
     )
 }
 
+/// The models by their tokens, then by name, for the reason [`framework_breakdown`] gives.
 fn model_breakdown(params: &StatsParams, backend: Backend) -> ParameterizedQuery {
     let source = winning_spans(backend);
     let (lookup, mut values) = token_lookup(params, backend);
@@ -331,7 +334,7 @@ SELECT
     ms.cost,
     {round}(100.0 * ms.tokens / t.total, 1) AS percentage
 FROM model_stats ms, total t
-ORDER BY ms.tokens DESC
+ORDER BY ms.tokens DESC, ms.model
 LIMIT {QUERY_MAX_TOP_STATS}"#,
             from_predicate = timestamp_predicate("g.timestamp_start", ">=", backend),
             to_predicate = timestamp_predicate("g.timestamp_start", "<=", backend),
