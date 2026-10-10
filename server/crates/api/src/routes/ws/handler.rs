@@ -45,7 +45,17 @@ fn connection_control_topic(instance_id: &str) -> String {
 
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Axum handler.
+/// Open the WebSocket an SDK registers its agents, MCP servers, swarms and graphs over
+#[utoipa::path(
+    get,
+    path = "/api/v1/project/{project_id}/ws",
+    tag = "sdk-runtime",
+    params(("project_id" = String, Path, description = "Project ID")),
+    responses(
+        (status = 101, description = "Switching to the WebSocket protocol"),
+        (status = 400, description = "Not a WebSocket upgrade request")
+    )
+)]
 pub async fn ws_upgrade(
     State(state): State<WsState>,
     access: ProjectWrite,

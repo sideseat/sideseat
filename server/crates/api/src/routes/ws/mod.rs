@@ -2,11 +2,11 @@
 
 pub(crate) mod chunks;
 mod expiry;
-mod handler;
+pub(crate) mod handler;
 pub(crate) mod invoke;
 pub(crate) mod listing;
 pub(crate) mod presence;
-mod presence_sse;
+pub(crate) mod presence_sse;
 pub(crate) mod protocol;
 mod rate_limit;
 pub(crate) mod state;

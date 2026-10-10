@@ -13,6 +13,25 @@ use sideseat_core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
 use sideseat_ingestion::received::ReceivedPayload;
 use sideseat_ingestion::signals::{SignalContext, SignalExportError, export_signal};
 
+/// Export traces over OTLP/HTTP
+#[utoipa::path(
+    post,
+    path = "/otel/{project_id}/v1/traces",
+    tag = "otlp",
+    params(("project_id" = String, Path, description = "Project ID")),
+    request_body(content = String, description = "An OTLP ExportTraceServiceRequest, as protobuf \
+                 (`application/x-protobuf`) or OTLP/JSON (`application/json`), optionally gzip-compressed",
+                 content_type = "application/x-protobuf"),
+    responses(
+        (status = 200, description = "Stored durably: an ExportTraceServiceResponse, in the request's encoding, \
+         reporting any records partially rejected"),
+        (status = 400, description = "Not a decodable OTLP request, or an invalid project id"),
+        (status = 404, description = "Unknown project, or one being deleted"),
+        (status = 413, description = "Larger than the body limit"),
+        (status = 503, description = "Ingest is holding as many bytes as it may: retry after `Retry-After`"),
+        (status = 507, description = "The project's storage quota is exceeded")
+    )
+)]
 pub async fn export(
     State(state): State<OtlpState>,
     Path(project_id): Path<String>,

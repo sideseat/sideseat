@@ -10,7 +10,7 @@ pub mod metrics;
 pub mod search;
 pub mod sessions;
 pub mod spans;
-mod sse;
+pub(crate) mod sse;
 pub mod stats;
 pub mod traces;
 pub mod types;

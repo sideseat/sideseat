@@ -4,9 +4,9 @@ mod admission;
 mod encoding;
 mod grpc;
 mod grpc_raw;
-mod logs;
-mod metrics;
-mod traces;
+pub(crate) mod logs;
+pub(crate) mod metrics;
+pub(crate) mod traces;
 
 pub use admission::IngestAdmission;
 pub use grpc::{GrpcIngestAuth, GrpcIngestGuards, GrpcIngestLimit, IngestStores, OtlpGrpcServer};

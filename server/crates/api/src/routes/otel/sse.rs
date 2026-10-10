@@ -27,6 +27,22 @@ pub struct SseQuery {
     pub session_id: Option<String>,
 }
 
+/// Stream the project's spans as they are stored
+#[utoipa::path(
+    get,
+    path = "/api/v1/project/{project_id}/otel/sse",
+    tag = "sse",
+    params(
+        ("project_id" = String, Path, description = "Project ID"),
+        ("trace_id" = Option<String>, Query, description = "Only the spans of this trace"),
+        ("span_id" = Option<String>, Query, description = "Only this span"),
+        ("session_id" = Option<String>, Query, description = "Only the spans of this session")
+    ),
+    responses(
+        (status = 200, description = "Server-sent events, one per span stored, until the client disconnects",
+         content_type = "text/event-stream", body = String)
+    )
+)]
 pub async fn sse(
     State(state): State<OtelApiState>,
     auth: ProjectRead,

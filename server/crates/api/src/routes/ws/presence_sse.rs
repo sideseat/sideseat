@@ -26,6 +26,17 @@ use super::listing::ListingResponse;
 use super::presence::presence_topic_name;
 use super::state::WsState;
 
+/// Stream the project's registrations as SDKs come and go
+#[utoipa::path(
+    get,
+    path = "/api/v1/project/{project_id}/presence",
+    tag = "sdk-runtime",
+    params(("project_id" = String, Path, description = "Project ID")),
+    responses(
+        (status = 200, description = "Server-sent events, one per registration that appears or goes",
+         content_type = "text/event-stream", body = String)
+    )
+)]
 pub async fn stream_presence(
     State(state): State<WsState>,
     access: ProjectRead,

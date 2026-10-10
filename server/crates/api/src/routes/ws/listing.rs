@@ -51,6 +51,17 @@ impl ListingResponse {
     }
 }
 
+/// List the agents, MCP servers, swarms and graphs the project's SDKs have registered
+#[utoipa::path(
+    get,
+    path = "/api/v1/project/{project_id}/registrations",
+    tag = "sdk-runtime",
+    params(("project_id" = String, Path, description = "Project ID")),
+    responses(
+        (status = 200, description = "The live registrations, by kind: agents, mcps, swarms and graphs",
+         body = serde_json::Value)
+    )
+)]
 pub async fn list_registrations(
     State(state): State<WsState>,
     access: ProjectRead,

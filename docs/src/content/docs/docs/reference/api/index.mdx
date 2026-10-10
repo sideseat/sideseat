@@ -84,6 +84,31 @@ All errors follow a consistent format:
 | `GET /sessions/{id}` | Get session | [Sessions](/docs/reference/api/sessions/) |
 | `GET /sse` | Real-time stream | [SSE](/docs/reference/api/sse/) |
 
+## SDK Runtime
+
+The SideSeat SDKs register their agents, MCP servers, swarms and graphs with the server, which can then run them:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/project/{project_id}/ws` | WebSocket an SDK registers over |
+| `GET /api/v1/project/{project_id}/registrations` | The live registrations, by kind |
+| `GET /api/v1/project/{project_id}/presence` | Server-sent events as registrations come and go |
+| `POST /api/v1/project/{project_id}/agents/{name}/runs` | Run a registered agent, streaming its AG-UI events |
+
+## Credentials
+
+Model-provider credentials belong to an organization; permission rules say which of its projects may use each:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET`, `POST /api/v1/organizations/{org_id}/credentials` | List or create credentials |
+| `PATCH`, `DELETE /api/v1/organizations/{org_id}/credentials/{id}` | Update or delete a credential |
+| `POST /api/v1/organizations/{org_id}/credentials/{id}/test` | Test a credential's connectivity |
+| `GET`, `POST /api/v1/organizations/{org_id}/credentials/{id}/permissions` | List or add its permission rules |
+| `DELETE /api/v1/organizations/{org_id}/credentials/{id}/permissions/{perm_id}` | Delete a permission rule |
+
+The full, generated reference is the server's OpenAPI document at `/api/openapi.json`, browsable at `/api/docs`.
+
 ## Health Check
 
 ```

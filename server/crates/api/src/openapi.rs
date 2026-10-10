@@ -5,7 +5,8 @@ use axum::response::{Html, IntoResponse, Json};
 use utoipa::OpenApi;
 
 use crate::routes::{
-    api_keys, auth, favorites, health, organizations, otel, pricing, projects, users,
+    agui, api_keys, auth, credentials, favorites, health, organizations, otel, otlp_collector,
+    pricing, projects, users, ws,
 };
 use crate::schemas::sideml::{ChatRole, ContentBlock, FinishReason};
 use crate::types::{OrderDirection, PaginationMeta};
@@ -35,7 +36,11 @@ use sideseat_ports::types::ApiKeyScope;
         (name = "favorites", description = "User favorites"),
         (name = "files", description = "File storage"),
         (name = "feed", description = "Project-wide activity feed"),
-        (name = "api-keys", description = "API key management")
+        (name = "api-keys", description = "API key management"),
+        (name = "credentials", description = "Model-provider credentials and the projects allowed them"),
+        (name = "sse", description = "Real-time span stream"),
+        (name = "sdk-runtime", description = "SDK registrations, presence and agent runs"),
+        (name = "otlp", description = "OTLP/HTTP ingestion")
     ),
     paths(
         // Health
@@ -119,6 +124,26 @@ use sideseat_ports::types::ApiKeyScope;
         api_keys::create_api_key,
         api_keys::list_api_keys,
         api_keys::delete_api_key,
+        // Credentials
+        credentials::list_credentials,
+        credentials::create_credential,
+        credentials::update_credential,
+        credentials::delete_credential,
+        credentials::test_credential,
+        credentials::list_permissions,
+        credentials::create_permission,
+        credentials::delete_permission,
+        // Real-time
+        otel::sse::sse,
+        // SDK runtime
+        ws::handler::ws_upgrade,
+        ws::listing::list_registrations,
+        ws::presence_sse::stream_presence,
+        agui::run_agent,
+        // OTLP ingestion
+        otlp_collector::traces::export,
+        otlp_collector::metrics::export,
+        otlp_collector::logs::export,
     ),
     components(schemas(
         // API types

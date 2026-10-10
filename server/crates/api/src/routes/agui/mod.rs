@@ -114,7 +114,25 @@ impl Drop for InvokeCancelGuard {
 }
 
 #[tracing::instrument(skip_all, fields(project_id, agent = %name, request_id))]
-async fn run_agent(
+/// Run a registered agent and stream its AG-UI events
+#[utoipa::path(
+    post,
+    path = "/api/v1/project/{project_id}/agents/{name}/runs",
+    tag = "sdk-runtime",
+    params(
+        ("project_id" = String, Path, description = "Project ID"),
+        ("name" = String, Path, description = "The agent's registered name")
+    ),
+    request_body(content = serde_json::Value, description = "An AG-UI RunAgentInput",
+                 content_type = "application/json"),
+    responses(
+        (status = 200, description = "Server-sent AG-UI events until the run ends",
+         content_type = "text/event-stream", body = String),
+        (status = 404, description = "No SDK has registered an agent of that name"),
+        (status = 413, description = "The input is larger than one WebSocket message")
+    )
+)]
+pub(crate) async fn run_agent(
     State(state): State<WsState>,
     access: ProjectWrite,
     Path(RunPath { name }): Path<RunPath>,
