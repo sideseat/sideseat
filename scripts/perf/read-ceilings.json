@@ -27,7 +27,7 @@
   "api: list metrics": 30,
   "api: aggregate metrics": 25,
   "api: get metric": 25,
-  "ingest: metrics match content": 25,
+  "ingest: metric winners": 25,
   "ingest: spans match content": 25,
   "ingest: spans with matching content": 25,
   "ingest: span raw ids": 25,

@@ -196,10 +196,12 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     search_fields              UTINYINT NOT NULL DEFAULT 0,
     search_truncated           UTINYINT NOT NULL DEFAULT 0,
     -- The conversation thread a request span belongs to, where a producer exports each request as what it added
-    -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Derived at
+    -- (sideseat_domain::rules::request_threads); NULL on every other span, which is almost all of them. Derived at
     -- ingest from the span's attributes, because a read holds a span's messages and not its attributes - a cache a
-    -- re-parse rebuilds, like every extracted column.
-    request_thread             VARCHAR NOT NULL DEFAULT '',
+    -- re-parse rebuilds, like every extracted column. NULL rather than '' for the index's sake: DuckDB's ART holds
+    -- no NULL keys, so it costs only the spans that have a thread, where an '' on every span put every row id in
+    -- it.
+    request_thread             VARCHAR,
     -- The declared read-time facts the span answered at ingest, one bit each
     -- (sideseat_domain::rules::span_marks); 0 where no mark holds, which is almost every span. Derived at ingest
     -- for the same reason as the thread key: a read holds a span's messages and not its attributes, and storing

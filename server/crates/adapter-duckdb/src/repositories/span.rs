@@ -161,7 +161,8 @@ fn insert_spans(
             SqlOptTimestamp(superseded_us.and_then(chrono::DateTime::from_timestamp_micros)),
             search_fields,
             search_truncated,
-            span.request_thread.as_str(),
+            // NULL for no thread, which the thread index then does not hold (the column's comment in `schema.rs`).
+            (!span.request_thread.is_empty()).then_some(span.request_thread.as_str()),
             span.span_marks,
         ])?;
     }
@@ -220,6 +221,37 @@ mod tests {
             .expect("query")
             .collect::<Result<_, _>>()
             .expect("rows")
+    }
+
+    /// A span with no thread stores NULL as its thread key, never '': the thread index holds no NULL keys, so it
+    /// costs only the spans that have a thread, where an '' on every span put every row id in it.
+    #[tokio::test]
+    async fn a_span_without_a_thread_stores_no_thread_key() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+        let threaded = NormalizedSpan {
+            span_id: "threaded".to_string(),
+            request_thread: r#"["acme.request_thread","session-1"]"#.to_string(),
+            ..revision(&["term"])
+        };
+        insert_batch(&conn, &[revision(&["term"]), threaded]).expect("batch");
+        let stored: Vec<(String, Option<String>)> = conn
+            .prepare("SELECT span_id, request_thread FROM otel_spans ORDER BY span_id")
+            .expect("prepare")
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query")
+            .collect::<Result<_, _>>()
+            .expect("rows");
+        assert_eq!(
+            stored,
+            vec![
+                ("span".to_string(), None),
+                (
+                    "threaded".to_string(),
+                    Some(r#"["acme.request_thread","session-1"]"#.to_string())
+                ),
+            ]
+        );
     }
 
     /// A correction and the export it corrects in one batch leave the correction's terms, as two writes would.

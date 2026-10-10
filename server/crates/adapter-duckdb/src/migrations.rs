@@ -79,8 +79,10 @@ fn check_layout(conn: &Connection) -> Result<(), DuckdbError> {
 fn layout(conn: &Connection) -> Result<std::collections::BTreeSet<String>, DuckdbError> {
     let mut items = std::collections::BTreeSet::new();
     for sql in [
-        // The position too: writes append by position, so a column in another place is another layout.
+        // The position too: writes append by position, so a column in another place is another layout. Its
+        // nullability and default too: a column that became nullable refuses a write of NULL where it was not.
         "SELECT 'column ' || table_name || '.' || column_name || ' ' || data_type || ' at ' || ordinal_position \
+         || ' nullable ' || is_nullable || ' default ' || coalesce(column_default, '') \
          FROM information_schema.columns WHERE table_schema = 'main'",
         "SELECT 'index ' || index_name || ' ' || coalesce(sql, '') FROM duckdb_indexes() \
          WHERE schema_name = 'main'",
@@ -128,6 +130,31 @@ mod tests {
         let message = mismatch.to_string();
         assert!(message.contains("span_terms.ingested_at"), "{message}");
         assert!(message.contains("idx_spans_span"), "{message}");
+        assert!(message.contains("sideseat system prune"), "{message}");
+    }
+
+    /// A column whose nullability or default changed is another layout: a store whose span thread key is still
+    /// `NOT NULL DEFAULT ''` refuses the NULL a span with no thread is written with now.
+    #[test]
+    fn a_store_whose_column_was_not_nullable_is_refused() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn, &TestClock).unwrap();
+        // The indexes on the table are dropped for the change and made again, so the layout differs only there.
+        conn.execute_batch(
+            "DROP INDEX idx_spans_span; DROP INDEX idx_spans_trace; DROP INDEX idx_spans_request_thread; \
+             ALTER TABLE otel_spans ALTER COLUMN request_thread SET DEFAULT ''; \
+             ALTER TABLE otel_spans ALTER COLUMN request_thread SET NOT NULL; \
+             CREATE INDEX idx_spans_span ON otel_spans(span_id); \
+             CREATE INDEX idx_spans_trace ON otel_spans(trace_id); \
+             CREATE INDEX idx_spans_request_thread ON otel_spans(request_thread);",
+        )
+        .unwrap();
+        let error = ensure_schema(&conn, &TestClock).unwrap_err();
+        let DuckdbError::LayoutMismatch(mismatch) = error else {
+            panic!("expected a layout refusal, got {error}");
+        };
+        let message = mismatch.to_string();
+        assert!(message.contains("otel_spans.request_thread"), "{message}");
         assert!(message.contains("sideseat system prune"), "{message}");
     }
 

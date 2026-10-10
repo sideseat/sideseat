@@ -316,3 +316,40 @@ fn scripts_are_grouped_by_purpose() {
         );
     }
 }
+
+/// The storage gate measures a pinned corpus, each file with its SHA-256 (`scripts/perf/storage-footprint-corpus.json`),
+/// and refuses to measure once a pinned fixture's bytes change. A re-capture that did not re-pin therefore turned
+/// the gate off without a word until the next person ran it, which is how 1e8b9730 went unnoticed. This fails the
+/// push instead.
+#[test]
+fn every_fixture_the_storage_gate_pins_has_its_pinned_bytes() {
+    use sha2::{Digest, Sha256};
+
+    let repo = repo_root();
+    let manifest = repo.join("scripts/perf/storage-footprint-corpus.json");
+    let pinned: std::collections::BTreeMap<String, String> = serde_json::from_str(
+        &std::fs::read_to_string(&manifest).expect("the storage corpus manifest is readable"),
+    )
+    .expect("the storage corpus manifest is JSON");
+    assert!(
+        pinned.len() > 1000,
+        "only {} fixtures are pinned, so the manifest is not the corpus",
+        pinned.len()
+    );
+    let drift: Vec<String> = pinned
+        .iter()
+        .filter_map(|(path, hash)| match std::fs::read(repo.join(path)) {
+            Ok(bytes) => (format!("{:x}", Sha256::digest(&bytes)) != *hash)
+                .then(|| format!("changed {path}")),
+            Err(_) => Some(format!("missing {path}")),
+        })
+        .collect();
+    assert!(
+        drift.is_empty(),
+        "fixtures the storage gate pins no longer have their pinned bytes, so `make footprint-storage` refuses \
+         to measure. Pin them again in the commit that changed them and record the gate's figures there \
+         (`uv run --locked --script scripts/perf/storage-footprint.py embedded --gate --verify-raw --metrics-load \
+         --update-manifest`):\n  {}",
+        drift.join("\n  ")
+    );
+}
