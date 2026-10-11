@@ -11,6 +11,9 @@ use sideseat_ports::types::{
 pub async fn create(pool: &SqlitePool, payload: &StagedPayload) -> Result<i64, SqliteError> {
     let records = serde_json::to_string(&payload.records)
         .map_err(|error| SqliteError::Conflict(error.to_string()))?;
+    // One transaction with the registration's pending-writer entry: the raw arbiter's collection decision
+    // must never see a registered payload without its record claim (`RawRecordOwnership.tla`, `Register`).
+    let mut tx = pool.begin().await?;
     let seq = sqlx::query(
         "INSERT INTO staged_payloads
          (id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts, unconfirmed, records_json)
@@ -26,9 +29,18 @@ pub async fn create(pool: &SqlitePool, payload: &StagedPayload) -> Result<i64, S
     .bind(i64::from(payload.redrive_attempts))
     .bind(payload.unconfirmed)
     .bind(records)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?
     .try_get::<i64, _>("seq")?;
+    if let Some(raw_id) = &payload.raw_id {
+        sqlx::query("INSERT INTO raw_writers (payload_id, project_id, raw_id) VALUES (?, ?, ?)")
+            .bind(&payload.id)
+            .bind(payload.project_id.as_str())
+            .bind(raw_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
     Ok(seq)
 }
 
@@ -68,9 +80,10 @@ pub async fn record_anomaly(
 
 pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<StagedPayload>, SqliteError> {
     let row = sqlx::query(
-        "SELECT id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts,
-                unconfirmed, records_json
-         FROM staged_payloads WHERE id = ?",
+        "SELECT p.id, p.project_id, p.signal, p.blob_hash, p.byte_len, p.created_at, p.redrive_attempts,
+                p.unconfirmed, p.records_json, w.raw_id
+         FROM staged_payloads p LEFT JOIN raw_writers w ON w.payload_id = p.id
+         WHERE p.id = ?",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -80,11 +93,11 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<StagedPayload>, S
 
 pub async fn pending(pool: &SqlitePool, limit: usize) -> Result<Vec<StagedPayload>, SqliteError> {
     let rows = sqlx::query(
-        "SELECT id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts,
-                unconfirmed, records_json
-         FROM staged_payloads
-         WHERE unconfirmed = 0
-         ORDER BY created_at ASC, id ASC
+        "SELECT p.id, p.project_id, p.signal, p.blob_hash, p.byte_len, p.created_at, p.redrive_attempts,
+                p.unconfirmed, p.records_json, w.raw_id
+         FROM staged_payloads p LEFT JOIN raw_writers w ON w.payload_id = p.id
+         WHERE p.unconfirmed = 0
+         ORDER BY p.created_at ASC, p.id ASC
          LIMIT ?",
     )
     .bind(limit as i64)
@@ -115,18 +128,36 @@ pub async fn mark_unconfirmed(pool: &SqlitePool, id: &str) -> Result<(), SqliteE
 }
 
 pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), SqliteError> {
+    // Settlement retires the registration and its pending-writer entry together: a settled payload never
+    // blocks a collection, and an unsettled one always does (`RawRecordOwnership.tla`, `Settle`).
+    let mut tx = pool.begin().await?;
     sqlx::query("DELETE FROM staged_payloads WHERE id = ?")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    sqlx::query("DELETE FROM raw_writers WHERE payload_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(())
 }
 
 pub async fn delete_project(pool: &SqlitePool, project_id: &ProjectId) -> Result<u64, SqliteError> {
+    // Only the writer entries of the registrations removed here: a registration that commits after this
+    // transaction keeps both its row and its writer entry.
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "DELETE FROM raw_writers WHERE payload_id IN (SELECT id FROM staged_payloads WHERE project_id = ?)",
+    )
+    .bind(project_id.as_str())
+    .execute(&mut *tx)
+    .await?;
     let result = sqlx::query("DELETE FROM staged_payloads WHERE project_id = ?")
         .bind(project_id.as_str())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(result.rows_affected())
 }
 
@@ -146,6 +177,7 @@ fn row_to_payload(row: sqlx::sqlite::SqliteRow) -> Result<StagedPayload, SqliteE
         unconfirmed: row.try_get("unconfirmed")?,
         records: serde_json::from_str::<Vec<StagedRecord>>(&records)
             .map_err(|error| SqliteError::Conflict(error.to_string()))?,
+        raw_id: row.try_get("raw_id")?,
     })
 }
 

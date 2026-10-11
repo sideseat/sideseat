@@ -11,19 +11,19 @@ use chrono::{DateTime, Utc};
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
     ApiKeyStore, CredentialStore, DeletionJournal, DeletionRecord, DeletionScope, FavoriteStore,
-    FileMetaStore, IdentityStore, ProjectStore, StagedPayloadStore, StorageGovernance,
+    FileMetaStore, IdentityStore, ProjectStore, RawArbiter, StagedPayloadStore, StorageGovernance,
 };
 use sideseat_ports::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
     CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
-    OrganizationRow, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, StagedPayload,
-    UserRow,
+    OrganizationRow, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawCollection,
+    RawConfirmOutcome, RawOwnerClaim, StagedPayload, UserRow,
 };
 
 use super::SqliteService;
 use super::repositories::{
     api_key, auth_method, credential_permissions, credentials, favorite, file, governance, journal,
-    membership, organization, project, restore, staging, user,
+    membership, organization, project, raw_arbiter, restore, staging, user,
 };
 
 /// The port, implemented over the service.

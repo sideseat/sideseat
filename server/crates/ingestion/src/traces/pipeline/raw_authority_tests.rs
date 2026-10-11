@@ -220,7 +220,10 @@ async fn an_export_settles_only_when_its_record_holds_it() {
             &received.staged(),
             received.received_at,
             crate::traces::confirmation_records(&request),
-            "p".to_string(),
+            crate::staging::StagedWrite {
+                partition_key: "p".to_string(),
+                raw_id: None,
+            },
         )
         .await
         .expect("stage");
@@ -335,7 +338,10 @@ async fn revisions_in_one_batch_are_each_settled_after_their_wave() {
                 &body.staged(),
                 body.received_at,
                 crate::traces::confirmation_records(request),
-                "p".to_string(),
+                crate::staging::StagedWrite {
+                    partition_key: "p".to_string(),
+                    raw_id: None,
+                },
             )
             .await
             .expect("stage");

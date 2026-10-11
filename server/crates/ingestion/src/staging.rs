@@ -51,6 +51,16 @@ impl StagedPayloadRef {
     }
 }
 
+/// What one staged payload is written as, beyond its bytes and records.
+#[derive(Debug, Clone, Default)]
+pub struct StagedWrite {
+    /// Keeps the queue's relative order for records that need one.
+    pub partition_key: String,
+    /// The raw record a traces payload writes: registering it as the record's pending writer is what blocks
+    /// the raw arbiter's collection decision while the payload is unsettled (`RawRecordOwnership.tla`).
+    pub raw_id: Option<String>,
+}
+
 /// The stored winners of a payload's span identities and datapoints.
 #[derive(Default)]
 struct Winners {
@@ -119,7 +129,8 @@ impl StagingService {
     }
 
     /// Stage `bytes`, received at `received_at`: the registration keeps the receipt, which every later write of the
-    /// payload stores its rows at ([`crate::received::ReceivedPayload`]).
+    /// payload stores its rows at ([`crate::received::ReceivedPayload`]). A traces payload names the raw record
+    /// it writes, which registers it as that record's pending writer (`RawRecordOwnership.tla`, `Register`).
     pub async fn stage(
         &self,
         project_id: &str,
@@ -127,7 +138,7 @@ impl StagingService {
         bytes: &[u8],
         received_at: chrono::DateTime<chrono::Utc>,
         records: Vec<StagedRecord>,
-        partition_key: String,
+        write: StagedWrite,
     ) -> Result<StagedPayloadRef, StagingError> {
         let id = Uuid::new_v4().to_string();
         let project_id = ProjectId::from(project_id);
@@ -153,6 +164,7 @@ impl StagingService {
             redrive_attempts: 0,
             unconfirmed: false,
             records,
+            raw_id: write.raw_id,
         };
         let seq = match self.database.create_staged_payload(&payload).await {
             Ok(seq) => seq,
@@ -174,7 +186,7 @@ impl StagingService {
 
         Ok(StagedPayloadRef {
             id,
-            partition_key,
+            partition_key: write.partition_key,
             seq,
         })
     }

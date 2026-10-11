@@ -397,6 +397,90 @@ pub trait StorageGovernance: Send + Sync {
     async fn storage_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError>;
 }
 
+/// The raw-record arbiter: who owns a stored raw record, decided here and never from the analytics store's
+/// rows. The protocol and its proofs are `server/specs/RawRecordOwnership.tla`; each method names the action
+/// it implements.
+///
+/// The model has one record. Across many, the epoch is one per-project sequence - every version is keyed under
+/// it, and every collection decision bumps it, so it is a fencing token no stale writer can reuse - while each
+/// record's collection state is its own: a decision on one record must never hide another's versions. Only a
+/// record that was ever collected has a row for that state.
+///
+/// Ownership is per record and trace - a record's spans are owned through their traces, which is what
+/// deletions and retention are keyed by, and keeps the registry rows small. A span-scoped deletion leaves its
+/// trace's ownership in place: conservative, so a record is never collectable while any of its content might
+/// still be wanted, and the rewrite path removes the span's content on the next pass.
+#[async_trait]
+pub trait RawArbiter: Send + Sync {
+    /// The project epoch new versions are keyed under (the model's `Insert` reads it).
+    async fn raw_arbiter_epoch(&self, project_id: &ProjectId) -> Result<i64, DataError>;
+
+    /// Each collected record's cutoff: the highest epoch any purge of it - pending or completed, however late
+    /// it runs - is entitled to delete. A version keyed at or below its record's cutoff is invisible to every
+    /// reader (`LiveStore`); a record that was never collected is absent and has no cutoff.
+    async fn raw_record_cutoffs(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<HashMap<String, i64>, DataError>;
+
+    /// The confirm fence, one transaction per batch (`Confirm`): each claim is granted - its traces inserted
+    /// as owners, except traces the deletion journal tombstoned meanwhile - only when its version epoch is
+    /// above its record's cutoff. A refused claim grants nothing, and the writer re-keys its version above the
+    /// returned epoch and confirms again.
+    async fn confirm_raw_owners(
+        &self,
+        project_id: &ProjectId,
+        claims: &[RawOwnerClaim],
+    ) -> Result<Vec<RawConfirmOutcome>, DataError>;
+
+    /// Take ownership away from these traces, in the caller's own step: the retention sweep that removed their
+    /// rows (`ExpireSweep`). Deletions need no call here - the journalled tombstone transactions release
+    /// ownership themselves (`Delete`).
+    async fn release_raw_owner_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// The collection decision, one transactional statement per record (`RAct`): decided only when the record
+    /// has no owner, no pending writer, no pending decision, and the project holds no legal hold; recorded at
+    /// the project epoch, which the decision bumps. Returns the decisions made; a record that did not qualify
+    /// is skipped.
+    async fn collect_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<RawCollection>, DataError>;
+
+    /// The purge done, fold the decision into the record's high-water mark (`RDrop`). The cutoff does not
+    /// move: readers keep ignoring the purged versions, so a straggling purge of the decision stays harmless.
+    async fn drop_raw_collection(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        epoch: i64,
+    ) -> Result<(), DataError>;
+
+    /// Pending decisions older than `decided_before`, for takeover by age (`RResume`): a collector that died -
+    /// or is merely slow, which the epoch bound makes equally safe - is purged again by whoever finds its
+    /// decision.
+    async fn stale_raw_collections(
+        &self,
+        decided_before: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<RawCollection>, DataError>;
+
+    /// Whether any pending writer - a staged payload or staged rewrite registered for this record - exists.
+    /// Exposed for tests and the pass's diagnostics; the collection decision applies it internally.
+    async fn raw_writer_pending(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<bool, DataError>;
+}
+
 #[cfg(test)]
 mod deletion_vocabulary_tests {
     use super::{DeletionCause, DeletionScope};

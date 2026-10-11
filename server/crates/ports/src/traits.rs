@@ -15,10 +15,10 @@ use crate::types::{
     ListMetricsParams, ListSessionsParams, ListSpansParams, ListTracesParams, LogRow,
     MemberWithUser, MembershipRow, MessageQueryParams, MessageQueryResult, MetricAggregateRow,
     MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow,
-    PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawPending,
-    RawRecordRow, SearchBackfillDocument, SearchBackfillSource, SearchCursor, SearchPage,
-    SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow, StagedPayload, StagedSequenceState,
-    TraceRow, UserRow, WinningRevision,
+    PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawCollection,
+    RawConfirmOutcome, RawOwnerClaim, RawPending, RawRecordRow, SearchBackfillDocument,
+    SearchBackfillSource, SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow,
+    SpanCounts, SpanRow, StagedPayload, StagedSequenceState, TraceRow, UserRow, WinningRevision,
 };
 
 mod analytics;
@@ -77,6 +77,7 @@ pub trait TransactionalRepository:
     + FavoriteStore
     + DeletionJournal
     + StagedPayloadStore
+    + RawArbiter
 {
 }
 
@@ -89,5 +90,6 @@ impl<T> TransactionalRepository for T where
         + FavoriteStore
         + DeletionJournal
         + StagedPayloadStore
+        + RawArbiter
 {
 }

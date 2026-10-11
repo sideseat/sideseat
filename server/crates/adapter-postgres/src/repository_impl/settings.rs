@@ -534,6 +534,87 @@ impl StagedPayloadStore for PostgresRepository {
 }
 
 #[async_trait]
+impl RawArbiter for PostgresRepository {
+    async fn raw_arbiter_epoch(&self, project_id: &ProjectId) -> Result<i64, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::epoch(connection, project_id)
+        })
+    }
+
+    async fn raw_record_cutoffs(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, i64>, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::cutoffs(connection, project_id, raw_ids)
+        })
+    }
+
+    async fn confirm_raw_owners(
+        &self,
+        project_id: &ProjectId,
+        claims: &[RawOwnerClaim],
+    ) -> Result<Vec<RawConfirmOutcome>, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::confirm_owners(connection, project_id, claims)
+        })
+    }
+
+    async fn release_raw_owner_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::release_owner_traces(connection, project_id, trace_ids)
+        })
+    }
+
+    async fn collect_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<RawCollection>, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::collect_records(connection, project_id, raw_ids, now)
+        })
+    }
+
+    async fn drop_raw_collection(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        epoch: i64,
+    ) -> Result<(), DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::drop_collection(connection, project_id, raw_id, epoch)
+        })
+    }
+
+    async fn stale_raw_collections(
+        &self,
+        decided_before: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<RawCollection>, DataError> {
+        maintenance_transaction!(self, |connection| {
+            raw_arbiter::stale_collections(connection, decided_before, limit)
+        })
+    }
+
+    async fn raw_writer_pending(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<bool, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::writer_pending(connection, project_id, raw_id)
+        })
+    }
+}
+
+#[async_trait]
 impl StorageGovernance for PostgresRepository {
     async fn active_project_hold(
         &self,

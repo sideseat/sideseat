@@ -138,7 +138,10 @@ async fn stage(fixture: &Fixture, body: &[u8]) -> StagedPayloadRef {
             body,
             chrono::Utc::now(),
             Vec::new(),
-            "partition".to_string(),
+            crate::staging::StagedWrite {
+                partition_key: "partition".to_string(),
+                raw_id: None,
+            },
         )
         .await
         .expect("stage")
@@ -571,6 +574,7 @@ async fn bench_staging_fixed_cost() {
             redrive_attempts: 0,
             unconfirmed: false,
             records: Vec::new(),
+            raw_id: None,
         };
         fixture
             .service

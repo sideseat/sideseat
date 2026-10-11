@@ -94,6 +94,11 @@ pub struct StagedPayload {
     pub redrive_attempts: u32,
     pub unconfirmed: bool,
     pub records: Vec<StagedRecord>,
+    /// The raw record this payload writes, when the signal stores one (traces). The registration is the
+    /// pending-writer entry the raw arbiter's collection decision checks, created with this row and released
+    /// when it settles (`RawRecordOwnership.tla`, `Register` and `Settle`).
+    #[serde(default)]
+    pub raw_id: Option<String>,
 }
 
 /// Where the registry's sequence stands, for classifying a queue reference whose row is missing.

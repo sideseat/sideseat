@@ -6,22 +6,9 @@ pub async fn record_deleted_traces(
     trace_ids: &[String],
     now: i64,
 ) -> Result<(), PostgresError> {
-    if trace_ids.is_empty() {
-        return Ok(());
-    }
-    // `UNNEST` rather than a loop: one statement for the whole batch, and no placeholder count that
-    // grows with it.
-    sqlx::query(
-        "INSERT INTO deleted_traces (project_id, trace_id, deleted_at)
-         SELECT $1, t, $3 FROM UNNEST($2::text[]) AS t
-         ON CONFLICT (project_id, trace_id) DO NOTHING",
-    )
-    .bind(project_id)
-    .bind(trace_ids)
-    .bind(now)
-    .execute(&mut *connection)
-    .await?;
-    Ok(())
+    // The one tombstone statement, shared with the journalled forms: it takes the traces' owner locks and
+    // releases their ownership, so no entry point can race the confirm fence.
+    insert_trace_tombstones(connection, project_id, trace_ids, now).await
 }
 
 /// Which of these traces are tombstoned.
@@ -288,6 +275,9 @@ async fn insert_trace_tombstones(
     if trace_ids.is_empty() {
         return Ok(());
     }
+    // The traces' owner locks first, the confirm fence's own: an uncommitted grant cannot race this
+    // transaction's tombstone and owner release (`raw_arbiter`).
+    crate::repositories::raw_arbiter::lock_traces(connection, project_id, trace_ids).await?;
     sqlx::query(
         "INSERT INTO deleted_traces (project_id, trace_id, deleted_at)
          SELECT $1, t, $3 FROM UNNEST($2::text[]) AS t
@@ -298,6 +288,14 @@ async fn insert_trace_tombstones(
     .bind(now)
     .execute(&mut *connection)
     .await?;
+    // The same transaction takes the traces' raw-record ownership away: a deleted trace never owns a record
+    // again, because the confirm fence excludes tombstoned traces from every later grant
+    // (`RawRecordOwnership.tla`, `Delete`).
+    sqlx::query("DELETE FROM raw_owners WHERE project_id = $1 AND trace_id = ANY($2)")
+        .bind(project_id)
+        .bind(trace_ids)
+        .execute(&mut *connection)
+        .await?;
     Ok(())
 }
 

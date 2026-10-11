@@ -11,6 +11,9 @@ pub enum SqliteError {
     #[error(transparent)]
     UnsupportedSchema(sideseat_core::schema_version::UnsupportedSchema),
 
+    #[error(transparent)]
+    LayoutMismatch(sideseat_core::schema_version::LayoutMismatch),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -35,6 +38,12 @@ impl From<SqliteError> for DataError {
                 source: Some(Box::new(e)),
             },
             SqliteError::UnsupportedSchema(refusal) => Self::unsupported_schema("sqlite", refusal),
+            SqliteError::LayoutMismatch(mismatch) => Self::UnsupportedSchema {
+                backend: "sqlite",
+                found: mismatch.version,
+                supported: mismatch.version,
+                detail: mismatch.to_string(),
+            },
             SqliteError::Io(e) => Self::Io(e),
             SqliteError::Conflict(msg) => Self::Conflict(msg),
         }

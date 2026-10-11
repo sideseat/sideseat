@@ -143,7 +143,10 @@ async fn staged(
             &request.encode_to_vec(),
             received_at,
             records,
-            "series".to_string(),
+            crate::staging::StagedWrite {
+                partition_key: "series".to_string(),
+                raw_id: None,
+            },
         )
         .await
         .expect("stage");

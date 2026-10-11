@@ -43,6 +43,10 @@ BEGIN
         'favorites',
         'deletion_journal',
         'staged_payloads',
+        'raw_owners',
+        'raw_writers',
+        'raw_arbiter',
+        'raw_collections',
         'project_holds',
         'project_maintenance_leases',
         'project_storage_usage'
@@ -510,6 +514,60 @@ CREATE TABLE IF NOT EXISTS staged_payload_anomalies (
     detected_at BIGINT  NOT NULL,
     occurrences BIGINT  NOT NULL DEFAULT 1 CHECK(occurrences >= 1)
 );
+
+-- =============================================================================
+-- Raw-record arbiter: who owns a stored raw record, decided here, never from
+-- the analytics store's rows (server/specs/RawRecordOwnership.tla)
+-- =============================================================================
+
+-- Durable owners: the traces whose committed rows name the record. Granted by the confirm fence after the
+-- rows commit; taken away by the journalled deletion transactions and by the retention sweep that removes
+-- the rows. Small on purpose: one row per record and trace.
+CREATE TABLE IF NOT EXISTS raw_owners (
+    project_id TEXT NOT NULL,
+    raw_id     TEXT NOT NULL,
+    trace_id   TEXT NOT NULL,
+    PRIMARY KEY (project_id, raw_id, trace_id)
+);
+-- The deletion and retention release paths select by trace.
+CREATE INDEX IF NOT EXISTS idx_raw_owners_trace ON raw_owners(project_id, trace_id);
+
+-- Pending writers by record: created with the staged payload's registration, released when it settles, by
+-- whichever execution settles it. The collection decision refuses a record any row here names.
+CREATE TABLE IF NOT EXISTS raw_writers (
+    payload_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    raw_id     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_raw_writers_record ON raw_writers(project_id, raw_id);
+
+-- The project epoch every version is keyed under: one sequence, bumped by every collection decision, so it is
+-- a fencing token no stale writer can reuse. A missing row reads as epoch 0.
+-- The confirm fence and the collection decision both lock this row (SELECT ... FOR UPDATE), which is what
+-- serializes a grant against a decision under PostgreSQL's concurrent writers.
+CREATE TABLE IF NOT EXISTS raw_arbiter (
+    project_id TEXT PRIMARY KEY,
+    epoch      BIGINT NOT NULL DEFAULT 0 CHECK(epoch >= 0)
+);
+
+-- Each collected record's collection state; a record never collected has no row. `pending_epoch` is a decision
+-- awaiting its purge; `high_water` the highest decision ever purged. A version of the record keyed at or below
+-- the greater of the two is invisible to every reader and fair game for a straggling purge - which is what makes
+-- takeover by age safe. Per record, not per project: one record's collection must never hide another's
+-- versions. The decision is one guarded statement: no owner, no pending writer, no legal hold.
+CREATE TABLE IF NOT EXISTS raw_collections (
+    project_id    TEXT NOT NULL,
+    raw_id        TEXT NOT NULL,
+    high_water    BIGINT NOT NULL DEFAULT -1,
+    pending_epoch BIGINT,
+    decided_at    BIGINT,
+    PRIMARY KEY (project_id, raw_id),
+    CHECK ((pending_epoch IS NULL) = (decided_at IS NULL)),
+    CHECK (pending_epoch IS NULL OR pending_epoch > high_water)
+);
+-- Takeover by age walks pending decisions oldest first.
+CREATE INDEX IF NOT EXISTS idx_raw_collections_pending
+    ON raw_collections(decided_at) WHERE pending_epoch IS NOT NULL;
 
 -- Project-wide legal holds, the shared hold/retention lease, and best-effort storage accounting.
 CREATE TABLE IF NOT EXISTS project_holds (

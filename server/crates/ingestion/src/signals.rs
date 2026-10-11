@@ -214,6 +214,10 @@ pub async fn export_signal<S: Signal>(
             GovernanceError::QuotaExceeded { .. } => SignalExportError::QuotaExceeded,
             _ => SignalExportError::StoreUnavailable,
         })?;
+    // A traces payload registers as its raw record's pending writer: the raw arbiter's collection decision
+    // refuses a record a registered payload still writes (`RawRecordOwnership.tla`, `Register`).
+    let raw_id = (signal.staged_signal() == StagedSignal::Traces)
+        .then(|| crate::traces::raw_id(context.project_id, context.received));
     let payload_ref = context
         .staging
         .stage(
@@ -222,7 +226,10 @@ pub async fn export_signal<S: Signal>(
             &encoded,
             context.received.received_at,
             records,
-            signal.partition_key(&request),
+            crate::staging::StagedWrite {
+                partition_key: signal.partition_key(&request),
+                raw_id,
+            },
         )
         .await
         .map_err(|error| {

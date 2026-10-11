@@ -72,3 +72,35 @@ pub struct RawPending {
     pub raw_id: String,
     pub token: String,
 }
+
+/// One record's ownership claim an ingest confirms after its rows commit: the record, the epoch of the version
+/// the claim rests on, and the traces whose rows were written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawOwnerClaim {
+    pub raw_id: String,
+    /// The arbiter epoch under which the version this claim rests on was keyed - the one the writer read before
+    /// its insert, or the latest version it observed (`RawRecordOwnership.tla`, `vep`).
+    pub version_epoch: i64,
+    pub trace_ids: Vec<String>,
+}
+
+/// The confirm fence's verdict for one claim (`RawRecordOwnership.tla`, `Confirm`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RawConfirmOutcome {
+    /// The claim's version is above every collection decision, pending or completed; its traces own the record
+    /// durably, except those the deletion journal took meanwhile.
+    Granted,
+    /// The claim's version is at or below a decision some purge is entitled to delete: nothing was granted, and
+    /// the writer must re-key its version above `fresh_epoch` and confirm again (`Rekey`).
+    Refused { fresh_epoch: i64 },
+}
+
+/// A collection decision pending its purge (`RawRecordOwnership.tla`, `acoll`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawCollection {
+    pub project_id: ProjectId,
+    pub raw_id: String,
+    /// The project epoch the decision was recorded at; the purge deletes versions keyed at or below it.
+    pub epoch: i64,
+    pub decided_at: DateTime<Utc>,
+}

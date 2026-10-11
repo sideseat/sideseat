@@ -21,7 +21,9 @@ mod transactional;
 // `api::types` because three analytics DTOs carry it, which made the storage layer import from HTTP.
 pub use order::{OrderBy, OrderDirection};
 pub use project_id::ProjectId;
-pub use raw::{RawOrigin, RawPending, RawRecordRow};
+pub use raw::{
+    RawCollection, RawConfirmOutcome, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow,
+};
 
 // Re-export enum types
 pub use enums::{

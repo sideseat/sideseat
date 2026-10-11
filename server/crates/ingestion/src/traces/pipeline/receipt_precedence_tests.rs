@@ -59,7 +59,10 @@ async fn staged(
             &received.staged(),
             received.received_at,
             crate::traces::confirmation_records(request),
-            "p".to_string(),
+            crate::staging::StagedWrite {
+                partition_key: "p".to_string(),
+                raw_id: None,
+            },
         )
         .await
         .expect("stage");

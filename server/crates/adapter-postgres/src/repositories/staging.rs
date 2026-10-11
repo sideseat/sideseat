@@ -31,6 +31,17 @@ pub async fn create(
     .bind(records)
     .fetch_one(&mut *connection)
     .await?;
+    // The registration's pending-writer entry, in the caller's transaction: the raw arbiter's collection
+    // decision must never see a registered payload without its record claim (`RawRecordOwnership.tla`,
+    // `Register`).
+    if let Some(raw_id) = &payload.raw_id {
+        sqlx::query("INSERT INTO raw_writers (payload_id, project_id, raw_id) VALUES ($1, $2, $3)")
+            .bind(&payload.id)
+            .bind(payload.project_id.as_str())
+            .bind(raw_id)
+            .execute(&mut *connection)
+            .await?;
+    }
     Ok(seq)
 }
 
@@ -78,9 +89,10 @@ pub async fn get(
     id: &str,
 ) -> Result<Option<StagedPayload>, PostgresError> {
     let row = sqlx::query(
-        "SELECT id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts,
-                unconfirmed, records_json
-         FROM staged_payloads WHERE id = $1",
+        "SELECT p.id, p.project_id, p.signal, p.blob_hash, p.byte_len, p.created_at, p.redrive_attempts,
+                p.unconfirmed, p.records_json, w.raw_id
+         FROM staged_payloads p LEFT JOIN raw_writers w ON w.payload_id = p.id
+         WHERE p.id = $1",
     )
     .bind(id)
     .fetch_optional(&mut *connection)
@@ -93,11 +105,11 @@ pub async fn pending(
     limit: usize,
 ) -> Result<Vec<StagedPayload>, PostgresError> {
     let rows = sqlx::query(
-        "SELECT id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts,
-                unconfirmed, records_json
-         FROM staged_payloads
-         WHERE unconfirmed = FALSE
-         ORDER BY created_at ASC, id ASC
+        "SELECT p.id, p.project_id, p.signal, p.blob_hash, p.byte_len, p.created_at, p.redrive_attempts,
+                p.unconfirmed, p.records_json, w.raw_id
+         FROM staged_payloads p LEFT JOIN raw_writers w ON w.payload_id = p.id
+         WHERE p.unconfirmed = FALSE
+         ORDER BY p.created_at ASC, p.id ASC
          LIMIT $1",
     )
     .bind(limit as i64)
@@ -134,7 +146,13 @@ pub async fn mark_unconfirmed(
 }
 
 pub async fn delete(connection: &mut PgConnection, id: &str) -> Result<(), PostgresError> {
+    // Settlement retires the registration and its pending-writer entry together, in the caller's
+    // transaction (`RawRecordOwnership.tla`, `Settle`).
     sqlx::query("DELETE FROM staged_payloads WHERE id = $1")
+        .bind(id)
+        .execute(&mut *connection)
+        .await?;
+    sqlx::query("DELETE FROM raw_writers WHERE payload_id = $1")
         .bind(id)
         .execute(&mut *connection)
         .await?;
@@ -145,11 +163,31 @@ pub async fn delete_project(
     connection: &mut PgConnection,
     project_id: &ProjectId,
 ) -> Result<u64, PostgresError> {
-    let result = sqlx::query("DELETE FROM staged_payloads WHERE project_id = $1")
+    // The arbiter row first, the lock order the confirm fence and the collection decision take: cleanup
+    // removes the state they read, and taking it later could deadlock against a confirm holding it.
+    sqlx::query("SELECT 1 FROM raw_arbiter WHERE project_id = $1 FOR UPDATE")
         .bind(project_id.as_str())
         .execute(&mut *connection)
         .await?;
-    Ok(result.rows_affected())
+    // Only the writer entries of the registrations removed here, in the same statement: under READ COMMITTED
+    // a registration that commits in between keeps both its row and its writer entry. A CTE, so the removed
+    // ids never leave the server.
+    let removed: i64 = sqlx::query_scalar(
+        "WITH removed AS (DELETE FROM staged_payloads WHERE project_id = $1 RETURNING id),
+              writers AS (DELETE FROM raw_writers WHERE payload_id IN (SELECT id FROM removed))
+         SELECT COUNT(*) FROM removed",
+    )
+    .bind(project_id.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
+    for table in ["raw_owners", "raw_collections", "raw_arbiter"] {
+        let sql = format!("DELETE FROM {table} WHERE project_id = $1");
+        sqlx::query(&sql)
+            .bind(project_id.as_str())
+            .execute(&mut *connection)
+            .await?;
+    }
+    Ok(u64::try_from(removed).unwrap_or(0))
 }
 
 fn row_to_payload(row: sqlx::postgres::PgRow) -> Result<StagedPayload, PostgresError> {
@@ -168,6 +206,7 @@ fn row_to_payload(row: sqlx::postgres::PgRow) -> Result<StagedPayload, PostgresE
         unconfirmed: row.try_get("unconfirmed")?,
         records: serde_json::from_str::<Vec<StagedRecord>>(&records)
             .map_err(|error| PostgresError::Conflict(error.to_string()))?,
+        raw_id: row.try_get("raw_id")?,
     })
 }
 

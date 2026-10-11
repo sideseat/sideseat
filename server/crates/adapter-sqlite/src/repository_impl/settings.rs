@@ -518,7 +518,94 @@ impl StagedPayloadStore for SqliteRepository {
         &self,
         project_id: &ProjectId,
     ) -> Result<u64, DataError> {
-        staging::delete_project(self.0.pool(), project_id)
+        let removed = staging::delete_project(self.0.pool(), project_id)
+            .await
+            .map_err(Into::<DataError>::into)?;
+        // The deleted project's arbiter state goes with its registry rows: nothing may own, write or collect
+        // what the project no longer has.
+        raw_arbiter::delete_project(self.0.pool(), project_id)
+            .await
+            .map_err(Into::<DataError>::into)?;
+        Ok(removed)
+    }
+}
+
+#[async_trait]
+impl RawArbiter for SqliteRepository {
+    async fn raw_arbiter_epoch(&self, project_id: &ProjectId) -> Result<i64, DataError> {
+        raw_arbiter::epoch(self.0.pool(), project_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn raw_record_cutoffs(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, i64>, DataError> {
+        raw_arbiter::cutoffs(self.0.pool(), project_id, raw_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn confirm_raw_owners(
+        &self,
+        project_id: &ProjectId,
+        claims: &[RawOwnerClaim],
+    ) -> Result<Vec<RawConfirmOutcome>, DataError> {
+        raw_arbiter::confirm_owners(self.0.pool(), project_id, claims)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn release_raw_owner_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        raw_arbiter::release_owner_traces(self.0.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn collect_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<RawCollection>, DataError> {
+        raw_arbiter::collect_records(self.0.pool(), project_id, raw_ids, now)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn drop_raw_collection(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        epoch: i64,
+    ) -> Result<(), DataError> {
+        raw_arbiter::drop_collection(self.0.pool(), project_id, raw_id, epoch)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn stale_raw_collections(
+        &self,
+        decided_before: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<RawCollection>, DataError> {
+        raw_arbiter::stale_collections(self.0.pool(), decided_before, limit)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn raw_writer_pending(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<bool, DataError> {
+        raw_arbiter::writer_pending(self.0.pool(), project_id, raw_id)
             .await
             .map_err(Into::into)
     }

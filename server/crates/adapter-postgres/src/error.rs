@@ -11,6 +11,9 @@ pub enum PostgresError {
     #[error(transparent)]
     UnsupportedSchema(sideseat_core::schema_version::UnsupportedSchema),
 
+    #[error(transparent)]
+    LayoutMismatch(sideseat_core::schema_version::LayoutMismatch),
+
     #[error("Configuration error: {0}")]
     Config(String),
 
@@ -40,6 +43,12 @@ impl From<PostgresError> for DataError {
             PostgresError::UnsupportedSchema(refusal) => {
                 Self::unsupported_schema("postgres", refusal)
             }
+            PostgresError::LayoutMismatch(mismatch) => Self::UnsupportedSchema {
+                backend: "postgres",
+                found: mismatch.version,
+                supported: mismatch.version,
+                detail: mismatch.to_string(),
+            },
             PostgresError::Config(msg) => Self::Config(msg),
             PostgresError::Io(e) => Self::Io(e),
             PostgresError::Conflict(msg) => Self::Conflict(msg),

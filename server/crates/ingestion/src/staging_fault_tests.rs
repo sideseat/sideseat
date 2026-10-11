@@ -162,7 +162,10 @@ async fn stage(fixture: &Fixture) -> Result<StagedPayloadRef, super::StagingErro
             b"an export",
             chrono::Utc::now(),
             Vec::new(),
-            "partition".to_string(),
+            crate::staging::StagedWrite {
+                partition_key: "partition".to_string(),
+                raw_id: None,
+            },
         )
         .await
 }

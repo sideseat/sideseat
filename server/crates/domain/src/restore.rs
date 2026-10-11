@@ -548,6 +548,7 @@ mod tests {
                 redrive_attempts: 0,
                 unconfirmed: false,
                 records: Vec::new(),
+                raw_id: None,
             })
             .await
             .expect("staged payload without project");

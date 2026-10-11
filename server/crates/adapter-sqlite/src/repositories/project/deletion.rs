@@ -16,7 +16,9 @@ pub async fn record_deleted_traces(
 }
 
 /// The tombstone rows, inside a transaction the caller owns. One statement shared by the standalone form above
-/// and the journalled one, so the two cannot drift about what a tombstone is.
+/// and the journalled one, so the two cannot drift about what a tombstone is. The same transaction takes the
+/// traces' raw-record ownership away: a deleted trace never owns a record again, because the confirm fence
+/// excludes tombstoned traces from every later grant (`RawRecordOwnership.tla`, `Delete`).
 async fn insert_trace_tombstones(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     project_id: &str,
@@ -33,6 +35,11 @@ async fn insert_trace_tombstones(
         .bind(now)
         .execute(&mut **tx)
         .await?;
+        sqlx::query("DELETE FROM raw_owners WHERE project_id = ? AND trace_id = ?")
+            .bind(project_id)
+            .bind(trace_id)
+            .execute(&mut **tx)
+            .await?;
     }
     Ok(())
 }

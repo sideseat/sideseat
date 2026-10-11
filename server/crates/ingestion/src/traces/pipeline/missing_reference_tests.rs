@@ -44,7 +44,10 @@ async fn staged(pipeline: &TracePipeline, body: &[u8]) -> StagedPayloadRef {
             body,
             chrono::Utc::now(),
             Vec::new(),
-            "p".to_string(),
+            crate::staging::StagedWrite {
+                partition_key: "p".to_string(),
+                raw_id: None,
+            },
         )
         .await
         .expect("stage")

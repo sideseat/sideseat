@@ -13,6 +13,7 @@ pub mod journal;
 pub mod membership;
 pub mod organization;
 pub mod project;
+pub mod raw_arbiter;
 pub mod restore;
 pub mod staging;
 pub mod user;

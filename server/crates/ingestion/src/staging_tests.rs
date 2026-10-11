@@ -82,7 +82,10 @@ async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
                     content_digest: metric.content_digest.clone(),
                     timestamp: metric.timestamp,
                 }],
-                "series".to_string(),
+                crate::staging::StagedWrite {
+                    partition_key: "series".to_string(),
+                    raw_id: None,
+                },
             )
             .await
             .unwrap();
@@ -117,7 +120,10 @@ async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
                 content_digest: "never-written".to_string(),
                 timestamp: clock.now(),
             }],
-            String::new(),
+            crate::staging::StagedWrite {
+                partition_key: String::new(),
+                raw_id: None,
+            },
         )
         .await
         .unwrap();
@@ -188,7 +194,10 @@ async fn attempts_failed_by_a_failed_store_are_not_counted() {
             b"an-export",
             clock.now(),
             Vec::new(),
-            String::new(),
+            crate::staging::StagedWrite {
+                partition_key: String::new(),
+                raw_id: None,
+            },
         )
         .await
         .unwrap();
