@@ -50,6 +50,18 @@
     "opentelemetry-sdk": "1.39.1"
    }
   },
+  "native@1.35.2": {
+   "package": "google-adk",
+   "version": "1.35.2",
+   "profile": "default",
+   "env": {},
+   "released": "2026-06-17",
+   "installed": {
+    "google-adk": "1.35.2",
+    "litellm": "1.104.0",
+    "opentelemetry-sdk": "1.41.1"
+   }
+  },
   "native@1.39.1": {
    "package": "google-adk",
    "version": "1.39.1",
@@ -82,6 +94,18 @@
    "released": "2026-05-19",
    "installed": {
     "google-adk": "2.0.0",
+    "litellm": "1.104.0",
+    "opentelemetry-sdk": "1.41.1"
+   }
+  },
+  "native@2.1.0": {
+   "package": "google-adk",
+   "version": "2.1.0",
+   "profile": "default",
+   "env": {},
+   "released": "2026-05-23",
+   "installed": {
+    "google-adk": "2.1.0",
     "litellm": "1.104.0",
     "opentelemetry-sdk": "1.41.1"
    }
@@ -130,6 +154,18 @@
    "released": "2026-08-17",
    "installed": {
     "google-adk": "2.7.1",
+    "litellm": "1.104.0",
+    "opentelemetry-sdk": "1.42.1"
+   }
+  },
+  "native@2.8.0": {
+   "package": "google-adk",
+   "version": "2.8.0",
+   "profile": "default",
+   "env": {},
+   "released": "2026-08-26",
+   "installed": {
+    "google-adk": "2.8.0",
     "litellm": "1.104.0",
     "opentelemetry-sdk": "1.42.1"
    }

@@ -6,7 +6,7 @@
    "indexes": 0
   },
   "otel_logs": {
-   "columns": 6553536,
+   "columns": 6815680,
    "indexes": 1310720
   },
   "otel_metrics": {
@@ -22,7 +22,7 @@
    "indexes": 1048576
   },
   "otel_spans": {
-   "columns": 9961280,
+   "columns": 10223424,
    "indexes": 3670016
   },
   "schema_version": {
@@ -35,7 +35,7 @@
   }
  },
  "residual": 525072,
- "analytics_used": 48758784,
+ "analytics_used": 49283072,
  "transactional": {
   "api_keys": 20480,
   "auth_methods": 20480,
@@ -65,14 +65,14 @@
  "media": 4145647,
  "signals": {
   "traces": {
-   "items": 40791,
-   "stored_excluding_media": 30719464,
-   "per_item": 753.09
+   "items": 40971,
+   "stored_excluding_media": 30981608,
+   "per_item": 756.18
   },
   "logs": {
-   "items": 7869,
-   "stored_excluding_media": 17039136,
-   "per_item": 2165.35
+   "items": 8013,
+   "stored_excluding_media": 17301280,
+   "per_item": 2159.15
   },
   "metrics": {
    "items": 1440,
