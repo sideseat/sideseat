@@ -710,3 +710,49 @@ fn two_calls_of_one_shape_at_one_position_survive_in_one_order() {
     assert_eq!(runs.len(), 1, "{runs:?}");
     assert_eq!(runs.first().map(Vec::len), Some(2), "{runs:?}");
 }
+
+/// A generation span's input never contains its own output: the request was sent before the model answered, so
+/// re-sent reasoning in a span's input is not the answer the span produced, however equal the two read - both
+/// empty, their signatures dropped by the carrier. In a span's own view, where the trace-wide execution ranks
+/// collapse, the fold took the re-sent copy and the view lost what the call was sent.
+#[test]
+fn a_generation_s_input_is_not_its_own_output() {
+    let block = |entry_index: i32, input: bool| {
+        let mut block = make_test_block("t1", "g1", ChatRole::Assistant, "", utc(100));
+        block.content = ContentBlock::Thinking {
+            text: String::new(),
+            signature: None,
+        };
+        block.entry_index = entry_index;
+        block.observation_type = Some("generation".to_string());
+        if input {
+            block.source_attribute = Some("gen_ai.input.messages".to_string());
+            block.event_name = None;
+            assert!(block.is_input_source() && !block.is_output_source());
+        } else {
+            block.event_name = Some("gen_ai.choice".to_string());
+            block.category = MessageCategory::GenAIChoice;
+            block.timestamp = utc(200);
+            assert!(block.is_output_source());
+        }
+        block
+    };
+    let survivors = process_dedup(vec![block(0, true), block(1, false)], HashMap::new());
+    assert_eq!(
+        survivors.len(),
+        2,
+        "the re-sent reasoning and the span's own: {survivors:?}"
+    );
+
+    // An accumulated-state output restates what the span received: its copy of an input turn is the input said
+    // again, and stays one.
+    let mut echoed = make_test_block("t1", "g1", ChatRole::User, "Again?", utc(100));
+    echoed.source_attribute = Some("output.value".to_string());
+    echoed.event_name = None;
+    assert!(echoed.is_output_source());
+    let mut sent = make_test_block("t1", "g1", ChatRole::User, "Again?", utc(100));
+    sent.source_attribute = Some("input.value".to_string());
+    sent.event_name = None;
+    let survivors = process_dedup(vec![sent, echoed], HashMap::new());
+    assert_eq!(survivors.len(), 1, "{survivors:?}");
+}
