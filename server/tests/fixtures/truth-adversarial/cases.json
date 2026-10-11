@@ -68,6 +68,7 @@
     "feed:text.missing:fact-005",
     "session:extra.unexplained:assistant/text/31a2921a7958f22a",
     "session:text.missing:fact-005",
+    "span:extra.unexplained:assistant/text/31a2921a7958f22a@trace-1/chat/span-4",
     "span:text.missing:fact-005",
     "trace:extra.unexplained:assistant/text/31a2921a7958f22a",
     "trace:text.missing:fact-005"
@@ -87,6 +88,7 @@
     "feed:tool_call.missing:fact-003",
     "session:extra.unexplained:assistant/tool_use/6004a25dd57fe6a0",
     "session:tool_call.missing:fact-003",
+    "span:extra.unexplained:assistant/tool_use/6004a25dd57fe6a0@trace-1/chat/span-2",
     "span:tool_call.missing:fact-003",
     "trace:extra.unexplained:assistant/tool_use/6004a25dd57fe6a0",
     "trace:tool_call.missing:fact-003"
@@ -106,6 +108,7 @@
     "feed:tool_result.missing:fact-004",
     "session:extra.unexplained:tool/tool_result/5245a39f6f120043",
     "session:tool_result.missing:fact-004",
+    "span:extra.unexplained:tool/tool_result/5245a39f6f120043@trace-1/chat/span-2",
     "trace:extra.unexplained:tool/tool_result/5245a39f6f120043",
     "trace:tool_result.missing:fact-004"
    ]

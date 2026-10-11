@@ -37,7 +37,7 @@ pub(super) struct Accounted {
 }
 
 /// One expected input block: where it sits in the request, its role, and the fact it must show.
-struct Expected {
+pub(super) struct Expected {
     label: String,
     role: &'static str,
     fact: Fact,
@@ -183,7 +183,7 @@ fn rewritten(id: &Value, rewrites: &BTreeMap<String, String>) -> Value {
 
 /// The withheld reasoning facts a fixture's telemetry carries no signature for (`signature_not_exported`):
 /// a request part re-sending one is shown unsigned, as the fact is.
-fn unsigned(truth: &Truth) -> BTreeSet<&str> {
+pub(super) fn unsigned(truth: &Truth) -> BTreeSet<&str> {
     truth
         .facts
         .iter()
@@ -192,7 +192,7 @@ fn unsigned(truth: &Truth) -> BTreeSet<&str> {
         .collect()
 }
 
-fn expected(
+pub(super) fn expected(
     call: &str,
     request: &CallRequest,
     rewrites: &BTreeMap<String, String>,
@@ -247,7 +247,7 @@ fn shown_under(expected: &Expected, block: &Block) -> bool {
         .is_some_and(|fact| matches!(shows(&fact, block, None), Shows::Yes | Shows::Assigned(_)))
 }
 
-fn matches(expected: &Expected, block: &Block) -> bool {
+pub(super) fn matches(expected: &Expected, block: &Block) -> bool {
     block.role == expected.role
         && (!matches!(shows(&expected.fact, block, None), Shows::No)
             || renders_as_sent(expected, block)

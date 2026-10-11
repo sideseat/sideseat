@@ -30,6 +30,19 @@ pub(super) struct Scope<'a> {
     /// Facts another scope of this kind owes, which a block here may not show: the conversation's views and a
     /// split-off trace's view each leave the other's facts out, so a copy of one in the other is a leak.
     pub foreign: Vec<&'a Fact>,
+    /// A span scope's own label and every output id of the calls it answers for - unfiltered, where
+    /// `facts` keeps only the asserted ones - so a copy of the span's own output is never excused as
+    /// request context. Empty for every other scope.
+    pub own: Option<ScopeOwn<'a>>,
+}
+
+/// What a span scope is of: the owning call, the generation's label, and the ids of every output its calls
+/// produced.
+pub(super) struct ScopeOwn<'a> {
+    /// The owning call and those sharing the span, in truth order.
+    pub calls: Vec<&'a str>,
+    pub label: &'a str,
+    pub outputs: BTreeSet<&'a str>,
 }
 
 /// What the assignment found for one scope: fact id -> its block's position in `scope.blocks`.
@@ -459,7 +472,11 @@ pub(super) fn in_home(context: &Context<'_>, scope: &Scope<'_>, fact: &Fact, at:
 }
 
 /// The id a result must carry: its call's, as the call appears in this scope.
-fn paired_call_id(context: &Context<'_>, fact: &Fact, assigned: &Assigned) -> Option<String> {
+pub(super) fn paired_call_id(
+    context: &Context<'_>,
+    fact: &Fact,
+    assigned: &Assigned,
+) -> Option<String> {
     if fact.kind != "tool_result" {
         return None;
     }
@@ -544,7 +561,7 @@ fn in_sequence(
 }
 
 /// Kuhn's augmenting paths: for each left vertex, the right vertex it is matched to.
-pub(super) fn maximum_matching(adjacency: &[Vec<usize>]) -> Vec<Option<usize>> {
+fn maximum_matching(adjacency: &[Vec<usize>]) -> Vec<Option<usize>> {
     fn augment(
         left: usize,
         adjacency: &[Vec<usize>],

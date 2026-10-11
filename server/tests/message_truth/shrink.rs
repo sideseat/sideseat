@@ -36,6 +36,44 @@ fn regressions(
         .collect()
 }
 
+/// The four span entries the widening of `extra.unexplained` to span views named when it landed - each the
+/// span twin of a trace entry that was already ledgered and reviewed, so the same defect seen in one more view.
+/// Admitted by exact id, and each only while its trace twin is still ledgered with the same fingerprint:
+/// fixing the defect removes both at once, and nothing else is ever admitted - not a fifth twin, not a span
+/// entry of any later change, which edits this list deliberately or fixes its violation.
+const WIDENED_SPAN_TWINS: [&str; 4] = [
+    "google-genai/sdk/reasoning:span:extra.unexplained:assistant/text/8007cbad374f69b2@trace-1/generate_content gemini-flash-latest/span-2",
+    "smolagents/native/reasoning:span:extra.unexplained:assistant/text/284c02b92b8b0093@trace-1/LiteLLMModel.generate/span-4",
+    "smolagents/sdk/reasoning:span:extra.unexplained:assistant/text/284c02b92b8b0093@trace-1/LiteLLMModel.generate/span-4",
+    "vertex-ai/sdk/reasoning:span:extra.unexplained:assistant/text/8007cbad374f69b2@trace-1/generate_content gemini-flash-latest/span-2",
+];
+
+/// The added span entries `allowed` admits: in the list, and their trace twin - same fixture and assertion,
+/// subject the digest before the `@`, same fingerprint - still ledgered.
+fn span_twins(
+    base: &[ledger::Entry],
+    current: &[ledger::Entry],
+    allowed: &[&str],
+) -> BTreeSet<String> {
+    let in_base: BTreeSet<&str> = base.iter().map(|e| e.id.as_str()).collect();
+    current
+        .iter()
+        .filter(|e| allowed.contains(&e.id.as_str()) && !in_base.contains(e.id.as_str()))
+        .filter(|e| {
+            let digest = e.subject.split('@').next().unwrap_or(&e.subject);
+            let twin = |m: &ledger::Entry| {
+                m.fixture == e.fixture
+                    && m.view == ViolationView::Trace.name()
+                    && m.assertion == e.assertion
+                    && m.subject == digest
+                    && m.fingerprint == e.fingerprint
+            };
+            base.iter().any(twin) && current.iter().any(twin)
+        })
+        .map(|e| e.id.clone())
+        .collect()
+}
+
 /// The facts an entry is about: its subject, or both ends of an order entry (`fact-009 before fact-003`).
 fn entry_facts(entry: &ledger::Entry) -> Vec<&str> {
     entry.subject.split(" before ").collect()
@@ -332,6 +370,7 @@ fn truth_violation_ledger_only_shrinks_against_main() {
     };
     let current_entries = ledger::load().entries;
     let changes_of_form = changes_of_form(&base_entries, &current_entries);
+    let span_twins = span_twins(&base_entries, &current_entries, &WIDENED_SPAN_TWINS);
     let unreached = unreached_requests(&base_entries, &current_entries, |fixture, call| {
         let truth = current
             .values()
@@ -358,7 +397,10 @@ fn truth_violation_ledger_only_shrinks_against_main() {
         |family| registry.contains(&format!("\"{family}\"")),
         |fixture| fixtures_at_base.contains(fixture),
         |entry| {
-            if changes_of_form.contains(&entry.id) || unreached.contains(&entry.id) {
+            if changes_of_form.contains(&entry.id)
+                || unreached.contains(&entry.id)
+                || span_twins.contains(&entry.id)
+            {
                 return false;
             }
             if entry.view == ViolationView::Request.name() {
@@ -421,6 +463,46 @@ fn only_a_new_check_or_a_new_fixture_may_add_ledger_entries() {
         |e| e.fixture != "p/native/old",
     );
     assert_eq!(new_fact, vec![entries[1].id.clone()]);
+}
+
+#[test]
+fn a_span_twin_of_a_ledgered_trace_entry_is_not_a_new_defect() {
+    let entry = |view: &str, subject: &str| ledger::Entry {
+        id: format!("p/native/s:{view}:extra.unexplained:{subject}"),
+        fixture: "p/native/s".to_string(),
+        view: view.to_string(),
+        assertion: "extra.unexplained".to_string(),
+        subject: subject.to_string(),
+        fingerprint: "f1".to_string(),
+        reason: "a test entry".to_string(),
+        issue: "rule-language-program#rv2/extra.unexplained/p".to_string(),
+        introduced: String::new(),
+    };
+    let twinned = entry("trace", "assistant/text/abc");
+    let twin = entry("span", "assistant/text/abc@trace-1/chat m/span-2");
+    let listed = [twin.id.as_str()];
+    let base = [twinned.clone()];
+    // The listed twin is admitted while its trace twin is ledgered; an unlisted span entry never is.
+    let kept = [
+        twinned.clone(),
+        twin.clone(),
+        entry("span", "assistant/text/zzz@trace-1/chat m/span-2"),
+    ];
+    assert_eq!(
+        span_twins(&base, &kept, &listed)
+            .into_iter()
+            .collect::<Vec<_>>(),
+        [twin.id.clone()]
+    );
+    // A twin whose trace entry was fixed in the same change is no longer the same defect.
+    assert!(span_twins(&base, &[twin.clone()], &listed).is_empty());
+    // A listed id with another fingerprint - two copies where the reviewed twin had one - is refused.
+    let mut heavier = twin.clone();
+    heavier.fingerprint = "another".to_string();
+    assert!(span_twins(&base, &[twinned.clone(), heavier], &listed).is_empty());
+    // Once in the base, the admission has been consumed; it never covers anything beyond its list.
+    assert!(span_twins(&[twinned.clone(), twin.clone()], &kept, &listed).is_empty());
+    assert!(span_twins(&base, &kept, &[]).is_empty());
 }
 
 #[test]

@@ -28,12 +28,22 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
         };
         // The calls recorded on this span too (`call_span_not_exported`): their parts are owed here, once and in
         // order, like its own call's.
-        let sharing = truth
+        let sharing: Vec<&crate::message_truth::truth::Call> = truth
             .calls
             .iter()
-            .filter(|c| context.matching.shared.get(&c.id) == Some(&index));
+            .filter(|c| context.matching.shared.get(&c.id) == Some(&index))
+            .collect();
+        let outputs: std::collections::BTreeSet<&str> = std::iter::once(call)
+            .chain(sharing.iter().copied())
+            .flat_map(|c| &c.outputs)
+            .map(String::as_str)
+            .collect();
+        let calls: Vec<&str> = std::iter::once(call)
+            .chain(sharing.iter().copied())
+            .map(|c| c.id.as_str())
+            .collect();
         let facts = std::iter::once(call)
-            .chain(sharing)
+            .chain(sharing.into_iter())
             .flat_map(|c| &c.outputs)
             .filter_map(|id| context.fact(id))
             .filter(|f| context.asserted_in(f, "span"))
@@ -51,6 +61,11 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
             by_trace: false,
             split: None,
             foreign: Vec::new(),
+            own: Some(super::checks::ScopeOwn {
+                calls,
+                label: generation.label.as_str(),
+                outputs,
+            }),
         });
     }
     let every_trace_in_a_session = recon
@@ -108,6 +123,7 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
             by_trace: true,
             split: None,
             foreign,
+            own: None,
         });
         if kind == ViewKind::Session {
             continue;
@@ -132,6 +148,7 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
                 by_trace: false,
                 split: Some(split),
                 foreign,
+                own: None,
             });
         }
     }
