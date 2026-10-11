@@ -3,10 +3,11 @@
 //! view shows a stream's chunks as the one response they are pieces of; the raw telemetry keeps each reading.
 //!
 //! A **stream** is the stream readings one signal carries for one span's row - its span events, or its log
-//! records - in event-time order and then the order they were stored in. A producer that writes a stream on both
-//! signals delivers it twice, so each delivery is read on its own, as any message written on both is. Each
-//! terminal closes a **segment** - the chunks since the previous terminal, and it; chunks after the last terminal
-//! are an **open** segment, a stream that was interrupted. A closed segment is read by what its terminal holds:
+//! records - in event-time order and then the order they were stored in. A reading written on both signals is
+//! one reading (`log_messages`), and readings only the log records hold are a stream of their own, never one
+//! joined across both. Each terminal closes a **segment** - the chunks since the previous terminal, and it;
+//! chunks after the last terminal are an **open** segment, a stream that was interrupted. A closed segment is
+//! read by what its terminal holds:
 //!
 //! - `aggregate`: the terminal is the response, and its chunks restate it;
 //! - `delta`: the response is the chunks and the terminal, joined;

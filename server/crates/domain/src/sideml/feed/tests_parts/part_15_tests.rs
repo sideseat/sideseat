@@ -519,10 +519,10 @@ fn a_span_its_rows_disagree_on_is_no_path_to_evidence() {
     assert_eq!(texts_of(with_middle(false)), ["Par", "is", "Paris"]);
 }
 
-/// A stream written on both signals is two deliveries of it, each read on its own: never one stream of both, which
-/// would join every piece twice. Both deliveries show, as an answer written on both signals does.
+/// A stream written on both signals is one stream: the log records' copy of each reading the span holds is left
+/// out, so its pieces are joined once - never twice, and never into one stream of both copies.
 #[test]
-fn a_stream_on_span_events_and_log_records_is_read_on_each() {
+fn a_stream_on_span_events_and_log_records_is_read_once() {
     let on_both = |readings: Vec<serde_json::Value>| {
         let mut rows = streamed_call(readings.clone(), None);
         rows[1].log_messages_json = serde_json::Value::Array(readings).to_string();
@@ -534,7 +534,7 @@ fn a_stream_on_span_events_and_log_records_is_read_on_each() {
                 streamed(json!("A"), "chunk", 1),
                 streamed(json!("B"), end, 2),
             ])),
-            ["AB", "AB"],
+            ["AB"],
             "{end}"
         );
     }

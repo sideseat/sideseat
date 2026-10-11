@@ -65,14 +65,14 @@
  "media": 4145647,
  "signals": {
   "traces": {
-   "items": 40767,
+   "items": 40776,
    "stored_excluding_media": 30981600,
-   "per_item": 759.97
+   "per_item": 759.8
   },
   "logs": {
-   "items": 6741,
+   "items": 6828,
    "stored_excluding_media": 15466296,
-   "per_item": 2294.36
+   "per_item": 2265.13
   },
   "metrics": {
    "items": 1440,

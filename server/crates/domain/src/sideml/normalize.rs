@@ -7,6 +7,8 @@
 mod categorization;
 #[cfg(test)]
 mod expansion_oracle;
+mod signals;
+pub(crate) use signals::Signals;
 
 use std::collections::HashMap;
 
@@ -106,14 +108,24 @@ pub fn to_sideml_with_context(
     raw_messages: &[RawMessage],
     is_tool_span: bool,
 ) -> Vec<SideMLMessage> {
-    finish_sideml(read_sideml(raw_messages, is_tool_span))
+    let signals = Signals {
+        logged_from: raw_messages.len(),
+        span_start: None,
+    };
+    finish_sideml(read_sideml(raw_messages, signals, is_tool_span))
 }
 
 /// The first stage of [`to_sideml_with_context`]: one message per stored message, bundles expanded, roles and
 /// categories derived, tool blocks not yet split. A streamed reading keeps its whitespace-only text, because it
-/// may be the space between two pieces of one response (`feed::stream` joins them before [`finish_sideml`]).
-pub(crate) fn read_sideml(raw_messages: &[RawMessage], is_tool_span: bool) -> Vec<SideMLMessage> {
-    expand_bundled_tool_results(raw_messages)
+/// may be the space between two pieces of one response (`feed::stream` joins them before [`finish_sideml`]). The
+/// stored messages from `signals.logged_from` on are the span's log records', and a copy of one the span holds
+/// is one message ([`signals::one_copy_each`]).
+pub(crate) fn read_sideml(
+    raw_messages: &[RawMessage],
+    signals: Signals,
+    is_tool_span: bool,
+) -> Vec<SideMLMessage> {
+    signals::one_copy_each(expand_bundled_tool_results(raw_messages), signals)
         .iter()
         .map(|(raw, position)| {
             // Derive role from event name at query time, considering span context

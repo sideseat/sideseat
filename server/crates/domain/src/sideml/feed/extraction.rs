@@ -35,7 +35,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
             parsed
         };
         let span_messages = raw_msgs.as_ref().map_or(0, |messages| messages.len());
-        let raw_msgs = with_log_messages(row, raw_msgs);
+        let raw_msgs = log_messages::with_log_messages(row, raw_msgs);
 
         if let Some(raw_msgs) = raw_msgs {
             // Producer-owned projection rules may identify stored bookkeeping that is not another
@@ -69,7 +69,14 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
             read.push(stream::RowMessages {
                 row,
                 span_messages,
-                messages: read_sideml(&raw_msgs, is_tool_span),
+                messages: read_sideml(
+                    &raw_msgs,
+                    crate::sideml::normalize::Signals {
+                        logged_from: span_messages,
+                        span_start: Some(row.span_timestamp),
+                    },
+                    is_tool_span,
+                ),
             });
         }
     }
@@ -113,43 +120,6 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
     }
 
     messages
-}
-
-/// The span's own raw messages followed by those its log records carry.
-///
-/// Log messages are read-time joined rather than stored on the span, and they are the same raw-message shape
-/// a span event produces, so appending them is all attaching takes: normalisation, role derivation and
-/// deduplication then treat a log event exactly as the span event of that name. A producer emitting the
-/// same turn both ways is collapsed by content deduplication like any other repeated observation.
-///
-/// Tool-span enrichment - copying the span's tool name and call id onto its tool messages - happens when a
-/// span's *events* are extracted and is not repeated here, because the row carries no tool attributes. A
-/// log event on a tool execution span therefore keeps only what the record itself says.
-fn with_log_messages(
-    row: &MessageSpanRow,
-    span_messages: Option<Arc<Vec<RawMessage>>>,
-) -> Option<Arc<Vec<RawMessage>>> {
-    if row.log_messages_json.is_empty() || row.log_messages_json == "[]" {
-        return span_messages;
-    }
-    match serde_json::from_str::<Vec<RawMessage>>(&row.log_messages_json) {
-        Ok(log_messages) if !log_messages.is_empty() => {
-            let mut all = span_messages
-                .map(|messages| messages.as_ref().clone())
-                .unwrap_or_default();
-            all.extend(log_messages);
-            Some(Arc::new(all))
-        }
-        Ok(_) => span_messages,
-        Err(error) => {
-            tracing::debug!(
-                span_id = %row.span_id,
-                %error,
-                "Failed to parse log messages JSON"
-            );
-            span_messages
-        }
-    }
 }
 
 /// Extract tool definitions and names from span rows.

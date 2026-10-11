@@ -1,0 +1,103 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "synthetic"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "synthetic.telemetry"
+     },
+     "spans": [
+      {
+       "traceId": "aa0000000000000000000000000000d1",
+       "spanId": "0d1d1d1d1d1d1d1d",
+       "name": "chat model-x",
+       "kind": 3,
+       "startTimeUnixNano": "1735689600000000000",
+       "endTimeUnixNano": "1735689602000000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "model-x"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "11"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "3"
+         }
+        }
+       ],
+       "events": [
+        {
+         "name": "gen_ai.user.message",
+         "timeUnixNano": "1735689600000001000",
+         "attributes": [
+          {
+           "key": "content",
+           "value": {
+            "stringValue": "Name a primary colour."
+           }
+          }
+         ]
+        },
+        {
+         "name": "gen_ai.choice",
+         "timeUnixNano": "1735689601499999000",
+         "attributes": [
+          {
+           "key": "index",
+           "value": {
+            "intValue": "0"
+           }
+          },
+          {
+           "key": "finish_reason",
+           "value": {
+            "stringValue": "stop"
+           }
+          },
+          {
+           "key": "message",
+           "value": {
+            "stringValue": "{\"role\":\"assistant\",\"content\":\"Red.\"}"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -347,10 +347,121 @@ fn log_carried_messages_reach_every_view_exactly_once() {
         if label.starts_with("_synthetic/") && !log_exports_beside(paths).is_empty() {
             assert!(
                 LOG_FIXTURES.iter().any(|(listed, _)| listed == label)
+                    || DUAL_SIGNAL_FIXTURES
+                        .iter()
+                        .any(|(listed, _)| listed == label)
                     || STREAM_FIXTURES.iter().any(|(listed, ..)| listed == label),
-                "{label} carries log records but is in neither LOG_FIXTURES nor STREAM_FIXTURES"
+                "{label} carries log records but is in none of LOG_FIXTURES, DUAL_SIGNAL_FIXTURES and \
+                 STREAM_FIXTURES"
             );
         }
+    }
+}
+
+/// Fixtures from a dual emitter, which writes every message both as a span event and as a log record - and the
+/// turns each must show.
+const DUAL_SIGNAL_FIXTURES: &[(&str, &[&str])] = &[(
+    "_synthetic/answer_on_span_event_and_log",
+    &["Name a primary colour.", "Red."],
+)];
+
+/// Dual-emitter fixtures and the single-signal fixture each was made from: writing every message on a second
+/// signal changes nothing any view shows.
+const DUAL_SIGNAL_TWINS: &[(&str, &str)] = &[
+    (
+        "_synthetic/answer_on_span_event_and_log",
+        "_synthetic/log_and_span_event_overlap",
+    ),
+    (
+        "_synthetic/streamed_choice_on_both_signals",
+        "_synthetic/streamed_choice_delta",
+    ),
+];
+
+#[test]
+fn a_second_signal_carrying_every_message_changes_no_view() {
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
+    let shown = |label: &str| {
+        let paths = &fixtures[label];
+        let golden = build_golden(label, paths, &rows_for(paths)).golden;
+        let blocks = |view: &GoldenView| -> Vec<(String, String, String)> {
+            view.messages
+                .iter()
+                .map(|m| {
+                    (
+                        m.role.clone(),
+                        m.entry_type.clone(),
+                        m.content_digest.clone(),
+                    )
+                })
+                .collect()
+        };
+        let mut views: BTreeMap<String, Vec<(String, String, String)>> = golden
+            .span_views
+            .iter()
+            .chain(&golden.trace_views)
+            .chain(&golden.session_views)
+            .map(|(name, view)| (name.clone(), blocks(view)))
+            .collect();
+        views.insert("feed".to_string(), blocks(&golden.feed_view));
+        views
+    };
+    for (both, one) in DUAL_SIGNAL_TWINS {
+        assert_eq!(shown(both), shown(one), "{both} against {one}");
+    }
+}
+
+/// A message written on both signals is one message: every view shows each turn once, and each signal alone
+/// carries the whole conversation, so the fixture really holds every turn twice.
+#[test]
+fn a_message_on_both_signals_is_read_once() {
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
+    for (label, turns) in DUAL_SIGNAL_FIXTURES {
+        let paths = fixtures
+            .get(*label)
+            .unwrap_or_else(|| panic!("missing dual-signal fixture {label}"));
+        let rows = rows_for(paths);
+        let once = |rows: &[(String, MessageSpanRow)], signal: &str| {
+            let golden = build_golden(label, paths, rows).golden;
+            let views = golden
+                .span_views
+                .iter()
+                .chain(&golden.trace_views)
+                .chain(&golden.session_views)
+                .map(|(name, view)| (name.clone(), view.clone()))
+                .chain(std::iter::once((
+                    "feed".to_string(),
+                    golden.feed_view.clone(),
+                )));
+            for (name, view) in views {
+                let shown = contents(&view);
+                for turn in *turns {
+                    assert_eq!(
+                        shown.iter().filter(|content| content == turn).count(),
+                        1,
+                        "{label} {name} ({signal}): `{turn}` must appear exactly once, got {shown:?}"
+                    );
+                }
+            }
+        };
+        once(&rows, "both signals");
+        let without = |strip: fn(&mut MessageSpanRow)| -> Vec<(String, MessageSpanRow)> {
+            rows.iter()
+                .cloned()
+                .map(|(name, mut row)| {
+                    strip(&mut row);
+                    (name, row)
+                })
+                .collect()
+        };
+        once(
+            &without(|row| row.log_messages_json = "[]".to_string()),
+            "span events alone",
+        );
+        once(
+            &without(|row| row.messages_json = "[]".to_string()),
+            "log records alone",
+        );
     }
 }
 
@@ -403,6 +514,12 @@ const STREAM_FIXTURES: &[StreamFixture] = &[
         "_synthetic/streamed_choice_call_twice",
         &["Rome will be sunny t"],
         &[MILAN],
+    ),
+    // The delta stream written on both signals - every record also an event on its span: one stream.
+    (
+        "_synthetic/streamed_choice_on_both_signals",
+        &[STREAMED_ANSWER],
+        &[],
     ),
 ];
 

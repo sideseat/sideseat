@@ -145,6 +145,7 @@ mod types;
 
 mod block_hash;
 mod extraction;
+mod log_messages;
 mod prefix;
 mod request_context;
 mod request_frames;
