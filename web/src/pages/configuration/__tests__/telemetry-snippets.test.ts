@@ -138,12 +138,15 @@ describe("telemetry page Python snippets - undefined names", () => {
     expect(undefinedNames("x = TotallyUndefined()")).not.toEqual([]);
   });
 
+  // Each case shells out to `uvx pyflakes`, which takes seconds on a loaded machine, so the default
+  // 5 s test timeout flakes exactly when the pre-push gate runs beside other builds.
   it.each(pythonFrameworks.map((f) => [f.id, f] as const))(
     "%s: SDK snippet has no undefined names",
     (_id, f) => {
       if (!available) return;
       expect(undefinedNames(f.code()), `${f.id}:\n${f.code()}`).toEqual([]);
     },
+    60_000,
   );
 });
 
