@@ -256,6 +256,14 @@
       "doc": "Beside `text` on a thinking block it marks the producer's own shape - reasoning as a list of chunks - rather than SideML's, so the canonical passthrough leaves the block to the declared case that reads it."
     },
     {
+      "id": "members.annotations",
+      "members": [
+        "annotations"
+      ],
+      "marks_producer_shape": true,
+      "doc": "Beside `text` on a text block it marks the producer's own shape - citations as the provider wrote them - rather than SideML's, whose citations live under `citations`. The canonical passthrough rebuilt such a block as plain text and the annotations never reached the declared case that reads them."
+    },
+    {
       "id": "members.toolCallId",
       "members": [
         "toolCallId"

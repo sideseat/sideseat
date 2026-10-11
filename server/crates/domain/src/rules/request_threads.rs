@@ -99,7 +99,7 @@ impl RequestThreadPlan {
     /// two rules' threads never meet.
     pub fn thread_key(&self, span_name: &str, attrs: &HashMap<String, String>) -> Option<String> {
         let subject = SpanSubject {
-            span_name,
+            span_name: Some(span_name),
             attrs,
             scope_name: None,
             scope_version: None,

@@ -100,7 +100,9 @@ pub enum SourceMode {
 /// not refuses conditions that read them when it compiles, so `None` here is an absent value, never a missing
 /// capability.
 pub struct SpanSubject<'a> {
-    pub span_name: &'a str,
+    /// `None` where the row carries no name: a name test over an absent name is unknown, never a match
+    /// against empty text - `not(span_name equals ..)` must not hold for a nameless row.
+    pub span_name: Option<&'a str>,
     pub attrs: &'a HashMap<String, String>,
     pub scope_name: Option<&'a str>,
     pub scope_version: Option<&'a str>,
@@ -122,10 +124,14 @@ impl SpanAtom {
             None => Truth::Unknown,
         };
         match self {
-            Self::SpanNameEquals { name } => Truth::total(subject.span_name == name),
-            Self::SpanNameStartsWith { prefix } => {
-                Truth::total(subject.span_name.starts_with(prefix.as_str()))
-            }
+            Self::SpanNameEquals { name } => match subject.span_name {
+                Some(found) => Truth::total(found == name),
+                None => Truth::Unknown,
+            },
+            Self::SpanNameStartsWith { prefix } => match subject.span_name {
+                Some(found) => Truth::total(found.starts_with(prefix.as_str())),
+                None => Truth::Unknown,
+            },
             Self::SpanAttrKeyStartsWith { prefix } => Truth::total(
                 subject
                     .attrs
@@ -214,7 +220,7 @@ impl SpanAtom {
             } => {
                 let value_of = |source: &TextSource| -> Option<&str> {
                     match source {
-                        TextSource::SpanName => Some(subject.span_name),
+                        TextSource::SpanName => subject.span_name,
                         TextSource::Attr { key } => subject.attrs.get(key).map(String::as_str),
                     }
                 };

@@ -340,7 +340,7 @@ fn an_attribute_answers_starts_with_in_three_values() {
             .into_iter()
             .collect();
         let subject = SpanSubject {
-            span_name: "probe",
+            span_name: Some("probe"),
             attrs: &attrs,
             scope_name: None,
             scope_version: None,

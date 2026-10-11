@@ -176,7 +176,7 @@ fn is_renderable_block(block: &JsonValue) -> bool {
 /// - Objects with unrecognized type → `{"type": "unknown", "raw": ...}` (preserved for debugging)
 #[cfg(any(test, feature = "test-support"))]
 pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
-    normalize_block(block, true)
+    normalize_block_in(&crate::rules::ruleset().content_blocks, block, true)
 }
 
 /// The same chain **without** the message-envelope cases, for a value a tool returned.
@@ -186,16 +186,9 @@ pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
 /// returned `{"value": …}` then had its own member stripped: the same defect that made `MessageEnvelope` a
 /// position of its own, one caller further along. It needs the *whole* rest of the chain, fallbacks included,
 /// which is why this is the same function with one step withheld rather than the provider chain.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn normalize_returned_value_block(block: &JsonValue) -> Option<JsonValue> {
-    normalize_block(block, false)
-}
-
-fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonValue> {
-    normalize_block_in(
-        &crate::rules::ruleset().content_blocks,
-        block,
-        consult_envelopes,
-    )
+    normalize_block_in(&crate::rules::ruleset().content_blocks, block, false)
 }
 
 /// The whole chain over one plan's declared cases: the passthrough, the four positions in order - the envelope
@@ -219,7 +212,7 @@ pub(crate) fn normalize_block_in(
     }
 
     // First check if block is already in SideML format (idempotent operation)
-    try_sideml_passthrough(block)
+    try_sideml_passthrough(plan, block)
         // OpenInference nested message_content wrapper
         // Declared shapes, at the two positions the chain's order makes load-bearing.
         .or_else(|| {
@@ -257,7 +250,7 @@ pub(crate) fn normalize_block_in(
         })
         .or_else(|| cited_text_fallback(block))
         // Finally, handle unknown formats
-        .or_else(|| try_unknown_fallback(block))
+        .or_else(|| try_unknown_fallback(plan, block))
 }
 
 /// Whether a SideML tool block says the provider ran the tool, which a rebuilt block keeps.
@@ -283,13 +276,25 @@ fn cited_text_fallback(block: &JsonValue) -> Option<JsonValue> {
 ///
 /// We check BOTH type name AND structure because some provider formats
 /// (Mistral, Anthropic) share type names with SideML but have different structures.
-fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
+fn try_sideml_passthrough(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+) -> Option<JsonValue> {
     let block_type = block.get("type")?.as_str()?;
 
     // Rebuild text blocks rather than cloning them. A typed SideML text block has exactly its text; producer
     // metadata beside it is not part of the block and otherwise survives when the block is nested inside a
     // tool result, where no typed deserialisation strips unknown members.
     if block_type == "text" {
+        // A member the vocabulary says marks a producer's own shape - citations as the provider wrote them -
+        // makes the block that producer's, not SideML's: the declared case reads it, citations and all, where
+        // this rebuild dropped everything beside the text.
+        if block
+            .as_object()
+            .is_some_and(|object| plan.any_marks_producer_shape(object.keys()))
+        {
+            return None;
+        }
         let text = block.get("text")?.as_str()?;
         return match block.get("citations").filter(|c| !c.is_null()) {
             None => Some(json!({"type": "text", "text": text})),
@@ -321,7 +326,7 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
         }
         result.insert(
             "content".to_string(),
-            canonical::normalize_tool_result_content(block.get("content")),
+            canonical::normalize_tool_result_content(plan, block.get("content")),
         );
         result.insert(
             "is_error".to_string(),
@@ -370,11 +375,9 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
         // one beside `text` is that producer's, and its declared case reads it.
         "thinking" => {
             block.get("text").is_some()
-                && !block.as_object().is_some_and(|object| {
-                    crate::rules::ruleset()
-                        .message_members
-                        .any_marks_producer_shape(object.keys())
-                })
+                && !block
+                    .as_object()
+                    .is_some_and(|object| plan.any_marks_producer_shape(object.keys()))
         }
 
         // Redacted thinking: must have "data" field
@@ -778,7 +781,10 @@ fn try_openinference_message_content(block: &JsonValue) -> Option<JsonValue> {
 /// 2. **Has string `type` field** → unknown (unrecognized or malformed content block)
 /// 3. **Has provider field** → unknown (malformed provider-specific block)
 /// 4. **Plain JSON object** → json (structured output)
-fn try_unknown_fallback(block: &JsonValue) -> Option<JsonValue> {
+fn try_unknown_fallback(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+) -> Option<JsonValue> {
     // Handle non-objects (arrays, primitives) - preserve as unknown
     // This prevents nested arrays from being silently dropped
     let Some(obj) = block.as_object() else {
@@ -795,10 +801,7 @@ fn try_unknown_fallback(block: &JsonValue) -> Option<JsonValue> {
     // A member that means "content block", declared in `rules/vocabulary/message-members.json`, on a block no case
     // recognised: malformed rather than plain data, and worth seeing as such. The policy is the only part left
     // here - which members say so is the producers' business.
-    if crate::rules::ruleset()
-        .message_members
-        .any_means_content_block(obj.keys())
-    {
+    if plan.any_means_content_block(obj.keys()) {
         return Some(json!({"type": "unknown", "raw": block.clone()}));
     }
 

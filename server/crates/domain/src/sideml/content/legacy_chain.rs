@@ -23,7 +23,9 @@ pub(crate) fn legacy_normalize_block(
             Some(json!({"type": "text", "text": s}))
         };
     }
-    try_sideml_passthrough(block)
+    // The oracle runs only at read time, so the global plan is the right source of the member vocabulary.
+    let plan = &crate::rules::ruleset().content_blocks;
+    try_sideml_passthrough(plan, block)
         .or_else(|| {
             crate::rules::ruleset().content_blocks.normalize(
                 block,
@@ -45,7 +47,7 @@ pub(crate) fn legacy_normalize_block(
             )
         })
         .or_else(|| try_media_fallback(block))
-        .or_else(|| try_unknown_fallback(block))
+        .or_else(|| try_unknown_fallback(plan, block))
 }
 
 /// The four retired readers, in the order the chain tried them.

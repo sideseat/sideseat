@@ -403,7 +403,7 @@ fn every_where_answers_as_the_predicate_it_replaced_over_the_corpus() {
                     let new = holds(
                         condition,
                         &SpanSubject {
-                            span_name: if readable.span_name { &span_name } else { "" },
+                            span_name: readable.span_name.then_some(span_name.as_str()),
                             attrs: &span_attrs,
                             scope_name: if readable.scope {
                                 scope_name.as_deref()

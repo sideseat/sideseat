@@ -133,11 +133,12 @@ impl MessageProjectionPlan {
 
     /// Whether the matching producer declaration withdraws this row from the SideML conversation.
     pub fn suppresses_messages(&self, context: &MessageProjectionContext<'_>) -> bool {
-        // A row's span name may be missing; a projection asks only for a name it has, so a missing one is empty
-        // text, which no `starts_with` the compiler accepts holds for.
+        // A row's span name may be missing. A missing name answers no name test - strong Kleene, so a
+        // negated test over it is unknown too, and an unknown condition suppresses nothing; it used to be
+        // read as empty text, which `not(span_name equals ..)` held for.
         let no_attributes = HashMap::new();
         let subject = SpanSubject {
-            span_name: context.span_name.unwrap_or(""),
+            span_name: context.span_name,
             attrs: &no_attributes,
             scope_name: context.scope_name,
             scope_version: context.scope_version,
@@ -395,7 +396,7 @@ mod tests {
             span_conditions::holds(
                 &condition,
                 &SpanSubject {
-                    span_name: "",
+                    span_name: None,
                     attrs: &no_attributes,
                     scope_name: None,
                     scope_version: version,
@@ -686,5 +687,46 @@ mod tests {
                 "{why}: {refused:?}"
             );
         }
+    }
+}
+
+/// A missing span name answers no name test: `not(span_name equals ..)` must not hold for a nameless row -
+/// strong Kleene, unknown through the negation - where empty-text reading made it suppress the row.
+#[cfg(test)]
+mod nameless_tests {
+    use std::collections::HashMap;
+
+    use super::super::span_conditions::{self, Readable, SpanSubject};
+
+    #[test]
+    fn a_nameless_row_answers_no_name_test() {
+        let condition = span_conditions::lower(
+            &serde_json::from_value(serde_json::json!({
+                "not": {"source": "span_name", "equals": "x"}
+            }))
+            .expect("the condition parses"),
+            Readable::PROJECTION,
+        )
+        .expect("the condition lowers");
+        let no_attributes = HashMap::new();
+        let holds = |name: Option<&str>| {
+            span_conditions::holds(
+                &condition,
+                &SpanSubject {
+                    span_name: name,
+                    attrs: &no_attributes,
+                    scope_name: None,
+                    scope_version: None,
+                    resource: None,
+                    marks: 0,
+                },
+            )
+        };
+        assert!(holds(Some("y")), "another name is not x");
+        assert!(!holds(Some("x")), "x is x");
+        assert!(
+            !holds(None),
+            "a nameless row is unknown through the negation, never 'not named x'"
+        );
     }
 }

@@ -365,10 +365,13 @@ fn a_clause_id_names_one_clause_in_every_section() {
                     "text": {"text": "$.probe_marker"}})
             })
             .collect();
-        crate::rules::content_blocks::ContentBlockPlan::compile(&[serde_json::from_value(
-            serde_json::json!({"id": "t", "content_blocks": cases}),
+        crate::rules::content_blocks::ContentBlockPlan::compile(
+            &[
+                serde_json::from_value(serde_json::json!({"id": "t", "content_blocks": cases}))
+                    .expect("the probe parses"),
+            ],
+            &crate::rules::members::MemberPlan::default(),
         )
-        .expect("the probe parses")])
     };
     assert!(blocks(&["t.a", "t.b"]).is_ok());
     assert!(blocks(&["t.a", "t.a"]).is_err(), "one id twice");

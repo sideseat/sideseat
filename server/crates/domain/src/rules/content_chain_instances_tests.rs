@@ -358,7 +358,9 @@ fn content_block_chain_instances() {
             asset(instance),
         )]))
         .unwrap_or_else(|error| panic!("{}: does not parse: {error}", instance.id));
-        let compiled = ContentBlockPlan::compile(assets.files());
+        let members =
+            crate::rules::members::compile(&assets).expect("the member vocabulary compiles");
+        let compiled = ContentBlockPlan::compile(assets.files(), &members);
         if instance.refused {
             assert!(
                 matches!(

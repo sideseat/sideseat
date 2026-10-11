@@ -145,8 +145,22 @@ pub(super) fn emit_rule<'p>(
         .into_iter()
         .collect::<Vec<_>>();
         // A result set is one observation. Its entries are the array, and the envelope says what the array
-        // is - so the whole family is tagged once rather than one carrier per document.
+        // is - so the whole family is tagged once rather than one carrier per document. The same ceiling as
+        // every other reading of one carrier holds here too: an aggregate is one emission, but its entries
+        // are built per index, and bypassing the cap made this the one path a family's size went unreported.
         if rule.aggregate_into_array {
+            let mut entries = entries;
+            if entries.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+                tracing::warn!(
+                    target: "sideseat::rules",
+                    rule = %rule.rule_id,
+                    family,
+                    found = entries.len(),
+                    limit = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
+                    "an aggregated family yielded more entries than this server reports from one carrier;                      the rest are dropped"
+                );
+                entries.truncate(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER);
+            }
             if entries.is_empty() {
                 return out;
             }
@@ -254,12 +268,25 @@ pub(super) fn emit_rule<'p>(
             }
             // An array-valued carrier read element by element, in declared passes. Capped like the ordinary
             // readings: these emissions return before the ceiling below, so without the `take` an element
-            // array past it was unbounded.
+            // array past it was unbounded. Building the passes first is work proportional to the payload,
+            // which is the budget every reading has; what the ceiling bounds - with a report, since a silent
+            // cut is indistinguishable from a parser defect - is what one carrier may emit.
             if let Some(elements) = &rule.elements {
                 let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
                     return out;
                 };
-                for (carrier, value, clause) in element_passes(&parsed, elements)
+                let passes = element_passes(&parsed, elements);
+                if passes.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+                    tracing::warn!(
+                        target: "sideseat::rules",
+                        rule = %rule.rule_id,
+                        attribute,
+                        found = passes.len(),
+                        limit = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
+                        "an element array yielded more passes than this server reports from one carrier;                          the rest are dropped"
+                    );
+                }
+                for (carrier, value, clause) in passes
                     .into_iter()
                     .take(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
                 {
@@ -315,11 +342,14 @@ pub(super) fn emit_rule<'p>(
     // A state object its nodes write into: the readings are applied at every node of a bounded walk, so a
     // conversation nested a level or two down is found without trawling the payload for anything
     // message-shaped.
-    // The aggregate path passes **no** construction: its entries become one array and the rule's envelope
-    // wraps that array, once. Compilation refuses a per-reading envelope beside an aggregate, so nothing can be
-    // lost by not building here.
-    let build = (!rule.aggregate_into_array).then_some(Construction {
-        rule_wrap: rule.wrap.as_ref(),
+    // The aggregate path passes **no rule envelope**: its entries become one array and the rule's envelope
+    // wraps that array, once; compilation refuses a per-reading envelope beside an aggregate. The carrier
+    // context still travels, because a lift from the carrier reads the span's attributes through it and an
+    // aggregate's entries may lift exactly as per-entry readings do.
+    let build = Some(Construction {
+        rule_wrap: (!rule.aggregate_into_array)
+            .then_some(rule.wrap.as_ref())
+            .flatten(),
         ctx,
         root: &parsed,
     });
@@ -330,6 +360,19 @@ pub(super) fn emit_rule<'p>(
     // A tool list is a set, not a sequence of messages: the whole list is one observation, and emitting one
     // per tool would make each look like a separate declaration.
     if rule.aggregate_into_array {
+        let mut readings = readings;
+        // The same per-carrier ceiling as everywhere else: the readings loop above returns one over the
+        // ceiling so the excess is seen, and only the indexed-family aggregate used to enforce it.
+        if readings.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+            tracing::warn!(
+                target: "sideseat::rules",
+                rule = %rule.rule_id,
+                found = readings.len(),
+                limit = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
+                "an aggregated carrier yielded more readings than this server reports from one; the rest                  are dropped"
+            );
+            readings.truncate(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER);
+        }
         if readings.is_empty() {
             return out;
         }

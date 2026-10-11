@@ -55,6 +55,6 @@ impl ContentBlockPlan {
             .envelopes
             .iter()
             .find(|rule| predicates_hold(block, &rule.require))?;
-        Self::expansion(block, rule)
+        self.expansion(block, rule)
     }
 }

@@ -122,7 +122,7 @@ fn matching_rule<'a>(
     attrs: &HashMap<String, String>,
 ) -> Option<&'a CompiledRule> {
     let subject = span_conditions::SpanSubject {
-        span_name,
+        span_name: Some(span_name),
         attrs,
         scope_name: None,
         resource: None,

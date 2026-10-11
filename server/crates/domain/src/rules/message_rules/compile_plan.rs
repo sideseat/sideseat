@@ -124,12 +124,16 @@ pub fn compile(
         });
     }
 
-    // The event names whose role a declaration states (`event_roles`): the one place a wrap may leave its own
-    // role out, since the name decides it at read time.
+    // The event names whose role a declaration *states* (`event_roles`): the one place a wrap may leave its
+    // own role out, since the name decides it at read time. A direction-only declaration says which side the
+    // messages are on and nothing about the role, so it exempts no envelope; nor does one that names a role
+    // only on tool spans, since the rule's messages may land on an ordinary span.
     let named_roles: std::collections::BTreeSet<&str> = assets
         .files()
         .iter()
-        .flat_map(|file| file.event_roles.iter().map(|role| role.name.as_str()))
+        .flat_map(|file| file.event_roles.iter())
+        .filter(|role| role.role.is_some())
+        .map(|role| role.name.as_str())
         .collect();
 
     // Predicates, checked once over every place a compiled rule holds one - after fragments and extra
@@ -185,15 +189,18 @@ pub fn compile(
                 // decides the role at read time, which is where every role is derived. Anywhere else a
                 // roleless envelope left the message to be inferred from unrelated payload members.
                 with_branches(rule).into_iter().find_map(|rule| {
-                    let name_decides = rule
-                        .tag_as
-                        .as_deref()
-                        .is_some_and(|tag| named_roles.contains(tag))
-                        || rule
-                            .source
-                            .event_names()
-                            .iter()
-                            .any(|name| named_roles.contains(name.as_str()));
+                    // The names the emissions actually land under: an overriding tag replaces the event's
+                    // name, so it alone must carry the declared role - and a rule reading several events is
+                    // exempt only when *every* one of them does, since each event's messages land under its
+                    // own name.
+                    let name_decides = match rule.tag_as.as_deref() {
+                        Some(tag) => named_roles.contains(tag),
+                        None => {
+                            let names = rule.source.event_names();
+                            !names.is_empty()
+                                && names.iter().all(|name| named_roles.contains(name.as_str()))
+                        }
+                    };
                     (!name_decides
                         && rule.branch_set.is_none()
                         && wraps(rule)
@@ -550,6 +557,17 @@ pub(super) fn wrap_role_defect(
     if wrap.content_default.is_some() && wrap.content_from_any_of.is_empty() {
         return Some(
             "states a `content_default` with no `content_from` to fall back from, so it is never read",
+        );
+    }
+    // `only_plain_data` answers "is this already a message" and returns the value untouched when it is, so
+    // anything that would have built a block or a call list is skipped - silently, for exactly the values the
+    // declaration exists to recognise. Contradictory wherever the wrap sits: the rule's own, a reading's, a
+    // fragment case's.
+    if wrap.only_plain_data
+        && (wrap.block.is_some() || wrap.prepend_block.is_some() || wrap.tool_calls_from.is_some())
+    {
+        return Some(
+            "states `only_plain_data` beside a block or tool-call constructor, which would be skipped              for exactly the message-shaped values it exists to recognise",
         );
     }
     if wrap.tool_calls_from.is_some()

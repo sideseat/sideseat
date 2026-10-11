@@ -120,7 +120,7 @@ impl SpanMarkPlan {
             return 0;
         }
         let subject = SpanSubject {
-            span_name,
+            span_name: Some(span_name),
             attrs,
             scope_name,
             scope_version,

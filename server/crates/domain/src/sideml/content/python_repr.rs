@@ -178,17 +178,20 @@ pub(crate) fn try_parse_python_literal(s: &str) -> Option<JsonValue> {
 /// The caller already knows the surrounding value is a tool response. This helper still requires at least
 /// one constructor to become a recognised content block; an ordinary JSON array remains ordinary JSON
 /// rather than being reinterpreted because it happened to contain strings.
-pub(crate) fn try_normalize_python_constructor_content(value: &JsonValue) -> Option<JsonValue> {
-    fn constructor_block(raw: &str) -> Option<JsonValue> {
+pub(crate) fn try_normalize_python_constructor_content(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    value: &JsonValue,
+) -> Option<JsonValue> {
+    let constructor_block = |raw: &str| -> Option<JsonValue> {
         let parsed = try_parse_python_constructor_repr(raw)?;
         parsed.get("type").and_then(JsonValue::as_str)?;
-        let normalized = super::normalize_returned_value_block(&parsed)?;
+        let normalized = super::normalize_block_in(plan, &parsed, false)?;
         (!matches!(
             normalized.get("type").and_then(JsonValue::as_str),
             Some("json" | "unknown") | None
         ))
         .then_some(normalized)
-    }
+    };
 
     match value {
         JsonValue::String(raw) => constructor_block(raw).map(|block| json!([block])),
@@ -199,7 +202,7 @@ pub(crate) fn try_normalize_python_constructor_content(value: &JsonValue) -> Opt
                 if let Some(block) = item.as_str().and_then(constructor_block) {
                     found_constructor = true;
                     normalized.push(block);
-                } else if let Some(block) = super::normalize_returned_value_block(item) {
+                } else if let Some(block) = super::normalize_block_in(plan, item, false) {
                     normalized.push(block);
                 }
             }

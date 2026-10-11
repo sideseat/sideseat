@@ -124,7 +124,7 @@ pub(super) fn all_readings(
 /// means the first can say `[0]`; the strict roles come after there is evidence about which sites need them.
 pub(super) fn singular<'v>(
     value: &'v JsonValue,
-    path: &serde_json_path::JsonPath,
+    path: &crate::rules::schema::JsonPath,
     role: &str,
 ) -> Option<&'v JsonValue> {
     let matched = query(value, path);
@@ -141,7 +141,7 @@ pub(super) fn singular<'v>(
 
 pub(in crate::rules) fn query<'v>(
     value: &'v JsonValue,
-    path: &serde_json_path::JsonPath,
+    path: &crate::rules::schema::JsonPath,
 ) -> Vec<&'v JsonValue> {
     path.query(value).into_iter().collect()
 }
@@ -596,13 +596,19 @@ pub(super) fn indexed_entries(
             object.insert(member.to_string(), member_value(member, value, numeric));
         }
         // Where the message is nested, the entry's *other* members come too: they belong to the same
-        // observation, and the sub-level's own keys are already in, so they are skipped here.
+        // observation, and the sub-level's own keys are already in, so they are skipped here. A name both
+        // levels spell keeps the subject's own value - the nested member is the message's own statement,
+        // and letting the entry's metadata overwrite it made `msgs.0.role` silently replace
+        // `msgs.0.message.role`.
         if entry_member.is_some() {
             let entry_dot = format!("{entry_prefix}.");
             for (member, value) in members
                 .iter()
                 .filter(|(member, _)| !member.is_empty() && !member.starts_with(within.as_str()))
             {
+                if object.contains_key(*member) {
+                    continue;
+                }
                 consumed.push(format!("{entry_dot}{member}"));
                 object.insert(member.to_string(), member_value(member, value, numeric));
             }
@@ -654,8 +660,9 @@ pub(super) fn indexed_entries(
                     let rest = member.strip_prefix(prefix)?;
                     let (position, tail) = rest.split_once('.').unwrap_or((rest, ""));
                     // A member under the prefix whose first segment is not an index is not a block of this
-                    // list; it keeps the name it had.
-                    let Ok(at) = position.parse::<usize>() else {
+                    // list; it keeps the name it had. Canonical, like the family's own indices: `01` renamed
+                    // to the same destination as `1` and one of them silently overwrote the other.
+                    let Some(at) = canonical_index(position) else {
                         return Some((member, value));
                     };
                     // Checked, not assumed: a crafted index near usize::MAX plus the prepended count would
@@ -820,7 +827,7 @@ pub(super) fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) 
         super::span_conditions::holds(
             gate,
             &super::span_conditions::SpanSubject {
-                span_name: ctx.span_name,
+                span_name: Some(ctx.span_name),
                 attrs: ctx.gate_attrs,
                 scope_name: ctx.scope_name,
                 resource: None,
@@ -841,7 +848,7 @@ pub(super) fn event_gate_allows(
         super::span_conditions::holds(
             gate,
             &super::span_conditions::SpanSubject {
-                span_name: "",
+                span_name: None,
                 attrs: event_attrs,
                 scope_name: None,
                 resource: None,

@@ -808,6 +808,13 @@ fn every_carrier_refusal_fires() {
             |e| matches!(e, CompileError::EmptyLiteral { .. }),
         ),
         (
+            "an empty attribute family, which would claim every dotted key of a span",
+            serde_json::json!([{
+                "id": "a", "doc": "d", "match": {"attribute_family": ""}, "facts": {"preset": "emission"},
+            }]),
+            |e| matches!(e, CompileError::EmptyLiteral { .. }),
+        ),
+        (
             "two clauses sharing an id",
             serde_json::json!([
                 clause("a", serde_json::json!({}), serde_json::json!({"preset": "emission"})),

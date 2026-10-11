@@ -69,20 +69,29 @@ pub(super) fn try_openai_format(block: &JsonValue) -> Option<JsonValue> {
                 match serde_json::from_str::<JsonValue>(s) {
                     // Object or array → render as json block
                     Ok(v @ (JsonValue::Object(_) | JsonValue::Array(_))) => {
-                        try_normalize_python_constructor_content(&v)
-                            .unwrap_or_else(|| json!([{"type": "json", "data": v}]))
+                        try_normalize_python_constructor_content(
+                            &crate::rules::ruleset().content_blocks,
+                            &v,
+                        )
+                        .unwrap_or_else(|| json!([{"type": "json", "data": v}]))
                     }
                     // JSON-encoded string (e.g. json.dumps("text result")) → unwrap to text
                     Ok(JsonValue::String(text)) => {
                         let value = JsonValue::String(text.clone());
-                        try_normalize_python_constructor_content(&value)
-                            .unwrap_or_else(|| json!([{"type": "text", "text": text}]))
+                        try_normalize_python_constructor_content(
+                            &crate::rules::ruleset().content_blocks,
+                            &value,
+                        )
+                        .unwrap_or_else(|| json!([{"type": "text", "text": text}]))
                     }
                     // Non-parseable or scalar → plain text
                     _ => {
                         let value = JsonValue::String(s.to_string());
-                        try_normalize_python_constructor_content(&value)
-                            .unwrap_or_else(|| json!([{"type": "text", "text": s}]))
+                        try_normalize_python_constructor_content(
+                            &crate::rules::ruleset().content_blocks,
+                            &value,
+                        )
+                        .unwrap_or_else(|| json!([{"type": "text", "text": s}]))
                     }
                 }
             } else if let Some(v) = response {

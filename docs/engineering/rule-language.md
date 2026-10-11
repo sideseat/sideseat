@@ -65,11 +65,13 @@ A field that can only name an attribute takes the bare key, because the field al
 Wherever a value may come from several places, a field takes one source, or `{"first_of": [...]}` with two or
 more. A list reads in one of two modes. **Present** (`present`), the default, commits to the first candidate that
 is there, whatever it holds: two spellings in one payload are one producer's statement, so a badly written primary
-does not hand over to an alias. **Usable** (`usable`, written `"mode": "usable"`) steps over a candidate it cannot
-read at all: one whose path selects nothing, whose pipe step cannot apply, or (for a call's input) an empty
-object. It does not check the type the field needs, so a present value of the wrong kind still ends the list and
-the case declines. A field that reads one way states that mode and refuses the other, so `{"first_of": [...]}`
-alone always means first present.
+does not hand over to an alias. **Usable** (`usable`, written `"mode": "usable"`) steps over a candidate the
+field cannot read: one whose path selects nothing, whose pipe step cannot apply, or that fails the field's own
+usability test - a text field steps over a non-string, a citation offset over anything but an unsigned integer,
+a call's input over an empty object. What "usable" means is the field's: each typed reader states its own
+predicate, so a wrong-typed primary alias hands over to the fallback spelling instead of ending the list. A
+field that reads one way states that mode and refuses the other, so `{"first_of": [...]}` alone always means
+first present.
 
 A message rule that reads every one of several keys as its own observation says `every`; that form exists for
 `tool_repr` readings only.

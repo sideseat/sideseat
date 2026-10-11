@@ -37,7 +37,7 @@ fn range(scheme: &str, at_least: Option<&str>, below: Option<&str>) -> serde_jso
 fn truth(condition: &SpanExpr, version: Option<&str>, span_name: &str) -> super::expr::Truth {
     let attrs = HashMap::new();
     let subject = SpanSubject {
-        span_name,
+        span_name: Some(span_name),
         attrs: &attrs,
         scope_name: Some("scope"),
         scope_version: version,

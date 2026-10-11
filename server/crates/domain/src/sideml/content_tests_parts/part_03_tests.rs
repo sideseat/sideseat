@@ -435,7 +435,12 @@ fn an_id_template_is_refused_unless_it_can_build_distinct_ids() {
         }))
         .expect("the test asset parses")
     };
-    let compile = |file| crate::rules::content_blocks::ContentBlockPlan::compile(&[file]);
+    let compile = |file| {
+        crate::rules::content_blocks::ContentBlockPlan::compile(
+            &[file],
+            &crate::rules::members::MemberPlan::default(),
+        )
+    };
     assert!(compile(rule("c_{name}_{stable_hash(input)}", false)).is_ok());
     for (template, id_after) in [
         ("constant", false),
@@ -638,5 +643,91 @@ fn the_declared_media_cases_match_the_reader_they_replace() {
     assert_eq!(
         try_media_fallback(&data_url).expect("read")["data"],
         "data:image/png;base64,aGVsbG8="
+    );
+}
+
+/// Normalisation reads the member vocabulary from the plan it was given, never from the global ruleset:
+/// validating a plan's own literals runs *inside* the ruleset's compilation, where reaching for the global
+/// re-enters its initialisation and hangs startup. The probe plan here carries an empty vocabulary, so a
+/// block the global vocabulary would hand to a declared case passes through as SideML - proving the plan,
+/// not the global, answered.
+#[test]
+fn normalisation_reads_the_member_vocabulary_from_its_plan() {
+    let plan = crate::rules::content_blocks::ContentBlockPlan::compile(
+        &[],
+        &crate::rules::members::MemberPlan::default(),
+    )
+    .expect("an empty plan compiles");
+    let block = json!({"type": "thinking", "text": "x", "thinking": [{"text": "x"}]});
+    assert!(
+        crate::rules::ruleset()
+            .message_members
+            .any_marks_producer_shape(block.as_object().expect("an object").keys()),
+        "the probe member must mark a producer shape in the real vocabulary"
+    );
+    let read = normalize_block_in(&plan, &block, true).expect("the block reads");
+    assert_eq!(
+        read["type"], "thinking",
+        "the plan's own vocabulary decides the passthrough: {read}"
+    );
+
+    // And the unknown fallback likewise: a member the real vocabulary calls a content block is, under this
+    // plan's empty vocabulary, plain structured data.
+    let bare = json!({"text": "x"});
+    let read = normalize_block_in(&plan, &bare, true).expect("the value reads");
+    assert_eq!(read["type"], "json", "{read}");
+}
+
+/// Through the full normalisation entry point: a `text` block carrying the provider's own citation member is
+/// the producer's shape, so the declared case reads it - citations and all - where the canonical rebuild
+/// dropped everything beside the text.
+#[test]
+fn a_text_block_with_provider_annotations_keeps_its_citations_through_dispatch() {
+    let block = json!({"type": "text", "text": "Open at nine.", "annotations": [
+        {"type": "url_citation", "url": "https://a", "title": "A", "start_index": 0, "end_index": 13}
+    ]});
+    let read = normalize_block_in(&crate::rules::ruleset().content_blocks, &block, true)
+        .expect("the block reads");
+    assert_eq!(read["type"], "text");
+    assert_eq!(
+        read["citations"][0]["source"], "https://a",
+        "the declared case read the annotations: {read}"
+    );
+
+    // Nested inside a canonical tool result too: the canonical passthrough rebuilds the result, and the
+    // producer-shaped text inside it still reaches the declared case rather than surviving as the provider
+    // form.
+    let result = json!({"type": "tool_result", "tool_use_id": "c", "content": [block]});
+    let read = normalize_block_in(&crate::rules::ruleset().content_blocks, &result, true)
+        .expect("the result reads");
+    assert_eq!(
+        read["content"][0]["citations"][0]["source"], "https://a",
+        "the nested annotations became canonical citations: {read}"
+    );
+}
+
+/// The constructor-repr reader follows the plan it was given, never the global ruleset: `result_blocks`
+/// runs it while a plan's own literals are validated, inside the ruleset's compilation, where reaching for
+/// the global re-enters its initialisation. The empty probe plan reads the constructor's block as unknown -
+/// no declared case - so no constructor is recognised; the global vocabulary would have read it as text.
+#[test]
+fn the_constructor_reader_follows_its_plan() {
+    let plan = crate::rules::content_blocks::ContentBlockPlan::compile(
+        &[],
+        &crate::rules::members::MemberPlan::default(),
+    )
+    .expect("an empty plan compiles");
+    let value = json!(["Part(type='output_text', text='x')"]);
+    assert!(
+        crate::sideml::content::try_normalize_python_constructor_content(&plan, &value).is_none(),
+        "the empty plan recognises no constructor block"
+    );
+    assert!(
+        crate::sideml::content::try_normalize_python_constructor_content(
+            &crate::rules::ruleset().content_blocks,
+            &value
+        )
+        .is_some(),
+        "the real vocabulary reads the same constructor"
     );
 }

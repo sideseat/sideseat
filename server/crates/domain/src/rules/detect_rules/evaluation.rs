@@ -6,7 +6,7 @@ impl CompiledDetect {
         span_conditions::holds(
             &self.condition,
             &span_conditions::SpanSubject {
-                span_name: ctx.span_name,
+                span_name: Some(ctx.span_name),
                 attrs: ctx.span_attrs,
                 scope_name: ctx.scope_name,
                 resource: Some(ctx.resource_attrs),

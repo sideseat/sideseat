@@ -27,7 +27,8 @@ pub(super) fn wrapped(
             },
         })
         .or_else(|| wrap.role.clone());
-    let content_paths: Vec<&serde_json_path::JsonPath> = wrap.content_from_any_of.iter().collect();
+    let content_paths: Vec<&crate::rules::schema::JsonPath> =
+        wrap.content_from_any_of.iter().collect();
     let value = if content_paths.is_empty() {
         value
     } else {
@@ -426,7 +427,7 @@ pub(super) fn composed<'p>(
             if !super::span_conditions::holds(
                 gate,
                 &super::span_conditions::SpanSubject {
-                    span_name: ctx.span_name,
+                    span_name: Some(ctx.span_name),
                     attrs: ctx.gate_attrs,
                     scope_name: None,
                     resource: None,

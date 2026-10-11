@@ -25,8 +25,11 @@ pub(super) fn citations(block: &JsonValue, spec: &CitationsSpec) -> Vec<JsonValu
         usable_member(item, sources, false, JsonValue::is_string)
             .and_then(|v| v.as_str().map(str::to_string))
     };
+    // Usable selection, as the reference says of every typed reader: a wrong-typed primary alias - a
+    // string where an offset belongs, a negative number - is stepped over, not allowed to end the list.
     let offset = |item: &JsonValue, sources: &[ValueSource]| {
-        member(item, sources, false).and_then(|v| v.as_u64())
+        usable_member(item, sources, false, |value| value.as_u64().is_some())
+            .and_then(|v| v.as_u64())
     };
     list.iter()
         .map(|item| {
@@ -67,7 +70,11 @@ pub(super) fn citations(block: &JsonValue, spec: &CitationsSpec) -> Vec<JsonValu
 
 /// A provider-run item as its two blocks: the call, and what it produced where the item holds a result yet.
 /// Both carry `provider_executed`, so the pair is read as the response's own output.
-pub(super) fn provider_run(block: &JsonValue, spec: &ProviderRunSpec) -> Option<Vec<JsonValue>> {
+pub(super) fn provider_run(
+    plan: &super::ContentBlockPlan,
+    block: &JsonValue,
+    spec: &ProviderRunSpec,
+) -> Option<Vec<JsonValue>> {
     let name = usable_member(block, &spec.name, false, JsonValue::is_string)?;
     let name = name.as_str()?;
     let input = member(block, &spec.input, true)
@@ -85,7 +92,7 @@ pub(super) fn provider_run(block: &JsonValue, spec: &ProviderRunSpec) -> Option<
         blocks.push(json!({
             "type": "tool_result",
             "tool_use_id": id,
-            "content": result_blocks(Some(result.into_owned())),
+            "content": result_blocks(plan, Some(result.into_owned())),
             "provider_executed": true,
         }));
     }

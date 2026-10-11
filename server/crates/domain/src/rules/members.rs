@@ -233,6 +233,12 @@ impl MemberPlan {
         self.media_bytes.iter().map(String::as_str)
     }
 
+    /// Every member that marks a producer's own shape, for a plan that must answer the question without
+    /// consulting the assembled ruleset.
+    pub fn producer_shape_members(&self) -> impl Iterator<Item = &str> {
+        self.producer_shape.iter().map(String::as_str)
+    }
+
     /// Every member that holds prose, for a test that checks the vocabulary as a set.
     pub fn prose_members(&self) -> impl Iterator<Item = &str> {
         self.prose.iter().map(String::as_str)

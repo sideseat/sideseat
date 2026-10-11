@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-pub use serde_json_path::JsonPath;
 
 mod conditions;
 mod content;
@@ -16,6 +15,7 @@ mod detection;
 mod message_emit;
 mod message_read;
 mod observed;
+mod path;
 mod request_threads;
 mod span_fields;
 mod span_marks;
@@ -27,6 +27,7 @@ pub use detection::*;
 pub use message_emit::*;
 pub use message_read::*;
 pub use observed::*;
+pub use path::{JsonPath, JsonPathDefect};
 pub use request_threads::*;
 pub use span_fields::*;
 pub use span_marks::*;

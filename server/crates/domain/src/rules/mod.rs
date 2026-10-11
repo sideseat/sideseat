@@ -147,7 +147,7 @@ impl SpanFactPlan {
     ) -> Option<expr::Verdict<schema::SpanFact>> {
         // A span fact reads attributes only: the name is not part of the question.
         let subject = span_conditions::SpanSubject {
-            span_name: "",
+            span_name: None,
             attrs,
             scope_name: None,
             resource: None,
@@ -277,10 +277,15 @@ impl Ruleset {
                 message_projection::MessageProjectionPlan::compile(files, marks),
             )
         });
-        let content_blocks = found.take(
-            S::ContentBlocks,
-            content_blocks::ContentBlockPlan::compile(files),
-        );
+        // Before the content blocks, whose plan carries the member vocabulary: validating a plan's own
+        // literals normalises them, and that must never reach back into the ruleset being assembled.
+        let message_members = found.take(S::MessageMembers, members::compile(assets));
+        let content_blocks = message_members.as_ref().and_then(|members| {
+            found.take(
+                S::ContentBlocks,
+                content_blocks::ContentBlockPlan::compile(files, members),
+            )
+        });
         let role_authority = found.take(S::RoleAuthority, compile_role_authority(files));
         let tagged_source_names = tag_names(files);
         let event_roles = found.take(
@@ -291,7 +296,6 @@ impl Ruleset {
         let span_fields = found.take(S::SpanFields, span_fields::compile(assets));
         let tool_shapes = found.take(S::ToolShapes, tool_shapes::ToolShapePlan::compile(files));
         let observation_types = found.take(S::Classification, classify::compile(assets));
-        let message_members = found.take(S::MessageMembers, members::compile(assets));
         let provider_aliases = found.take(S::ProviderAliases, compile_provider_aliases(files));
         let finish_reasons = found.take(
             S::FinishReasons,

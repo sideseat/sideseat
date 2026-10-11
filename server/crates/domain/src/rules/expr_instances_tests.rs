@@ -365,7 +365,7 @@ fn three_valued_predicate_instances() {
                 .unwrap_or_else(|e| panic!("{}: the condition lowers: {e}", case.id));
         let none = HashMap::new();
         let subject = super::span_conditions::SpanSubject {
-            span_name: "probe",
+            span_name: Some("probe"),
             attrs: &case.attrs,
             scope_name: None,
             resource: Some(&none),

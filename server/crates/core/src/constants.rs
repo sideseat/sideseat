@@ -234,6 +234,28 @@ pub const AUTH_BODY_LIMIT: usize = 64 * 1024;
 /// evaluation rather than the bytes.
 pub const RULE_WALK_MAX_NODES: usize = 4_096;
 
+/// How many nodes one node may become through a declared JSONPath's unions - the product of its bracket
+/// segments' arities.
+///
+/// A union offers each current node once per selector, so `$[0,0][0,0]...` doubles the node list per segment:
+/// 2^32 nodes from a four-byte payload at thirty-two segments, allocated inside the evaluator where no ceiling
+/// after the call can reach. The product is capped where the path parses; no shipped asset declares a union at
+/// all, so the cap costs nothing real.
+pub const RULE_PATH_MAX_UNION_FANOUT: usize = 64;
+
+/// How many descendant (`..`) segments one declared JSONPath may hold.
+///
+/// Each descendant segment visits every node below each current one, so a chain of them is combinatorial in
+/// the payload's depth. Two cover every shipped shape; no shipped asset declares any.
+pub const RULE_PATH_MAX_DESCENDANTS: usize = 2;
+
+/// How many `null` gap cells one payload's dotted keys may create in total while unflattening.
+///
+/// A dotted key names its position outright, so a single `contents.1000000000.text` otherwise allocates a
+/// billion nulls before any ceiling downstream can look. Real indexed families are dense; past the budget a
+/// key is kept flat on its object, losslessly, and the stop is reported.
+pub const UNFLATTEN_MAX_GAP_CELLS: usize = 65_536;
+
 /// How deeply content-block normalisation may re-enter itself on one block.
 ///
 /// An unwrap and a normalised tool result each normalise what they hold through the same chain, so the
@@ -241,6 +263,16 @@ pub const RULE_WALK_MAX_NODES: usize = 4_096;
 /// `RULE_WALK_MAX_NODES` is: no shipped shape nests past a handful of levels, and the bound is what keeps a
 /// hostile payload from exhausting the stack.
 pub const CONTENT_BLOCK_MAX_DEPTH: usize = 32;
+
+/// How many times one top-level content-block normalisation may re-enter the chain, counting every nested
+/// block it evaluates.
+///
+/// Depth alone does not bound the work: a declared map that answers one matching block with an array of two
+/// matching blocks doubles the breadth per level, and 32 levels of that is 2^32 evaluations from one small
+/// literal or payload. The ceiling is wide enough for any shipped result - tens of thousands of nested blocks
+/// under one block - and small enough that a hostile doubling shape stops after one tree's worth of work,
+/// reported rather than computed.
+pub const CONTENT_BLOCK_MAX_WORK: usize = 65_536;
 
 /// How many bytes of its thread's stored messages one composed request view may read.
 ///

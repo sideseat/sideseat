@@ -750,8 +750,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "exists": {
           "description": "The member must be present. Implied when the predicate names nothing else.",
@@ -1399,8 +1398,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "entry_value_parse": {
           "description": "How the projected value is read. `json` **drops** an entry whose payload does not parse, which is\nwhat a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a\nmalformed schema would be emitted as the string it is, reported as a tool definition.",
@@ -2222,8 +2220,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "as": {
           "description": "The member it becomes.",
@@ -2245,8 +2242,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "value": {
           "description": "The literal to attach instead of the source's value, for a flag - or on its own, for a member that\nis part of the shape rather than something read. Beside a closed `map`, which attaches its own literal,\nit is refused.\n\nAn explicit `null` is a value: a content block declares an unsigned signature that way, and the\nmember has to be present rather than omitted.",
@@ -2556,8 +2552,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "each": {
           "description": "Treat the selected value as a list and read each element.",
@@ -2890,8 +2885,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "group": {
           "description": "Instead of emitting each element, group runs of them and emit one message per run.",
@@ -3593,8 +3587,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "carry": {
           "description": "Members of the payload copied onto the canonical wrapper beside `function` - one producer carries\n`strict` there, and dropping it changes what the tool permits.",
@@ -3608,15 +3601,13 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "description": {
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "parameters": {
           "anyOf": [
@@ -5523,8 +5514,7 @@
           "type": [
             "string",
             "null"
-          ],
-          "default": null
+          ]
         },
         "scalar_only": {
           "description": "Each match must be a scalar string, as a `json` source's `scalar_only` says.",

@@ -72,7 +72,7 @@ fn a_covered_disjunct_beneath_a_negation_is_live() {
     };
     let attrs = probe_attrs(&[("y", "1")]);
     let subject = SpanSubject {
-        span_name: "span",
+        span_name: Some("span"),
         attrs: &attrs,
         scope_name: None,
         scope_version: None,
@@ -468,7 +468,7 @@ fn a_member_of_a_json_attribute_is_tested_typed_and_three_valued() {
             .into_iter()
             .collect();
         let subject = SpanSubject {
-            span_name: "span",
+            span_name: Some("span"),
             attrs: &attrs,
             scope_name: None,
             scope_version: None,

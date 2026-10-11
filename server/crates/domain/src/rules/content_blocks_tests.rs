@@ -17,7 +17,10 @@ fn probe(rules: Vec<serde_json::Value>) -> RuleFile {
 }
 
 fn compiled(rules: Vec<serde_json::Value>) -> Result<ContentBlockPlan, ContentBlockCompileError> {
-    ContentBlockPlan::compile(&[probe(rules)])
+    ContentBlockPlan::compile(
+        &[probe(rules)],
+        &crate::rules::members::MemberPlan::default(),
+    )
 }
 
 /// The refusal a lone rule meets, which must name `expected`.
@@ -881,5 +884,55 @@ fn a_named_kind_answers_only_where_no_media_type_is_stated() {
     refused(
         named_media_rule(serde_json::json!({"kind_of": {"path": "$.modality", "map": {}}})),
         "media.kind_of.map",
+    );
+}
+
+/// A map that answers one matching block with *two* of them is bounded by work, not only by depth: each
+/// branch stays within the depth bound while the tree doubles per level, which without a work ceiling is
+/// 2^32 evaluations from one small literal - this validation would simply never return. With the ceiling the
+/// expansion stops after one ceiling's worth of evaluation and the case is refused like any other loop.
+#[test]
+fn a_tool_result_content_that_doubles_its_own_block_is_refused_within_the_work_ceiling() {
+    refused(
+        serde_json::json!({
+            "id": "probe.doubling",
+            "at": "after_provider_formats",
+            "priority": 1,
+            "where": {"path": "$.type", "one_of": ["loop"]},
+            "tool_result": {
+                "content": {
+                    "path": "$.payload",
+                    "pipe": [{"map": {"again": [
+                        {"type": "loop", "payload": "again"},
+                        {"type": "loop", "payload": "again"}
+                    ]}, "closed": true}]
+                },
+                "content_as": "normalized"
+            }
+        }),
+        "never finishes",
+    );
+}
+
+/// Offsets use usable selection like every typed reader: a wrong-typed or negative primary alias is stepped
+/// over rather than ending the list, so the fallback spelling's usable offset is kept.
+#[test]
+fn a_citation_offset_steps_over_an_unusable_primary_alias() {
+    let plan = plan_from(cited_rule(serde_json::json!([
+        {"where": {"path": "$.type", "one_of": ["page"]}, "kind": "url", "source": "$.url",
+         "text_start": {"first_of": ["$.from", "$.start"], "mode": "usable"},
+         "text_end": {"first_of": ["$.to", "$.end"], "mode": "usable"}}
+    ])));
+    let block = serde_json::json!({"type": "answer", "text": "Open at nine.", "notes": [
+        {"type": "page", "url": "https://a", "from": "bad", "start": 2, "to": -5, "end": 9}
+    ]});
+    let read = plan
+        .normalize(&block, ChainPosition::ProviderFormats)
+        .expect("the text reads");
+    assert_eq!(
+        read["citations"],
+        serde_json::json!([
+            {"kind": "url", "source": "https://a", "text_start": 2, "text_end": 9}
+        ])
     );
 }

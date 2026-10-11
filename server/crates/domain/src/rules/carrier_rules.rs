@@ -365,6 +365,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
                         PrimaryKey::Event("")
                             | PrimaryKey::Attribute("")
                             | PrimaryKey::AttributePrefix("")
+                            | PrimaryKey::AttributeFamily("")
                     )
                 })
                 || match_spec

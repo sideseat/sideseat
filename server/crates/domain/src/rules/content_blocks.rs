@@ -131,11 +131,50 @@ pub struct ContentBlockPlan {
     after: Vec<ContentBlockRule>,
     /// Each position's cases by the block `type` they require, in the order of the four lists above.
     by_type: [type_index::TypeIndex; 4],
+    /// The members that mark a producer's own shape, copied from the member vocabulary at compile time.
+    ///
+    /// Normalisation needs the answer while *validating this plan's own literals*, which happens inside the
+    /// ruleset's compilation - consulting the global ruleset there would re-enter its initialisation. So the
+    /// plan carries its dependencies instead of reaching for the global.
+    producer_shape: std::collections::BTreeSet<String>,
+    /// The members that mean "content block", carried for the same reason.
+    content_block_members: std::collections::BTreeSet<String>,
 }
 
 impl ContentBlockPlan {
-    pub fn compile(files: &[RuleFile]) -> Result<Self, ContentBlockCompileError> {
-        let mut plan = Self::default();
+    /// Whether any member of this block marks it as a producer's own shape.
+    pub(crate) fn any_marks_producer_shape<'a>(
+        &self,
+        members: impl Iterator<Item = &'a String>,
+    ) -> bool {
+        members.into_iter().any(|m| self.producer_shape.contains(m))
+    }
+
+    /// Whether any member of this object means the value is a content block.
+    pub(crate) fn any_means_content_block<'a>(
+        &self,
+        members: impl Iterator<Item = &'a String>,
+    ) -> bool {
+        members
+            .into_iter()
+            .any(|m| self.content_block_members.contains(m))
+    }
+
+    pub fn compile(
+        files: &[RuleFile],
+        members: &super::members::MemberPlan,
+    ) -> Result<Self, ContentBlockCompileError> {
+        let mut plan = Self {
+            producer_shape: members
+                .producer_shape_members()
+                .map(str::to_string)
+                .collect(),
+            content_block_members: members
+                .content_block_members()
+                .map(str::to_string)
+                .collect(),
+            ..Self::default()
+        };
         let mut all: Vec<&ContentBlockRule> =
             files.iter().flat_map(|f| &f.content_blocks).collect();
         all.sort_by_key(|rule| rule.priority);
@@ -575,12 +614,16 @@ impl ContentBlockPlan {
             .iter()
             .map(|&case| &self.envelopes[case])
             .find(|rule| predicates_hold(block, &rule.require))?;
-        Self::expansion(block, rule)
+        self.expansion(block, rule)
     }
 
-    fn expansion<'b>(block: &'b JsonValue, rule: &ContentBlockRule) -> Option<Expansion<'b>> {
+    fn expansion<'b>(
+        &self,
+        block: &'b JsonValue,
+        rule: &ContentBlockRule,
+    ) -> Option<Expansion<'b>> {
         if let Some(spec) = &rule.provider_run {
-            return forms::provider_run(block, spec).map(Expansion::Built);
+            return forms::provider_run(self, block, spec).map(Expansion::Built);
         }
         let spec = rule.splice.as_ref()?;
         spec.from
@@ -783,7 +826,7 @@ fn built(
                     other => other,
                 }
             }
-            ResultContent::Blocks => result_blocks(selected),
+            ResultContent::Blocks => result_blocks(plan, selected),
         };
         let is_error = usable_member(block, &spec.is_error, false, JsonValue::is_boolean)
             .and_then(|flag| flag.as_bool())
@@ -877,18 +920,31 @@ struct NormalisationDepth;
 
 thread_local! {
     static NORMALISATION_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many levels this thread's current top-level normalisation has entered in total - its *work*, where
+    /// the depth is only the stack. A map answering one block with two bounds each branch by depth yet doubles
+    /// the branches per level; the work count is what bounds the whole tree.
+    static NORMALISATION_WORK: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// Whether a normalisation on this thread has been stopped at the bound since [`NormalisationDepth::observe`]
     /// last asked.
     static NORMALISATION_BOUNDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 impl NormalisationDepth {
-    /// One more level, or `None` at the bound.
+    /// One more level, or `None` at a bound - too deep, or too much work under one top-level call.
     fn enter() -> Option<Self> {
         NORMALISATION_DEPTH.with(|depth| {
+            if depth.get() == 0 {
+                NORMALISATION_WORK.with(|work| work.set(0));
+            }
+            let work = NORMALISATION_WORK.with(|work| {
+                work.set(work.get() + 1);
+                work.get()
+            });
             // A guard exists only for a level that was counted: one built and dropped at the bound would
             // uncount a level it never entered, and the bound would never be reached.
-            if depth.get() < sideseat_core::constants::CONTENT_BLOCK_MAX_DEPTH {
+            if depth.get() < sideseat_core::constants::CONTENT_BLOCK_MAX_DEPTH
+                && work <= sideseat_core::constants::CONTENT_BLOCK_MAX_WORK
+            {
                 depth.set(depth.get() + 1);
                 Some(Self)
             } else {
@@ -919,11 +975,16 @@ impl Drop for NormalisationDepth {
 }
 
 /// What a tool returned, as a list of content blocks. See [`ResultContent::Blocks`].
-fn result_blocks(selected: Option<JsonValue>) -> JsonValue {
+///
+/// Under the caller's plan, never the global ruleset: this runs while a plan's own literals are validated,
+/// inside the ruleset's compilation.
+fn result_blocks(plan: &ContentBlockPlan, selected: Option<JsonValue>) -> JsonValue {
     let Some(value) = selected else {
         return json!([]);
     };
-    if let Some(blocks) = crate::sideml::content::try_normalize_python_constructor_content(&value) {
+    if let Some(blocks) =
+        crate::sideml::content::try_normalize_python_constructor_content(plan, &value)
+    {
         return blocks;
     }
     match value {

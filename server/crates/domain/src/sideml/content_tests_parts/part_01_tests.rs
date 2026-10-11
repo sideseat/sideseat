@@ -408,7 +408,7 @@ fn test_empty_object_fallback_to_json() {
     // An empty object is a value a producer can send - a structured output of `{}` - so it is read as
     // structured output rather than deleted. A gap unflatten leaves in an indexed array is `null`, never `{}`.
     let block = json!({});
-    let result = try_unknown_fallback(&block);
+    let result = try_unknown_fallback(&crate::rules::ruleset().content_blocks, &block);
     assert!(result.is_some());
     assert_eq!(result.unwrap()["type"], "json");
 }

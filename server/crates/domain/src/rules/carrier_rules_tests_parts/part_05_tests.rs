@@ -334,7 +334,7 @@ fn every_where_answers_as_the_predicate_it_replaced() {
                         let new = holds(
                             &lowered,
                             &SpanSubject {
-                                span_name: if readable.span_name { name } else { "" },
+                                span_name: readable.span_name.then_some(name.as_str()),
                                 attrs,
                                 scope_name: if readable.scope {
                                     scope.as_deref()

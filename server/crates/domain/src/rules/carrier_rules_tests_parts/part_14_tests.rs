@@ -229,7 +229,7 @@ fn a_scope_name_prefix_is_unknown_where_no_scope_is_reported() {
     let attrs = std::collections::HashMap::new();
     let truth = |condition: &span_conditions::SpanExpr, scope_name: Option<&str>| {
         let subject = SpanSubject {
-            span_name: "span",
+            span_name: Some("span"),
             attrs: &attrs,
             scope_name,
             scope_version: None,
@@ -700,7 +700,7 @@ fn whether_an_attribute_parses_as_json_is_three_valued() {
             .into_iter()
             .collect();
         let subject = SpanSubject {
-            span_name: "span",
+            span_name: Some("span"),
             attrs: &attrs,
             scope_name: None,
             scope_version: None,
