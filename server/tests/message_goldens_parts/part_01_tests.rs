@@ -231,19 +231,6 @@ fn content_digest(value: &serde_json::Value) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-/// A block's identity for the invariants. The view says only that reasoning was signed, yet two reasoning
-/// blocks with one text and different signatures are two turns: the pipeline's identity keeps the signature
-/// for that reason, and so must the duplicate check, or it would accuse two withheld turns of being one.
-fn identity_digest(content: &sideseat_domain::sideml::ContentBlock, view_digest: &str) -> String {
-    match content {
-        sideseat_domain::sideml::ContentBlock::Thinking {
-            signature: Some(signature),
-            ..
-        } => content_digest(&json!([view_digest, signature])),
-        _ => view_digest.to_string(),
-    }
-}
-
 /// Remove producer-generated values that are embedded in span names but are not conversation
 /// semantics. The raw span name is still asserted by its own ingestion tests; this representation
 /// exists only to compare two independent executions of the same framework sample.
@@ -370,6 +357,8 @@ struct InvariantRow {
     content_digest: String,
     /// Deduplication's proved occurrence rank for otherwise identical content.
     occurrence_ordinal: u32,
+    /// The SHA-256 of a thinking block's signature, which no view shows: what a truth fact's `seal` names.
+    seal: Option<String>,
     /// Correlation id, so a result can be matched to the call it answers rather than merely
     /// counted against it.
     tool_use_id: Option<String>,
@@ -527,6 +516,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                     .expect("content block is serializable"),
                 content_digest: identity_digest(&block.content, &m.content_digest),
                 occurrence_ordinal: block.occurrence_ordinal,
+                seal: thinking_seal(&block.content),
                 tool_use_id: block.tool_use_id.clone(),
                 carrier: match (&block.event_name, &block.source_attribute) {
                     (Some(event), _) => format!("event:{event}"),

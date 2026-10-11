@@ -21,6 +21,7 @@ fn invariant_checks_are_not_vacuous() {
             full_content: String::new(),
             content_digest: format!("d:{content}"),
             occurrence_ordinal: 0,
+            seal: None,
             tool_use_id: None,
         }
     }
@@ -49,6 +50,7 @@ fn invariant_checks_are_not_vacuous() {
             full_content: String::new(),
             content_digest: format!("d:{kind}:{id}"),
             occurrence_ordinal: (index / 2) as u32,
+            seal: None,
             tool_use_id: Some(id.to_string()),
         }
     }
@@ -61,7 +63,7 @@ fn invariant_checks_are_not_vacuous() {
         row("trace-a", 1, "user", "text", "Hello"),
     ];
     assert!(
-        fires(&|| assert_no_duplicates("test", "synthetic", &same_trace)),
+        fires(&|| assert_no_duplicates("test", "synthetic", &same_trace, None)),
         "duplicate detection failed to fire for a within-trace duplicate"
     );
 
@@ -72,7 +74,7 @@ fn invariant_checks_are_not_vacuous() {
         row("trace-b", 1, "user", "text", "Hello"),
     ];
     assert!(
-        !fires(&|| assert_no_duplicates("test", "synthetic", &cross_trace)),
+        !fires(&|| assert_no_duplicates("test", "synthetic", &cross_trace, None)),
         "the same content in two different traces must not be reported"
     );
 
@@ -139,6 +141,7 @@ fn invariant_checks_are_not_vacuous() {
         full_content: String::new(),
         content_digest: "d:x".to_string(),
         occurrence_ordinal: 0,
+        seal: None,
         tool_use_id: None,
     }];
     let in_scope = Scope::Span {

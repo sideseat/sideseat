@@ -42,7 +42,9 @@ native and SDK conversations). The second, since rubric v2, is the parser-indepe
 [`../truth/`](../truth): one `sideseat.truth/3` document per producer and scenario, derived by
 `python -m harness truth` from the recorded model responses and the scenario scripts, never from a
 reconstruction. `expected.json` keeps a 240-character preview of each block; the truth checks read the
-full content.
+full content. The duplicate invariant reads the truth where there is one: a repeat stands when the truth's
+facts, allocated one to a block across the view, give every copy one of its own
+(`server/tests/message_truth/allowance.rs`); otherwise each copy needs occurrence evidence in the payloads.
 
 The truth comparison runs inside `message_goldens`, on the four views it already built
 (`server/tests/message_truth/`), and requires:

@@ -360,7 +360,7 @@ fn assert_no_empty_text(label: &str, view_name: &str, view: &GoldenView) {
     }
 }
 
-fn check_invariants(label: &str, built: &Built) {
+fn check_invariants(label: &str, built: &Built, allowed: Option<&message_truth::Allowances>) {
     let golden = &built.golden;
     let views: Vec<(String, &GoldenView)> = golden
         .span_views
@@ -386,9 +386,9 @@ fn check_invariants(label: &str, built: &Built) {
         assert_no_empty_text(label, name, view);
     }
 
-    for (name, scope, rows) in &built.invariants {
+    for (index, (name, scope, rows)) in built.invariants.iter().enumerate() {
         assert_scope(label, name, scope, rows);
-        assert_no_duplicates(label, name, rows);
+        assert_no_duplicates(label, name, rows, allowed.map(|a| &a[index][..]));
         assert_carrier_subsequence(label, name, rows, matches!(scope, Scope::Feed));
         // Causality applies to every chronological view, span views included. It reads only *matched*
         // pairs, so it is vacuous for the usual span holding one half - while a span that holds both,
@@ -459,14 +459,17 @@ fn message_goldens() {
     for (label, paths) in &fixtures {
         let (rows, spans) = message_truth::read(paths);
         let built = build_golden(label, paths, &rows);
-        truth_violations.extend(truths.check(label, paths, &built, spans));
+        let (found, allowed) = truths.check(label, paths, &built, spans);
+        truth_violations.extend(found);
         let golden = &built.golden;
 
+        // What the fixture's truth lets each view show, where a truth describes it (`message_truth::Allowances`).
+        let check = || check_invariants(label, &built, allowed.as_ref());
         if update {
             // Report violations rather than aborting: the point of a record run is to see
             // the whole picture, including which fixtures are currently wrong. Aborting on
             // the first one hides the rest.
-            if let Err(e) = std::panic::catch_unwind(|| check_invariants(label, &built)) {
+            if let Err(e) = std::panic::catch_unwind(check) {
                 let msg = e
                     .downcast_ref::<String>()
                     .cloned()
@@ -476,7 +479,7 @@ fn message_goldens() {
                 violations.push(format!("{label}: {msg}"));
             }
         } else {
-            check_invariants(label, &built);
+            check();
         }
 
         let path = golden_path(label);

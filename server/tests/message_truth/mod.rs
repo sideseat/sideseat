@@ -23,6 +23,7 @@
 
 mod absence;
 mod adversarial;
+mod allowance;
 mod authored;
 mod checks;
 mod consistency;
@@ -49,6 +50,7 @@ mod truth;
 
 use std::collections::{BTreeMap, BTreeSet};
 
+pub(crate) use allowance::{Allowance, Allowances};
 pub(crate) use recon::read;
 use recon::{Recon, ViewKind};
 use truth::Truth;
@@ -215,6 +217,16 @@ fn family(assertion: &str) -> String {
 
 /// Checks 2-9 for one fixture.
 fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
+    checked(truth, recon, &allowance::ViewRows::default()).0
+}
+
+/// Checks 2-9 for one fixture, and which repeats the truth accounts for (`allowance`), given what the views leave
+/// out of their blocks.
+fn checked(
+    truth: &Truth,
+    recon: &Recon,
+    rows: &allowance::ViewRows<'_>,
+) -> (Vec<Violation>, Allowances) {
     let mut out = Vec::new();
     // A fact only a request carries, whose content no payload holds, cannot be shown by any
     // reconstruction: the producer did not export it. Withdrawn from the payloads alone, and documented
@@ -226,6 +238,7 @@ fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
     request_context::check_composition(recon, &mut out);
     let context = checks::Context::new(truth, recon, &matching, accounted);
     checks::check_placement(&context, &mut out);
+    let allowed = allowance::allowances(&context, rows);
     for violation in &mut out {
         violation.fixture = recon.fixture.clone();
         assert!(
@@ -236,7 +249,7 @@ fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
     }
     out.sort();
     out.dedup();
-    out
+    (out, allowed)
 }
 
 /// The truth documents, and which one describes each fixture.
@@ -258,25 +271,53 @@ impl Truths {
         }
     }
 
-    /// The fixture's violations, or nothing when no truth describes it.
+    /// The fixture's violations and what its truth allows each view to show (`allowance`), or nothing when no
+    /// truth describes it.
     pub(crate) fn check(
         &self,
         fixture: &str,
         paths: &[std::path::PathBuf],
         built: &crate::Built,
         spans: recon::Spans,
-    ) -> Vec<Violation> {
+    ) -> (Vec<Violation>, Option<Allowances>) {
         let Some(truth) = self
             .of_fixture
             .get(fixture)
             .and_then(|key| self.documents.get(key))
         else {
-            return Vec::new();
+            return (Vec::new(), None);
         };
-        check(
+        let rows = allowance::ViewRows {
+            seals: built
+                .invariants
+                .iter()
+                .map(|(_, _, rows)| rows.iter().map(|row| row.seal.as_deref()).collect())
+                .collect(),
+            groups: built
+                .invariants
+                .iter()
+                .map(|(_, _, rows)| {
+                    rows.iter()
+                        .map(|row| format!("{:?}", crate::duplicate_group(row)))
+                        .collect()
+                })
+                .collect(),
+            span_traces: built
+                .invariants
+                .iter()
+                .map(|(_, scope, _)| match scope {
+                    crate::Scope::Span { trace_id, .. }
+                    | crate::Scope::RequestSpan { trace_id, .. } => Some(trace_id.as_str()),
+                    _ => None,
+                })
+                .collect(),
+        };
+        let (violations, allowed) = checked(
             &truth.for_fixture(fixture),
             &recon::from_built(fixture, paths, built, spans),
-        )
+            &rows,
+        );
+        (violations, Some(allowed))
     }
 }
 

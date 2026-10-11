@@ -450,9 +450,182 @@ fn a_request_listed_on_two_carriers_keeps_each_quoted_step_with_its_preamble() {
     for row in unproven.iter_mut().filter(|r| r.carrier == carrier) {
         row.carrier_proves_occurrence = false;
     }
-    let caught = std::panic::catch_unwind(|| assert_no_duplicates(label, "trace", &unproven));
+    let caught = std::panic::catch_unwind(|| assert_no_duplicates(label, "trace", &unproven, None));
     assert!(
         caught.is_err(),
         "unproven repeats passed the duplicate check"
+    );
+}
+
+/// The duplicate invariant counts what the truth holds. ADK quotes each earlier agent step behind the same
+/// preamble, and the truth holds one preamble per step: four copies no carrier proves pass because the truth holds
+/// four, a fifth is a duplicate, one of the four taken away is the truth's to report missing, and a part repeated
+/// still fires.
+#[test]
+fn the_duplicate_invariant_counts_what_the_truth_holds() {
+    let label = "adk/native/multi_agent";
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| l == label)
+        .expect("the ADK multi-agent fixture");
+    let truths = message_truth::Truths::load();
+    let (rows, spans) = message_truth::read(&paths);
+    let built = build_golden(label, &paths, &rows);
+    let (found, allowed) = truths.check(label, &paths, &built, spans);
+    let allowed = allowed.expect("a truth describes the fixture");
+    let preamble =
+        |row: &InvariantRow| row.role == "user" && row.content.starts_with("For context:");
+    let at = built
+        .invariants
+        .iter()
+        .position(|(_, scope, rows)| {
+            matches!(scope, Scope::Trace { .. }) && rows.iter().any(preamble)
+        })
+        .expect("the trace quoting the steps");
+    let (name, _, rows) = &built.invariants[at];
+    let fires = |rows: &[InvariantRow], allowed: Option<&[message_truth::Allowance]>| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_no_duplicates(label, name, rows, allowed)
+        }))
+        .is_err()
+    };
+    // As a carrier proving nothing by position lists them.
+    let mut unproven = rows.clone();
+    for row in &mut unproven {
+        row.carrier_proves_occurrence = false;
+    }
+    let preambles: Vec<usize> = (0..rows.len()).filter(|&i| preamble(&rows[i])).collect();
+    assert_eq!(preambles.len(), 4, "four quoted steps");
+    assert!(
+        fires(&unproven, None),
+        "without the truth, four copies nothing proves are a duplicate"
+    );
+    assert!(
+        !fires(&unproven, Some(&allowed[at])),
+        "the truth holds four preambles"
+    );
+    // A copy at a place of its own in the payload, as a message the parser invented would be.
+    let with_copy = |of: usize| {
+        let mut rows = unproven.clone();
+        let mut counts = allowed[at].clone();
+        let mut copy = unproven[of].clone();
+        copy.position = "999.0".to_string();
+        rows.push(copy);
+        counts.push(allowed[at][of]);
+        (rows, counts)
+    };
+    let (fifth, counts) = with_copy(preambles[0]);
+    assert!(
+        fires(&fifth, Some(&counts)),
+        "a fifth preamble the truth does not hold"
+    );
+    // Four copies, but the fourth is the first again: one observation twice, and one step without its preamble.
+    let mut replaced = unproven.clone();
+    replaced[preambles[3]] = unproven[preambles[0]].clone();
+    assert!(
+        fires(&replaced, Some(&allowed[at])),
+        "a preamble shown twice from one place"
+    );
+    let question = (0..rows.len())
+        .find(|&i| rows[i].role == "user" && allowed[at][i].facts == 1)
+        .expect("a prompt the truth holds once");
+    let (repeated, counts) = with_copy(question);
+    assert!(fires(&repeated, Some(&counts)), "a part repeated");
+
+    let (rows, spans) = message_truth::read(&paths);
+    let mut fewer = build_golden(label, &paths, &rows);
+    fewer.invariants[at].2.remove(preambles[3]);
+    let (after, allowed) = truths.check(label, &paths, &fewer, spans);
+    assert!(
+        !fires(
+            &fewer.invariants[at].2,
+            Some(&allowed.expect("the truth")[at])
+        ),
+        "three preambles of four are no duplicate"
+    );
+    // Four identical facts and three blocks: the fact left without one is reported, as one whose only blocks the
+    // others took.
+    let lost: Vec<(&str, &str)> = after
+        .iter()
+        .filter(|v| !found.contains(v) && v.view == message_truth::ViolationView::Trace)
+        .map(|v| (v.assertion.as_str(), v.subject.as_str()))
+        .collect();
+    assert!(
+        matches!(lost[..], [("user_text.claimed_twice", fact)] if fact.starts_with("fact-")),
+        "the preamble taken away is reported: {lost:?}"
+    );
+}
+
+/// Two copies of one signature are one turn of reasoning, whatever the truth holds. pydantic-ai's agent span lists
+/// the last call's withheld reasoning, and as its span exports no signature the view may show either of the
+/// truth's two withheld turns there, each sealed with its own signature; a block carrying a signature shows only the
+/// turn sealed with it, so two copies of the first signature are the first turn twice.
+#[test]
+fn two_copies_of_one_signature_are_not_two_turns_of_reasoning() {
+    let label = "pydantic-ai/native/multi_turn";
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| l == label)
+        .expect("the pydantic-ai multi-turn fixture");
+    let truth: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture_root().join("../truth/pydantic-ai/multi_turn.json"))
+            .expect("the truth"),
+    )
+    .expect("the truth parses");
+    let seals: Vec<&str> = truth["facts"]
+        .as_array()
+        .expect("facts")
+        .iter()
+        .filter(|f| f["kind"] == "reasoning")
+        .filter_map(|f| f["seal"].as_str())
+        .collect();
+    assert_eq!(seals.len(), 2, "two withheld turns, each sealed");
+    let truths = message_truth::Truths::load();
+    // The agent span's reasoning, and a second copy of it at a place of its own, both carrying `seal`: what the
+    // truth allows each, and whether the duplicate invariant fires.
+    let check = |seal: Option<&str>| {
+        let (rows, spans) = message_truth::read(&paths);
+        let mut built = build_golden(label, &paths, &rows);
+        let at = built
+            .invariants
+            .iter()
+            .position(|(name, _, _)| name.ends_with("invoke_agent agent/span-6"))
+            .expect("the last turn's agent span");
+        let view = &mut built.invariants[at].2;
+        let thinking = (0..view.len())
+            .find(|&i| view[i].entry_type == "thinking")
+            .expect("the reasoning");
+        view[thinking].seal = seal.map(str::to_string);
+        let mut copy = view[thinking].clone();
+        copy.position = "999.0".to_string();
+        view.push(copy);
+        let (_, allowed) = truths.check(label, &paths, &built, spans);
+        let allowed = allowed.expect("a truth describes the fixture");
+        let (name, _, rows) = &built.invariants[at];
+        let fires = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_no_duplicates(label, name, rows, Some(&allowed[at]))
+        }))
+        .is_err();
+        (allowed[at][thinking].facts, fires)
+    };
+    assert_eq!(
+        check(None),
+        (2, false),
+        "unsigned, either turn: two copies, two turns"
+    );
+    assert_eq!(
+        check(Some(seals[0])),
+        (1, true),
+        "the first signature twice is the first turn twice"
+    );
+    assert_eq!(
+        check(Some(seals[1])).0,
+        1,
+        "the second signature is the second turn"
+    );
+    assert_eq!(
+        check(Some("00")).0,
+        0,
+        "a signature no turn was sealed with is neither"
     );
 }

@@ -5,37 +5,41 @@
 /// several samples run their whole conversation twice, once with a session id and once
 /// without, so a session view contains each prompt twice by design.
 ///
-/// A genuine repeat needs independent occurrence evidence. Ordered payload positions prove repeated
-/// members within one span. Separate execution spans prove them only when deduplication assigned a
-/// different occurrence rank to every copy. A re-delivery retains both the span and rank, while peer
-/// spans merely re-listing one request retain the same rank.
-fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
-    type Identity<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str);
-    let mut seen: HashMap<Identity<'_>, Vec<&InvariantRow>> = HashMap::new();
-    for r in rows {
-        // An exception is a fact about a *span*, and it is composed from that span's own
-        // `exception_*` fields rather than read from a payload - so two spans reporting the same
-        // failure are two failures, not a re-send. `openai-agents/image_gen` is the case: three
-        // `generate_image` executions each failed with the same message, and collapsing them showed
-        // three tool results beside one explanation.
-        //
-        // This is the amendment the check's own doc comment anticipated: the pipeline learned to keep a
-        // repeat that has no id, so the invariant had to learn it in the same change, or it reports the
-        // repair as the defect.
-        let scope = if r.carrier == "attr:exception" {
-            r.span_id.as_str()
-        } else {
-            ""
-        };
-        seen.entry((
-            r.trace_id.as_str(),
-            scope,
-            r.role.as_str(),
-            r.entry_type.as_str(),
-            r.content_digest.as_str(),
-        ))
-        .or_default()
-        .push(r);
+/// A genuine repeat needs evidence that each copy is an occurrence of its own. Two copies from one place in one
+/// payload - span, carrier and position - are never two, and otherwise the fixture's truth is the first evidence:
+/// where its facts, allocated one to a block across the view, give every copy one of its own, and it holds as many
+/// facts of this content as there are copies (`message_truth::Allowances`), each copy is one of them - four quoted
+/// steps each behind the same preamble are four preambles, while a fifth copy needs the evidence below. `allowed`
+/// is what the truth allows each row, `None` where no truth describes the fixture.
+///
+/// Where the truth cannot decide - no truth for the fixture, or fewer of its facts than copies - the payloads
+/// must. Ordered payload positions prove repeated members within one span. Separate execution spans prove them
+/// only when deduplication assigned a different occurrence rank to every copy. A re-delivery retains both the
+/// span and rank, while peer spans merely re-listing one request retain the same rank. A copy the payloads prove
+/// and the truth does not hold is the truth check's to report (`*.duplicated`, in its ledger): this check asks
+/// whether the view shows a copy nothing accounts for.
+///
+/// That last rule is a stage, not the design. Seven such copies are ledgered today - `user_text.duplicated` fact-001
+/// in traceloop 0.53.3 streaming and tool_use, `system.duplicated` fact-012 in claude-code multi_turn, and the
+/// span-7 reminders of claude-agent-sdk(-js) multi_turn native and SDK - and a truth that decided alone would fail
+/// them here a second time. Once they are fixed, where the truth holds what the copies show it decides: fewer facts
+/// than copies is a duplicate however the payloads prove them.
+fn assert_no_duplicates(
+    label: &str,
+    view_name: &str,
+    rows: &[InvariantRow],
+    allowed: Option<&[message_truth::Allowance]>,
+) {
+    if let Some(allowed) = allowed {
+        assert_eq!(
+            allowed.len(),
+            rows.len(),
+            "{label} / {view_name}: the truth's allowances describe another view"
+        );
+    }
+    let mut seen: HashMap<DuplicateGroup<'_>, Vec<(usize, &InvariantRow)>> = HashMap::new();
+    for (index, r) in rows.iter().enumerate() {
+        seen.entry(duplicate_group(r)).or_default().push((index, r));
     }
     let mut dupes: Vec<String> = seen
         .iter()
@@ -43,6 +47,26 @@ fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
             if copies.len() < 2 {
                 return false;
             }
+            // One place in one payload shown twice is one observation twice, whatever the truth holds.
+            let mut observed = HashSet::new();
+            let repeats_an_observation = copies
+                .iter()
+                .filter(|(_, row)| !row.position.is_empty())
+                .any(|(_, row)| !observed.insert((&row.span_id, &row.carrier, &row.position)));
+            if repeats_an_observation {
+                return true;
+            }
+            // Every copy must have a fact of its own, the allocation giving one to every block it competes with,
+            // and the truth must hold as many facts of this content as there are copies.
+            let truth_holds_all = allowed.is_some_and(|allowed| {
+                copies.iter().all(|&(index, _)| {
+                    allowed[index].accounted && copies.len() <= allowed[index].facts
+                })
+            });
+            if truth_holds_all {
+                return false;
+            }
+            let copies: Vec<&InvariantRow> = copies.iter().map(|&(_, row)| row).collect();
             let occurrences: HashSet<(&str, &str, &str)> = copies
                 .iter()
                 .filter(|row| row.carrier_proves_occurrence && !row.position.is_empty())
@@ -63,10 +87,19 @@ fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
         })
         .map(|((trace, _scope, role, kind, content), copies)| {
             let head: String = content.chars().take(70).collect();
+            let truth = allowed
+                .and_then(|allowed| copies.iter().map(|&(index, _)| allowed[index].facts).max())
+                .filter(|&facts| facts > 0)
+                .map_or(String::new(), |facts| format!(" (the truth holds {facts})"));
+            let at: Vec<String> = copies
+                .iter()
+                .map(|(_, row)| format!("{}:{}@{}", row.span_id, row.carrier, row.position))
+                .collect();
             format!(
-                "{}x in trace {} [{role}/{kind}] {head}",
+                "{}x in trace {} [{role}/{kind}] {head}{truth} at {}",
                 copies.len(),
-                &trace[..trace.len().min(8)]
+                &trace[..trace.len().min(8)],
+                at.join(", ")
             )
         })
         .collect();
@@ -76,6 +109,59 @@ fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
         "{label} / {view_name}: duplicate messages within one trace:\n  {}",
         dupes.join("\n  ")
     );
+}
+
+/// A block's identity for the invariants. The view says only that reasoning was signed, yet two reasoning
+/// blocks with one text and different signatures are two turns: the pipeline's identity keeps the signature
+/// for that reason, and so must the duplicate check, or it would accuse two withheld turns of being one.
+fn identity_digest(content: &sideseat_domain::sideml::ContentBlock, view_digest: &str) -> String {
+    match content {
+        sideseat_domain::sideml::ContentBlock::Thinking {
+            signature: Some(signature),
+            ..
+        } => content_digest(&json!([view_digest, signature])),
+        _ => view_digest.to_string(),
+    }
+}
+
+/// The SHA-256 of a thinking block's signature, in the truth's hex: the reasoning's identity, which the view leaves
+/// out (`message_truth::Allowances` reads it, so two copies of one signature are never two turns).
+fn thinking_seal(content: &sideseat_domain::sideml::ContentBlock) -> Option<String> {
+    use sha2::Digest as _;
+    match content {
+        sideseat_domain::sideml::ContentBlock::Thinking {
+            signature: Some(signature),
+            ..
+        } => Some(
+            sha2::Sha256::digest(signature.as_bytes())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+/// The copies the duplicate invariant compares: one content within one trace - and, for an exception, within one
+/// span, since it is composed from that span's own `exception_*` fields rather than read from a payload, so two
+/// spans reporting the same failure are two failures, not a re-send (`openai-agents/image_gen`: three
+/// `generate_image` executions each failed with the same message, and collapsing them showed three tool results
+/// beside one explanation). The truth's allowance groups copies by this key too (`message_truth::Allowances`).
+type DuplicateGroup<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str);
+
+fn duplicate_group(r: &InvariantRow) -> DuplicateGroup<'_> {
+    let scope = if r.carrier == "attr:exception" {
+        r.span_id.as_str()
+    } else {
+        ""
+    };
+    (
+        r.trace_id.as_str(),
+        scope,
+        r.role.as_str(),
+        r.entry_type.as_str(),
+        r.content_digest.as_str(),
+    )
 }
 
 /// A tool_use block's own call id: from the block field when set, otherwise from the id
@@ -138,6 +224,7 @@ fn occurrence_row(index: usize, position: &str, proves_occurrence: bool) -> Inva
         full_content: String::new(),
         content_digest: "same-digest".to_string(),
         occurrence_ordinal: index as u32,
+        seal: None,
         tool_use_id: None,
         carrier: "attr:ordered-conversation".to_string(),
         carrier_orders_positions: true,
@@ -166,6 +253,7 @@ fn reused_id_row(index: usize, kind: &str) -> InvariantRow {
         full_content: String::new(),
         content_digest: format!("{kind}-{index}"),
         occurrence_ordinal: (index / 2) as u32,
+        seal: None,
         tool_use_id: Some("reused".to_string()),
         carrier: "attr:test".to_string(),
         carrier_orders_positions: true,
@@ -181,7 +269,7 @@ fn reused_id_row(index: usize, kind: &str) -> InvariantRow {
 fn duplicate_invariant_accepts_only_proven_distinct_occurrences() {
     let fires = |rows: &[InvariantRow]| {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            assert_no_duplicates("test", "synthetic", rows);
+            assert_no_duplicates("test", "synthetic", rows, None);
         }))
         .is_err()
     };
@@ -522,4 +610,66 @@ fn requested_tracked_samples(root: &Path) -> Option<std::collections::BTreeSet<S
             .filter_map(|path| path.rsplit_once('/').map(|(dir, _)| dir.to_string()))
             .collect(),
     )
+}
+
+/// Every copy must stand on a fact of its own: a copy the allocation left without one borrows no other copy's.
+#[test]
+fn a_copy_borrows_no_other_copy_s_allowance() {
+    let row = |index: usize| {
+        let mut row = occurrence_row(index, &index.to_string(), false);
+        row.occurrence_ordinal = 0;
+        row
+    };
+    let rows = vec![row(0), row(1)];
+    let fires = |allowed: &[message_truth::Allowance]| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_no_duplicates("test", "synthetic", &rows, Some(allowed));
+        }))
+        .is_err()
+    };
+    let own = message_truth::Allowance {
+        facts: 2,
+        accounted: true,
+    };
+    assert!(!fires(&[own, own]), "both copies stand on the two facts");
+    let left_out = message_truth::Allowance {
+        facts: 2,
+        accounted: false,
+    };
+    assert!(
+        fires(&[own, left_out]),
+        "the allocation left the second copy without one"
+    );
+    let one = message_truth::Allowance {
+        facts: 1,
+        accounted: true,
+    };
+    assert!(
+        fires(&[one, one]),
+        "two copies of a content the truth holds once"
+    );
+}
+
+/// The seal is the signature's SHA-256, extracted from the block itself: the truth-relative duplicate rule rests
+/// on it, so a seal that silently became `None` would let two copies of one signature spend two sealed facts.
+#[test]
+fn a_thinking_block_s_seal_is_its_signature_s_digest() {
+    use sideseat_domain::sideml::ContentBlock;
+    assert_eq!(
+        thinking_seal(&ContentBlock::Thinking {
+            text: String::new(),
+            signature: Some("sig".to_string()),
+        })
+        .as_deref(),
+        // sha256("sig")
+        Some("a543997d84f12798350c09bdef2cdb171bf41ed3e4a5f808af2feb0c56263009"),
+    );
+    assert_eq!(
+        thinking_seal(&ContentBlock::Thinking {
+            text: "visible".to_string(),
+            signature: None,
+        }),
+        None
+    );
+    assert_eq!(thinking_seal(&ContentBlock::text("hi")), None);
 }
