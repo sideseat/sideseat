@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/chat/span-4": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "system",
         "user",
         "assistant"
       ],
@@ -16,6 +17,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
@@ -23,7 +32,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -35,8 +44,9 @@
       ]
     },
     "trace-1/chat/span-6": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
+        "system",
         "user",
         "assistant",
         "tool",
@@ -47,6 +57,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
@@ -54,7 +72,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -63,7 +81,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
@@ -71,7 +89,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler evening, plus sunglasses and sunscreen.",

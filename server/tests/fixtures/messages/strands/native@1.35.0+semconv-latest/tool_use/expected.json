@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/chat/span-10": {
-      "message_count": 10,
+      "message_count": 11,
       "role_sequence": [
+        "system",
         "user",
         "assistant",
         "assistant",
@@ -24,6 +25,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
@@ -31,7 +40,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
@@ -40,7 +49,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
@@ -49,7 +58,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
@@ -58,7 +67,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
@@ -67,7 +76,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"city\": \"Tokyo\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
@@ -75,7 +84,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"city\": \"Paris\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
@@ -83,7 +92,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
@@ -91,7 +100,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
@@ -99,7 +108,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
@@ -110,8 +119,9 @@
       ]
     },
     "trace-1/chat/span-4": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
+        "system",
         "user",
         "assistant",
         "assistant",
@@ -123,6 +133,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
@@ -130,7 +148,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
@@ -139,7 +157,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
@@ -148,7 +166,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
@@ -157,7 +175,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",

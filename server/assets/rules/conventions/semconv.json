@@ -420,42 +420,6 @@
       "priority": 120
     },
     {
-      "id": "semconv.event_inference_details_input",
-      "doc": "The convention's inference-details event is a *container*: its own attributes are the request and the response, so the container itself is not a message - reporting it as well would give the conversation twice. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
-      "source": {
-        "event": {
-          "names": [
-            "gen_ai.client.inference.operation.details"
-          ]
-        }
-      },
-      "read": {
-        "attribute": "gen_ai.input.messages"
-      },
-      "parse": "json",
-      "emit": "message",
-      "priority": 30,
-      "reads_tool_spans": true
-    },
-    {
-      "id": "semconv.event_inference_details_output",
-      "doc": "The response side of the same container. Read on a tool span too: the retired extractor answered this event before any tool-span check. After `google-adk.operation_details_output` (31), which reads the same carrier element by element where the elements state a stream's parts, and leaves it whole to this rule everywhere else.",
-      "source": {
-        "event": {
-          "names": [
-            "gen_ai.client.inference.operation.details"
-          ]
-        }
-      },
-      "read": {
-        "attribute": "gen_ai.output.messages"
-      },
-      "parse": "json",
-      "emit": "message",
-      "priority": 32,
-      "reads_tool_spans": true
-    },
-    {
       "id": "semconv.single_tool",
       "doc": "The convention's own single-tool triple: a name, its documentation and its schema, as three attributes. Emitted only where the name is one a caller could use - one dialect reports a synthetic aggregate under a name in parentheses, which is not a tool. Ranked last among the tool readers, which is where the retired block sat: it ran after every other definition had been collected, and merging keeps the *first* of two equal-quality definitions with one name - so the order decides which description and schema win, not merely the stored bytes.",
       "compose": {
@@ -556,12 +520,6 @@
       "id": "semconv.message_event.tool_message",
       "name": "gen_ai.tool.message",
       "doc": "A tool result handed back to a model."
-    },
-    {
-      "id": "semconv.message_event.client_inference_operation_details",
-      "name": "gen_ai.client.inference.operation.details",
-      "raw": "replace",
-      "doc": "A container whose own attributes are the request and the response."
     }
   ],
   "log_events": [
@@ -629,19 +587,6 @@
       },
       "payload": "body_members",
       "doc": "What the model chose, as a log record whose body carries `index`, `finish_reason` and `message`."
-    },
-    {
-      "id": "semconv.log_event.client_inference_operation_details",
-      "name": "gen_ai.client.inference.operation.details",
-      "name_from": {
-        "first_of": [
-          "event_name",
-          "attr:event.name"
-        ],
-        "mode": "usable"
-      },
-      "payload": "attributes",
-      "doc": "The inference-details container as a log record: its own attributes are the request and the response, read by the same container readings as the span event."
     }
   ],
   "event_roles": [

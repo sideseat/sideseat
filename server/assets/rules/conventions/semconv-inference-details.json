@@ -1,0 +1,102 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "semconv-inference-details",
+  "doc": "The current conventions' inference-details record, `gen_ai.client.inference.operation.details`: one event or log record per model call carrying the whole call - its system instruction, its request and its response - as attributes. A container, not a message: its attributes are the messages, so its raw form is replaced by what is read from it. Apart from `semconv` because it is one self-contained construct; its clause ids keep that asset's namespace because they are the conventions' own.",
+  "carriers": [
+    {
+      "id": "semconv.event.system_instructions",
+      "doc": "The same instruction carried by the inference-details event (`semconv.event_inference_details_system`): the attribute's meaning on the event that reports the request, so a detached frame of that request whichever carrier the producer chose.",
+      "match": {
+        "event": "gen_ai.system_instructions"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_is_detached_request_frame": true,
+        "carrier_holds_span_input": true
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "semconv.event_inference_details_system",
+      "doc": "The system instruction the same container carries, as the conventions write it on a span (`semconv.system_instructions`): a parts array, wrapped under `parts`. Without it the container's request lost its instruction - the details event replaces its raw form, so an attribute no reading names is read by nothing. Before the input (29 < 30), so the instruction heads the request it was sent with.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.client.inference.operation.details"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.system_instructions"
+      },
+      "parse": "json",
+      "wrap": {
+        "role": "system",
+        "content_as": "parts"
+      },
+      "emit": "message",
+      "priority": 29,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.event_inference_details_input",
+      "doc": "The convention's inference-details event is a *container*: its own attributes are the request and the response, so the container itself is not a message - reporting it as well would give the conversation twice. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.client.inference.operation.details"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.input.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "priority": 30,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.event_inference_details_output",
+      "doc": "The response side of the same container. Read on a tool span too: the retired extractor answered this event before any tool-span check. After `google-adk.operation_details_output` (31), which reads the same carrier element by element where the elements state a stream's parts, and leaves it whole to this rule everywhere else.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.client.inference.operation.details"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.output.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "priority": 32,
+      "reads_tool_spans": true
+    }
+  ],
+  "message_events": [
+    {
+      "id": "semconv.message_event.client_inference_operation_details",
+      "name": "gen_ai.client.inference.operation.details",
+      "raw": "replace",
+      "doc": "A container whose own attributes are the request and the response."
+    }
+  ],
+  "log_events": [
+    {
+      "id": "semconv.log_event.client_inference_operation_details",
+      "name": "gen_ai.client.inference.operation.details",
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
+      "payload": "attributes",
+      "doc": "The inference-details container as a log record: its own attributes are the request and the response, read by the same container readings as the span event."
+    }
+  ]
+}
