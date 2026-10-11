@@ -754,3 +754,119 @@ fn a_call_whose_span_carries_none_of_its_response_is_found_by_its_metadata_alone
         "two candidates are not reported: {new:?}"
     );
 }
+
+#[test]
+fn a_routed_system_text_explains_one_copy_per_span_it_was_sent_to() {
+    // With routing unknowable (`multi_agent_routing`), identical instruction texts on different spans may
+    // each be an agent's, so each span gets one explanation slot - and only one: the same text shown twice
+    // on one span is a repeat no routing can explain.
+    let (truth, mut recon, baseline) = baseline("claude-agent-sdk-js/native/multi_agent");
+    let twins: Vec<(usize, usize)> = recon
+        .views
+        .iter()
+        .enumerate()
+        .filter(|(_, view)| view.kind == ViewKind::Trace)
+        .flat_map(|(v, view)| {
+            view.blocks
+                .iter()
+                .enumerate()
+                .filter(|(_, block)| {
+                    block.role == "system"
+                        && block.text().is_some_and(|t| t.starts_with("# Environment"))
+                })
+                .map(move |(b, _)| (v, b))
+        })
+        .collect();
+    let same_digest = |a: &(usize, usize), b: &(usize, usize)| {
+        recon.views[a.0].blocks[a.1].digest == recon.views[b.0].blocks[b.1].digest
+            && recon.views[a.0].blocks[a.1].span != recon.views[b.0].blocks[b.1].span
+    };
+    let (&(v1, b1), &(_, b2)) = twins
+        .iter()
+        .flat_map(|a| twins.iter().map(move |b| (a, b)))
+        .find(|(a, b)| same_digest(a, b))
+        .expect("the trace view shows one reminder text on two spans");
+    let home = recon.views[v1].blocks[b1].span.clone();
+    recon.views[v1].blocks[b2].span = home;
+    let new = added(&truth, &recon, &baseline);
+    assert!(
+        new.iter().any(|v| v.starts_with("extra.unexplained")),
+        "two copies on one span are one slot: {new:?}"
+    );
+}
+
+#[test]
+fn a_span_vouches_for_a_routed_system_text_only_by_showing_it_itself() {
+    // A slot per span must not explain an invented copy: attributing a cloned instruction to some other span
+    // of the trace names a span, but that span's own view never shows the text, so no slot exists for it.
+    let (truth, mut recon, baseline) = baseline("claude-agent-sdk-js/native/multi_agent");
+    let (v, b) = recon
+        .views
+        .iter()
+        .enumerate()
+        .filter(|(_, view)| view.kind == ViewKind::Trace)
+        .find_map(|(v, view)| {
+            view.blocks
+                .iter()
+                .position(|block| {
+                    block.role == "system"
+                        && block.text().is_some_and(|t| t.starts_with("# Environment"))
+                })
+                .map(|b| (v, b))
+        })
+        .expect("the trace view shows a reminder");
+    let elsewhere = recon.views[v]
+        .blocks
+        .iter()
+        .map(|block| block.span.clone())
+        .find(|span| {
+            *span != recon.views[v].blocks[b].span
+                && !recon.views.iter().any(|view| {
+                    view.kind == ViewKind::Span
+                        && view.blocks.iter().any(|shown| {
+                            shown.span == *span && shown.digest == recon.views[v].blocks[b].digest
+                        })
+                })
+        })
+        .expect("a span of the trace that never shows the reminder");
+    let mut clone = recon.views[v].blocks[b].clone();
+    clone.span = elsewhere.clone();
+    recon.views[v].blocks.push(clone.clone());
+    let new = added(&truth, &recon, &baseline);
+    assert!(
+        new.iter().any(|v| v.starts_with("extra.unexplained")),
+        "an invented copy on a span that never spoke it is unexplained: {new:?}"
+    );
+
+    // Another span's composed view showing the text attributed to that span is that view's statement about
+    // its thread, never the span's own: it supplies no backing either.
+    let composed = recon
+        .views
+        .iter()
+        .position(|view| view.kind == ViewKind::Span && view.key != elsewhere)
+        .expect("another span's view");
+    recon.views[composed].blocks.push(clone.clone());
+    let new = added(&truth, &recon, &baseline);
+    assert!(
+        new.iter().any(|v| v.starts_with("extra.unexplained")),
+        "a copy in another span's composed view vouches for nothing: {new:?}"
+    );
+
+    // Nor does another trace's view of a span spelled the same: span ids are not unique across traces, so
+    // backing is the view's target pair, trace and span together.
+    recon.views.push(super::recon::View {
+        kind: ViewKind::Span,
+        key: elsewhere,
+        trace: "a-trace-of-another-capture".into(),
+        blocks: vec![clone],
+        thread: Vec::new(),
+        owned_calls: std::collections::BTreeSet::new(),
+        frames: std::collections::BTreeSet::new(),
+        frame_occurrences: Default::default(),
+    });
+    let new = added(&truth, &recon, &baseline);
+    assert!(
+        new.iter().any(|v| v.starts_with("extra.unexplained")),
+        "a same-spelled span of another trace vouches for nothing: {new:?}"
+    );
+}

@@ -198,7 +198,10 @@ fn check_unexplained(
         .map(|&at| scope.blocks[at].2.identity.as_str())
         .collect();
     let mut allowance = Allowance::of(context, assigned);
-    let mut system_seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut system_seen: BTreeSet<(&str, &str, &str)> = BTreeSet::new();
+    // Built on first need: which (trace, span, digest) triples each span's *own* view shows. A block another
+    // span's composed view shows is that view's statement about its thread, never the home span's.
+    let mut span_backed: Option<BTreeSet<(&str, &str, &str)>> = None;
     // Which request-only content a trace has already been credited with: one copy each.
     let mut request_seen: BTreeSet<(&str, &str)> = BTreeSet::new();
     let mut unexplained: BTreeMap<&str, (usize, &Block)> = BTreeMap::new();
@@ -384,12 +387,55 @@ fn check_unexplained(
         let explained = !spent
             && match (block.role.as_str(), block.kind.as_str()) {
                 ("system", _) => {
+                    // With routing unknowable, which agent was sent which instruction is the gap's own
+                    // statement - so identical system texts on different spans may each be an agent's, and
+                    // each span gets one slot. Only a span whose own view shows the same text vouches for an
+                    // independent occurrence: an invented copy attributed to some other span of the trace is
+                    // not explained by naming a span, and the same text twice from one span stays unexplained.
+                    let routed_slot = allowance.routing
+                        && span_backed
+                            .get_or_insert_with(|| {
+                                context
+                                    .recon
+                                    .views
+                                    .iter()
+                                    .filter(|view| view.kind == ViewKind::Span)
+                                    .flat_map(|view| {
+                                        view.blocks
+                                            .iter()
+                                            // The view's target pair, not the block's own claim: span ids are
+                                            // not unique across traces, and a composed view may show another
+                                            // trace's block attributed to a span spelled like its own.
+                                            .filter(|shown| {
+                                                shown.span == view.key && shown.trace == view.trace
+                                            })
+                                            .map(|shown| {
+                                                (
+                                                    shown.trace.as_str(),
+                                                    shown.span.as_str(),
+                                                    shown.digest.as_str(),
+                                                )
+                                            })
+                                    })
+                                    .collect()
+                            })
+                            .contains(&(
+                                block.trace.as_str(),
+                                block.span.as_str(),
+                                block.digest.as_str(),
+                            ));
                     allowance.system_prompt
                         && allowance.in_conversation(trace)
+                        && (!allowance.routing || routed_slot)
                         && system_seen.insert((
                             trace,
                             if allowance.routing {
                                 block.digest.as_str()
+                            } else {
+                                ""
+                            },
+                            if allowance.routing {
+                                block.span.as_str()
                             } else {
                                 ""
                             },

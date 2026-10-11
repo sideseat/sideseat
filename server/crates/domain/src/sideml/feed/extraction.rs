@@ -113,6 +113,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
                 span_name: row.span_name.clone(),
                 scope_name: row.scope_name.clone(),
                 scope_version: row.scope_version.clone(),
+                request_thread: row.request_thread.clone(),
                 rendering: msg.rendering,
                 direction: msg.direction,
             });
@@ -369,6 +370,7 @@ pub(in crate::sideml::feed) fn append_error_messages(
             span_name: row.span_name.clone(),
             scope_name: row.scope_name.clone(),
             scope_version: row.scope_version.clone(),
+            request_thread: row.request_thread.clone(),
             rendering: false,
             // Composed from the span's exception fields, so no reading declared a side for it.
             direction: None,
@@ -602,6 +604,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
 
                 parent_span_id: msg.parent_span_id.clone(),
                 span_path: span_path.clone(),
+                request_thread: msg.request_thread.clone(),
 
                 timestamp: msg.timestamp,
                 order_time: msg.timestamp,

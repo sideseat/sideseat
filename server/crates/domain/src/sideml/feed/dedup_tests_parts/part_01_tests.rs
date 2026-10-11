@@ -51,6 +51,7 @@ fn make_test_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     }
 }
@@ -105,6 +106,7 @@ fn make_tool_use_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     }
 }
@@ -163,6 +165,7 @@ fn make_tool_result_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     }
 }
@@ -913,87 +916,4 @@ fn test_single_block() {
 
     let result = process_dedup(vec![block], span_timestamps);
     assert_eq!(result.len(), 1);
-}
-
-#[test]
-fn test_tool_result_same_id_different_content_deduped() {
-    // Same tool_use_id → same identity, regardless of content format.
-    // Covers Vercel AI SDK toModelOutput: raw execute() output vs transformed format.
-    let t0 = utc(0);
-    let t1 = utc(1);
-
-    // Raw tool result from tool span
-    let mut raw = make_tool_result_block("trace1", "tool_span", "call_123", "raw result data", t0);
-    raw.observation_type = Some("tool".to_string());
-
-    // Transformed tool result from generation span (different content, same tool_use_id)
-    let mut transformed = BlockEntry {
-        content: ContentBlock::ToolResult {
-            tool_use_id: Some("call_123".to_string()),
-            name: None,
-            content: serde_json::json!({"type": "content", "value": [{"type": "text", "text": "transformed result"}]}),
-            is_error: false,
-            provider_executed: false,
-        },
-        span_id: "gen_span".to_string(),
-        timestamp: t1,
-        observation_type: Some("generation".to_string()),
-        ..make_tool_result_block("trace1", "gen_span", "call_123", "", t1)
-    };
-    transformed.model = Some("claude-haiku".to_string());
-
-    let span_timestamps = HashMap::from([
-        (
-            "tool_span".to_string(),
-            SpanTimestamps {
-                span_start: t0,
-                span_end: Some(t0),
-            },
-        ),
-        (
-            "gen_span".to_string(),
-            SpanTimestamps {
-                span_start: t1,
-                span_end: Some(t1),
-            },
-        ),
-    ]);
-
-    let result = process_dedup(vec![raw, transformed], span_timestamps);
-
-    // Same tool_use_id → deduped to 1 (tool_use_id is identity, not content)
-    assert_eq!(result.len(), 1);
-    // Tool span version wins via FROM_TOOL_SPAN quality bonus
-    assert_eq!(result[0].span_id, "tool_span");
-}
-
-#[test]
-fn test_tool_result_different_ids_not_deduped_by_tool_id() {
-    // Different tool_use_ids should NOT be merged even if both are tool results
-    let t0 = utc(0);
-
-    let result1 = make_tool_result_block("trace1", "span1", "call_111", "result A", t0);
-    let result2 = make_tool_result_block("trace1", "span2", "call_222", "result B", t0);
-
-    let span_timestamps = HashMap::from([
-        (
-            "span1".to_string(),
-            SpanTimestamps {
-                span_start: t0,
-                span_end: Some(t0),
-            },
-        ),
-        (
-            "span2".to_string(),
-            SpanTimestamps {
-                span_start: t0,
-                span_end: Some(t0),
-            },
-        ),
-    ]);
-
-    let result = process_dedup(vec![result1, result2], span_timestamps);
-
-    // Both should be kept (different tool_use_ids = different identities)
-    assert_eq!(result.len(), 2);
 }

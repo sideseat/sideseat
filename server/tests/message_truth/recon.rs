@@ -108,6 +108,9 @@ pub(super) struct View {
     pub kind: ViewKind,
     /// The span a span view shows, or the session a session view shows.
     pub key: String,
+    /// For a span view, the trace that span is in: span ids are not unique across traces, so the pair is the
+    /// view's target. Empty for every other view.
+    pub trace: String,
     pub blocks: Vec<Block>,
     /// For a span view composed from its thread: the requests of that thread **in sequence order**, and the tool
     /// spans whose calls those requests answered. Empty for every other view, which is how a composed view is
@@ -123,10 +126,11 @@ pub(super) struct View {
 
 impl View {
     /// A span view that is neither composed from a thread nor opened with frames.
-    pub(super) fn plain_span(key: String, blocks: Vec<Block>) -> Self {
+    pub(super) fn plain_span(trace: String, key: String, blocks: Vec<Block>) -> Self {
         Self {
             kind: ViewKind::Span,
             key,
+            trace,
             blocks,
             thread: Default::default(),
             owned_calls: Default::default(),
@@ -275,18 +279,20 @@ pub(super) fn from_built(
     let mut views = Vec::new();
     let mut generations = Vec::new();
     for (label, scope, rows) in &built.invariants {
-        let (kind, key) = match scope {
+        let (kind, key, view_trace) = match scope {
             // A composed request is a span view: the same endpoint, the same question of it - what was this call
             // sent - and the composition is how it answers.
-            Scope::Span { span_id, .. } | Scope::RequestSpan { span_id, .. } => {
-                (ViewKind::Span, span_id.clone())
-            }
-            Scope::Trace { trace_id } => (ViewKind::Trace, trace_id.clone()),
+            Scope::Span { trace_id, span_id }
+            | Scope::RequestSpan {
+                trace_id, span_id, ..
+            } => (ViewKind::Span, span_id.clone(), trace_id.clone()),
+            Scope::Trace { trace_id } => (ViewKind::Trace, trace_id.clone(), String::new()),
             Scope::Session => (
                 ViewKind::Session,
                 label.strip_prefix("session ").unwrap_or(label).to_string(),
+                String::new(),
             ),
-            Scope::Feed => (ViewKind::Feed, String::new()),
+            Scope::Feed => (ViewKind::Feed, String::new(), String::new()),
         };
         let blocks: Vec<Block> = rows
             .iter()
@@ -385,6 +391,7 @@ pub(super) fn from_built(
         views.push(View {
             kind,
             key,
+            trace: view_trace,
             blocks,
             thread,
             owned_calls,

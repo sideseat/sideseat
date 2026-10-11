@@ -2,6 +2,7 @@ use super::*;
 
 mod agent_occurrence;
 mod canonical_json;
+mod delta_occurrence;
 mod own_output;
 mod plain_occurrence;
 mod wrappers;
@@ -374,6 +375,7 @@ pub(in crate::sideml::feed) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Ve
     agent_occurrence::align_tool_ordinals_with_agent_invocations(blocks, &mut ordinals);
     plain_occurrence::apply_plain_occurrence_ordinals(blocks, &mut ordinals);
     own_output::separate_input_from_own_output(blocks, &mut ordinals);
+    delta_occurrence::separate_deltas_by_span(blocks, &mut ordinals);
     ordinals
 }
 

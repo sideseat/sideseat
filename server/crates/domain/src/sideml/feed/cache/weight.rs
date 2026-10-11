@@ -62,7 +62,8 @@ pub(super) fn weight_of(result: &FeedResult) -> u32 {
         .map(|block| {
             let names = block.span_name.as_ref().map_or(0, String::len)
                 + block.scope_name.as_ref().map_or(0, String::len)
-                + block.scope_version.as_ref().map_or(0, String::len);
+                + block.scope_version.as_ref().map_or(0, String::len)
+                + block.request_thread.len();
             (names + block.position.approximate_bytes() + block.content.unserialised_bytes()) as u64
         })
         .sum();
@@ -179,6 +180,7 @@ mod weight_tests {
             entry_index: 0,
             parent_span_id: None,
             span_path: Vec::new(),
+            request_thread: String::new(),
             timestamp: t,
             order_time: t,
             occurrence_ordinal: 0,
@@ -239,7 +241,13 @@ mod weight_tests {
             "declared_direction",
         ];
         // Fields `weight_of` measures directly.
-        let measured = ["position", "span_name", "scope_name", "scope_version"];
+        let measured = [
+            "position",
+            "span_name",
+            "scope_name",
+            "scope_version",
+            "request_thread",
+        ];
 
         let mut unaccounted: Vec<&str> = Vec::new();
         let mut skipped_next = false;

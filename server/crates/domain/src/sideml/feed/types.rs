@@ -110,6 +110,12 @@ pub struct BlockEntry {
     pub parent_span_id: Option<String>,
     /// Full path from root: [root, ..., parent, span_id]
     pub span_path: Vec<String>,
+    /// The conversation thread the block's span is a request of, where a `request_threads` rule names one
+    /// (`domain::rules::request_threads`); empty on every other span. Thread identity is what lets delta
+    /// deduplication read a strictly extending delta as the same thread restating itself rather than another
+    /// thread's fresh statement.
+    #[serde(skip)]
+    pub request_thread: String,
 
     // Timing
     /// The time this block *displays* at.
@@ -658,6 +664,7 @@ mod tests {
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,
+            request_thread: String::new(),
             declared_direction: None,
         }
     }

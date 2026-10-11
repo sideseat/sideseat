@@ -756,3 +756,187 @@ fn a_generation_s_input_is_not_its_own_output() {
     let survivors = process_dedup(vec![sent, echoed], HashMap::new());
     assert_eq!(survivors.len(), 1, "{survivors:?}");
 }
+
+/// A reminder-carrying delta for the next tests, one member per entry index, on one request thread.
+fn delta_block(span: &str, entry_index: i32, text: &str, at: DateTime<Utc>) -> BlockEntry {
+    threaded_delta_block("th-main", span, entry_index, text, at)
+}
+
+/// The same, naming the thread: two threads of one trace never share a history.
+fn threaded_delta_block(
+    thread: &str,
+    span: &str,
+    entry_index: i32,
+    text: &str,
+    at: DateTime<Utc>,
+) -> BlockEntry {
+    let mut block = make_test_block("t1", span, ChatRole::System, text, at);
+    block.source_attribute = Some("system_reminders".to_string());
+    block.request_thread = thread.to_string();
+    block.entry_index = entry_index;
+    block.position = PositionPath::default().child_index(entry_index as usize);
+    let semantics = crate::sideml::carrier::semantics_for_context(&block.carrier_context());
+    assert!(
+        semantics.carrier_holds_request_delta && semantics.position_proves_distinct_occurrence,
+        "the probe carrier must hold position-proving deltas"
+    );
+    block
+}
+
+/// Two deltas of one trace stating the same words are two statements: a request delta says only what is new,
+/// and its positions prove occurrences, so the client sent the reminder again and the recorded requests hold
+/// it twice. Folding them kept one environment reminder for two turns.
+#[test]
+fn two_deltas_saying_the_same_words_are_two_statements() {
+    let survivors = process_dedup(
+        vec![
+            delta_block("s1", 0, "Tokens left: 1", utc(100)),
+            delta_block("s2", 0, "Tokens left: 1", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 2, "{survivors:?}");
+
+    // A redelivered row keeps its span's band and still folds onto itself.
+    let survivors = process_dedup(
+        vec![
+            delta_block("s1", 0, "Tokens left: 1", utc(100)),
+            delta_block("s2", 0, "Tokens left: 1", utc(200)),
+            delta_block("s2", 0, "Tokens left: 1", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 2, "redelivery folds: {survivors:?}");
+}
+
+/// A resumed turn's delta that carries every member of the previous turn's delta, in order, and then says
+/// more is a restatement: the restated prefix folds onto the originals, and only the tail is new. Read as
+/// fresh statements, a three-turn resumed process showed its one environment reminder three times.
+#[test]
+fn a_resumed_delta_restating_the_previous_and_more_folds_the_restated_prefix() {
+    let survivors = process_dedup(
+        vec![
+            delta_block("s1", 0, "Env: /tmp", utc(100)),
+            delta_block("s2", 0, "Env: /tmp", utc(200)),
+            delta_block("s2", 1, "Tokens left: 1", utc(200)),
+            delta_block("s3", 0, "Env: /tmp", utc(300)),
+            delta_block("s3", 1, "Tokens left: 1", utc(300)),
+            delta_block("s3", 2, "Tokens left: 2", utc(300)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(
+        survivors.len(),
+        3,
+        "one reminder per statement, not per restating turn: {survivors:?}"
+    );
+
+    // The extension must be strict in order too: a longer delta that reorders the previous one's members is
+    // not a restating resumption, so each turn's words are its own statements.
+    let survivors = process_dedup(
+        vec![
+            delta_block("s1", 0, "Env: /tmp", utc(100)),
+            delta_block("s2", 0, "Task preamble", utc(200)),
+            delta_block("s2", 1, "Env: /tmp", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 3, "{survivors:?}");
+}
+
+/// A delta whose positions prove nothing stays out of the per-span bands: such a carrier may list a
+/// neighbouring turn again - the captures show one repeating the previous prompt - and separating its spans
+/// would show the repeat twice.
+#[test]
+fn a_delta_without_position_proof_still_folds_across_spans() {
+    let block = |span: &str, at| {
+        let mut block = make_test_block("t1", span, ChatRole::User, "Name one neighbourhood.", at);
+        block.source_attribute = Some("new_context".to_string());
+        let semantics = crate::sideml::carrier::semantics_for_context(&block.carrier_context());
+        assert!(
+            semantics.carrier_holds_request_delta && !semantics.position_proves_distinct_occurrence,
+            "the probe carrier must hold deltas whose positions prove nothing"
+        );
+        block
+    };
+    let survivors = process_dedup(
+        vec![block("s1", utc(100)), block("s2", utc(200))],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 1, "{survivors:?}");
+}
+
+/// A chain is one request thread: another thread's delta neither breaks a resumption nor lends it a history.
+#[test]
+fn a_delta_chain_is_one_request_thread() {
+    // An interleaved thread does not break the first thread's restating resumption.
+    let survivors = process_dedup(
+        vec![
+            threaded_delta_block("th-a", "s1", 0, "Env: /tmp", utc(100)),
+            threaded_delta_block("th-b", "s2", 0, "Who are you?", utc(150)),
+            threaded_delta_block("th-a", "s3", 0, "Env: /tmp", utc(200)),
+            threaded_delta_block("th-a", "s3", 1, "Tokens left: 1", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(
+        survivors.len(),
+        3,
+        "the resumption folds through the interleaved thread: {survivors:?}"
+    );
+
+    // Another thread's extending delta is not a restatement: each thread was sent its own reminder.
+    let survivors = process_dedup(
+        vec![
+            threaded_delta_block("th-a", "s1", 0, "Env: /tmp", utc(100)),
+            threaded_delta_block("th-b", "s2", 0, "Env: /tmp", utc(200)),
+            threaded_delta_block("th-b", "s2", 1, "Tokens left: 1", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 3, "{survivors:?}");
+
+    // Where no rule names a thread, nothing proves two spans share a history, so no prefix folds - but each
+    // span's positions still prove its own occurrences, so the spans band apart.
+    let survivors = process_dedup(
+        vec![
+            threaded_delta_block("", "s1", 0, "Env: /tmp", utc(100)),
+            threaded_delta_block("", "s2", 0, "Env: /tmp", utc(200)),
+            threaded_delta_block("", "s2", 1, "Tokens left: 1", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 3, "{survivors:?}");
+}
+
+/// The band offset adds to the in-span position ranks, never replaces them: a delta saying the same words
+/// twice is two statements within its own span too.
+#[test]
+fn a_delta_repeating_itself_within_one_span_stays_two_statements() {
+    let survivors = process_dedup(
+        vec![
+            delta_block("s1", 0, "Tokens left: 1", utc(100)),
+            delta_block("s1", 1, "Tokens left: 1", utc(100)),
+            delta_block("s2", 0, "Tokens left: 1", utc(200)),
+        ],
+        HashMap::new(),
+    );
+    assert_eq!(survivors.len(), 3, "{survivors:?}");
+}
+
+/// The rank/band boundary is enforced, not assumed: a span with more same-value members than a band holds
+/// folds its overflow onto its own last rank instead of colliding with the next span's band.
+#[test]
+fn an_oversized_delta_folds_onto_itself_and_never_into_another_span() {
+    const BAND: usize = 1 << 16;
+    let mut blocks: Vec<BlockEntry> = (0..=BAND as i32)
+        .map(|at| delta_block("s1", at, "Tokens left: 1", utc(100)))
+        .collect();
+    blocks.push(delta_block("s2", 0, "Tokens left: 1", utc(200)));
+    let survivors = process_dedup(blocks, HashMap::new());
+    assert_eq!(survivors.len(), BAND + 1, "{}", survivors.len());
+    assert!(
+        survivors.iter().any(|block| block.span_id == "s2"),
+        "the second span's statement is its own, not the first span's overflow"
+    );
+}

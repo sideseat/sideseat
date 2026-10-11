@@ -69,6 +69,7 @@ fn make_block(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     }
 }
@@ -179,6 +180,7 @@ pub(super) fn make_block_with_source(
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     }
 }

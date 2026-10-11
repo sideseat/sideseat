@@ -541,9 +541,11 @@ pub(super) fn failed_span(truth: &mut Truth, recon: &mut Recon, speaks: bool) ->
         block.refresh();
         blocks.push(block);
     }
-    recon
-        .views
-        .push(super::recon::View::plain_span(span, blocks));
+    recon.views.push(super::recon::View::plain_span(
+        template.trace.clone(),
+        span,
+        blocks,
+    ));
     true
 }
 
@@ -800,6 +802,7 @@ pub(super) fn unexpected_generation(_: &mut Truth, recon: &mut Recon) -> bool {
         &span,
         true,
     );
+    let trace = template.trace.clone();
     recon.generations.push(Generation {
         span: span.clone(),
         label: "trace-1/unexpected/span-0".into(),
@@ -808,7 +811,7 @@ pub(super) fn unexpected_generation(_: &mut Truth, recon: &mut Recon) -> bool {
     });
     recon
         .views
-        .push(super::recon::View::plain_span(span, vec![block]));
+        .push(super::recon::View::plain_span(trace, span, vec![block]));
     true
 }
 

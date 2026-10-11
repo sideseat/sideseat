@@ -516,6 +516,7 @@ fn a_run_of_segments_competes_with_whole_copies() {
     let facts = [(&a, None), (&b, None)];
     let block = |text: &str| super::mutate::text_block("assistant", text, "t", "s", true);
     let view = View::plain_span(
+        "t".to_string(),
         "s".to_string(),
         vec![
             block("A"),
@@ -661,6 +662,7 @@ fn a_run_across_traces_is_no_showing_of_one_trace_s_answer() {
     let block =
         |text: &str, trace: &str| super::mutate::text_block("assistant", text, trace, "s", true);
     let view = View::plain_span(
+        "t".to_string(),
         "s".to_string(),
         vec![
             block("AB", "t1"),
@@ -728,6 +730,7 @@ fn a_run_spends_no_unasserted_fact() {
     let facts = [(&a, None), (&b, None), (&c, None)];
     let block = |text: &str| super::mutate::text_block("assistant", text, "t", "s", true);
     let view = View::plain_span(
+        "t".to_string(),
         "s".to_string(),
         vec![block("AB"), block("AB"), block("A"), block("B")],
     );

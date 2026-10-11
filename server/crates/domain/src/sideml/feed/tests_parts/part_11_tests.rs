@@ -473,6 +473,7 @@ fn test_no_promotion_when_choice_exists() {
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     };
 
@@ -520,6 +521,7 @@ fn test_no_promotion_when_choice_exists() {
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,
+        request_thread: String::new(),
         declared_direction: None,
     };
 

@@ -289,6 +289,8 @@ struct ParsedMessage {
     span_name: Option<String>,
     scope_name: Option<String>,
     scope_version: Option<String>,
+    /// The span's derived request-thread key (`MessageSpanRow::request_thread`); empty where no rule names one.
+    request_thread: String,
     /// The stored message was a rendering (`RawMessage::rendering`).
     rendering: bool,
     /// The side of the span its reading declared, where it declared one (`RawMessage::direction`).

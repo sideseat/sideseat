@@ -166,6 +166,7 @@ mod tests {
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,
+            request_thread: String::new(),
             declared_direction: None,
         }
     }
