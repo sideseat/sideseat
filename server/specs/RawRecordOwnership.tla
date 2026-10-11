@@ -85,6 +85,17 @@
 (* NoLatestLost; the fence removed from Confirm (grant always) breaks       *)
 (* Covered; NeverResurrected added to INVARIANTS is violated in seconds, so  *)
 (* the stale landing the reclaim machinery is about is reachable.           *)
+(*                                                                         *)
+(* The landing horizon is a privacy-time bound, not a correctness           *)
+(* dependency: with FencedLanding = FALSE - landings allowed after the      *)
+(* clear, as when the backend's clock-skew margin is exceeded - Covered,    *)
+(* NoLatestLost, HeldIntact and NoResurrectedRead still hold (checked on    *)
+(* the Takeover constants, 10,690,285 states, and on a one-span hold        *)
+(* variant of them, 3,315,907 states), because readers are gated by         *)
+(* ownership and the high-water mark, never by the queue. What degrades is  *)
+(* Private and OwnersCoverRows: a landing that beats the horizon can leave  *)
+(* reader-invisible bytes, or an unowned row, that persist until the        *)
+(* record is next touched or its retention expires, instead of one pass.    *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, TLC
 
@@ -95,11 +106,13 @@ CONSTANTS Spans, Ingests, Rewriters, Reconcilers, MaxVer,
           WithCrash,         \* a reconciler, or an execution past settlement, can die between steps
           AtomicWrites,      \* the look and the write it decides are one step (DuckDB)
           Duplicates,        \* the ingests are executions of one staged payload, not separate deliveries
-          Epochs             \* versions carry the project epoch, and a collection's purge is bounded by it
+          Epochs,            \* versions carry the project epoch, and a collection's purge is bounded by it
+          FencedLanding      \* the backend-enforced landing horizon holds; FALSE explores it exceeded
 
 ASSUME Spans # {} /\ Ingests # {} /\ Reconcilers # {} /\ MaxVer \in Nat
 ASSUME WithHold \in BOOLEAN /\ WithRestore \in BOOLEAN /\ ReceiptPrecedence \in BOOLEAN
 ASSUME WithCrash \in BOOLEAN /\ AtomicWrites \in BOOLEAN /\ Duplicates \in BOOLEAN /\ Epochs \in BOOLEAN
+ASSUME FencedLanding \in BOOLEAN
 
 VARIABLES
     rows,      \* spans that currently have a row naming the record
@@ -757,9 +770,10 @@ RRecheck(r) ==
 \* Modeled as: no delayed landing is in flight, and the clear performs the recheck.
 RClear(r) ==
     /\ rpc[r] = "clear"
-    /\ \A i \in Ingests : ipc[i] \notin {"write", "rekey", "repair"}
-                           /\ (ipc[i] = "land" => isnap[i].present)
-    /\ \A w \in Rewriters : wpc[w] # "append"
+    /\ FencedLanding =>
+          /\ \A i \in Ingests : ipc[i] \notin {"write", "rekey", "repair"}
+                                /\ (ipc[i] = "land" => isnap[i].present)
+          /\ \A w \in Rewriters : wpc[w] # "append"
     /\ IF Unsettled THEN Enqueue ELSE UNCHANGED queued
     /\ rclaim' = [rclaim EXCEPT ![r] = FALSE]
     /\ rdec' = [rdec EXCEPT ![r] = 0]
