@@ -492,10 +492,10 @@ fn a_span_twin_of_a_ledgered_trace_entry_is_not_a_new_defect() {
         span_twins(&base, &kept, &listed)
             .into_iter()
             .collect::<Vec<_>>(),
-        [twin.id.clone()]
+        std::slice::from_ref(&twin.id)
     );
     // A twin whose trace entry was fixed in the same change is no longer the same defect.
-    assert!(span_twins(&base, &[twin.clone()], &listed).is_empty());
+    assert!(span_twins(&base, std::slice::from_ref(&twin), &listed).is_empty());
     // A listed id with another fingerprint - two copies where the reviewed twin had one - is refused.
     let mut heavier = twin.clone();
     heavier.fingerprint = "another".to_string();

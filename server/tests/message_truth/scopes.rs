@@ -43,7 +43,7 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
             .map(|c| c.id.as_str())
             .collect();
         let facts = std::iter::once(call)
-            .chain(sharing.into_iter())
+            .chain(sharing)
             .flat_map(|c| &c.outputs)
             .filter_map(|id| context.fact(id))
             .filter(|f| context.asserted_in(f, "span"))
