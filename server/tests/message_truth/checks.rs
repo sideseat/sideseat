@@ -561,7 +561,7 @@ fn in_sequence(
 }
 
 /// Kuhn's augmenting paths: for each left vertex, the right vertex it is matched to.
-fn maximum_matching(adjacency: &[Vec<usize>]) -> Vec<Option<usize>> {
+pub(super) fn maximum_matching(adjacency: &[Vec<usize>]) -> Vec<Option<usize>> {
     fn augment(
         left: usize,
         adjacency: &[Vec<usize>],
