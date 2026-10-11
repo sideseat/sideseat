@@ -921,3 +921,44 @@ fn pydantic_tool_span_blocks(rendered: &str) -> String {
     };
     format!("{source}{rewritten}")
 }
+
+/// A span event's attribute with no value is a member left unset, as a log body's is: the contentless finish
+/// choice ends the stream on either carrier.
+#[test]
+fn a_span_event_attribute_with_no_value_is_left_unset() {
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    let event = opentelemetry_proto::tonic::trace::v1::span::Event {
+        name: "gen_ai.choice".to_string(),
+        time_unix_nano: 1_735_689_600_000_000_000,
+        attributes: vec![
+            KeyValue {
+                key: "content".to_string(),
+                value: Some(AnyValue { value: None }),
+            },
+            KeyValue {
+                key: "finish_reason".to_string(),
+                value: Some(AnyValue {
+                    value: Some(any_value::Value::StringValue("STOP".to_string())),
+                }),
+            },
+        ],
+        ..Default::default()
+    };
+    let span_attrs = std::collections::HashMap::new();
+    let messages = read_span_event(
+        &event,
+        crate::message_events::EventSpan {
+            rules: sideseat_domain::rules::ruleset(),
+            name: "call_llm",
+            attrs: &span_attrs,
+            scope: Some("gcp.vertex.agent"),
+            is_tool_span: false,
+        },
+    );
+    let readings: Vec<_> = messages.iter().filter(|m| m.stream.is_some()).collect();
+    assert_eq!(readings.len(), 1, "{messages:?}");
+    assert_eq!(
+        readings[0].stream,
+        Some(sideseat_domain::rules::schema::StreamMark::Delta)
+    );
+}

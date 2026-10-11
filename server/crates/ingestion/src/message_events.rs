@@ -153,12 +153,31 @@ pub(crate) fn read_message_event(
 /// and the generic rendering stringifies every nested value, so `{"message": {"role": ...}}` would arrive
 /// as a map of strings. Structured values are therefore rendered as JSON text, which the reader parses
 /// back into exactly the structure the producer sent.
-pub(crate) fn structured_attributes(attrs: &[KeyValue]) -> HashMap<String, String> {
+/// A span event's attributes as the event reader sees them: rendered as text, with a member whose value is
+/// empty left out, as [`structured_attributes`] leaves it - an exporter writes an unset field with no value
+/// or an empty one, and both must read as the member being absent.
+pub(crate) fn event_attributes(attrs: &[KeyValue]) -> HashMap<String, String> {
     attrs
         .iter()
         .filter_map(|kv| {
             kv.value
                 .as_ref()
+                .filter(|value| value.value.is_some())
+                .map(|value| (kv.key.clone(), any_value_to_string(value)))
+        })
+        .collect()
+}
+
+pub(crate) fn structured_attributes(attrs: &[KeyValue]) -> HashMap<String, String> {
+    attrs
+        .iter()
+        // A member with no value is left out, whether the exporter omitted the value or sent an empty one:
+        // OpenTelemetry Python writes an unset field one way or the other depending on its release, and the two
+        // must read alike. Read as text, an empty value would be a member set to nothing.
+        .filter_map(|kv| {
+            kv.value
+                .as_ref()
+                .filter(|value| value.value.is_some())
                 .map(|value| (kv.key.clone(), structured_value(value)))
         })
         .collect()
@@ -187,11 +206,17 @@ fn content_json(value: &AnyValue) -> JsonValue {
         Some(any_value::Value::ArrayValue(array)) => {
             JsonValue::Array(array.values.iter().map(content_json).collect())
         }
+        // A member with no value is left out, as at the top level: omitted and empty read alike.
         Some(any_value::Value::KvlistValue(members)) => JsonValue::Object(
             members
                 .values
                 .iter()
-                .filter_map(|kv| kv.value.as_ref().map(|v| (kv.key.clone(), content_json(v))))
+                .filter_map(|kv| {
+                    kv.value
+                        .as_ref()
+                        .filter(|v| v.value.is_some())
+                        .map(|v| (kv.key.clone(), content_json(v)))
+                })
                 .collect(),
         ),
         _ => any_value_to_json(value),
@@ -349,38 +374,71 @@ mod tests {
     /// the event does not have - is read as the stream's terminal, holding nothing but why the model stopped.
     #[test]
     fn a_contentless_finish_choice_ends_the_stream() {
-        let body = structured_attributes(&[
-            KeyValue {
+        // A member with no value, whichever way the exporter wrote it.
+        for content in [None, Some(AnyValue { value: None })] {
+            let body = structured_attributes(&[
+                KeyValue {
+                    key: "content".to_string(),
+                    value: content,
+                },
+                KeyValue {
+                    key: "index".to_string(),
+                    value: Some(AnyValue {
+                        value: Some(any_value::Value::IntValue(0)),
+                    }),
+                },
+                KeyValue {
+                    key: "finish_reason".to_string(),
+                    value: Some(text("STOP")),
+                },
+            ]);
+            let messages = read_message_event(
+                "gen_ai.choice",
+                &body,
+                chrono::Utc::now(),
+                EventSpan::unattached(Some("gcp.vertex.agent")),
+            );
+            let readings: Vec<&RawMessage> =
+                messages.iter().filter(|m| m.stream.is_some()).collect();
+            assert_eq!(readings.len(), 1, "{messages:?}");
+            assert_eq!(
+                readings[0].stream,
+                Some(sideseat_domain::rules::schema::StreamMark::Delta)
+            );
+            assert_eq!(
+                readings[0].content,
+                json!({"role": "model", "parts": [], "finish_reason": "STOP"})
+            );
+        }
+    }
+
+    /// A message's member with no value is left out however deep it sits, whichever way the exporter wrote it:
+    /// an empty value is a member left unset, never one set to nothing.
+    #[test]
+    fn an_empty_member_value_is_a_member_left_unset() {
+        let part = |unset: Option<AnyValue>| AnyValue {
+            value: Some(any_value::Value::KvlistValue(KeyValueList {
+                values: vec![
+                    KeyValue {
+                        key: "text".to_string(),
+                        value: Some(text("hello")),
+                    },
+                    KeyValue {
+                        key: "function_response".to_string(),
+                        value: unset,
+                    },
+                ],
+            })),
+        };
+        let read = |unset: Option<AnyValue>| {
+            let attrs = structured_attributes(&[KeyValue {
                 key: "content".to_string(),
-                value: None,
-            },
-            KeyValue {
-                key: "index".to_string(),
-                value: Some(AnyValue {
-                    value: Some(any_value::Value::IntValue(0)),
-                }),
-            },
-            KeyValue {
-                key: "finish_reason".to_string(),
-                value: Some(text("STOP")),
-            },
-        ]);
-        let messages = read_message_event(
-            "gen_ai.choice",
-            &body,
-            chrono::Utc::now(),
-            EventSpan::unattached(Some("gcp.vertex.agent")),
-        );
-        let readings: Vec<&RawMessage> = messages.iter().filter(|m| m.stream.is_some()).collect();
-        assert_eq!(readings.len(), 1, "{messages:?}");
-        assert_eq!(
-            readings[0].stream,
-            Some(sideseat_domain::rules::schema::StreamMark::Delta)
-        );
-        assert_eq!(
-            readings[0].content,
-            json!({"role": "model", "parts": [], "finish_reason": "STOP"})
-        );
+                value: Some(part(unset)),
+            }]);
+            serde_json::from_str::<JsonValue>(&attrs["content"]).expect("structured content")
+        };
+        assert_eq!(read(None), json!({"text": "hello"}));
+        assert_eq!(read(Some(AnyValue { value: None })), read(None));
     }
 
     /// A chunk's call is settled unless it carries a streaming member - `will_continue`, true or false, or

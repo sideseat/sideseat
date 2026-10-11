@@ -18,7 +18,6 @@ use serde_json::json;
 #[cfg(test)]
 use crate::message_events::parse_json_with_fallback;
 use crate::message_events::{EventSpan, is_message_event, read_message_event};
-use crate::otlp::extract_attributes;
 use sideseat_core::utils::time::nanos_to_datetime;
 pub use sideseat_domain::observations::{
     MessageSource, RawMessage, RawToolDefinition, RawToolNames, ToolDefinitionSource,
@@ -50,7 +49,7 @@ fn read_span_event(event: &Event, span: EventSpan<'_>) -> Vec<RawMessage> {
     }
     read_message_event(
         &event.name,
-        &extract_attributes(&event.attributes),
+        &crate::message_events::event_attributes(&event.attributes),
         nanos_to_datetime(event.time_unix_nano),
         span,
     )

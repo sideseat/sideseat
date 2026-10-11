@@ -365,9 +365,10 @@ const DUAL_SIGNAL_FIXTURES: &[(&str, &[&str])] = &[(
     &["Name a primary colour.", "Red."],
 )];
 
-/// Dual-emitter fixtures and the single-signal fixture each was made from: writing every message on a second
-/// signal changes nothing any view shows.
-const DUAL_SIGNAL_TWINS: &[(&str, &str)] = &[
+/// Fixtures that must reconstruct exactly as another one does - a dual emitter's, which writes every message on
+/// a second signal, and those writing a member with no value another way - each against the fixture it was made
+/// from.
+const TWINS: &[(&str, &str)] = &[
     (
         "_synthetic/answer_on_span_event_and_log",
         "_synthetic/log_and_span_event_overlap",
@@ -376,15 +377,24 @@ const DUAL_SIGNAL_TWINS: &[(&str, &str)] = &[
         "_synthetic/streamed_choice_on_both_signals",
         "_synthetic/streamed_choice_delta",
     ),
+    (
+        "_synthetic/streamed_choice_contentless_empty",
+        "_synthetic/streamed_choice_contentless",
+    ),
+    (
+        "_synthetic/streamed_choice_contentless_null",
+        "_synthetic/streamed_choice_contentless",
+    ),
 ];
 
 #[test]
-fn a_second_signal_carrying_every_message_changes_no_view() {
+fn a_twin_reconstructs_as_the_fixture_it_was_made_from() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
     let shown = |label: &str| {
         let paths = &fixtures[label];
         let golden = build_golden(label, paths, &rows_for(paths)).golden;
-        let blocks = |view: &GoldenView| -> Vec<(String, String, String)> {
+        type Shown = (String, String, String, Option<String>);
+        let blocks = |view: &GoldenView| -> Vec<Shown> {
             view.messages
                 .iter()
                 .map(|m| {
@@ -392,11 +402,12 @@ fn a_second_signal_carrying_every_message_changes_no_view() {
                         m.role.clone(),
                         m.entry_type.clone(),
                         m.content_digest.clone(),
+                        m.finish_reason.clone(),
                     )
                 })
                 .collect()
         };
-        let mut views: BTreeMap<String, Vec<(String, String, String)>> = golden
+        let mut views: BTreeMap<String, Vec<Shown>> = golden
             .span_views
             .iter()
             .chain(&golden.trace_views)
@@ -406,8 +417,8 @@ fn a_second_signal_carrying_every_message_changes_no_view() {
         views.insert("feed".to_string(), blocks(&golden.feed_view));
         views
     };
-    for (both, one) in DUAL_SIGNAL_TWINS {
-        assert_eq!(shown(both), shown(one), "{both} against {one}");
+    for (twin, original) in TWINS {
+        assert_eq!(shown(twin), shown(original), "{twin} against {original}");
     }
 }
 
@@ -494,6 +505,17 @@ const STREAM_FIXTURES: &[StreamFixture] = &[
     // Every chunk, then a choice holding no content that states why the model stopped: the chunks joined.
     (
         "_synthetic/streamed_choice_contentless",
+        &[STREAMED_ANSWER],
+        &[],
+    ),
+    // The same, its `content` sent with an empty value, and written as a JSON text body with `content` null.
+    (
+        "_synthetic/streamed_choice_contentless_empty",
+        &[STREAMED_ANSWER],
+        &[],
+    ),
+    (
+        "_synthetic/streamed_choice_contentless_null",
         &[STREAMED_ANSWER],
         &[],
     ),

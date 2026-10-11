@@ -144,16 +144,38 @@ fn json_members(text: &str) -> std::collections::HashMap<String, String> {
     let Ok(serde_json::Value::Object(members)) = serde_json::from_str(text) else {
         return Default::default();
     };
+    // A null member, at any depth, is one the record left unset: OTLP's AnyValue has no null, so the structured
+    // encoding of the same body writes an unset member with an empty value, which is left out - the text
+    // encoding must read alike or the two reconstruct differently. A null array *element* stays, as the
+    // structured encoding keeps it.
     members
         .into_iter()
-        .map(|(key, value)| {
+        .filter_map(|(key, value)| {
             let value = match value {
+                serde_json::Value::Null => return None,
                 serde_json::Value::String(text) => text,
-                other => other.to_string(),
+                other => without_null_members(other).to_string(),
             };
-            (key, value)
+            Some((key, value))
         })
         .collect()
+}
+
+/// The value with every object member that is null removed, at any depth.
+fn without_null_members(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(members) => serde_json::Value::Object(
+            members
+                .into_iter()
+                .filter(|(_, member)| !member.is_null())
+                .map(|(key, member)| (key, without_null_members(member)))
+                .collect(),
+        ),
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.into_iter().map(without_null_members).collect())
+        }
+        other => other,
+    }
 }
 
 /// Whether the record carries a usable trace and span id. All-zero ids are OpenTelemetry's "invalid".
@@ -173,6 +195,22 @@ mod tests {
         AnyValue {
             value: Some(any_value::Value::StringValue(value.to_string())),
         }
+    }
+
+    /// A record whose body is JSON text holds a null member as unset - absent, as an OTLP body's member with no
+    /// value is - never as the text `null`.
+    #[test]
+    fn a_null_member_of_a_text_body_is_left_unset() {
+        let members = json_members(r#"{"content": null, "index": 0, "finish_reason": "STOP"}"#);
+        assert!(!members.contains_key("content"), "{members:?}");
+        assert_eq!(members["index"], "0");
+        assert_eq!(members["finish_reason"], "STOP");
+        // At any depth, since the structured encoding cannot state a nested null either; a null array element
+        // stays, as that encoding keeps it.
+        let members = json_members(
+            r#"{"content": {"parts": [{"text": "hi", "function_response": null}, null]}}"#,
+        );
+        assert_eq!(members["content"], r#"{"parts":[{"text":"hi"},null]}"#);
     }
 
     fn kv(key: &str, value: AnyValue) -> KeyValue {
@@ -500,5 +538,37 @@ mod tests {
         assert_eq!(body_member_key(&json, "text").as_deref(), Some("sp_1"));
         assert_eq!(body_member_key(&json, "list"), None);
         assert_eq!(body_member_key(&with_body(text("not json")), "key"), None);
+    }
+
+    /// Both encodings of a null inside a payload read alike: OTLP's AnyValue has no null, so the structured
+    /// encoding writes an empty value, which is left out - and the JSON text body's null member must read the
+    /// same, or two exporters of one producer reconstruct differently. A null the producer means is lost with
+    /// the unset member it is indistinguishable from; consistency across encodings is what the reading keeps.
+    #[test]
+    fn a_null_inside_a_payload_reads_alike_in_both_encodings() {
+        let structured = crate::message_events::structured_attributes(&[KeyValue {
+            key: "args".to_string(),
+            value: Some(AnyValue {
+                value: Some(any_value::Value::KvlistValue(KeyValueList {
+                    values: vec![
+                        KeyValue {
+                            key: "city".to_string(),
+                            value: Some(text("Milan")),
+                        },
+                        KeyValue {
+                            key: "filter".to_string(),
+                            value: Some(AnyValue { value: None }),
+                        },
+                    ],
+                })),
+            }),
+        }]);
+        let from_structured: serde_json::Value =
+            serde_json::from_str(&structured["args"]).expect("structured args");
+        let from_text = json_members(r#"{"args": {"city": "Milan", "filter": null}}"#);
+        let from_text: serde_json::Value =
+            serde_json::from_str(&from_text["args"]).expect("text args");
+        assert_eq!(from_structured, json!({"city": "Milan"}));
+        assert_eq!(from_text, from_structured);
     }
 }
