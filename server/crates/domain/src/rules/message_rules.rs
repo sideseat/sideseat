@@ -327,28 +327,51 @@ pub enum CompiledStream {
     },
     /// A terminal: every reading is marked alike.
     Terminal(super::schema::StreamMark),
+    /// Each reading states its part: the terminal where `terminal_where` holds, a chunk otherwise.
+    Stated {
+        terminal_where: Box<ValueCondition>,
+        terminal: super::schema::StreamMark,
+        partial_calls: Option<Box<ValueCondition>>,
+    },
 }
 
 impl CompiledStream {
     pub fn compile(declaration: &super::schema::StreamDeclaration) -> Self {
         use super::schema::{StreamDeclaration, StreamMark, TerminalContent};
+        let terminal = |content: &TerminalContent| match content {
+            TerminalContent::Aggregate => StreamMark::Aggregate,
+            TerminalContent::Delta => StreamMark::Delta,
+            TerminalContent::Unknown => StreamMark::Unknown,
+        };
         match declaration {
             StreamDeclaration::Chunk { partial_calls } => Self::Chunk {
                 partial_calls: partial_calls.clone(),
             },
-            StreamDeclaration::Terminal { content } => Self::Terminal(match content {
-                TerminalContent::Aggregate => StreamMark::Aggregate,
-                TerminalContent::Delta => StreamMark::Delta,
-                TerminalContent::Unknown => StreamMark::Unknown,
-            }),
+            StreamDeclaration::Terminal { content } => Self::Terminal(terminal(content)),
+            StreamDeclaration::Stated {
+                terminal_where,
+                content,
+                partial_calls,
+            } => Self::Stated {
+                terminal_where: terminal_where.clone(),
+                terminal: terminal(content),
+                partial_calls: partial_calls.clone(),
+            },
         }
     }
 
-    /// The condition that says a chunk's calls are still arriving, where the rule declares one.
-    pub fn partial_calls(&self) -> Option<&ValueCondition> {
+    /// Every predicate set the declaration holds, for the compile-time defect sweep.
+    pub fn conditions(&self) -> Vec<&ValueCondition> {
         match self {
-            Self::Chunk { partial_calls } => partial_calls.as_deref(),
-            Self::Terminal(_) => None,
+            Self::Chunk { partial_calls } => partial_calls.iter().map(AsRef::as_ref).collect(),
+            Self::Terminal(_) => Vec::new(),
+            Self::Stated {
+                terminal_where,
+                partial_calls,
+                ..
+            } => std::iter::once(terminal_where.as_ref())
+                .chain(partial_calls.iter().map(AsRef::as_ref))
+                .collect(),
         }
     }
 
@@ -356,12 +379,26 @@ impl CompiledStream {
     /// partial calls and this one is not marked.
     pub fn mark(&self, value: &JsonValue) -> super::schema::StreamMark {
         use super::schema::StreamMark;
+        let chunk = |partial_calls: &Option<Box<ValueCondition>>| match partial_calls {
+            Some(partial) if !predicates::predicates_hold(value, partial) => {
+                StreamMark::SettledChunk
+            }
+            _ => StreamMark::Chunk,
+        };
         match self {
             Self::Terminal(mark) => *mark,
-            Self::Chunk {
-                partial_calls: Some(partial),
-            } if !predicates::predicates_hold(value, partial) => StreamMark::SettledChunk,
-            Self::Chunk { .. } => StreamMark::Chunk,
+            Self::Chunk { partial_calls } => chunk(partial_calls),
+            Self::Stated {
+                terminal_where,
+                terminal,
+                partial_calls,
+            } => {
+                if predicates::predicates_hold(value, terminal_where) {
+                    *terminal
+                } else {
+                    chunk(partial_calls)
+                }
+            }
         }
     }
 }

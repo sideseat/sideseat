@@ -407,6 +407,20 @@ pub enum StreamDeclaration {
     },
     /// The reading that ends a streamed response, and what it holds.
     Terminal { content: TerminalContent },
+    /// A rule whose readings each state which part they are: the reading `terminal_where` holds for is the
+    /// terminal, and every other is a chunk. For a producer that bundles a whole stream into one carrier -
+    /// the current conventions' inference-details event carries every piece the model yielded as one array -
+    /// where chunk and terminal are elements of one payload rather than separate events, so no event
+    /// condition can tell them apart.
+    Stated {
+        /// What marks a reading as the one that ends the response: a condition on the reading's payload.
+        terminal_where: Box<ValueCondition>,
+        /// What the terminal reading holds, exactly as `terminal.content`.
+        content: TerminalContent,
+        /// What says a chunk reading's call is still arriving, exactly as `chunk.partial_calls`.
+        #[serde(default)]
+        partial_calls: Option<Box<ValueCondition>>,
+    },
 }
 
 /// What the reading that ends a streamed response holds.

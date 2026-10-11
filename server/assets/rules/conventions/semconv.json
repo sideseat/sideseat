@@ -439,7 +439,7 @@
     },
     {
       "id": "semconv.event_inference_details_output",
-      "doc": "The response side of the same container. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
+      "doc": "The response side of the same container. Read on a tool span too: the retired extractor answered this event before any tool-span check. After `google-adk.operation_details_output` (31), which reads the same carrier element by element where the elements state a stream's parts, and leaves it whole to this rule everywhere else.",
       "source": {
         "event": {
           "names": [
@@ -452,7 +452,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "priority": 31,
+      "priority": 32,
       "reads_tool_spans": true
     },
     {

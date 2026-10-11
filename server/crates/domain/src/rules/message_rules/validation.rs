@@ -8,7 +8,7 @@ pub(in crate::rules) use predicate_defects::{member_predicate_defect, predicate_
 /// Every predicate set a compiled rule holds, wherever the declaration put it.
 pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&ValueCondition> {
     let mut out = vec![&rule.raw_where];
-    out.extend(rule.stream.as_ref().and_then(CompiledStream::partial_calls));
+    out.extend(rule.stream.iter().flat_map(CompiledStream::conditions));
     if let Some(set) = &rule.branch_set {
         for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
             out.extend(predicate_sets(sub));

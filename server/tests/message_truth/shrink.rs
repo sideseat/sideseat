@@ -10,16 +10,17 @@ use super::{ViolationView, family, ledger};
 /// base, about a check that existed at the base and a truth fact the base already stated, that the base
 /// did not record.
 ///
-/// Five kinds of addition are baselines instead. A check introduced since the base describes defects
+/// Six kinds of addition are baselines instead. A check introduced since the base describes defects
 /// the rubric could not see before; a fixture introduced since the base had no entries to keep; a fact
 /// the truth gained since the base - content a request carried that the truth then learned to state - is
 /// an obligation the base never imposed; and a request entry whose request part - the one its subject
 /// names, or the call's whole request - the base did not send, because the fixture's transcript was
 /// recorded or re-recorded since with other content there; an entry about a subject the base recorded
-/// as missing in the same view, which is that defect changing form as its content starts to be shown; and a
+/// as missing in the same view, which is that defect changing form as its content starts to be shown; a
 /// request entry about a call the base could not tie to a span (`call.unmatched`), whose request no check
-/// could reach until the call was found. All still need a triaged backlog issue, which
-/// `truth_violation_ledger_is_well_formed` enforces.
+/// could reach until the call was found; and an entry for a fixture whose captured export bytes changed
+/// since the base ([`recapture_admits`]), which is a new recording the base never reviewed. All still need
+/// a triaged backlog issue, which `truth_violation_ledger_is_well_formed` enforces.
 fn regressions(
     entries: &[ledger::Entry],
     recorded_at_base: &std::collections::BTreeSet<String>,
@@ -77,6 +78,115 @@ fn span_twins(
 /// The facts an entry is about: its subject, or both ends of an order entry (`fact-009 before fact-003`).
 fn entry_facts(entry: &ledger::Entry) -> Vec<&str> {
     entry.subject.split(" before ").collect()
+}
+
+/// Whether a re-captured fixture admits this added entry: the fixture's captured export bytes changed
+/// since the base, and the entry arrives triaged.
+///
+/// A fixture re-captured live is a new recording - other model answers, other chunking, other request
+/// transcripts - so the base's review says nothing about what it must reconstruct, exactly as a fixture
+/// the base never had. The bound is the capture itself: only the raw OTLP exports count, so a
+/// change to goldens, truths or transcripts beside unchanged exports brings no baseline; and an entry
+/// admitted this way must name its backlog issue already, because a re-capture is deliberate work whose
+/// defects are triaged in the same change, never parked.
+fn recapture_admits(entry: &ledger::Entry, recaptured: &BTreeSet<String>) -> bool {
+    recaptured.contains(&entry.fixture) && entry.issue != "UNTRIAGED"
+}
+
+/// The fixture whose captured export a repository path is: a `req-*.pb` or `logs-*.pb` file under a
+/// fixture directory of `server/tests/fixtures/messages`.
+///
+/// Exactly the files the replay reads, not every `.pb`: a stray protobuf dropped beside unchanged
+/// exports must not mark the fixture re-captured, since the replay's input - and so everything the base
+/// reviewed - is still the same bytes.
+fn export_of(path: &str) -> Option<String> {
+    const ROOT: &str = "server/tests/fixtures/messages/";
+    let rest = path.strip_prefix(ROOT)?;
+    let (dir, name) = rest.rsplit_once('/')?;
+    let export = name.strip_suffix(".pb")?;
+    (export.starts_with("req-") || export.starts_with("logs-")).then(|| dir.to_string())
+}
+
+/// The fixtures whose captured export bytes differ from the base: an export under the fixture that
+/// changed, appeared or disappeared. Compared by git blob id - the bytes, not timestamps or the index.
+fn recaptured_fixtures(git: &impl Fn(&[&str]) -> Option<String>, base: &str) -> BTreeSet<String> {
+    const ROOT: &str = "server/tests/fixtures/messages";
+    let fixture_of = |path: &str| export_of(path).map(|fixture| (fixture, path.to_string()));
+    let mut at_base: BTreeMap<String, String> = BTreeMap::new();
+    for line in git(&["ls-tree", "-r", base, "--", ROOT])
+        .unwrap_or_default()
+        .lines()
+    {
+        if let Some((meta, path)) = line.split_once('\t')
+            && let Some(oid) = meta.split_whitespace().nth(2)
+            && fixture_of(path).is_some()
+        {
+            at_base.insert(path.to_string(), oid.to_string());
+        }
+    }
+    // The live tree's exports, hashed as git would store them, in one invocation.
+    let mut live_paths: Vec<String> = Vec::new();
+    let mut pending = vec![truth::repo_root().join(ROOT)];
+    while let Some(dir) = pending.pop() {
+        for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if let Ok(rest) = path.strip_prefix(truth::repo_root()) {
+                let unixy = rest
+                    .components()
+                    .map(|c| c.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                if fixture_of(&unixy).is_some() {
+                    live_paths.push(unixy);
+                }
+            }
+        }
+    }
+    live_paths.sort();
+    let mut live: BTreeMap<String, String> = BTreeMap::new();
+    if !live_paths.is_empty() {
+        use std::io::Write as _;
+        let hashed = std::process::Command::new("git")
+            .args(["hash-object", "--stdin-paths"])
+            .current_dir(truth::repo_root())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                // Written from its own thread while this one drains stdout: git stops reading paths
+                // once its stdout pipe fills, so writing everything first deadlocks on a corpus whose
+                // ids exceed one pipe buffer.
+                let mut stdin = child.stdin.take().expect("stdin was piped");
+                let paths = live_paths.join("\n") + "\n";
+                let writer = std::thread::spawn(move || stdin.write_all(paths.as_bytes()));
+                let output = child.wait_with_output();
+                writer.join().expect("the writer thread finishes")?;
+                output
+            })
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .expect("git hashes the live exports");
+        for (path, oid) in live_paths.iter().zip(hashed.lines()) {
+            live.insert(path.clone(), oid.trim().to_string());
+        }
+        assert_eq!(
+            live.len(),
+            live_paths.len(),
+            "one blob id per export, or the comparison is misaligned"
+        );
+    }
+    let mut changed = BTreeSet::new();
+    for path in at_base.keys().chain(live.keys()) {
+        if at_base.get(path) != live.get(path)
+            && let Some((fixture, _)) = fixture_of(path)
+        {
+            changed.insert(fixture);
+        }
+    }
+    changed
 }
 
 /// The added request entries about a call the base recorded as `call.unmatched` and the current ledger no
@@ -371,6 +481,7 @@ fn truth_violation_ledger_only_shrinks_against_main() {
     let current_entries = ledger::load().entries;
     let changes_of_form = changes_of_form(&base_entries, &current_entries);
     let span_twins = span_twins(&base_entries, &current_entries, &WIDENED_SPAN_TWINS);
+    let recaptured = recaptured_fixtures(&git, &base);
     let unreached = unreached_requests(&base_entries, &current_entries, |fixture, call| {
         let truth = current
             .values()
@@ -400,6 +511,7 @@ fn truth_violation_ledger_only_shrinks_against_main() {
             if changes_of_form.contains(&entry.id)
                 || unreached.contains(&entry.id)
                 || span_twins.contains(&entry.id)
+                || recapture_admits(entry, &recaptured)
             {
                 return false;
             }
@@ -463,6 +575,65 @@ fn only_a_new_check_or_a_new_fixture_may_add_ledger_entries() {
         |e| e.fixture != "p/native/old",
     );
     assert_eq!(new_fact, vec![entries[1].id.clone()]);
+}
+
+/// Only the files the replay reads mark a fixture re-captured: a stray `.pb` or any other file beside
+/// unchanged exports leaves the replay's input - and so the base's review - standing.
+#[test]
+fn only_a_replayed_export_marks_a_fixture_recaptured() {
+    assert_eq!(
+        export_of("server/tests/fixtures/messages/p/native/s/req-001.pb").as_deref(),
+        Some("p/native/s")
+    );
+    assert_eq!(
+        export_of("server/tests/fixtures/messages/p/native@2.0+x/s/logs-002.pb").as_deref(),
+        Some("p/native@2.0+x/s")
+    );
+    for stray in [
+        "server/tests/fixtures/messages/p/native/s/ignored.pb",
+        "server/tests/fixtures/messages/p/native/s/expected.json",
+        "server/tests/fixtures/messages/p/native/s/model-requests.json",
+        "server/tests/fixtures/messages/req-001.pb",
+        "server/tests/fixtures/truth/p/req-001.pb",
+    ] {
+        assert_eq!(export_of(stray), None, "{stray}");
+    }
+}
+
+/// The recapture baseline is the fixture's own: an entry for a fixture whose captured bytes did not
+/// change is refused however many other fixtures were re-captured, and arriving untriaged refuses it too.
+#[test]
+fn a_recapture_admits_only_its_own_fixture_s_triaged_entries() {
+    let entry = |fixture: &str, issue: &str| ledger::Entry {
+        id: format!("{fixture}:trace:text.duplicated:fact-001"),
+        fixture: fixture.to_string(),
+        view: "trace".to_string(),
+        assertion: "text.duplicated".to_string(),
+        subject: "fact-001".to_string(),
+        fingerprint: "f1".to_string(),
+        reason: "a test entry".to_string(),
+        issue: issue.to_string(),
+        introduced: String::new(),
+    };
+    let recaptured: BTreeSet<String> = ["p/native/s".to_string()].into();
+    assert!(recapture_admits(
+        &entry("p/native/s", "rule-language-program#rv2/text.duplicated/p"),
+        &recaptured
+    ));
+    // The same defect on a fixture whose exports did not change is a regression, not a baseline:
+    // the review the base recorded still covers those bytes.
+    assert!(!recapture_admits(
+        &entry(
+            "p/native/other",
+            "rule-language-program#rv2/text.duplicated/p"
+        ),
+        &recaptured
+    ));
+    // A re-capture is deliberate work whose defects are triaged in the same change, never parked.
+    assert!(!recapture_admits(
+        &entry("p/native/s", "UNTRIAGED"),
+        &recaptured
+    ));
 }
 
 #[test]

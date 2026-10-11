@@ -31,7 +31,7 @@
  "source": {
   "kind": "cassette",
   "path": "examples/python/adk/cassettes/tool_use.json",
-  "sha256": "e56f19c885aa33da10a15d3242ba81cedabb354c2cd1601c7f4264d6262e2d38",
+  "sha256": "e23ece1916f5c28e6df43c305fe6f588610847c8bb1fbd15d32e993b4b041211",
   "non_model_requests": 0
  },
  "generator": "examples/python/harness: python -m harness truth",
@@ -82,7 +82,7 @@
    "finish": "stop",
    "usage": {
     "input": 1176,
-    "output": 113,
+    "output": 119,
     "cache_read": 0,
     "cache_write": 0,
     "reasoning": null,
@@ -103,11 +103,11 @@
     "fact-003",
     "fact-004",
     "fact-005",
+    "fact-012",
     "fact-006",
     "fact-007",
     "fact-008",
     "fact-009",
-    "fact-012",
     "fact-010"
    ],
    "final_answers": [
@@ -143,7 +143,7 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
-    "id": "tooluse_KfEALDUOh6xeDpaU8x1Nit",
+    "id": "tooluse_6Iu25A9Rr9Ae24hI2bHYFA",
     "name": "get_weather",
     "arguments": {
      "city": "Paris",
@@ -170,7 +170,7 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
-    "id": "tooluse_aC4Ot49k3xOL0qX3lKZk4W",
+    "id": "tooluse_C1l9lVGnOm92NcOqiaJTdy",
     "name": "get_weather",
     "arguments": {
      "city": "Tokyo",
@@ -197,7 +197,7 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
-    "id": "tooluse_iZZTLA9Ul8dl7Vrc9E50jW",
+    "id": "tooluse_f4wORePkxclqyD7CmnPbLB",
     "name": "get_precipitation",
     "arguments": {
      "city": "Paris"
@@ -223,7 +223,7 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
-    "id": "tooluse_W6Sy3m6bjFyGNaihNNUCyO",
+    "id": "tooluse_XhMdo6NUYH2xo3tx5Oif9Y",
     "name": "get_precipitation",
     "arguments": {
      "city": "Tokyo"
@@ -249,7 +249,7 @@
    "conversation": "conv-1",
    "evidence": "script",
    "value": {
-    "call_id": "tooluse_KfEALDUOh6xeDpaU8x1Nit",
+    "call_id": "tooluse_6Iu25A9Rr9Ae24hI2bHYFA",
     "name": "get_weather",
     "value": {
      "city": "Paris",
@@ -286,7 +286,7 @@
    "conversation": "conv-1",
    "evidence": "script",
    "value": {
-    "call_id": "tooluse_aC4Ot49k3xOL0qX3lKZk4W",
+    "call_id": "tooluse_C1l9lVGnOm92NcOqiaJTdy",
     "name": "get_weather",
     "value": {
      "city": "Tokyo",
@@ -323,7 +323,7 @@
    "conversation": "conv-1",
    "evidence": "script",
    "value": {
-    "call_id": "tooluse_iZZTLA9Ul8dl7Vrc9E50jW",
+    "call_id": "tooluse_f4wORePkxclqyD7CmnPbLB",
     "name": "get_precipitation",
     "value": "10% chance of rain in Paris tomorrow.",
     "is_error": false
@@ -346,7 +346,7 @@
    "conversation": "conv-1",
    "evidence": "script",
    "value": {
-    "call_id": "tooluse_W6Sy3m6bjFyGNaihNNUCyO",
+    "call_id": "tooluse_XhMdo6NUYH2xo3tx5Oif9Y",
     "name": "get_precipitation",
     "value": "80% chance of rain in Tokyo tomorrow.",
     "is_error": false
@@ -369,7 +369,7 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
-    "text": "Paris will be sunny both days, with highs of 21°C and 22°C. Tokyo will have rain on day 1 (21°C) and sun on day 2 (22°C).\n\nYou don't need an umbrella for Paris, where tomorrow's rain chance is only 10%. Pack one for Tokyo, where the rain chance is 80%."
+    "text": "Paris looks sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow. Tokyo will have rain on day 1 (21°C) and sun on day 2 (22°C), with an 80% chance of rain tomorrow. Pack an umbrella for Tokyo, but you can leave it at home for Paris."
    },
    "require": {
     "anchor": "model_call",
@@ -548,7 +548,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_KfEALDUOh6xeDpaU8x1Nit",
+          "id": "tooluse_6Iu25A9Rr9Ae24hI2bHYFA",
           "name": "get_weather",
           "arguments": {
            "city": "Paris",
@@ -560,7 +560,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_aC4Ot49k3xOL0qX3lKZk4W",
+          "id": "tooluse_C1l9lVGnOm92NcOqiaJTdy",
           "name": "get_weather",
           "arguments": {
            "city": "Tokyo",
@@ -572,7 +572,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_iZZTLA9Ul8dl7Vrc9E50jW",
+          "id": "tooluse_f4wORePkxclqyD7CmnPbLB",
           "name": "get_precipitation",
           "arguments": {
            "city": "Paris"
@@ -583,7 +583,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_W6Sy3m6bjFyGNaihNNUCyO",
+          "id": "tooluse_XhMdo6NUYH2xo3tx5Oif9Y",
           "name": "get_precipitation",
           "arguments": {
            "city": "Tokyo"
@@ -599,7 +599,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_KfEALDUOh6xeDpaU8x1Nit",
+          "id": "tooluse_6Iu25A9Rr9Ae24hI2bHYFA",
           "content": [
            {
             "type": "text",
@@ -613,7 +613,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_aC4Ot49k3xOL0qX3lKZk4W",
+          "id": "tooluse_C1l9lVGnOm92NcOqiaJTdy",
           "content": [
            {
             "type": "text",
@@ -627,7 +627,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_iZZTLA9Ul8dl7Vrc9E50jW",
+          "id": "tooluse_f4wORePkxclqyD7CmnPbLB",
           "content": [
            {
             "type": "text",
@@ -641,7 +641,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_W6Sy3m6bjFyGNaihNNUCyO",
+          "id": "tooluse_XhMdo6NUYH2xo3tx5Oif9Y",
           "content": [
            {
             "type": "text",
@@ -733,7 +733,7 @@
            "days": 2
           }
          },
-         "replay_of": "fact-002"
+         "lineage_unknown": "model-side content no call's output matches"
         },
         {
          "part": {
@@ -745,7 +745,7 @@
            "days": 2
           }
          },
-         "replay_of": "fact-003"
+         "lineage_unknown": "model-side content no call's output matches"
         },
         {
          "part": {
@@ -756,7 +756,7 @@
            "city": "Paris"
           }
          },
-         "replay_of": "fact-004"
+         "lineage_unknown": "model-side content no call's output matches"
         },
         {
          "part": {
@@ -767,7 +767,7 @@
            "city": "Tokyo"
           }
          },
-         "replay_of": "fact-005"
+         "lineage_unknown": "model-side content no call's output matches"
         }
        ]
       },
@@ -786,7 +786,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-006"
+         "new": "rq-001"
         },
         {
          "part": {
@@ -800,7 +800,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-007"
+         "new": "rq-002"
         },
         {
          "part": {
@@ -814,7 +814,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-008"
+         "new": "rq-003"
         },
         {
          "part": {
@@ -828,7 +828,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-009"
+         "new": "rq-004"
         }
        ]
       }
@@ -911,7 +911,7 @@
            "days": 2
           }
          },
-         "replay_of": "fact-002"
+         "lineage_unknown": "model-side content no call's output matches"
         },
         {
          "part": {
@@ -923,7 +923,7 @@
            "days": 2
           }
          },
-         "replay_of": "fact-003"
+         "lineage_unknown": "model-side content no call's output matches"
         },
         {
          "part": {
@@ -934,7 +934,7 @@
            "city": "Paris"
           }
          },
-         "replay_of": "fact-004"
+         "lineage_unknown": "model-side content no call's output matches"
         },
         {
          "part": {
@@ -945,7 +945,7 @@
            "city": "Tokyo"
           }
          },
-         "replay_of": "fact-005"
+         "lineage_unknown": "model-side content no call's output matches"
         }
        ]
       },
@@ -964,7 +964,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-006"
+         "new": "rq-001"
         },
         {
          "part": {
@@ -978,7 +978,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-007"
+         "new": "rq-002"
         },
         {
          "part": {
@@ -992,7 +992,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-008"
+         "new": "rq-003"
         },
         {
          "part": {
@@ -1006,7 +1006,7 @@
           ],
           "is_error": false
          },
-         "new_fact": "fact-009"
+         "new": "rq-004"
         },
         {
          "part": {
@@ -1089,7 +1089,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_KfEALDUOh6xeDpaU8x1Nit",
+          "id": "tooluse_6Iu25A9Rr9Ae24hI2bHYFA",
           "name": "get_weather",
           "arguments": {
            "city": "Paris",
@@ -1101,7 +1101,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_aC4Ot49k3xOL0qX3lKZk4W",
+          "id": "tooluse_C1l9lVGnOm92NcOqiaJTdy",
           "name": "get_weather",
           "arguments": {
            "city": "Tokyo",
@@ -1113,7 +1113,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_iZZTLA9Ul8dl7Vrc9E50jW",
+          "id": "tooluse_f4wORePkxclqyD7CmnPbLB",
           "name": "get_precipitation",
           "arguments": {
            "city": "Paris"
@@ -1124,7 +1124,7 @@
         {
          "part": {
           "type": "tool_call",
-          "id": "tooluse_W6Sy3m6bjFyGNaihNNUCyO",
+          "id": "tooluse_XhMdo6NUYH2xo3tx5Oif9Y",
           "name": "get_precipitation",
           "arguments": {
            "city": "Tokyo"
@@ -1140,7 +1140,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_KfEALDUOh6xeDpaU8x1Nit",
+          "id": "tooluse_6Iu25A9Rr9Ae24hI2bHYFA",
           "content": [
            {
             "type": "text",
@@ -1154,7 +1154,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_aC4Ot49k3xOL0qX3lKZk4W",
+          "id": "tooluse_C1l9lVGnOm92NcOqiaJTdy",
           "content": [
            {
             "type": "text",
@@ -1168,7 +1168,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_iZZTLA9Ul8dl7Vrc9E50jW",
+          "id": "tooluse_f4wORePkxclqyD7CmnPbLB",
           "content": [
            {
             "type": "text",
@@ -1182,7 +1182,7 @@
         {
          "part": {
           "type": "tool_result",
-          "id": "tooluse_W6Sy3m6bjFyGNaihNNUCyO",
+          "id": "tooluse_XhMdo6NUYH2xo3tx5Oif9Y",
           "content": [
            {
             "type": "text",

@@ -1375,6 +1375,7 @@ producer's contract, and only it can say.
 
 - object with `partial_calls` ([`Expr_ValuePredicate`](#expr_valuepredicate) or null), `part` (`"chunk"`, required): A piece of a streamed response. Its calls are calls of the response only where `partial_calls` says how the producer marks a call still arriving and this one is not marked; with no `partial_calls`, none is.
 - object with `content` ([`TerminalContent`](#terminalcontent), required), `part` (`"terminal"`, required): The reading that ends a streamed response, and what it holds.
+- object with `terminal_where` ([`Expr_ValuePredicate`](#expr_valuepredicate), required), `content` ([`TerminalContent`](#terminalcontent), required), `partial_calls` ([`Expr_ValuePredicate`](#expr_valuepredicate) or null), `part` (`"stated"`, required): A rule whose readings each state which part they are: the reading `terminal_where` holds for is the terminal, and every other is a chunk. For a producer that bundles a whole stream into one carrier - the current conventions' inference-details event carries every piece the model yielded as one array - where chunk and terminal are elements of one payload rather than separate events, so no event condition can tell them apart.
 
 ### `TerminalContent`
 

@@ -513,6 +513,84 @@
         "source": "scope.name",
         "equals": "gcp.vertex.agent"
       }
+    },
+    {
+      "id": "google-adk.operation_details_output",
+      "doc": "The response side of the current conventions' inference-details container, as ADK for Python writes it: `gen_ai.output.messages` holds one element per response its model adapter yielded, so a streamed call's pieces and the element that ends them are entries of one array rather than events a condition could tell apart - each element states its own part through its finish reason. What the ending element holds depends on the model adapter, exactly as `google-adk.event_content_choice` says: the whole answer through LiteLLM, which aggregates; only the last piece through Gemini's own adapter, whose aggregate ADK never records. So the terminal is `unknown`, resolved by the response ADK's `call_llm` step recorded around the call. Consulted before the convention's own container reading, which keeps answering for every other producer's details event - and for ADK encodings whose elements state no finish reason, where this rule reads nothing and leaves the carrier to it.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.client.inference.operation.details"
+          ]
+        }
+      },
+      "stream": {
+        "part": "stated",
+        "terminal_where": {
+          "doc": "ADK writes an empty `finish_reason` on every piece before the one that ends the response.",
+          "path": "$.finish_reason",
+          "kind": "string",
+          "non_blank": true
+        },
+        "content": "unknown",
+        "partial_calls": {
+          "doc": "ADK logs a function call the model is still streaming without its arguments - the empty value its exporter writes for them is left out of the record - and the element that carries them holds the call whole. Asked of each call, not of the piece: a piece holding a finished call beside one still arriving keeps both out, where testing for any finished call would present the unfinished one as complete.",
+          "path": "$.parts[?@.type == 'tool_call' && !@.arguments]",
+          "exists": true
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.output.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "priority": 31,
+      "reads_tool_spans": true,
+      "alternatives": [
+        {
+          "id": "elements",
+          "doc": "One element per yielded response, each read as its own message so each carries its own part of the stream. The payload moves whole or not at all: `parent_where` is the exact complement of this condition over every element, so an array one element short of it - and any array this rule does not read completely - is left whole to the convention's container reading rather than losing the odd element out, since an emission claims the carrier.",
+          "each": true,
+          "parent_where": {
+            "all": [
+              {
+                "doc": "No element may lack what the per-element condition asks, or the ones that pass would emit and claim the carrier while the others silently vanish.",
+                "not": {
+                  "path": "$[?!@.role || !@.parts || !@.finish_reason]",
+                  "exists": true
+                }
+              },
+              {
+                "doc": "Per-element emission is bounded by the engine's per-carrier ceiling (8,192), which keeps the first readings - and a stream's terminal is last, so overflowing would lose the one element that ends the response. A longer bundle is left whole to the convention's reading, shown as one payload rather than losing its end.",
+                "not": {
+                  "path": "$[4096]",
+                  "exists": true
+                }
+              }
+            ]
+          },
+          "where": {
+            "all": [
+              {
+                "path": "$.role",
+                "exists": true
+              },
+              {
+                "path": "$.parts",
+                "exists": true
+              },
+              {
+                "path": "$.finish_reason",
+                "exists": true
+              }
+            ]
+          }
+        }
+      ],
+      "where": {
+        "source": "scope.name",
+        "equals": "gcp.vertex.agent"
+      }
     }
   ],
   "span_facts": [

@@ -2471,6 +2471,41 @@
             "part",
             "content"
           ]
+        },
+        {
+          "description": "A rule whose readings each state which part they are: the reading `terminal_where` holds for is the\nterminal, and every other is a chunk. For a producer that bundles a whole stream into one carrier -\nthe current conventions' inference-details event carries every piece the model yielded as one array -\nwhere chunk and terminal are elements of one payload rather than separate events, so no event\ncondition can tell them apart.",
+          "type": "object",
+          "properties": {
+            "terminal_where": {
+              "description": "What marks a reading as the one that ends the response: a condition on the reading's payload.",
+              "$ref": "#/$defs/Expr_ValuePredicate"
+            },
+            "content": {
+              "description": "What the terminal reading holds, exactly as `terminal.content`.",
+              "$ref": "#/$defs/TerminalContent"
+            },
+            "partial_calls": {
+              "description": "What says a chunk reading's call is still arriving, exactly as `chunk.partial_calls`.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Expr_ValuePredicate"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "part": {
+              "type": "string",
+              "const": "stated"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "part",
+            "terminal_where",
+            "content"
+          ]
         }
       ]
     },

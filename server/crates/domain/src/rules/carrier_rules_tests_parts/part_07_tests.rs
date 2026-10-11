@@ -866,3 +866,90 @@ fn a_stream_part_is_an_event_rule_s_and_marks_each_of_its_readings() {
         "a span rule is refused a stream: {refusal:?}"
     );
 }
+
+/// A `stated` stream reads each emission's part from the emission itself: the one `terminal_where` holds for
+/// is the terminal, every other is a chunk, settled exactly as a declared chunk is. This is how a producer
+/// that bundles a whole stream into one array - the current conventions' inference-details event - marks its
+/// pieces, where no event condition can tell chunk from terminal.
+#[test]
+fn a_stated_stream_marks_each_reading_by_what_it_states() {
+    use crate::rules::message_rules::compile;
+    use crate::rules::schema::StreamMark;
+
+    let body = r#"{"id":"t","message_events":[{"id":"t.e","name":"acme.details"}],
+         "messages":[{"id":"t.read","source":{"event":{"names":["acme.details"]}},
+         "stream":{"part":"stated",
+                   "terminal_where":{"path":"$.finish_reason","kind":"string","non_blank":true},
+                   "content":"unknown",
+                   "partial_calls":{"path":"$.parts[?@.type == 'tool_call' && !@.arguments]","exists":true}},
+         "read":{"attribute":"output"},"parse":"json","emit":"message","priority":1,
+         "alternatives":[{"id":"elements","each":true,
+                          "parent_where":{"all":[
+                            {"not":{"path":"$[?!@.finish_reason]","exists":true}},
+                            {"not":{"path":"$[3]","exists":true}}]},
+                          "where":{"path":"$.finish_reason","exists":true}}]}]}"#;
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.as_bytes().to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
+    .expect("a stated stream compiles on an event rule");
+    let read = |payload: &str| {
+        let attrs = std::collections::HashMap::from([("output".to_string(), payload.to_string())]);
+        let none = std::collections::HashMap::new();
+        plan.from_event("acme.details", &attrs, "span", None, &none, false)
+            .emissions
+            .iter()
+            .map(|e| e.stream)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        read(
+            r#"[{"role":"assistant","parts":[{"type":"tool_call","name":"f"}],"finish_reason":""},
+                {"role":"assistant","parts":[{"type":"tool_call","name":"f","arguments":{"a":1}},
+                                             {"type":"tool_call","name":"g"}],"finish_reason":""},
+                {"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]"#
+        ),
+        [
+            // A call without its arguments is still arriving, so the piece holding it stays partial.
+            Some(StreamMark::Chunk),
+            // A finished call beside one still arriving keeps both out: the condition is per call, so one
+            // completed call must not present its unfinished sibling as complete.
+            Some(StreamMark::Chunk),
+            // The piece stating a finish reason ends the response, with the declared content.
+            Some(StreamMark::Unknown),
+        ],
+        "each element is marked by what it states"
+    );
+    // A piece whose calls all carry their arguments is one the producer finished.
+    assert_eq!(
+        read(
+            r#"[{"role":"assistant","parts":[{"type":"tool_call","name":"f","arguments":{"a":1}}],"finish_reason":""},
+                {"role":"assistant","parts":[{"type":"text","content":"done"}],"finish_reason":"stop"}]"#
+        ),
+        [Some(StreamMark::SettledChunk), Some(StreamMark::Unknown)],
+    );
+    // The payload moves whole or not at all: an array mixing elements the condition admits with ones it
+    // does not would emit the former and silently drop the latter - the emission claims the carrier - so
+    // `parent_where` refuses it whole and the carrier stays unclaimed for whatever reads it next.
+    assert_eq!(
+        read(
+            r#"[{"role":"assistant","parts":[{"type":"text","content":"a"}],"finish_reason":""},
+                {"role":"assistant","parts":[{"type":"text","content":"b"}]}]"#
+        ),
+        Vec::<Option<StreamMark>>::new(),
+        "a mixed array is left whole rather than losing the odd element out"
+    );
+    // Past the declared length bound the whole payload is likewise left unread: per-element emission is
+    // capped by the engine's per-carrier ceiling, which keeps the first readings, and a stream's terminal
+    // is last - truncation would lose exactly the element that ends the response.
+    assert_eq!(
+        read(
+            r#"[{"finish_reason":""},{"finish_reason":""},{"finish_reason":""},{"finish_reason":"stop"}]"#
+        ),
+        Vec::<Option<StreamMark>>::new(),
+        "an over-long array is left whole rather than losing its terminal"
+    );
+}
