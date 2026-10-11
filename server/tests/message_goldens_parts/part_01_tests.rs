@@ -100,7 +100,9 @@ fn message_row(span: &sideseat_ports::types::NormalizedSpan) -> MessageSpanRow {
         cost_output: 0.0,
         // The derived key the ingest wrote: what makes a composed request's thread findable at read time.
         request_thread: span.request_thread.clone(),
-        span_marks: 0,
+        // The marks the ingest decided: a read-time projection asks them, so a row without them is one no
+        // mark-asking projection ever matches.
+        span_marks: span.span_marks,
     }
 }
 

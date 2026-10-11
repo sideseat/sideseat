@@ -629,3 +629,86 @@ fn two_copies_of_one_signature_are_not_two_turns_of_reasoning() {
         "a signature no turn was sealed with is neither"
     );
 }
+
+/// The goldens read rows as the store returns them, marks included: a row built without the marks the ingest
+/// decided is one no mark-asking projection ever matches, so the projection would pass every golden unseen.
+#[test]
+fn the_goldens_read_the_marks_the_ingest_decided() {
+    // Discovery honours `MESSAGE_FIXTURES`, so a run narrowed to other producers has nothing to assert.
+    let Some((_, paths)) = discover_fixtures()
+        .into_iter()
+        .find(|(label, _)| label == "logfire/native@4.18.0/streaming")
+    else {
+        assert!(
+            std::env::var_os("MESSAGE_FIXTURES").is_some(),
+            "the capture whose streamed requests are marked is missing from an unrestricted discovery"
+        );
+        return;
+    };
+    let rows = rows_for(&paths);
+    let marked = rows.iter().filter(|(_, row)| row.span_marks != 0).count();
+    assert!(marked > 0, "no row carries the streamed-request mark");
+
+    // A withdrawal demanding restatement (`only_restated`) is honoured only beside the kept row that
+    // restates it. Read alone - a span-scoped query, or a trace whose completed streaming record never
+    // arrived - the marked request span's copy is the only one, so it stays. The request span closes
+    // successfully before the stream completes, so `successful_only` cannot tell this case apart.
+    let label = "logfire/native@4.18.0/streaming";
+    let lifetime: Vec<(String, MessageSpanRow)> = rows
+        .iter()
+        .filter(|(_, row)| {
+            row.span_name
+                .as_deref()
+                .is_some_and(|name| name.starts_with("Responses API with "))
+        })
+        .cloned()
+        .collect();
+    assert!(
+        !lifetime.is_empty(),
+        "the lifetime spans are in the capture"
+    );
+    let alone = build_golden(label, &paths, &lifetime);
+    let kept: usize = alone
+        .invariants
+        .iter()
+        .filter(|(_, scope, _)| matches!(scope, Scope::Trace { .. }))
+        .map(|(_, _, rows)| rows.len())
+        .sum();
+    assert!(
+        kept > 0,
+        "with its completed companion absent, the request span's only copy must stay in the conversation"
+    );
+
+    // A witness the collapsed view hides is no witness. Push every companion's span start past its own
+    // messages: on a child generation span, a message older than the span start is history and the view
+    // drops it - so if the withdrawal had been licensed by the raw copy rather than by the survivor, the
+    // conversation would keep neither copy. The withdrawal must fail its proof and the marked span's own
+    // copy must stay visible.
+    let hidden_companions: Vec<(String, MessageSpanRow)> = rows
+        .iter()
+        .map(|(label, row)| {
+            let mut row = row.clone();
+            if row
+                .span_name
+                .as_deref()
+                .is_some_and(|name| name.starts_with("streaming response"))
+            {
+                row.observation_type = Some("generation".to_string());
+                row.span_timestamp += chrono::Duration::days(365);
+            }
+            (label.clone(), row)
+        })
+        .collect();
+    let starved = build_golden(label, &paths, &hidden_companions);
+    let user_turn_shown = starved
+        .invariants
+        .iter()
+        .filter(|(_, scope, _)| matches!(scope, Scope::Trace { .. }))
+        .flat_map(|(_, _, rows)| rows.iter())
+        .any(|row| row.role == "user" && row.content.contains("weather in Rome"));
+    assert!(
+        user_turn_shown,
+        "with every companion copy hidden as history, the marked span's own copy is the conversation's \
+         only one and must stay"
+    );
+}

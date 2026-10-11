@@ -396,6 +396,14 @@ pub struct MessageProjectionRule {
     pub only_event_sources: Vec<String>,
     /// Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.
     pub successful_only: bool,
+    /// The row's messages *yield* rather than being withdrawn outright: each copy is removed only by an
+    /// identical twin from a kept row actually surviving the collapsed view, decided at deduplication. The
+    /// row is bookkeeping only while the conversation it carries is shown somewhere else, and a success
+    /// status alone cannot say so - a request span closes successfully before its streamed response
+    /// completes, so an abandoned stream leaves a successful span whose copy is the only one. A view of the
+    /// row alone keeps it, since there the copy is all the view has.
+    #[serde(default)]
+    pub only_restated: bool,
     pub action: MessageProjectionAction,
 }
 

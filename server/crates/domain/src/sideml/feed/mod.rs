@@ -295,6 +295,9 @@ struct ParsedMessage {
     rendering: bool,
     /// The side of the span its reading declared, where it declared one (`RawMessage::direction`).
     direction: Option<crate::rules::schema::ReadingDirection>,
+    /// The row yields its copies to surviving identical twins at deduplication
+    /// (`MessageProjectionRule::only_restated`).
+    yields: bool,
 }
 
 // ============================================================================
@@ -458,11 +461,36 @@ pub fn process_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> 
 /// timestamps, which is the complete evidence set before any observation is collapsed to a
 /// representative. `process_trace_spans_core` continues from here into dedup and sorting; the shadow
 /// order resolver reads the same output so it judges the evidence production actually reconstructs.
+/// Stages 1-4's output: the classified pre-dedup blocks, the span clocks, whether replay matching saw its
+/// whole prefix, and what stage 2.4 withdrew - one `(span_id, content_hash)` per withdrawn copy, the
+/// caller's evidence obligation.
+struct ClassifiedBlocks {
+    blocks: Vec<BlockEntry>,
+    span_timestamps: HashMap<String, SpanTimestamps>,
+    replay_matching_complete: bool,
+    withheld: Vec<Withheld>,
+}
+
+/// One copy stage 2.4 withdrew, as the caller's evidence obligation: the view must show a block of the
+/// same semantic identity - role and kind beside the content digest, since an assistant echo of a user's
+/// words is not that turn - with the content compared outright on a digest match, so a collision never
+/// licenses a withdrawal. Compared as the block itself, not a rendering of it: a view serialisation says
+/// only *that* reasoning is signed, and two thinking blocks with the same words and different signatures
+/// are two turns.
+struct Withheld {
+    span_id: String,
+    role: crate::sideml::types::ChatRole,
+    entry_type: String,
+    content_hash: String,
+    content: ContentBlock,
+}
+
 fn classify_span_blocks(
     rows: &[MessageSpanRow],
     cross_trace_prefix: Option<&CrossTracePrefixState>,
     replay_policy: ReplayPolicy,
-) -> (Vec<BlockEntry>, HashMap<String, SpanTimestamps>, bool) {
+    keep_yielding: &std::collections::HashSet<String>,
+) -> ClassifiedBlocks {
     // Build span hierarchy for span_path computation
     let span_hierarchy = build_span_hierarchy(rows);
 
@@ -478,6 +506,26 @@ fn classify_span_blocks(
     // Stage 2: Flatten to individual blocks with metadata
     // All blocks start with is_history = false
     let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy);
+
+    // Stage 2.4: Withdraw the yielding rows' copies (`MessageProjectionRule::only_restated`) - producer
+    // bookkeeping whose conversation another row carries - except the spans the caller has already found
+    // unrestated, which keep their copies because they are the only ones. Withdrawn before replay matching,
+    // correlation, classification and ordering, so the kept copy is read as the authoritative occurrence
+    // rather than a re-send of the withdrawn one. What was withdrawn is reported back ([`Withheld`]),
+    // which is how the caller verifies each copy against the survivors the collapsed view actually shows
+    // and retries with the spans whose evidence failed.
+    let withheld: Vec<Withheld> = blocks
+        .iter()
+        .filter(|block| block.yields && !keep_yielding.contains(&block.span_id))
+        .map(|block| Withheld {
+            span_id: block.span_id.clone(),
+            role: block.role,
+            entry_type: block.entry_type.clone(),
+            content_hash: block.content_hash.clone(),
+            content: block.content.clone(),
+        })
+        .collect();
+    blocks.retain(|block| !block.yields || keep_yielding.contains(&block.span_id));
 
     // A rendering is a turn the producer re-sent as text - a call written out as prose, a result quoted back -
     // whose call and result other carriers hold losslessly. The span view shows it, because it was sent; a
@@ -515,7 +563,12 @@ fn classify_span_blocks(
         ReplayPolicy::Preserve => classify_span_view_blocks(&mut blocks, &span_timestamps),
     }
 
-    (blocks, span_timestamps, replay_matching_complete)
+    ClassifiedBlocks {
+        blocks,
+        span_timestamps,
+        replay_matching_complete,
+        withheld,
+    }
 }
 
 /// The resolver's order over one trace's blocks under a chosen constraint set — what production runs
@@ -581,7 +634,7 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
-    classify_span_blocks(&rows, None, ReplayPolicy::Collapse).0
+    classify_span_blocks(&rows, None, ReplayPolicy::Collapse, &Default::default()).blocks
 }
 
 /// The classified observations with the occurrence rank used by deduplication.
@@ -590,7 +643,8 @@ pub fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> 
 pub fn classified_blocks_with_ordinals_for_test(
     rows: Vec<MessageSpanRow>,
 ) -> Vec<(BlockEntry, u32)> {
-    let blocks = classify_span_blocks(&rows, None, ReplayPolicy::Collapse).0;
+    let blocks =
+        classify_span_blocks(&rows, None, ReplayPolicy::Collapse, &Default::default()).blocks;
     let ordinals = dedup::call_repeat_ordinals(&blocks);
     blocks.into_iter().zip(ordinals).collect()
 }
@@ -638,7 +692,11 @@ pub fn presented_and_unconstrained(
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn legacy_and_neutral_order(rows: Vec<MessageSpanRow>) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
-    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None, ReplayPolicy::Collapse);
+    let ClassifiedBlocks {
+        blocks,
+        span_timestamps,
+        ..
+    } = classify_span_blocks(&rows, None, ReplayPolicy::Collapse, &Default::default());
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (legacy, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     let scaffold = order_graph::resolve(
@@ -656,7 +714,11 @@ pub fn legacy_and_neutral_order(rows: Vec<MessageSpanRow>) -> (Vec<BlockEntry>, 
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn deduped_blocks_with_ordinals_for_test(rows: Vec<MessageSpanRow>) -> Vec<(BlockEntry, u32)> {
-    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None, ReplayPolicy::Collapse);
+    let ClassifiedBlocks {
+        blocks,
+        span_timestamps,
+        ..
+    } = classify_span_blocks(&rows, None, ReplayPolicy::Collapse, &Default::default());
     let (blocks, _, ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     blocks.into_iter().zip(ordinals).collect()
 }
@@ -664,7 +726,11 @@ pub fn deduped_blocks_with_ordinals_for_test(rows: Vec<MessageSpanRow>) -> Vec<(
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
-    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None, ReplayPolicy::Collapse);
+    let ClassifiedBlocks {
+        blocks,
+        span_timestamps,
+        ..
+    } = classify_span_blocks(&rows, None, ReplayPolicy::Collapse, &Default::default());
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (survivors, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     order_graph::resolve(
@@ -750,17 +816,12 @@ fn reconstruct_trace(
     // Extract tools from all rows
     let extracted_tools = extract_tools_from_rows(&rows);
 
-    // Stages 1-4: parse, flatten, correlate and classify - everything the pipeline knows before
-    // dedup collapses the observations to one representative each. Kept, because the order resolver
-    // reads the *evidence*: the emission binding a turn's intro text to its call is on one span while
-    // dedup may keep a re-listed copy of that text from another, and only the pre-dedup set says so.
-    let (blocks, span_timestamps, replay_matching_complete) =
-        classify_span_blocks(&rows, cross_trace_prefix, replay_policy);
-    // Reduced to what the resolver reads, from the borrowed slice: holding the blocks themselves
-    // would clone every message's content, which on a trace carrying base64 images dominates the
-    // whole request and is never read.
-    let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
-
+    // Stages 1-6, re-run until every withdrawal is proven. Stages 1-4: parse, flatten, correlate and
+    // classify - everything the pipeline knows before dedup collapses the observations to one
+    // representative each. Kept, because the order resolver reads the *evidence*: the emission binding a
+    // turn's intro text to its call is on one span while dedup may keep a re-listed copy of that text from
+    // another, and only the pre-dedup set says so.
+    //
     // Stages 5-6: Deduplicate by identity and sort by birth time, then stage 6.5, withdrawing a
     // correlated id whose call did not survive.
     //
@@ -772,7 +833,94 @@ fn reconstruct_trace(
     //
     // The two run together because the resolver below needs the *lineage* across both: each says which
     // block an observation became, and neither mapping can be re-derived afterwards.
-    let (blocks, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
+    //
+    // **The loop is the withdrawal's proof.** A projection whose declaration demands restatement
+    // (`MessageProjectionRule::only_restated`) withdraws a bookkeeping row's copies in stage 2.4, and only
+    // the finished pipeline can say whether the conversation they carry actually survived the collapsed
+    // view - history marking is relative, so no earlier evidence is sound: a request restated only by a
+    // child's history prefix lost both copies when the decision was made on raw messages. Each pass whose
+    // survivors miss a withdrawn copy re-runs with that copy's span kept; every retry keeps at least one
+    // more span, so the loop ends, and it ends immediately where nothing yields or everything is restated.
+    let mut keep_yielding: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut passes = 0usize;
+    let (blocks, span_timestamps, replay_matching_complete, evidence, lineage, repeat_ordinals) = loop {
+        let ClassifiedBlocks {
+            blocks,
+            span_timestamps,
+            replay_matching_complete,
+            withheld,
+        } = classify_span_blocks(&rows, cross_trace_prefix, replay_policy, &keep_yielding);
+        // Reduced to what the resolver reads, from the borrowed slice: holding the blocks themselves
+        // would clone every message's content, which on a trace carrying base64 images dominates the
+        // whole request and is never read.
+        let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
+        let (blocks, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
+        if withheld.is_empty() {
+            break (
+                blocks,
+                span_timestamps,
+                replay_matching_complete,
+                evidence,
+                lineage,
+                repeat_ordinals,
+            );
+        }
+        // What the view shows, by semantic identity: role and kind beside the content digest - an
+        // assistant echo of a user's words is not that turn - with the content compared outright on a
+        // digest match, so a collision never licenses a withdrawal.
+        let shown: HashMap<(crate::sideml::types::ChatRole, &str, &str), Vec<&ContentBlock>> =
+            blocks.iter().fold(HashMap::new(), |mut shown, block| {
+                shown
+                    .entry((
+                        block.role,
+                        block.entry_type.as_str(),
+                        block.content_hash.as_str(),
+                    ))
+                    .or_default()
+                    .push(&block.content);
+                shown
+            });
+        let unrestated: Vec<String> = withheld
+            .iter()
+            .filter(|copy| {
+                !shown
+                    .get(&(
+                        copy.role,
+                        copy.entry_type.as_str(),
+                        copy.content_hash.as_str(),
+                    ))
+                    .is_some_and(|survivors| {
+                        // Derived equality short-circuits on the first differing member - an id, a
+                        // signature - so a digest bucket of same-shaped calls costs cheap mismatches,
+                        // not re-serialisations, and the first equal survivor ends the scan.
+                        survivors.iter().any(|survivor| **survivor == copy.content)
+                    })
+            })
+            .map(|copy| copy.span_id.clone())
+            .collect();
+        if unrestated.is_empty() {
+            break (
+                blocks,
+                span_timestamps,
+                replay_matching_complete,
+                evidence,
+                lineage,
+                repeat_ordinals,
+            );
+        }
+        // One retry with the failing spans kept; a second failure keeps every yielding span at once.
+        // Restoring a span can hide another's witness - its copy becomes the authoritative occurrence and
+        // the witness its history re-send - so span-by-span convergence is linear in the yielding spans,
+        // and each pass re-parses every row. Keeping them all is always sound (nothing is withdrawn at
+        // all), so the third pass is the last, and the common cases never reach it: no yielding span, or
+        // every withdrawal proven first time.
+        passes += 1;
+        if passes >= 2 {
+            keep_yielding = rows.iter().map(|row| row.span_id.clone()).collect();
+        } else {
+            keep_yielding.extend(unrestated);
+        }
+    };
 
     // Stage 6.6: Resolve the order as a partial order rather than a scalar key.
     //

@@ -58,17 +58,6 @@ const UNUSED: &[(&str, &str)] = &[
          `toString`; no shipped rule reads one yet",
     ),
     (
-        "MessageProjectionRule.only_event_sources",
-        "the event half of where a projected row's messages may come from, for a producer whose bookkeeping span \
-         carries its request as events; no shipped projection names one yet",
-    ),
-    (
-        "RuleFile.span_marks",
-        "a fact a read needs that the read path cannot see, stored as one bit per span. The section exists so \
-         such a fact is declared and bounded rather than answered by storing a span's attributes twice; no \
-         shipped asset declares one yet",
-    ),
-    (
         "CitationKind=file",
         "part of the closed set of things a citation points into; OpenAI's `file_citation` and Anthropic's document \
          citations need it, and no captured telemetry carries one yet",
@@ -76,12 +65,6 @@ const UNUSED: &[(&str, &str)] = &[
     (
         "CitationKind=search_result",
         "part of the closed set of citation kinds, as `file`",
-    ),
-    (
-        "SpanCondition.member",
-        "the member test of a JSON attribute; offered for a producer that writes a request's options as one \
-         JSON payload, where a substring of the text would also match a value a prompt mentions. No shipped \
-         asset needs it yet",
     ),
     (
         "FirstPresent_string.mode",

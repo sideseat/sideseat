@@ -200,7 +200,7 @@ fn canonical_citations<'de, D: serde::Deserializer<'de>>(
 /// Uses custom deserialization to preserve unknown content block types.
 /// Known types are deserialized normally; unknown types are captured in
 /// `Unknown { raw }` to prevent data loss.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     /// Plain text content, with the sources it cites where the provider stated them.

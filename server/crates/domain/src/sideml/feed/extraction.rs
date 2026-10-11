@@ -39,26 +39,30 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
 
         if let Some(raw_msgs) = raw_msgs {
             // Producer-owned projection rules may identify stored bookkeeping that is not another
-            // conversation. Extraction remains lossless: this only omits it from the SideML view.
+            // conversation. Extraction remains lossless: this only omits it from the SideML view - and a
+            // declaration demanding restatement (`only_restated`) omits nothing here at all: its rows are
+            // read whole and marked to *yield*, so deduplication withdraws each copy only by the identical
+            // twin actually surviving the collapsed view. Deciding earlier, on raw evidence, lost copies
+            // whose witness the view then hid - a request restated only by a child's history prefix.
             let successful = row.status_code.as_deref() != Some(status::ERROR)
                 && row.exception_type.is_none()
                 && row.exception_message.is_none()
                 && row.exception_stacktrace.is_none();
-            if crate::rules::ruleset()
-                .message_projection
-                .suppresses_messages(
-                    &crate::rules::message_projection::MessageProjectionContext {
-                        scope_name: row.scope_name.as_deref(),
-                        scope_version: row.scope_version.as_deref(),
-                        span_name: row.span_name.as_deref(),
-                        successful,
-                        messages: &raw_msgs,
-                        marks: row.span_marks,
-                    },
-                )
-            {
-                continue;
-            }
+            let suppression = crate::rules::ruleset().message_projection.suppression(
+                &crate::rules::message_projection::MessageProjectionContext {
+                    scope_name: row.scope_name.as_deref(),
+                    scope_version: row.scope_version.as_deref(),
+                    span_name: row.span_name.as_deref(),
+                    successful,
+                    messages: &raw_msgs,
+                    marks: row.span_marks,
+                },
+            );
+            let yields = match suppression {
+                None => false,
+                Some(demand) if demand.only_restated => true,
+                Some(_) => continue,
+            };
 
             // Debug: Log raw message count
             tracing::trace!(
@@ -69,6 +73,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
             read.push(stream::RowMessages {
                 row,
                 span_messages,
+                yields,
                 messages: read_sideml(
                     &raw_msgs,
                     crate::sideml::normalize::Signals {
@@ -87,6 +92,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
     let mut messages: Vec<ParsedMessage> = Vec::with_capacity(rows.len() * 4);
     for stream::RowMessages {
         row,
+        yields,
         messages: read,
         ..
     } in read
@@ -94,6 +100,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
         for (index, msg) in finish_sideml(read).into_iter().enumerate() {
             let timestamp = msg.timestamp;
             messages.push(ParsedMessage {
+                yields,
                 position: msg.position.clone(),
                 trace_id: row.trace_id.clone(),
                 span_id: row.span_id.clone(),
@@ -344,6 +351,8 @@ pub(in crate::sideml::feed) fn append_error_messages(
             // Composed from the span's exception fields rather than read out of a payload, so there
             // is no position to record. `is_empty()` is how a consumer tells the two apart.
             position: PositionPath::default(),
+            // An error is never bookkeeping: it may have no completed companion.
+            yields: false,
             trace_id: row.trace_id.clone(),
             span_id: row.span_id.clone(),
             parent_span_id: row.parent_span_id.clone(),
@@ -640,6 +649,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
                 uses_span_end: false, // Will be set by classify_blocks()
                 is_history: false,    // Will be set by classify_blocks()
                 is_cross_trace_history: false, // Will be set by cross-trace replay matching
+                yields: msg.yields,
                 tool_use_id_correlated: false, // Will be set by correlate_tool_results()
                 promoted_to_span_output: false, // Will be set by classify_blocks()
                 is_rendering: msg.rendering,

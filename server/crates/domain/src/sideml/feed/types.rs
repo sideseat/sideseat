@@ -221,6 +221,12 @@ pub struct BlockEntry {
     #[serde(skip_serializing)]
     pub is_cross_trace_history: bool,
 
+    /// The block's row yields its copy to a surviving identical twin at deduplication
+    /// (`MessageProjectionRule::only_restated`): producer bookkeeping whose copy is withdrawn only by the
+    /// twin actually surviving the collapsed view, never by its own absence. Match input, not an answer.
+    #[serde(skip)]
+    pub yields: bool,
+
     /// A turn the producer re-sent as text that another carrier holds losslessly (a reading's `rendering`).
     ///
     /// Kept in the span view, which shows what was sent; the trace and session views drop it before anything
@@ -661,6 +667,7 @@ mod tests {
             uses_span_end: false,
             is_history: false,
             is_cross_trace_history: false,
+            yields: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,

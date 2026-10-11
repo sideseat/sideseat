@@ -51,6 +51,7 @@ fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole)
         uses_span_end: false,
         is_history: false,
         is_cross_trace_history: false,
+        yields: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
         is_rendering: false,

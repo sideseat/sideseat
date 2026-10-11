@@ -41,6 +41,9 @@ pub(super) struct RowMessages<'a> {
     pub(super) row: &'a MessageSpanRow,
     /// How many of the stored messages are the span's own; those after them are its log records'.
     pub(super) span_messages: usize,
+    /// The row yields its copies to surviving identical twins at deduplication
+    /// (`MessageProjectionRule::only_restated`).
+    pub(super) yields: bool,
     pub(super) messages: Vec<SideMLMessage>,
 }
 

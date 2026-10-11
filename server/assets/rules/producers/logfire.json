@@ -526,6 +526,28 @@
       ]
     }
   },
+  "span_marks": [
+    {
+      "id": "logfire.openai.streamed_request",
+      "because": "A projection reads a span's messages and not its attributes, and only the request options in `request_data` say that a request streamed.",
+      "where": {
+        "all": [
+          {
+            "source": "scope.name",
+            "equals": "logfire.openai"
+          },
+          {
+            "source": "attr:request_data",
+            "parses": "json",
+            "member": {
+              "path": "$.stream",
+              "equals": true
+            }
+          }
+        ]
+      }
+    }
+  ],
   "message_projections": [
     {
       "id": "logfire.openai.streaming_request_wrapper",
@@ -570,6 +592,36 @@
         "gen_ai.system_instructions"
       ],
       "successful_only": true,
+      "only_restated": true,
+      "action": "suppress_messages"
+    },
+    {
+      "id": "logfire.openai.streaming_responses_events_wrapper",
+      "doc": "The 4.x instrumentation records a streamed Responses API call as a lifetime span whose `events` carry only the request - its system, user, assistant and tool messages, each tagged with its event name - beside the completed `streaming response` log, whose `events` carry the same request with the response. The lifetime span is told apart by its request options, which say it streamed, and is retained as raw telemetry but omitted from the SideML conversation, so the request is shown once, on the record of the call that answered it. A call that is not streamed carries its response on the one span and is not marked; an error stays visible, since it may have no completed companion.",
+      "where": {
+        "all": [
+          {
+            "source": "scope.name",
+            "equals": "logfire.openai"
+          },
+          {
+            "source": "span_name",
+            "starts_with": "Responses API with "
+          },
+          {
+            "source": "mark:logfire.openai.streamed_request",
+            "exists": true
+          }
+        ]
+      },
+      "only_event_sources": [
+        "gen_ai.system.message",
+        "gen_ai.user.message",
+        "gen_ai.assistant.message",
+        "gen_ai.tool.message"
+      ],
+      "successful_only": true,
+      "only_restated": true,
       "action": "suppress_messages"
     }
   ],

@@ -3407,6 +3407,11 @@
           "description": "Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.",
           "type": "boolean"
         },
+        "only_restated": {
+          "description": "The row's messages *yield* rather than being withdrawn outright: each copy is removed only by an\nidentical twin from a kept row actually surviving the collapsed view, decided at deduplication. The\nrow is bookkeeping only while the conversation it carries is shown somewhere else, and a success\nstatus alone cannot say so - a request span closes successfully before its streamed response\ncompletes, so an abandoned stream leaves a successful span whose copy is the only one. A view of the\nrow alone keeps it, since there the copy is all the view has.",
+          "type": "boolean",
+          "default": false
+        },
         "action": {
           "$ref": "#/$defs/MessageProjectionAction"
         }

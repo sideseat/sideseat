@@ -35,7 +35,16 @@ struct CompiledProjection {
     only_attribute_sources: Vec<String>,
     only_event_sources: Vec<String>,
     successful_only: bool,
+    only_restated: bool,
     action: MessageProjectionAction,
+}
+
+/// What the matching declaration demands of the caller before the row is withdrawn.
+pub struct Suppression {
+    /// The row's messages yield to surviving identical twins at deduplication rather than being withdrawn
+    /// outright (`MessageProjectionRule::only_restated`). Honoured by the caller: a yielded copy is removed
+    /// only by its twin actually surviving the collapsed view, so a row whose copy is the only one stays.
+    pub only_restated: bool,
 }
 
 impl MessageProjectionPlan {
@@ -123,6 +132,7 @@ impl MessageProjectionPlan {
                     only_attribute_sources: rule.only_attribute_sources.clone(),
                     only_event_sources: rule.only_event_sources.clone(),
                     successful_only: rule.successful_only,
+                    only_restated: rule.only_restated,
                     action: rule.action,
                 });
             }
@@ -133,6 +143,16 @@ impl MessageProjectionPlan {
 
     /// Whether the matching producer declaration withdraws this row from the SideML conversation.
     pub fn suppresses_messages(&self, context: &MessageProjectionContext<'_>) -> bool {
+        self.suppression(context)
+            .is_some_and(|demand| !demand.only_restated)
+    }
+
+    /// The matching producer declaration's withdrawal of this row, with what it demands of the caller.
+    ///
+    /// Where several declarations match, any one waiving the restatement demand withdraws the row without
+    /// evidence - that declaration alone would have withdrawn it anyway - so the demand survives only when
+    /// every matching declaration states it.
+    pub fn suppression(&self, context: &MessageProjectionContext<'_>) -> Option<Suppression> {
         // A row's span name may be missing. A missing name answers no name test - strong Kleene, so a
         // negated test over it is unknown too, and an unknown condition suppresses nothing; it used to be
         // read as empty text, which `not(span_name equals ..)` held for.
@@ -145,7 +165,9 @@ impl MessageProjectionPlan {
             resource: None,
             marks: context.marks,
         };
-        self.rules.iter().any(|rule| {
+        let mut matched = false;
+        let mut only_restated = true;
+        for rule in &self.rules {
             let success_matches = !rule.successful_only || context.successful;
             // By kind and name: an attribute and an event of one name are different carriers.
             let source_matches = !context.messages.is_empty()
@@ -161,11 +183,16 @@ impl MessageProjectionPlan {
                             rule.only_event_sources.iter().any(|source| source == name)
                         }
                     });
-            span_conditions::holds(&rule.condition, &subject)
+            if span_conditions::holds(&rule.condition, &subject)
                 && success_matches
                 && source_matches
                 && rule.action == MessageProjectionAction::SuppressMessages
-        })
+            {
+                matched = true;
+                only_restated &= rule.only_restated;
+            }
+        }
+        matched.then_some(Suppression { only_restated })
     }
 }
 
@@ -258,6 +285,74 @@ mod tests {
         ] {
             assert!(compiled(sources.clone()).is_err(), "{sources}");
         }
+    }
+
+    /// A withdrawal demanding restatement reaches the caller as its demand, and the strictest matching
+    /// declaration speaks for the row: where one matching rule demands evidence and another does not, the row
+    /// may still be withdrawn without it, because the waiving rule alone would have withdrawn it anyway.
+    #[test]
+    fn a_restating_withdrawal_carries_its_demand_to_the_caller() {
+        let compiled = |projections: serde_json::Value| {
+            let file: RuleFile = serde_json::from_value(serde_json::json!({
+                "id": "probe",
+                "message_projections": projections
+            }))
+            .expect("the probe asset parses");
+            MessageProjectionPlan::compile(
+                &[file],
+                &crate::rules::span_marks::SpanMarkPlan::default(),
+            )
+            .expect("the probe projections compile")
+        };
+        let projection = |id: &str, only_restated: bool| {
+            serde_json::json!({
+                "id": id,
+                "where": {"source": "scope.name", "equals": "probe.scope"},
+                "only_attribute_sources": ["probe.messages"],
+                "successful_only": false,
+                "only_restated": only_restated,
+                "action": "suppress_messages"
+            })
+        };
+        let message = RawMessage {
+            source: MessageSource::Attribute {
+                key: "probe.messages".to_string(),
+                time: chrono::Utc::now(),
+            },
+            content: serde_json::json!({"role": "user", "content": "q"}),
+            rendering: false,
+            direction: None,
+            stream: None,
+        };
+        let context = MessageProjectionContext {
+            scope_name: Some("probe.scope"),
+            scope_version: None,
+            span_name: None,
+            successful: true,
+            messages: std::slice::from_ref(&message),
+            marks: 0,
+        };
+        let restating = compiled(serde_json::json!([projection("probe.restated", true)]));
+        let demand = restating
+            .suppression(&context)
+            .expect("the declaration matches");
+        assert!(demand.only_restated, "the demand reaches the caller");
+        assert!(
+            !restating.suppresses_messages(&context),
+            "without the caller's evidence, a restating withdrawal is no withdrawal"
+        );
+        let waived = compiled(serde_json::json!([
+            projection("probe.restated", true),
+            projection("probe.waived", false)
+        ]));
+        assert!(
+            !waived
+                .suppression(&context)
+                .expect("both declarations match")
+                .only_restated,
+            "a matching declaration that waives the demand would have withdrawn the row alone"
+        );
+        assert!(waived.suppresses_messages(&context));
     }
 
     /// A scope requirement counts at any depth of conjunction, and only there: a nested `all` holding the scope
