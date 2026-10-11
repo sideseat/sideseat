@@ -141,7 +141,9 @@ mod tests {
     /// A probe corpus: one carrier holding a span's output, and one message rule reading it with the given
     /// readings - and the fragment they may apply.
     fn compiles(readings: serde_json::Value) -> Result<(), String> {
-        let asset = serde_json::json!({
+        // The fragment only where a reading applies it: one nothing references is refused.
+        let applies_fragment = readings.to_string().contains("then_fragment");
+        let mut asset = serde_json::json!({
             "id": "probe",
             "carriers": [{
                 "id": "probe.out.carrier",
@@ -165,6 +167,12 @@ mod tests {
                 "also": readings
             }]
         });
+        if !applies_fragment {
+            asset
+                .as_object_mut()
+                .expect("an object")
+                .remove("fragments");
+        }
         let sources = BTreeMap::from([(
             "producers/probe.json".to_string(),
             serde_json::to_vec(&asset).map_err(|e| e.to_string())?,

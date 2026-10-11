@@ -65,9 +65,9 @@
  "media": 4145647,
  "signals": {
   "traces": {
-   "items": 40788,
+   "items": 40791,
    "stored_excluding_media": 30457328,
-   "per_item": 746.72
+   "per_item": 746.67
   },
   "logs": {
    "items": 6996,

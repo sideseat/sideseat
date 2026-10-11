@@ -441,10 +441,12 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::QuestionWithoutAPriority { rule, .. }
             | E::PriorityWithoutAQuestion { rule, .. }
             | E::TwoOrderedQuestions { rule, .. }
-            | E::UnknownAliasTarget { rule, .. } => vec![rule],
+            | E::UnknownAliasTarget { rule, .. }
+            | E::DuplicateRule { rule, .. } => vec![rule],
             E::SharedPriority { first, second, .. } | E::DuplicateMember { first, second, .. } => {
                 vec![first, second]
             }
+            E::UnnamedRule { .. } => Vec::new(),
         }
     }
 
@@ -458,7 +460,9 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::QuestionWithoutAPriority { file, .. }
             | E::PriorityWithoutAQuestion { file, .. }
             | E::TwoOrderedQuestions { file, .. }
-            | E::UnknownAliasTarget { file, .. } => vec![file],
+            | E::UnknownAliasTarget { file, .. }
+            | E::UnnamedRule { file } => vec![file],
+            E::DuplicateRule { first, second, .. } => vec![first, second],
             E::SharedPriority { .. } | E::DuplicateMember { .. } => Vec::new(),
         }
     }
@@ -481,6 +485,7 @@ impl SectionDefect for super::tool_shapes::ToolShapeError {
             E::TwoAnswers { id }
             | E::NoName { id }
             | E::EmptyCarry { id }
+            | E::CarryShadows { id, .. }
             | E::NoParameterPath { id }
             | E::Inexpressible { id, .. } => vec![id],
             E::SharedPriority { first, second, .. } => vec![first, second],

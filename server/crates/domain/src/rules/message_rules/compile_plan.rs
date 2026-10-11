@@ -98,6 +98,32 @@ pub fn compile(
         }
     }
 
+    // A fragment no rule names is checked by nothing: its predicates and envelopes are validated where they are
+    // inlined, so an unreferenced one would carry whatever it says into the corpus unexamined - and the census
+    // would count its syntax as used. Refused, as a capability nothing exercises is everywhere else.
+    let referenced: std::collections::BTreeSet<&str> = rules
+        .iter()
+        .flat_map(with_branches)
+        .flat_map(|rule| {
+            rule.alternatives
+                .iter()
+                .chain(&rule.also)
+                .chain(&rule.fallback)
+        })
+        .filter_map(|reading| reading.spec.then_fragment.as_deref())
+        .collect();
+    let mut unreferenced: Vec<&String> = fragments
+        .keys()
+        .filter(|name| !referenced.contains(name.as_str()))
+        .collect();
+    unreferenced.sort();
+    if let Some(name) = unreferenced.first() {
+        return Err(MessageCompileError::Inexpressible {
+            rule: (*name).clone(),
+            detail: "a fragment no rule references is checked by nothing - name it from a reading or remove it",
+        });
+    }
+
     // Predicates, checked once over every place a compiled rule holds one - after fragments and extra
     // cases are inlined, which is the only point at which they are all visible.
     for rule in &rules {
@@ -112,9 +138,11 @@ pub fn compile(
             .find_map(|wrap| wrap_role_defect(wrap, &roles))
             .or_else(|| rendering_defect(rule))
             .or_else(|| {
-                // A section route's role is stated as literally as an envelope's, and folds the same way.
-                rule.sections
-                    .iter()
+                // A section route's role is stated as literally as an envelope's, and folds the same way - in
+                // a branch's leaves as at the top, which is where a leaf's sections are read.
+                with_branches(rule)
+                    .into_iter()
+                    .flat_map(|rule| rule.sections.iter())
                     .flat_map(|sections| &sections.routes)
                     .any(|route| !role_is_known(&route.role, &roles))
                     .then_some(
@@ -138,6 +166,11 @@ pub fn compile(
                     )
             })
             .or_else(|| aggregate_defect(rule))
+            .or_else(|| {
+                with_branches(rule)
+                    .into_iter()
+                    .find_map(|rule| raw_where_defect(&rule.raw_where))
+            })
         {
             return Err(MessageCompileError::Inexpressible {
                 rule: rule.rule_id.clone(),
@@ -540,4 +573,15 @@ pub(super) fn aggregate_defect(rule: &CompiledMessageRule) -> Option<&'static st
         );
     }
     None
+}
+
+/// A rule and every leaf of its branch sets, which are compiled rules of their own.
+fn with_branches(rule: &CompiledMessageRule) -> Vec<&CompiledMessageRule> {
+    let mut out = vec![rule];
+    if let Some(set) = &rule.branch_set {
+        for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+            out.extend(with_branches(sub));
+        }
+    }
+    out
 }

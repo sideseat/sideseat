@@ -152,10 +152,22 @@ pub(super) fn walked_readings(
             .recognised
             .iter()
             .any(|id| walk.stop_on.iter().any(|stop| stop == id));
-        out.extend(here.built);
+        // Capped as the single-node path is: what the walk gathers past the per-carrier ceiling is dropped at
+        // emission anyway, so holding it would be memory spent on nothing. One over the ceiling, so the
+        // emitter still sees the excess and reports it.
+        let keep = (sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER + 1)
+            .saturating_sub(out.len());
+        out.extend(here.built.into_iter().take(keep));
         if depth == 0 || matched {
             continue;
         }
+        // Scheduled work is bounded by the same ceiling that bounds visits: a node past it would be popped
+        // only to trip the ceiling, so pushing it buys nothing and a payload of one node with millions of
+        // children would hold them all on the stack. The first `room` children, in document order, are the
+        // ones a bounded walk reaches; dropping the tail makes the scheduled total exactly the ceiling plus
+        // one, so the warning above still fires on the last pop.
+        let room = (sideseat_core::constants::RULE_WALK_MAX_NODES + 1)
+            .saturating_sub(visited + stack.len());
         match node {
             JsonValue::Object(map) => {
                 // A fixed order: the payload's own map order is what a reader sees, and the stack pops in
@@ -172,13 +184,19 @@ pub(super) fn walked_readings(
                         !taken && (value.is_object() || value.is_array())
                     })
                     .map(|(_, value)| value)
+                    .take(room)
                     .collect();
                 for value in members.into_iter().rev() {
                     stack.push((value, depth - 1));
                 }
             }
             JsonValue::Array(items) => {
-                for value in items.iter().rev().filter(|v| v.is_object() || v.is_array()) {
+                let members: Vec<&JsonValue> = items
+                    .iter()
+                    .filter(|v| v.is_object() || v.is_array())
+                    .take(room)
+                    .collect();
+                for value in members.into_iter().rev() {
                     stack.push((value, depth - 1));
                 }
             }

@@ -254,8 +254,9 @@ pub struct AttachSpec {
     /// Attach this literal when nothing else supplied a value.
     ///
     /// Distinct from omitting the member: a block whose shape *requires* a name carries an empty one
-    /// rather than none, and the two are different values to anything hashing the payload.
-    #[serde(default)]
+    /// rather than none, and the two are different values to anything hashing the payload. An explicit `null`
+    /// is a value too: the member is attached as `null`.
+    #[serde(default, deserialize_with = "explicit_value")]
     pub default: Option<JsonValue>,
     /// Place this member *after* the content member rather than before it.
     ///

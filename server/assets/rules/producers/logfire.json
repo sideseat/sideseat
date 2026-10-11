@@ -441,50 +441,10 @@
             "emit": "message",
             "also": [
               {
-                "id": "provider_runs",
-                "doc": "Each tool the provider ran itself inside the response - a web search - as the item that holds both what it asked for and what it found. Listed first so a search that leads the response is read before the answer. The also-cases read the output by kind, not by position, so a search between two messages would still be read before both: reading items in their own order is open.",
+                "id": "output_items",
+                "doc": "Each output item, in the response's own order, read by what it is: a search the provider ran, a call the model asked for, a message it wrote. One selection with a case per kind, so `[message, search, message]` is read in that order.",
                 "select": "$.output[*]",
-                "where": {
-                  "path": "$.type",
-                  "one_of": [
-                    "web_search_call"
-                  ]
-                },
-                "wrap": {
-                  "role": "assistant",
-                  "content_from": "$"
-                }
-              },
-              {
-                "id": "calls",
-                "doc": "Each call the model asked for.",
-                "select": "$.output[*]",
-                "where": {
-                  "path": "$.type",
-                  "one_of": [
-                    "function_call"
-                  ]
-                },
-                "wrap": {
-                  "role": "assistant",
-                  "tool_calls_from": {
-                    "select": "$",
-                    "id": "$.call_id",
-                    "name": "$.name",
-                    "arguments": "$.arguments",
-                    "on_invalid_item": "fail_message"
-                  }
-                }
-              },
-              {
-                "id": "messages",
-                "doc": "Each message the model wrote: it states its own role, and its content is read structurally at query time.",
-                "select": "$.output[*]",
-                "where": {
-                  "path": "$.role",
-                  "kind": "string",
-                  "non_empty": true
-                }
+                "then_fragment": "logfire.response_output_item"
               }
             ]
           }
@@ -516,6 +476,56 @@
       "priority": 420
     }
   ],
+  "fragments": {
+    "response_output_item": {
+      "doc": "One item of a Responses API output, by its kind.",
+      "cases": [
+        {
+          "id": "provider_run",
+          "doc": "A tool the provider ran itself inside the response - a web search - as the item that holds both what it asked for and what it found.",
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "web_search_call"
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "content_from": "$"
+          }
+        },
+        {
+          "id": "call",
+          "doc": "A call the model asked for.",
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "function_call"
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "tool_calls_from": {
+              "select": "$",
+              "id": "$.call_id",
+              "name": "$.name",
+              "arguments": "$.arguments",
+              "on_invalid_item": "fail_message"
+            }
+          }
+        },
+        {
+          "id": "message",
+          "doc": "A message the model wrote: it states its own role, and its content is read structurally at query time.",
+          "where": {
+            "path": "$.role",
+            "kind": "string",
+            "non_empty": true
+          }
+        }
+      ]
+    }
+  },
   "message_projections": [
     {
       "id": "logfire.openai.streaming_request_wrapper",

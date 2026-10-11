@@ -14,7 +14,10 @@ use std::collections::HashMap;
 use super::expr::{AtomDefect, Expr, Truth};
 use super::schema::{ConditionSource, SpanCondition, SpanWhere};
 
+mod readable;
 mod version_range;
+
+pub use readable::Readable;
 use version_range::lower_version;
 
 /// One question about a span, as evaluated.
@@ -439,68 +442,6 @@ impl SpanAtom {
     }
 }
 
-/// What a section's conditions may read, beyond the span's name and attributes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Readable {
-    pub span_name: bool,
-    pub attributes: bool,
-    pub scope: bool,
-    pub scope_version: bool,
-    pub resource: bool,
-    /// The marks a stored row carries. A section that can read the span's attributes asks its question directly,
-    /// so this is given only where the attributes are gone.
-    pub marks: bool,
-}
-
-impl Readable {
-    /// The span's attributes only: span facts.
-    pub const ATTRIBUTES: Self = Self {
-        span_name: false,
-        attributes: true,
-        scope: false,
-        scope_version: false,
-        resource: false,
-        marks: false,
-    };
-    /// The span's name and attributes: classification and span-field sources.
-    pub const SPAN: Self = Self {
-        span_name: true,
-        attributes: true,
-        scope: false,
-        scope_version: false,
-        resource: false,
-        marks: false,
-    };
-    /// And the instrumentation scope: message-rule gates.
-    pub const SPAN_AND_SCOPE: Self = Self {
-        span_name: true,
-        attributes: true,
-        scope: true,
-        scope_version: false,
-        resource: false,
-        marks: false,
-    };
-    /// Everything: detection.
-    pub const ALL: Self = Self {
-        span_name: true,
-        attributes: true,
-        scope: true,
-        scope_version: false,
-        resource: true,
-        marks: false,
-    };
-    /// A stored row being projected: its span name and instrumentation scope, version included, and none of
-    /// its attributes - projection reads the row, not the span.
-    pub const PROJECTION: Self = Self {
-        span_name: true,
-        attributes: false,
-        scope: true,
-        scope_version: true,
-        resource: false,
-        marks: true,
-    };
-}
-
 /// Why a condition cannot be lowered: a source the section is not given, an unknown source, or a test the
 /// source cannot answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -584,13 +525,24 @@ pub fn lower_with(
     readable: Readable,
     marks: Option<&super::span_marks::SpanMarkPlan>,
 ) -> Result<SpanExpr, ConditionDefect> {
+    lower_polar(condition, readable, marks, true)
+}
+
+/// The lowering, knowing whether each atom is asserted or under a `not` - which decides whether a member
+/// predicate that can never hold is a defect or a condition.
+fn lower_polar(
+    condition: &SpanWhere,
+    readable: Readable,
+    marks: Option<&super::span_marks::SpanMarkPlan>,
+    positive: bool,
+) -> Result<SpanExpr, ConditionDefect> {
     Ok(match condition {
-        Expr::Atom(atom) => lower_atom(atom, readable, marks)?,
+        Expr::Atom(atom) => lower_atom(atom, readable, marks, positive)?,
         Expr::All(group) => Expr::all(
             group
                 .children()
                 .iter()
-                .map(|child| lower_with(child, readable, marks))
+                .map(|child| lower_polar(child, readable, marks, positive))
                 .collect::<Result<_, _>>()?,
         )
         .expect("a group has at least two children"),
@@ -598,11 +550,11 @@ pub fn lower_with(
             group
                 .children()
                 .iter()
-                .map(|child| lower_with(child, readable, marks))
+                .map(|child| lower_polar(child, readable, marks, positive))
                 .collect::<Result<_, _>>()?,
         )
         .expect("a group has at least two children"),
-        Expr::Not(child) => Expr::Not(Box::new(lower_with(child, readable, marks)?)),
+        Expr::Not(child) => Expr::Not(Box::new(lower_polar(child, readable, marks, !positive)?)),
     })
 }
 
@@ -610,6 +562,7 @@ fn lower_atom(
     atom: &SpanCondition,
     readable: Readable,
     marks: Option<&super::span_marks::SpanMarkPlan>,
+    positive: bool,
 ) -> Result<SpanExpr, ConditionDefect> {
     let refuse = |why: String| Err(ConditionDefect(why));
     let tests = usize::from(atom.exists.is_some())
@@ -782,6 +735,13 @@ fn lower_atom(
             return Err(ConditionDefect(format!(
                 "source `{text}` asks about a member without `\"parses\": \"json\"`, so nothing says how its \
                  text is to be read"
+            )));
+        }
+        // The same validation every value predicate gets, at the polarity the condition sits at: a member test
+        // that can never hold, or ignores one of its conditions, is refused here as it is everywhere else.
+        if let Some(detail) = super::message_rules::member_predicate_defect(member, positive) {
+            return Err(ConditionDefect(format!(
+                "source `{text}` asks about a member: {detail}"
             )));
         }
         let question = super::expr::json_expr_of_predicate(member).ok_or_else(|| {

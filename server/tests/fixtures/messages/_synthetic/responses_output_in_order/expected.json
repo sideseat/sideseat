@@ -1,0 +1,197 @@
+{
+  "label": "_synthetic/responses_output_in_order",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Responses API with 'gpt-x'/span-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Lisbon today?",
+          "content_digest": "2611f0e87ab59b49",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Let me look that up.",
+          "content_digest": "bc01363bcfc2f498",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_1\",\"name\":\"web_search\",\"input\":{\"type\":\"search\",\"query\":\"Lisbon weather today\"},\"provider_executed\":true}",
+          "content_digest": "d4cab3986d4c791f",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Lisbon is sunny today, around 24°C.",
+          "content_digest": "a49ab0c486869461",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Lisbon today?",
+          "content_digest": "2611f0e87ab59b49",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Let me look that up.",
+          "content_digest": "bc01363bcfc2f498",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_1\",\"name\":\"web_search\",\"input\":{\"type\":\"search\",\"query\":\"Lisbon weather today\"},\"provider_executed\":true}",
+          "content_digest": "d4cab3986d4c791f",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Lisbon is sunny today, around 24°C.",
+          "content_digest": "a49ab0c486869461",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "responses-in-order": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Lisbon today?",
+          "content_digest": "2611f0e87ab59b49",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Let me look that up.",
+          "content_digest": "bc01363bcfc2f498",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_1\",\"name\":\"web_search\",\"input\":{\"type\":\"search\",\"query\":\"Lisbon weather today\"},\"provider_executed\":true}",
+          "content_digest": "d4cab3986d4c791f",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Lisbon is sunny today, around 24°C.",
+          "content_digest": "a49ab0c486869461",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "assistant",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather in Lisbon today?",
+        "content_digest": "2611f0e87ab59b49",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Let me look that up.",
+        "content_digest": "bc01363bcfc2f498",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"ws_1\",\"name\":\"web_search\",\"input\":{\"type\":\"search\",\"query\":\"Lisbon weather today\"},\"provider_executed\":true}",
+        "content_digest": "d4cab3986d4c791f",
+        "tool_name": "web_search",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Lisbon is sunny today, around 24°C.",
+        "content_digest": "a49ab0c486869461",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

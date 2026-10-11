@@ -279,6 +279,11 @@ impl<'a> PythonConstructorParser<'a> {
             );
         }
         for (field, value) in keyword {
+            // A keyword spelled as the members this reading adds would overwrite the constructor's name or its
+            // positional arguments: the text then reads as no object at all, rather than as one it is not.
+            if field == PYTHON_CONSTRUCTOR_MEMBER || field == PYTHON_POSITIONAL_MEMBER {
+                return None;
+            }
             object.insert(field, value);
         }
         Some(JsonValue::Object(object))

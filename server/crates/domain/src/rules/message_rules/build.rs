@@ -501,10 +501,14 @@ pub(super) fn sectioned(
             .strip_prefix("attr:")
             .and_then(|key| attrs.get(key))
     };
-    let mut sections: Vec<&str> = match spec.max_sections {
-        Some(most) => raw.splitn(most, spec.split_on.as_str()).collect(),
-        None => raw.split(spec.split_on.as_str()).collect(),
-    };
+    // A declared cap, under the server's own: a carrier is one attribute, and a text crafted of nothing but
+    // separators must not become one message per two bytes of it. The last kept section carries the remainder,
+    // exactly as a declared `max_sections` keeps it.
+    let most = spec
+        .max_sections
+        .unwrap_or(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
+        .min(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER);
+    let mut sections: Vec<&str> = raw.splitn(most, spec.split_on.as_str()).collect();
     // A carrier shorter than its stated length was cut, and only its last section can be the cut one.
     let cut = if let Some(witness) = &spec.truncated_unless_length
         && let Some(stated) =

@@ -405,88 +405,64 @@ fn test_value_wrapper() {
 
 #[test]
 fn test_empty_object_fallback_to_json() {
-    // At the individual block level (try_unknown_fallback), empty objects
-    // are classified as "json" structured output. However, they are filtered
-    // out at the array level in normalize_content() if they appear to be
-    // sparse array placeholders from unflatten.
+    // An empty object is a value a producer can send - a structured output of `{}` - so it is read as
+    // structured output rather than deleted. A gap unflatten leaves in an indexed array is `null`, never `{}`.
     let block = json!({});
     let result = try_unknown_fallback(&block);
     assert!(result.is_some());
     assert_eq!(result.unwrap()["type"], "json");
 }
 
-// ========== Sparse array placeholder tests ==========
+// ========== Unflatten gaps ==========
 
+/// Only the gaps unflatten itself left - `null` elements - are dropped from a content array; an empty object a
+/// producer sent, alone or in a mixed array, is a structured output and stays.
 #[test]
-fn test_sparse_array_placeholder_detection_empty_object() {
-    assert!(is_sparse_array_placeholder(&json!({})));
-}
+fn an_empty_object_a_producer_sent_is_structured_output_not_a_gap() {
+    let alone = normalize_content(Some(&json!({})));
+    assert_eq!(alone.as_array().map(Vec::len), Some(1), "{alone}");
+    assert_eq!(alone[0]["type"], "json");
 
-#[test]
-fn test_sparse_array_placeholder_detection_non_empty_object() {
-    // Non-empty objects are NOT placeholders
-    assert!(!is_sparse_array_placeholder(&json!({"key": "value"})));
-    assert!(!is_sparse_array_placeholder(&json!({"type": "text"})));
-    assert!(!is_sparse_array_placeholder(&json!({"empty": null})));
-}
-
-#[test]
-fn test_sparse_array_placeholder_detection_nested_empty() {
-    // Objects containing only empty arrays/objects are placeholders
-    assert!(is_sparse_array_placeholder(&json!({"arr": []})));
-    assert!(is_sparse_array_placeholder(&json!({"obj": {}})));
-    assert!(is_sparse_array_placeholder(&json!({"arr": [{}, {}]})));
-}
-
-#[test]
-fn test_sparse_array_placeholder_detection_nested_non_empty() {
-    // Objects with any non-empty content are NOT placeholders
-    assert!(!is_sparse_array_placeholder(&json!({"arr": [1]})));
-    assert!(!is_sparse_array_placeholder(&json!({"obj": {"k": "v"}})));
-    assert!(!is_sparse_array_placeholder(
-        &json!({"arr": [{"type": "text"}]})
+    let mixed = normalize_content(Some(
+        &json!([{"type": "text", "text": "hi"}, {"items": []}]),
     ));
-}
+    assert_eq!(mixed.as_array().map(Vec::len), Some(2), "{mixed}");
+    assert_eq!(mixed[1]["type"], "json");
 
-#[test]
-fn test_sparse_array_placeholder_detection_primitives() {
-    // Primitives are NOT placeholders
-    assert!(!is_sparse_array_placeholder(&json!("text")));
-    assert!(!is_sparse_array_placeholder(&json!(123)));
-    assert!(!is_sparse_array_placeholder(&json!(null)));
-    assert!(!is_sparse_array_placeholder(&json!(true)));
-    assert!(!is_sparse_array_placeholder(&json!([1, 2, 3])));
+    let with_gap = normalize_content(Some(&json!([null, {"type": "text", "text": "hi"}])));
+    assert_eq!(with_gap.as_array().map(Vec::len), Some(1), "{with_gap}");
+    assert_eq!(with_gap[0]["type"], "text");
 }
 
 #[test]
 fn test_normalize_content_filters_sparse_placeholders() {
-    // Array with empty placeholder objects (from unflatten sparse arrays)
+    // The gaps unflatten leaves are `null` and are dropped.
     let content = json!([
-        {},  // placeholder for missing index 0
+        null,  // the gap at missing index 0
         {"type": "text", "text": "Hello"}
     ]);
     let result = normalize_content(Some(&content));
     let arr = result.as_array().unwrap();
 
-    assert_eq!(arr.len(), 1, "Should filter out empty placeholder");
+    assert_eq!(arr.len(), 1, "Should drop the gap");
     assert_eq!(arr[0]["type"], "text");
     assert_eq!(arr[0]["text"], "Hello");
 }
 
 #[test]
 fn test_normalize_content_filters_multiple_placeholders() {
-    // Multiple placeholders at different positions
+    // Gaps at several positions, all `null`.
     let content = json!([
-        {},  // placeholder
+        null,
         {"type": "text", "text": "First"},
-        {},  // placeholder
+        null,
         {"type": "text", "text": "Second"},
-        {}   // placeholder
+        null
     ]);
     let result = normalize_content(Some(&content));
     let arr = result.as_array().unwrap();
 
-    assert_eq!(arr.len(), 2, "Should filter all placeholders");
+    assert_eq!(arr.len(), 2, "Should drop every gap");
     assert_eq!(arr[0]["text"], "First");
     assert_eq!(arr[1]["text"], "Second");
 }

@@ -35,7 +35,7 @@ pub struct SpanCondition {
     #[serde(default)]
     pub equals_ignore_case: Option<String>,
     /// The value is one of these texts.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::content::listed")]
     pub one_of: Vec<String>,
     /// The value begins with this text. For `attr_keys`, some key does; for `scope.name`, unknown where the span
     /// reports no scope, so a `not` over it holds only for a scope that is there.

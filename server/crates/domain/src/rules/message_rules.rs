@@ -647,10 +647,20 @@ use plan::*;
 use predicates::element_passes;
 #[cfg(test)]
 pub(crate) use predicates::predicate_holds_for_test;
+
+/// A numeric member's value as an indexed family reads it, for the tests that hold its precision.
+#[cfg(test)]
+pub(crate) fn reading_member_value(
+    member: &str,
+    raw: &str,
+    numeric: &[String],
+) -> serde_json::Value {
+    reading::member_value(member, raw, numeric)
+}
 pub(super) use predicates::predicates_hold;
 use reading::*;
 pub(super) use reading::{parse_value, query};
 use starvation::*;
-pub(super) use validation::predicate_defect;
 use validation::*;
+pub(super) use validation::{member_predicate_defect, predicate_defect};
 use walk::*;

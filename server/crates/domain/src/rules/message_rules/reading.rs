@@ -214,6 +214,12 @@ pub(super) fn readings(
 
         let mut produced = Vec::new();
         for element in elements {
+            // Built readings past the per-carrier ceiling are dropped at emission, so building them is memory
+            // spent on nothing - a payload of millions of tiny elements multiplied each into an envelope. One
+            // over the ceiling, so the emitter still sees the excess and reports it.
+            if produced.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+                break;
+            }
             // For each element, the first of these sub-paths that resolves - decided per element, because
             // one dialect's groups each either wrap their contents under one of two spellings or are the
             // content themselves, and choosing once for the whole array would drop the odd one out.
@@ -772,10 +778,12 @@ pub(super) fn counterpart_prepend(
 }
 
 /// A named member read as a number where its text is one, otherwise the ordinary sniff.
+///
+/// Read as JSON reads a number, so an integer stays the integer it was written as: through `f64`, one past
+/// 2^53 became its neighbour and every integer gained a fraction.
 pub(super) fn member_value(member: &str, raw: &str, numeric: &[String]) -> JsonValue {
     if numeric.iter().any(|name| name == member)
-        && let Ok(number) = raw.parse::<f64>()
-        && let Some(number) = serde_json::Number::from_f64(number)
+        && let Ok(number) = raw.parse::<serde_json::Number>()
     {
         return JsonValue::Number(number);
     }

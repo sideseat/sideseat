@@ -205,3 +205,15 @@ fn a_rule_reads_a_tostring_carrier_and_skips_one_that_is_not() {
     assert!(read(Some("hi")).is_empty(), "prose");
     assert!(read(None).is_empty(), "no carrier");
 }
+
+/// Where two readings both reproduce the text - every pair of adjacent string members does, since `a = "x",
+/// b = "y"` is also one string holding `x", b = "y` - the earliest admissible end is the canonical reading:
+/// deterministic, and the one whose members are the printed ones. Nothing the format carries is lost, because
+/// both readings print the same bytes.
+#[test]
+fn the_earliest_end_is_the_canonical_reading_of_an_ambiguous_text() {
+    assert_eq!(
+        parse(r#"T { text = "a", role = "assistant" }"#),
+        Some(json!({"__java_class": "T", "text": "a", "role": "assistant"}))
+    );
+}

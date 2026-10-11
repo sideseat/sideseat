@@ -933,7 +933,7 @@ and one type spanning both would have to mean different things depending on wher
 | `lacks_prefix` | string | A string must *not* start with this. |
 | `one_of` | list of string | The value must be one of these strings. An absent member satisfies nothing. |
 | `none_of` | list of string | The value must not be any of these strings. |
-| `equals` | any JSON value | The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about strings. `null` cannot be written here (it reads as "no condition"); `kind: null` says it. |
+| `equals` | any JSON value | The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about strings. `null` is refused here; `kind: null` says it. |
 | `only_members` | list of string | The value must be an object with no member outside these. A subset: a shape that must also hold one of them says so with a predicate of its own. |
 
 ### `ValueKind`
@@ -1273,8 +1273,9 @@ the list is tried - which is how "the first usable spelling" is written.
 ### `TransformedSource`
 
 A member with one transform applied: `{"path": ..., "pipe": [step]}`, the step one of `join` (every string the
-path selects, joined), `parse` (a string decoded the way a carrier's text is; anything else passes through),
-`prepend`, or a closed `map` (`{"map": {...}, "closed": true}`). A step that cannot apply leaves the source
+path selects, joined), `parse` (a string decoded the way a carrier's text is; a value that is not text is
+already decoded and passes through as it is), `prepend`, or a closed `map` (`{"map": {...}, "closed": true}`).
+A step that cannot apply - text that does not decode, nothing to join, prepend to or map - leaves the source
 **absent**, so the next candidate is tried.
 
 | Key | Type | What it is |

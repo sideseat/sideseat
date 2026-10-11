@@ -117,8 +117,16 @@ impl DetectPlan {
                     });
                 };
                 match atom {
-                    span_conditions::SpanAtom::SpanAttrEquals { key, value }
-                    | span_conditions::SpanAtom::SpanAttrEqualsIgnoreAsciiCase { key, value } => {
+                    // Each with the comparison it makes: a case-sensitive one that failed on case alone is a near
+                    // miss worth showing, and was hidden when both compared ignoring case.
+                    span_conditions::SpanAtom::SpanAttrEquals { key, value } => {
+                        if let Some(found) = ctx.span_attrs.get(key)
+                            && found != value
+                        {
+                            push(key, value.clone(), found);
+                        }
+                    }
+                    span_conditions::SpanAtom::SpanAttrEqualsIgnoreAsciiCase { key, value } => {
                         if let Some(found) = ctx.span_attrs.get(key)
                             && !found.eq_ignore_ascii_case(value)
                         {

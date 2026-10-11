@@ -81,21 +81,51 @@ fn set_nested_value(root: &mut serde_json::Map<String, JsonValue>, path: &str, v
                 if let Some(next_part) = parts.get(i + 1)
                     && let Ok(idx) = next_part.parse::<usize>()
                 {
-                    // Ensure array has enough elements
+                    // Ensure array has enough elements. A gap is `null`: an index no key named holds nothing,
+                    // and an empty object would be indistinguishable from a member the producer sent empty -
+                    // a structured output of `{}` - which the readers downstream then had to guess at.
                     while arr.len() <= idx {
-                        arr.push(JsonValue::Object(serde_json::Map::new()));
+                        arr.push(JsonValue::Null);
                     }
                     // Set remaining path on array element
                     let remaining_path = parts[i + 2..].join(".");
                     if remaining_path.is_empty() {
                         arr[idx] = value;
-                    } else if let JsonValue::Object(ref mut obj) = arr[idx] {
-                        set_nested_value(obj, &remaining_path, value);
+                    } else {
+                        if arr[idx].is_null() {
+                            arr[idx] = JsonValue::Object(serde_json::Map::new());
+                        }
+                        if let JsonValue::Object(ref mut obj) = arr[idx] {
+                            set_nested_value(obj, &remaining_path, value);
+                        }
                     }
                 }
                 return;
             }
             _ => return,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A gap in an indexed family is `null`, never `{}`: an empty object is a value a producer can send, and
+    /// filling gaps with one made the two indistinguishable downstream.
+    #[test]
+    fn a_gap_between_indices_is_null() {
+        let flat = json!({
+            "contents.1.message_content.text": "hello",
+            "parts.0": "first",
+            "parts.2": "third"
+        });
+        let nested = unflatten_dotted_keys(&flat);
+        assert_eq!(
+            nested["contents"],
+            json!([null, {"message_content": {"text": "hello"}}])
+        );
+        assert_eq!(nested["parts"], json!(["first", null, "third"]));
     }
 }

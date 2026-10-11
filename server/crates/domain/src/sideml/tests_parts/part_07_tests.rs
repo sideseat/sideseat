@@ -180,13 +180,13 @@ fn regression_langgraph_contents_field_with_message_content_wrapper() {
     // Issue: LangGraph/ChatBedrockConverse uses OpenInference format with:
     // - "contents" field (plural) instead of "content"
     // - Nested "message_content" wrapper around actual content
-    // - Sparse arrays from unflatten (missing indices create empty {})
+    // - Gaps from unflatten (a missing index is `null`)
     //
     // This combination caused assistant messages to show as empty.
     let raw = json!({
         "role": "assistant",
         "contents": [
-            {},  // Sparse array placeholder (index 0 was missing)
+            null,  // the gap unflatten left at missing index 0
             {
                 "message_content": {
                     "type": "text",
@@ -219,8 +219,9 @@ fn regression_langgraph_contents_field_with_message_content_wrapper() {
 #[test]
 fn regression_empty_json_block_from_sparse_array() {
     // Regression test for trace 771e923f9f7781491b41abc00d9d21fa
-    // Issue: Assistant message displayed as "{}" because sparse array
-    // placeholder was normalized to json type instead of being filtered.
+    // Issue: an assistant message displayed as "{}" because unflatten filled the gap at a missing index with
+    // an empty object. The gap is `null` at the source now; an empty object a producer sent is structured
+    // output and stays.
     let raw = json!({
         "role": "assistant",
         "contents": [
@@ -230,17 +231,13 @@ fn regression_empty_json_block_from_sparse_array() {
                     "text": "I'll help you with the weather forecast."
                 }
             },
-            {}  // This placeholder was incorrectly showing as "{}"
+            null  // the gap unflatten left
         ]
     });
 
     let message = normalize(&raw);
 
-    assert_eq!(
-        message.content.len(),
-        1,
-        "Empty placeholder should be filtered"
-    );
+    assert_eq!(message.content.len(), 1, "The gap is dropped");
 
     // Verify no json blocks with empty data
     for block in &message.content {
@@ -261,7 +258,7 @@ fn regression_openinference_tool_use_with_sparse_array() {
     let raw = json!({
         "role": "assistant",
         "contents": [
-            {},  // Placeholder
+            null,  // the gap unflatten left
             {
                 "message_content": {
                     "type": "tool_use",
@@ -347,16 +344,13 @@ fn regression_unflatten_creates_nested_sparse_arrays() {
     // Regression test: Unflatten with complex nested sparse structures
     // Can occur with deeply nested OpenInference message formats
     //
-    // The unflatten algorithm creates placeholders at multiple levels when
-    // indexed attributes have gaps.
+    // Unflatten leaves `null` at every index no key named.
     let raw = json!({
         "role": "assistant",
-        // After unflatten of something like:
-        // "contents.2.message_content.text": "Hello"
-        // We get:
+        // After unflatten of "contents.2.message_content.text": "Hello":
         "contents": [
-            {},  // placeholder for index 0
-            {},  // placeholder for index 1
+            null,
+            null,
             {
                 "message_content": {
                     "type": "text",
@@ -368,7 +362,7 @@ fn regression_unflatten_creates_nested_sparse_arrays() {
 
     let message = normalize(&raw);
 
-    assert_eq!(message.content.len(), 1, "Should filter both placeholders");
+    assert_eq!(message.content.len(), 1, "Should drop both gaps");
 
     match &message.content[0] {
         ContentBlock::Text { text, .. } => {

@@ -959,3 +959,34 @@ fn what_an_unseen_producer_can_and_cannot_declare() {
         "no emission carries a role, which is the limit this case measures: {emitted:?}"
     );
 }
+
+/// A near miss is judged with the comparison its condition makes: a case-sensitive `equals` that failed on case
+/// alone is a near miss worth showing, which comparing both ignoring case hid.
+#[test]
+fn a_case_only_miss_is_reported_for_a_case_sensitive_condition() {
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","detect":[{"id":"t.d","label":"Probe","priority":1,
+                 "where":{"source":"attr:probe.system","equals":"Acme"}}]}"#
+                .to_vec(),
+        )]))
+        .expect("the probe parses"),
+    )
+    .expect("the probe compiles");
+    let near = |value: &str| {
+        plan.near_misses(&DetectContext {
+            span_name: "chat",
+            scope_name: None,
+            span_attrs: &attrs(&[("probe.system", value)]),
+            resource_attrs: &attrs(&[]),
+        })
+    };
+    assert!(
+        near("acme")
+            .iter()
+            .any(|miss| miss.carrier == "probe.system" && miss.found == "acme"),
+        "`acme` misses `Acme` on case alone"
+    );
+    assert!(near("Acme").is_empty(), "a match is no near miss");
+}

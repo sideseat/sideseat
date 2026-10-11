@@ -185,13 +185,17 @@ impl LogEventPlan {
     ///
     /// Each declaration resolves the record's name from its own `name_from`, first present source first, so a
     /// record carrying both a field and a legacy attribute is named by whichever its declaration ranks higher.
+    ///
+    /// A record two declarations each claim - its field naming one event and an attribute another - is
+    /// recognised as neither: picking one would be deciding by the order of the event names, which no asset
+    /// stated. It stays as it was stored, and the conflict is reported.
     pub fn recognise<'a>(
         &self,
         event_name: Option<&'a str>,
         attribute: impl Fn(&str) -> Option<&'a str>,
         body_member: impl Fn(&str) -> Option<&'a str>,
     ) -> Option<&DeclaredLogEvent> {
-        self.events.iter().find(|event| {
+        let mut matching = self.events.iter().filter(|event| {
             event
                 .name_from
                 .iter()
@@ -204,7 +208,18 @@ impl LogEventPlan {
                     .filter(|name| !name.is_empty())
                 })
                 .is_some_and(|name| name == event.name)
-        })
+        });
+        let first = matching.next()?;
+        if let Some(second) = matching.next() {
+            tracing::warn!(
+                target: "sideseat::rules",
+                first = %first.name,
+                second = %second.name,
+                "a log record matches two declared events, so it is recognised as neither"
+            );
+            return None;
+        }
+        Some(first)
     }
 
     /// Every compiled declaration, in event-name order.
@@ -238,6 +253,40 @@ mod tests {
     ) -> Result<LogEventPlan, super::super::diagnostics::ClauseDefect> {
         let events = super::super::compile_message_events(files)?;
         LogEventPlan::compile(files, &events)
+    }
+
+    /// A record two declarations each claim is recognised as neither: which would win was the order of the event
+    /// names, which no asset states.
+    #[test]
+    fn a_record_two_declarations_claim_is_recognised_as_neither() {
+        let plan = compile(&with_message_event(json!([
+            {"id": "test.log.user", "name": "test.user.message", "name_from": "event_name",
+             "payload": "body_members"},
+            {"id": "test.log.details", "name": "inference.details", "name_from": "attr:event.name",
+             "payload": "body_members"}
+        ])))
+        .expect("the probe compiles");
+        let recognised = |field: Option<&'static str>, attr: Option<&'static str>| {
+            plan.recognise(
+                field,
+                |key| (key == "event.name").then_some(attr).flatten(),
+                |_| None,
+            )
+            .map(|event| event.name.clone())
+        };
+        assert_eq!(
+            recognised(Some("test.user.message"), None).as_deref(),
+            Some("test.user.message")
+        );
+        assert_eq!(
+            recognised(None, Some("inference.details")).as_deref(),
+            Some("inference.details")
+        );
+        assert_eq!(
+            recognised(Some("test.user.message"), Some("inference.details")),
+            None,
+            "its field names one event and its attribute another"
+        );
     }
 
     #[test]

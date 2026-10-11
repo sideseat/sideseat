@@ -337,6 +337,11 @@ pub(super) fn compile_rule(
     // The section options' own literals: no split at all reads nothing, and a source that is not an attribute
     // key names nothing this reading is given.
     if let Some(spec) = sections {
+        if spec.routes.is_empty() {
+            return Err(inexpressible(
+                "`sections` with no route sends each section nowhere, so the reading could never emit",
+            ));
+        }
         if spec.max_sections == Some(0) {
             return Err(inexpressible(
                 "`max_sections: 0` splits the carrier into nothing, so the reading could never emit",
@@ -488,6 +493,18 @@ pub(super) fn compile_rule(
             return Err(inexpressible(
                 "a walk's `stop_on` names a clause this rule does not declare, so it could never stop the \
                      descent - which is indistinguishable from meaning never to stop",
+            ));
+        }
+        // The same for a pruned member's `taken_by`: a clause the rule does not declare never recognises
+        // anything, so the member is never pruned - a misspelling that reads as a deliberate prune.
+        if walk
+            .prune
+            .iter()
+            .any(|pruned| !local.contains(pruned.taken_by.as_str()))
+        {
+            return Err(inexpressible(
+                "a walk prunes a member `taken_by` a clause this rule does not declare, so nothing could \
+                     ever take it and the prune never happens",
             ));
         }
     }

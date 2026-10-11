@@ -78,11 +78,15 @@ impl SpanMarkPlan {
         let mut marks = Vec::with_capacity(declared.len());
         for (id, (file, rule)) in declared {
             // The mark's own condition reads the span, never another mark: the marks are decided in one pass, so
-            // one reading another would depend on which bit came first.
-            let condition = super::detect_rules::checked_condition(&rule.condition, Readable::ALL)
-                .map_err(|refusal| {
-                    ClauseDefect::new(&[&id], Some(file), format!("span mark `{id}`: {refusal}"))
-                })?;
+            // one reading another would depend on which bit came first. And only what ingest hands it: a resource
+            // condition would never hold, since a mark is decided from the span alone.
+            let condition = super::detect_rules::checked_condition(
+                &rule.condition,
+                Readable::MARKS,
+            )
+            .map_err(|refusal| {
+                ClauseDefect::new(&[&id], Some(file), format!("span mark `{id}`: {refusal}"))
+            })?;
             marks.push(CompiledMark { id, condition });
         }
         Ok(Self { marks })
@@ -155,6 +159,27 @@ mod tests {
 
     fn mark(id: &str, condition: serde_json::Value) -> serde_json::Value {
         serde_json::json!({"id": id, "because": "a probe", "where": condition})
+    }
+
+    /// A mark is decided from the span alone, so a condition on its resource could never hold: refused, while
+    /// the scope's version, which ingest does hand a mark, is readable.
+    #[test]
+    fn a_mark_reads_only_what_ingest_hands_it() {
+        let refused = plan(serde_json::json!([mark(
+            "probe.r",
+            serde_json::json!({"source": "resource:service.name", "equals": "codex"})
+        )]));
+        assert!(refused.is_err(), "a resource condition is refused");
+        let version = plan(serde_json::json!([mark(
+            "probe.v",
+            serde_json::json!({"source": "scope.version", "version": {"scheme": "pep440", "at_least": "1.0", "because": "a probe"}})
+        )]))
+        .expect("a scope-version condition compiles");
+        assert_eq!(
+            version.marks_of("s", &attrs(&[]), Some("x"), Some("1.0")),
+            1
+        );
+        assert_eq!(version.marks_of("s", &attrs(&[]), Some("x"), None), 0);
     }
 
     /// **A mark is the answer to its condition, as one bit, and the bits are the order of the ids.** A span the

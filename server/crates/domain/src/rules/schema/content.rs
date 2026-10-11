@@ -4,6 +4,36 @@ use super::*;
 // VALUE PREDICATES
 // ============================================================================
 
+/// A list a predicate tests against, refused where it is written empty: an empty `one_of` would hold for nothing
+/// and an empty `only_members` would bound nothing, and read as "no condition" either one silently said the
+/// opposite of what it was written to say.
+pub(super) fn listed<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let list = Vec::<String>::deserialize(deserializer)?;
+    if list.is_empty() {
+        return Err(serde::de::Error::custom(
+            "an empty list asks nothing; leave the member out, or name what it tests for",
+        ));
+    }
+    Ok(list)
+}
+
+/// A literal an `equals` compares with, refused where it is `null`: an explicit `null` read as "no condition"
+/// would accept every value, and `kind: null` already says "the value is null".
+fn compared<'de, D>(deserializer: D) -> Result<Option<JsonValue>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match JsonValue::deserialize(deserializer)? {
+        JsonValue::Null => Err(serde::de::Error::custom(
+            "`equals: null` cannot be written; `kind: null` says the value is null",
+        )),
+        value => Ok(Some(value)),
+    }
+}
+
 /// A condition on a JSON value, or on a member of it.
 ///
 /// One vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,
@@ -59,21 +89,21 @@ pub struct ValuePredicate {
     #[serde(default)]
     pub lacks_prefix: Option<String>,
     /// The value must be one of these strings. An absent member satisfies nothing.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "listed")]
     pub one_of: Vec<String>,
     /// The value must not be any of these strings.
     ///
     /// An **absent** member satisfies this: "its value is not one of these" is true when there is no value,
     /// which is how a dialect's unnamed events fall through to the reading that handles them.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "listed")]
     pub none_of: Vec<String>,
     /// The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about
-    /// strings. `null` cannot be written here (it reads as "no condition"); `kind: null` says it.
-    #[serde(default)]
+    /// strings. `null` is refused here; `kind: null` says it.
+    #[serde(default, deserialize_with = "compared")]
     pub equals: Option<JsonValue>,
     /// The value must be an object with no member outside these. A subset: a shape that must also hold one
     /// of them says so with a predicate of its own.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "listed")]
     pub only_members: Vec<String>,
 }
 

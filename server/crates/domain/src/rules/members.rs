@@ -52,6 +52,16 @@ pub enum MemberCompileError {
         rule: String,
         target: String,
     },
+    #[error(
+        "member rule id `{rule}` is declared in `{first}` and again in `{second}`, so what it holds would depend on which loaded last"
+    )]
+    DuplicateRule {
+        rule: String,
+        first: String,
+        second: String,
+    },
+    #[error("a member rule in `{file}` has no id, so nothing can name what it declares")]
+    UnnamedRule { file: String },
     #[error("member `{member}` is declared twice, by `{first}` and `{second}`")]
     DuplicateMember {
         member: String,
@@ -268,10 +278,25 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
     // One declaration per member name, across every asset: two would make "what does this member mean" a
     // question with two answers, resolved by load order.
     let mut by_member: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    // A rule's id keys what it holds (`context_rules`) and names it in a conflict: two rules under one id would
+    // share one meaning and hide each other's priority.
+    let mut by_id: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     for (file_id, file) in assets.iter() {
         let file_id = &file_id.to_owned();
         for rule in &file.message_members {
+            if rule.id.trim().is_empty() {
+                return Err(MemberCompileError::UnnamedRule {
+                    file: file_id.clone(),
+                });
+            }
+            if let Some(first) = by_id.insert(rule.id.clone(), file_id.clone()) {
+                return Err(MemberCompileError::DuplicateRule {
+                    rule: rule.id.clone(),
+                    first,
+                    second: file_id.clone(),
+                });
+            }
             if rule.members.is_empty() {
                 return Err(MemberCompileError::NoMembers {
                     file: file_id.clone(),

@@ -37,6 +37,10 @@ pub enum ToolShapeError {
     },
     #[error("tool shape `{id}` declares an empty `carry` member name, which names nothing")]
     EmptyCarry { id: String },
+    #[error(
+        "tool shape `{id}` carries `{member}`, which the definition builds itself or the list names twice - a carried member may add to the definition, never replace what it is"
+    )]
+    CarryShadows { id: String, member: String },
     #[error("tool shape `{id}` declares `parameters` with no path")]
     NoParameterPath { id: String },
     #[error("tool shape `{id}`: {detail}")]
@@ -63,6 +67,18 @@ impl ToolShapePlan {
                 if rule.carry.iter().any(|member| member.trim().is_empty()) {
                     return Err(ToolShapeError::EmptyCarry {
                         id: rule.id.clone(),
+                    });
+                }
+                // The members `definition` constructs: carried after them, one of these would overwrite the
+                // canonical definition with whatever the payload holds under that name.
+                const BUILT: [&str; 2] = ["type", "function"];
+                let mut carried = std::collections::BTreeSet::new();
+                if let Some(member) = rule.carry.iter().find(|member| {
+                    BUILT.contains(&member.as_str()) || !carried.insert(member.as_str())
+                }) {
+                    return Err(ToolShapeError::CarryShadows {
+                        id: rule.id.clone(),
+                        member: member.clone(),
                     });
                 }
                 if rule

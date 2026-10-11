@@ -837,7 +837,7 @@
           "default": []
         },
         "equals": {
-          "description": "The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about\nstrings. `null` cannot be written here (it reads as \"no condition\"); `kind: null` says it.",
+          "description": "The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about\nstrings. `null` is refused here; `kind: null` says it.",
           "default": null
         },
         "only_members": {
@@ -2086,7 +2086,7 @@
       ]
     },
     "TransformedSource": {
-      "description": "A member with one transform applied: `{\"path\": ..., \"pipe\": [step]}`, the step one of `join` (every string the\npath selects, joined), `parse` (a string decoded the way a carrier's text is; anything else passes through),\n`prepend`, or a closed `map` (`{\"map\": {...}, \"closed\": true}`). A step that cannot apply leaves the source\n**absent**, so the next candidate is tried.",
+      "description": "A member with one transform applied: `{\"path\": ..., \"pipe\": [step]}`, the step one of `join` (every string the\npath selects, joined), `parse` (a string decoded the way a carrier's text is; a value that is not text is\nalready decoded and passes through as it is), `prepend`, or a closed `map` (`{\"map\": {...}, \"closed\": true}`).\nA step that cannot apply - text that does not decode, nothing to join, prepend to or map - leaves the source\n**absent**, so the next candidate is tried.",
       "type": "object",
       "properties": {
         "doc": {
@@ -2267,7 +2267,7 @@
           }
         },
         "default": {
-          "description": "Attach this literal when nothing else supplied a value.\n\nDistinct from omitting the member: a block whose shape *requires* a name carries an empty one\nrather than none, and the two are different values to anything hashing the payload.",
+          "description": "Attach this literal when nothing else supplied a value.\n\nDistinct from omitting the member: a block whose shape *requires* a name carries an empty one\nrather than none, and the two are different values to anything hashing the payload. An explicit `null`\nis a value too: the member is attached as `null`.",
           "default": null
         },
         "after_content": {

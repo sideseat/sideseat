@@ -79,20 +79,11 @@ pub(crate) fn normalize_content_in(
             json!([{"type": "text", "text": s}])
         }
         Some(JsonValue::Array(arr)) => {
-            // Filter sparse array placeholders (empty objects from unflatten)
-            // ONLY when the array has a mix of empty and non-empty elements.
-            // An array with only empty objects (e.g., [{}]) could be valid structured output.
-            let has_non_empty = arr.iter().any(|v| !is_sparse_array_placeholder(v));
-            let has_empty = arr.iter().any(is_sparse_array_placeholder);
-            let should_filter_placeholders = has_non_empty && has_empty;
-
+            // A gap in an indexed family's array is `null` (`unflatten`): no block was there. Every other element
+            // is what the producer sent, an empty object included - which is a structured output of its own,
+            // and was deleted when an empty object stood for a gap too.
             let mut spliced = Vec::with_capacity(arr.len());
-            splice_into(
-                plan,
-                arr.iter()
-                    .filter(|v| !should_filter_placeholders || !is_sparse_array_placeholder(v)),
-                &mut spliced,
-            );
+            splice_into(plan, arr.iter().filter(|v| !v.is_null()), &mut spliced);
             let blocks: Vec<JsonValue> = spliced
                 .iter()
                 .filter_map(|block| normalize_block_in(plan, block, true))
@@ -101,10 +92,6 @@ pub(crate) fn normalize_content_in(
             json!(blocks)
         }
         Some(obj @ JsonValue::Object(_)) => {
-            // Single content block (skip if it's a sparse array placeholder)
-            if is_sparse_array_placeholder(obj) {
-                return json!([]);
-            }
             match plan.expand(obj) {
                 Some(Expansion::Members(members)) => {
                     return normalize_content_in(plan, Some(&JsonValue::Array(members.clone())));
@@ -171,37 +158,6 @@ fn is_renderable_block(block: &JsonValue) -> bool {
         // Everything else is kept as-is. An empty text block can be a legitimate model
         // response, and an empty tool_result records a completed invocation.
         _ => true,
-    }
-}
-
-/// Check if a value is a sparse array placeholder created by unflatten.
-///
-/// When unflatten processes indexed attributes with gaps (e.g., `contents.1` exists
-/// but `contents.0` doesn't), it creates empty `{}` objects as placeholders.
-/// These should be filtered out during normalization.
-///
-/// Criteria for placeholder detection:
-/// - Must be an object
-/// - Must be completely empty (no keys)
-/// - OR only contains other empty placeholders (recursively)
-///
-/// Note: This is intentionally strict. Objects with ANY keys are kept, even if
-/// those keys have null/empty values, to avoid filtering legitimate structured output.
-fn is_sparse_array_placeholder(value: &JsonValue) -> bool {
-    match value {
-        JsonValue::Object(obj) => {
-            if obj.is_empty() {
-                return true;
-            }
-            // Check for objects that only contain placeholders (recursive sparse arrays)
-            // e.g., {"contents": [{}, {}]} where all array elements are placeholders
-            obj.values().all(|v| match v {
-                JsonValue::Array(arr) => arr.iter().all(is_sparse_array_placeholder),
-                JsonValue::Object(_) => is_sparse_array_placeholder(v),
-                _ => false,
-            })
-        }
-        _ => false,
     }
 }
 
@@ -300,8 +256,6 @@ pub(crate) fn normalize_block_in(
             )
         })
         .or_else(|| cited_text_fallback(block))
-        // Universal media patterns (mime_type fields, nested self-named media)
-        .or_else(|| try_media_fallback(block))
         // Finally, handle unknown formats
         .or_else(|| try_unknown_fallback(block))
 }
@@ -488,7 +442,6 @@ fn try_normalize_provider_format_in(
             false,
         )
     })
-    .or_else(|| try_media_fallback(block))
     // No unknown fallback - returns None if no provider format matches
 }
 
@@ -615,12 +568,12 @@ fn envelopes(outer: &JsonValue, inner: &JsonValue) -> bool {
     }
 }
 
-/// Universal media fallback for patterns not handled by provider-specific handlers.
+/// The retired media fallback: a MIME type beside bytes, a bare stored reference, and self-named nested media.
 ///
-/// Handles two patterns:
-/// 1. Blocks with `mime_type` + `data` fields (LangChain Python, various SDKs)
-/// 2. Nested self-named media from dotted-key unflattening (OpenInference)
-///    e.g. `{"type": "image", "image": {"image": {"url": "..."}}}`
+/// Retired: declared in `rules/vocabulary/content-blocks-media.json`, at the `after_provider_formats`
+/// position. Kept as the equivalence oracle - `the_declared_media_cases_match_the_reader_they_replace` runs
+/// both over every shape it read and every shape where it declined.
+#[cfg(any(test, feature = "test-support"))]
 fn try_media_fallback(block: &JsonValue) -> Option<JsonValue> {
     // Pattern 1: mime_type + data (no "type" field required)
     if let Some(mime) = block.get("mime_type").and_then(|m| m.as_str())

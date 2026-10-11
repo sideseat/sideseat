@@ -303,11 +303,11 @@ fn regression_openinference_message_content_wrapper_langgraph() {
     // llm.output_messages.0.message.contents.1.message_content.text
     //
     // After unflatten, this becomes:
-    // {"contents": [{}, {"message_content": {"text": "..."}}]}
+    // {"contents": [null, {"message_content": {"text": "..."}}]}
     //
-    // The message_content wrapper must be unwrapped and the sparse placeholder filtered.
+    // The message_content wrapper must be unwrapped and the gap dropped.
     let content = json!([
-        {},  // Sparse array placeholder (index 0 missing)
+        null,  // The gap unflatten left: index 0 missing
         {
             "message_content": {
                 "type": "text",
@@ -319,11 +319,7 @@ fn regression_openinference_message_content_wrapper_langgraph() {
     let result = normalize_content(Some(&content));
     let arr = result.as_array().unwrap();
 
-    assert_eq!(
-        arr.len(),
-        1,
-        "Should filter sparse placeholder and keep real content"
-    );
+    assert_eq!(arr.len(), 1, "Should drop the gap and keep real content");
     assert_eq!(arr[0]["type"], "text");
     assert_eq!(
         arr[0]["text"], "Hello! Here's your 3-day weather forecast...",
@@ -343,7 +339,7 @@ fn regression_sparse_array_with_reasoning_content() {
                 "signature": "sig123"
             }
         },
-        {},  // Sparse placeholder
+        null,  // The gap unflatten left
         {
             "message_content": {
                 "type": "text",
@@ -355,11 +351,7 @@ fn regression_sparse_array_with_reasoning_content() {
     let result = normalize_content(Some(&content));
     let arr = result.as_array().unwrap();
 
-    assert_eq!(
-        arr.len(),
-        2,
-        "Should filter placeholder, keep thinking and text"
-    );
+    assert_eq!(arr.len(), 2, "Should drop the gap, keep thinking and text");
     assert_eq!(arr[0]["type"], "thinking");
     assert_eq!(
         arr[0]["text"],
@@ -372,12 +364,10 @@ fn regression_sparse_array_with_reasoning_content() {
 
 #[test]
 fn regression_empty_assistant_message_771e923f() {
-    // Regression test for trace 771e923f9f7781491b41abc00d9d21fa
-    // Issue: Assistant message showed "{}" due to sparse array placeholder
-    // being normalized to json type instead of filtered
-    //
-    // This specific case had contents like:
-    // [{"message_content": {"type": "text", "text": "..."}}, {}]
+    // Regression test for trace 771e923f9f7781491b41abc00d9d21fa: an assistant message showed "{}" because
+    // unflatten filled the gap at a missing index with an empty object. The gap is now `null` at the source
+    // (`unflatten_dotted_keys`), dropped here - while an empty object a producer really sent stays, as the
+    // structured output it is.
     let content = json!([
         {
             "message_content": {
@@ -385,18 +375,14 @@ fn regression_empty_assistant_message_771e923f() {
                 "text": "I can help with that weather forecast!"
             }
         },
-        {}  // This was showing as "{}" in the UI
+        null  // The gap unflatten left; it was `{}`, which showed as "{}" in the UI
     ]);
 
     let result = normalize_content(Some(&content));
     let arr = result.as_array().unwrap();
 
-    assert_eq!(arr.len(), 1, "Empty placeholder should be filtered out");
+    assert_eq!(arr.len(), 1, "The gap is dropped");
     assert_eq!(arr[0]["type"], "text");
-    assert_ne!(
-        arr[0]["type"], "json",
-        "Should NOT have json block for empty placeholder"
-    );
 }
 
 #[test]
@@ -404,7 +390,7 @@ fn regression_tool_use_with_sparse_contents() {
     // Regression test: Tool use blocks from OpenInference with sparse arrays
     // Real data pattern from LangGraph traces
     let content = json!([
-        {},  // Sparse placeholder
+        null,  // The gap unflatten left
         {
             "message_content": {
                 "type": "tool_use",
@@ -413,7 +399,7 @@ fn regression_tool_use_with_sparse_contents() {
                 "input": {"city": "NYC", "days": 3}
             }
         },
-        {},  // Another sparse placeholder
+        null,  // Another gap
         {
             "message_content": {
                 "type": "tool_use",
@@ -436,8 +422,8 @@ fn regression_tool_use_with_sparse_contents() {
 
 #[test]
 fn regression_nested_sparse_arrays() {
-    // Regression test: Deeply nested sparse array structures
-    // Can occur with complex OpenInference message structures
+    // An object holding only empty containers is a value a producer can send - structured output whose members
+    // are empty - so it is kept as data rather than guessed to be a gap: unflatten's own gaps are `null`.
     let content = json!([
         {
             "message_content": {
@@ -446,7 +432,6 @@ fn regression_nested_sparse_arrays() {
             }
         },
         {
-            // Object with only empty nested structures - should be treated as placeholder
             "nested": [{}, {}],
             "also_empty": {}
         },
@@ -461,9 +446,10 @@ fn regression_nested_sparse_arrays() {
     let result = normalize_content(Some(&content));
     let arr = result.as_array().unwrap();
 
-    assert_eq!(arr.len(), 2, "Should filter nested empty structure");
+    assert_eq!(arr.len(), 3, "A producer's own empty containers are data");
     assert_eq!(arr[0]["text"], "First message");
-    assert_eq!(arr[1]["text"], "Second message");
+    assert_eq!(arr[1]["type"], "json");
+    assert_eq!(arr[2]["text"], "Second message");
 }
 
 // ========== Python repr parsing tests ==========

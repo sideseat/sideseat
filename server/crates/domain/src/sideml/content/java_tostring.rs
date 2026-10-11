@@ -29,8 +29,11 @@ const JAVA_TOSTRING_MAX_ATTEMPTS: usize = 64;
 /// **A reading is accepted only where printing it again reproduces the text byte for byte.** Since a quote
 /// inside a string is not escaped, a reading that ends a string at the wrong quote can still be well formed;
 /// printed again with the format's own spacing it differs from the text unless that text could have been
-/// printed from it, and the next reading is tried. Where two readings both reproduce it - the text inside a
-/// string is itself a printed member - the text cannot tell them apart, and the earliest end is taken.
+/// printed from it, and the next reading is tried. Where two readings both reproduce it, the earliest end is
+/// taken - a **canonical choice, not a guess the format could settle**: `a = "x", b = "y"` is also one string
+/// holding `x", b = "y`, so every pair of adjacent string members is ambiguous this way and a parser that
+/// refused ambiguity would refuse the format. Both readings print the same bytes, so nothing the format carries
+/// is lost by the choice; the earliest end is the reading whose members are the printed ones.
 ///
 /// The whole text must be one object or one list. A duplicated member, a string where Java prints none, and a
 /// text no reading within the bound reproduces are refused.

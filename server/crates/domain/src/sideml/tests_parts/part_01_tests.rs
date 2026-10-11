@@ -851,8 +851,9 @@ fn test_nested_arrays_preserved_in_unknown() {
 
 #[test]
 fn test_primitive_values_preserved_in_unknown() {
-    // Primitive values in content arrays: strings become text blocks,
-    // non-string primitives preserved as unknown (not dropped).
+    // Primitive values in content arrays: strings become text blocks, non-string primitives are preserved as
+    // unknown. `null` alone is dropped: it is what unflatten leaves at an index no key named, it renders as
+    // nothing, and the raw store keeps the original either way.
     let input = json!({
         "role": "user",
         "content": [
@@ -864,11 +865,10 @@ fn test_primitive_values_preserved_in_unknown() {
     });
     let output = normalize(&input);
 
-    // All primitives in array are preserved (not dropped)
     assert_eq!(
         output.content.len(),
-        4,
-        "All primitives should be preserved"
+        3,
+        "Every primitive but null is preserved"
     );
 
     // String in array becomes text
@@ -885,11 +885,6 @@ fn test_primitive_values_preserved_in_unknown() {
     let block3 = block_to_json(&output.content[2]);
     assert_eq!(block3["type"], "unknown");
     assert_eq!(block3["raw"], true);
-
-    // Null preserved as unknown
-    let block4 = block_to_json(&output.content[3]);
-    assert_eq!(block4["type"], "unknown");
-    assert!(block4["raw"].is_null());
 }
 
 #[test]

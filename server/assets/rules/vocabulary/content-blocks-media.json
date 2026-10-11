@@ -1,0 +1,209 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "content-blocks-media",
+  "doc": "Media shapes several SDKs share, tried after every dialect's own cases: a part that names its bytes' MIME type beside them, a bare stored reference, and a part whose kind member nests the location under its own name. These were the Rust media fallback; what stays in Rust is the generic decoding - a data URL's header, a stored reference's media type, bytes against a location - which is about values, not producers.",
+  "content_blocks": [
+    {
+      "id": "media.mime_type_beside_data",
+      "at": "after_provider_formats",
+      "priority": 910,
+      "doc": "A part declaring its MIME type beside its bytes, with no `type` member required - LangChain Python and several SDKs write attachments this way. The kind comes from the media type; the value decides whether it is bytes, a location or a stored reference, whose own media type then wins.",
+      "where": {
+        "all": [
+          {
+            "path": "$.mime_type",
+            "kind": "string"
+          },
+          {
+            "path": "$.data",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "media_type": "$.mime_type",
+        "data": "$.data",
+        "name": "$.name"
+      }
+    },
+    {
+      "id": "media.stored_reference",
+      "at": "after_provider_formats",
+      "priority": 920,
+      "doc": "A bare stored reference: ingestion replaces inline bytes with SideSeat's own reference, which carries the media type the bytes were stored under, so a part holding one and nothing a dialect recognised is that file. AutoGen's Image serialises to exactly this.",
+      "where": {
+        "path": "$.data",
+        "starts_with": "#!B64!#"
+      },
+      "media": {
+        "data": "$.data",
+        "missing_media_type": "omit"
+      }
+    },
+    {
+      "id": "media.self_named_image",
+      "at": "after_provider_formats",
+      "priority": 930,
+      "doc": "A part whose `type` nests its location under its own name - OpenInference's dotted families unflatten to this - with the location one or two levels down, as a URL or as bytes. The kind is the stated one; the value says whether it is a data URL, a reference, a location or bytes.",
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "image"
+            ]
+          },
+          {
+            "path": "$.image",
+            "exists": true
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "data": {
+          "first_of": [
+            "$.image.url",
+            "$.image.image.url",
+            "$.image.data",
+            "$.image.image.data"
+          ],
+          "mode": "usable"
+        },
+        "missing_media_type": "omit"
+      }
+    },
+    {
+      "id": "media.self_named_audio",
+      "at": "after_provider_formats",
+      "priority": 931,
+      "doc": "A part whose `type` nests its location under its own name - OpenInference's dotted families unflatten to this - with the location one or two levels down, as a URL or as bytes. The kind is the stated one; the value says whether it is a data URL, a reference, a location or bytes.",
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "audio"
+            ]
+          },
+          {
+            "path": "$.audio",
+            "exists": true
+          }
+        ]
+      },
+      "media": {
+        "kind": "audio",
+        "data": {
+          "first_of": [
+            "$.audio.url",
+            "$.audio.audio.url",
+            "$.audio.data",
+            "$.audio.audio.data"
+          ],
+          "mode": "usable"
+        },
+        "missing_media_type": "omit"
+      }
+    },
+    {
+      "id": "media.self_named_video",
+      "at": "after_provider_formats",
+      "priority": 932,
+      "doc": "A part whose `type` nests its location under its own name - OpenInference's dotted families unflatten to this - with the location one or two levels down, as a URL or as bytes. The kind is the stated one; the value says whether it is a data URL, a reference, a location or bytes.",
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "video"
+            ]
+          },
+          {
+            "path": "$.video",
+            "exists": true
+          }
+        ]
+      },
+      "media": {
+        "kind": "video",
+        "data": {
+          "first_of": [
+            "$.video.url",
+            "$.video.video.url",
+            "$.video.data",
+            "$.video.video.data"
+          ],
+          "mode": "usable"
+        },
+        "missing_media_type": "omit"
+      }
+    },
+    {
+      "id": "media.self_named_document",
+      "at": "after_provider_formats",
+      "priority": 933,
+      "doc": "A part whose `type` nests its location under its own name - OpenInference's dotted families unflatten to this - with the location one or two levels down, as a URL or as bytes. The kind is the stated one; the value says whether it is a data URL, a reference, a location or bytes.",
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "document"
+            ]
+          },
+          {
+            "path": "$.document",
+            "exists": true
+          }
+        ]
+      },
+      "media": {
+        "kind": "document",
+        "data": {
+          "first_of": [
+            "$.document.url",
+            "$.document.document.url",
+            "$.document.data",
+            "$.document.document.data"
+          ],
+          "mode": "usable"
+        },
+        "missing_media_type": "omit"
+      }
+    },
+    {
+      "id": "media.self_named_file",
+      "at": "after_provider_formats",
+      "priority": 934,
+      "doc": "A part whose `type` nests its location under its own name - OpenInference's dotted families unflatten to this - with the location one or two levels down, as a URL or as bytes. The kind is the stated one; the value says whether it is a data URL, a reference, a location or bytes.",
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "file"
+            ]
+          },
+          {
+            "path": "$.file",
+            "exists": true
+          }
+        ]
+      },
+      "media": {
+        "kind": "file",
+        "data": {
+          "first_of": [
+            "$.file.url",
+            "$.file.file.url",
+            "$.file.data",
+            "$.file.file.data"
+          ],
+          "mode": "usable"
+        },
+        "missing_media_type": "omit"
+      }
+    }
+  ]
+}

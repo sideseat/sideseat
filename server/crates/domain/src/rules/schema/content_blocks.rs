@@ -83,8 +83,9 @@ pub enum ValueSource {
 }
 
 /// A member with one transform applied: `{"path": ..., "pipe": [step]}`, the step one of `join` (every string the
-/// path selects, joined), `parse` (a string decoded the way a carrier's text is; anything else passes through),
-/// `prepend`, or a closed `map` (`{"map": {...}, "closed": true}`). A step that cannot apply leaves the source
+/// path selects, joined), `parse` (a string decoded the way a carrier's text is; a value that is not text is
+/// already decoded and passes through as it is), `prepend`, or a closed `map` (`{"map": {...}, "closed": true}`).
+/// A step that cannot apply - text that does not decode, nothing to join, prepend to or map - leaves the source
 /// **absent**, so the next candidate is tried.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]

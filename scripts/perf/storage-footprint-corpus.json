@@ -37,6 +37,7 @@
 "server/tests/fixtures/messages/_synthetic/quoted_steps_on_two_carriers/req-001.json": "01dd5c84a3a70a6dd5ec2620669532cdde5c549e57cdac680ab6ff395dddd1e5",
 "server/tests/fixtures/messages/_synthetic/repeated_tool_result_parts/req-001.json": "018d045fbfee0a401c6b032fb4c72001274d39fc5b811b5e4390fe9151749044",
 "server/tests/fixtures/messages/_synthetic/resent_history/req-001.json": "a1f87d4380f0de8dfe497341db79cc015ba98982a7620c2d230600bf2c38e420",
+"server/tests/fixtures/messages/_synthetic/responses_output_in_order/req-001.json": "b462eb23eb3b0629c25f8f5904eeed44070b98706b32e1ec6f140e5c7aba7648",
 "server/tests/fixtures/messages/_synthetic/streamed_choice_call_chunk/logs-001.json": "9600706b62a5e9d5dd15ac13639b7555598e4815d4f484f499bd7f85f8d452a3",
 "server/tests/fixtures/messages/_synthetic/streamed_choice_call_chunk/req-001.json": "cc2e505ebc918407550b98233eab9759f4a6cc2b03680bcb6fb0eb608e294d80",
 "server/tests/fixtures/messages/_synthetic/streamed_choice_call_twice/logs-001.json": "474475c599f1a96caf7287cf11df5ef6ed94fdb68b39d84057122cc2fe94839c",

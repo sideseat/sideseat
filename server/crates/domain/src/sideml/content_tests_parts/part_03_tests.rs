@@ -186,6 +186,16 @@ fn python_constructor_repr_preserves_data_and_exposes_volatile_metadata_to_rules
     assert_eq!(parsed["state"], "success");
 }
 
+/// A keyword spelled as a member the reading adds would overwrite the constructor's name or its positional
+/// arguments: such a repr reads as no object at all rather than as one it is not.
+#[test]
+fn a_constructor_keyword_cannot_rename_the_constructor() {
+    for repr in ["C(__python_constructor='D')", "C(1, __python_args=[2])"] {
+        assert_eq!(try_parse_python_constructor_repr(repr), None, "{repr}");
+    }
+    assert!(try_parse_python_constructor_repr("C(name='D')").is_some());
+}
+
 #[test]
 fn constructor_repr_inside_a_tool_response_becomes_semantic_content() {
     let repr = "TextBlock(type='text', text='Sunny, 22°C', id='generated', \
@@ -549,4 +559,84 @@ fn python_constructor_repr_sequence_reads_reprs_written_back_to_back() {
             "all or nothing: {refused:?}"
         );
     }
+}
+
+/// The declared media cases answer every shape the retired Rust fallback read, and decline where it declined.
+/// Not byte-equal by construction - the declared constructor is more careful in two ways the retired reader was
+/// not - so the differing shapes are asserted on what each answers.
+#[test]
+fn the_declared_media_cases_match_the_reader_they_replace() {
+    use crate::rules::schema::ChainPosition;
+    let plan = &crate::rules::ruleset().content_blocks;
+    let declared = |block: &JsonValue| plan.normalize(block, ChainPosition::AfterProviderFormats);
+    // Shapes both read the same way.
+    let agreeing: Vec<(&str, JsonValue)> = vec![
+        (
+            "a MIME type beside base64 bytes",
+            json!({"mime_type": "image/png", "data": "aGVsbG8=", "name": "map.png"}),
+        ),
+        (
+            "a MIME type beside a URL",
+            json!({"mime_type": "application/pdf", "data": "https://x/y.pdf"}),
+        ),
+        (
+            "a bare stored reference",
+            json!({"data": "#!B64!#image/jpeg::hash123"}),
+        ),
+        (
+            "a stored reference with no media type",
+            json!({"data": "#!B64!#::hash123"}),
+        ),
+        (
+            "self-named media, the URL one level down",
+            json!({"type": "image", "image": {"url": "https://x/y.png"}}),
+        ),
+        (
+            "self-named media, the URL two levels down",
+            json!({"type": "image", "image": {"image": {"url": "https://x/y.png"}}}),
+        ),
+        (
+            "self-named media holding a data URL",
+            json!({"type": "image", "image": {"url": "data:image/png;base64,aGVsbG8="}}),
+        ),
+        (
+            "self-named media holding bytes",
+            json!({"type": "audio", "audio": {"data": "aGVsbG8="}}),
+        ),
+        (
+            "a shape with neither",
+            json!({"type": "text", "text": "hi"}),
+        ),
+        ("a bare object", json!({"status": "ok"})),
+        (
+            "a self-named member of the wrong kind",
+            json!({"type": "image", "image": "https://x/y.png"}),
+        ),
+    ];
+    for (what, block) in agreeing {
+        assert_eq!(
+            declared(&block),
+            try_media_fallback(&block),
+            "the declared media cases disagree with the reader they replace: {what}"
+        );
+    }
+    // A stored reference's media type is the stored fact: the retired reader kept a disagreeing declared one.
+    let conflicting = json!({"mime_type": "image/png", "data": "#!B64!#application/pdf::H"});
+    assert_eq!(
+        declared(&conflicting).expect("read")["media_type"],
+        "application/pdf",
+        "the stored media type wins"
+    );
+    assert_eq!(
+        try_media_fallback(&conflicting).expect("read")["media_type"],
+        "image/png"
+    );
+    // A data URL beside a declared MIME type: the declared case keeps the payload alone, as every other data
+    // URL reading does; the retired reader stored the whole URL as bytes.
+    let data_url = json!({"mime_type": "image/png", "data": "data:image/png;base64,aGVsbG8="});
+    assert_eq!(declared(&data_url).expect("read")["data"], "aGVsbG8=");
+    assert_eq!(
+        try_media_fallback(&data_url).expect("read")["data"],
+        "data:image/png;base64,aGVsbG8="
+    );
 }
