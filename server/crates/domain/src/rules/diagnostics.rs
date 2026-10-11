@@ -487,6 +487,7 @@ impl SectionDefect for super::tool_shapes::ToolShapeError {
             | E::EmptyCarry { id }
             | E::CarryShadows { id, .. }
             | E::NoParameterPath { id }
+            | E::AmbiguousId { id }
             | E::Inexpressible { id, .. } => vec![id],
             E::SharedPriority { first, second, .. } => vec![first, second],
         }
@@ -508,6 +509,7 @@ impl SectionDefect for super::content_blocks::ContentBlockCompileError {
             | E::SpliceOutsideMessageContent { rule, .. }
             | E::RunOutsideMessageContent { rule, .. }
             | E::IdTemplate { rule, .. }
+            | E::AmbiguousId { rule }
             | E::Source { rule, .. } => vec![rule],
             E::SharedPriority { first, second, .. } => vec![first, second],
         }

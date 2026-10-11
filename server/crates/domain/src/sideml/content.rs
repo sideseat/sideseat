@@ -531,41 +531,52 @@ pub(crate) fn normalize_tool_result_content_in(
 /// not contain each other, so the two cases separate without any declaration - and a producer that invents a new
 /// wrapper is covered by the same relation rather than needing a new one.
 fn deduplicate_content_blocks(blocks: Vec<(JsonValue, JsonValue)>) -> Vec<JsonValue> {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
-    // normalised form -> the sources already kept for it.
-    let mut seen: HashMap<String, Vec<JsonValue>> = HashMap::new();
+    /// A value's serialised identity (deterministic ordering from serde_json).
+    fn identity(value: &JsonValue) -> String {
+        serde_json::to_string(value).unwrap_or_default()
+    }
+    /// The direct member values of a source: what it envelopes, which is what a wrapper is - `{type:"json",
+    /// value: X}` states `X` at one level. A deep search would call a tool result that happens to quote an
+    /// earlier one an envelope of it, which is a different claim entirely.
+    fn direct_members(value: &JsonValue) -> Vec<String> {
+        match value {
+            JsonValue::Object(members) => members.values().map(identity).collect(),
+            JsonValue::Array(items) => items.iter().map(identity).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    // Per normalised form: the identities of the sources already kept, and of their direct members - indexed, so
+    // N genuine occurrences of one part cost N lookups, not N(N-1)/2 value comparisons.
+    #[derive(Default)]
+    struct Kept {
+        sources: HashSet<String>,
+        members: HashSet<String>,
+    }
+    let mut seen: HashMap<String, Kept> = HashMap::new();
     let mut result = Vec::with_capacity(blocks.len());
 
     for (block, source) in blocks {
-        // JSON serialisation as identity (deterministic ordering from serde_json).
-        let key = serde_json::to_string(&block).unwrap_or_default();
-        let sources = seen.entry(key).or_default();
+        let key = identity(&block);
+        let kept = seen.entry(key).or_default();
+        let source_id = identity(&source);
+        let source_members = direct_members(&source);
         // Dropped only where one source is an envelope of a source already kept, in either direction: the
         // wrapping may come first or second, and both orders are the same datum written twice.
-        let one_datum = sources
-            .iter()
-            .any(|kept| envelopes(kept, &source) || envelopes(&source, kept));
+        let one_datum = kept.members.contains(&source_id)
+            || source_members
+                .iter()
+                .any(|member| kept.sources.contains(member));
         if !one_datum {
-            sources.push(source);
+            kept.sources.insert(source_id);
+            kept.members.extend(source_members);
             result.push(block);
         }
     }
 
     result
-}
-
-/// Whether `outer` is a wrapping **around** `inner`: one of its member values *is* `inner`.
-///
-/// Direct members only, which is what a wrapper is - `{type:"json", value: X}` states `X` at one level. A deep
-/// search would call a tool result that happens to quote an earlier one an envelope of it, which is a different
-/// claim entirely.
-fn envelopes(outer: &JsonValue, inner: &JsonValue) -> bool {
-    match outer {
-        JsonValue::Object(members) => members.values().any(|value| value == inner),
-        JsonValue::Array(items) => items.iter().any(|item| item == inner),
-        _ => false,
-    }
 }
 
 /// The retired media fallback: a MIME type beside bytes, a bare stored reference, and self-named nested media.
@@ -653,7 +664,8 @@ fn try_media_fallback(block: &JsonValue) -> Option<JsonValue> {
     None
 }
 
-/// Infer the source type from data content.
+/// Infer the source type from data content: the retired fallback's reading, kept with it for the oracle.
+#[cfg(any(test, feature = "test-support"))]
 fn infer_source_type(data: &str) -> &'static str {
     if files::is_file_uri(data) {
         "file"
@@ -804,6 +816,7 @@ fn try_unknown_fallback(block: &JsonValue) -> Option<JsonValue> {
 /// - For `#!B64!#::hash` file references: ("file", uri, None)
 /// - For data URLs: ("base64", base64_data, Some("image/png"))
 /// - For regular URLs: ("url", url, None)
+#[cfg(any(test, feature = "test-support"))]
 fn parse_data_url(url: &str) -> (&'static str, String, Option<String>) {
     // The one decoder, so this and `data_source_kind` cannot disagree about what a value is - they used to,
     // in opposite directions.

@@ -206,10 +206,6 @@ fn the_declared_provider_formats_match_the_readers_they_replace() {
         ),
         ("blob with no type", json!({"type": "blob", "data": "AAAA"})),
         (
-            "blob with a non-string media type",
-            json!({"type": "blob", "data": "AAAA", "media_type": 1, "mime_type": "image/png"}),
-        ),
-        (
             "blob with no payload",
             json!({"type": "blob", "mime_type": "image/png"}),
         ),
@@ -594,6 +590,19 @@ fn the_declared_provider_formats_match_the_readers_they_replace() {
             "the whole chain disagrees with the retired one: {what}"
         );
     }
+
+    // One pinned deliberate difference: `mode: "usable"` steps over a candidate of the wrong type, as the
+    // declaration says, where the retired reader committed to the first present member and dropped the field.
+    let mixed = json!({"type": "blob", "data": "AAAA", "media_type": 1, "mime_type": "image/png"});
+    assert_eq!(
+        normalize_content_block(&mixed).expect("read")["media_type"],
+        "image/png",
+        "the usable mode steps to the spelling that can be read"
+    );
+    assert_eq!(
+        legacy_normalize_block(&mixed, true).expect("read")["media_type"],
+        "application/octet-stream"
+    );
 
     // The stated differences, each on a shape no producer in the corpus writes. The retired readers built a
     // block a typed reader cannot hold - a call with no name, an id that is not a string - which survived only

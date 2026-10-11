@@ -18,6 +18,9 @@ use super::message_rules::{predicate_defect, predicates_hold, query};
 #[cfg(any(test, feature = "test-support"))]
 pub mod corpus_record;
 mod forms;
+mod select;
+
+use select::{member, source_path, usable_member};
 mod type_index;
 use super::schema::{
     ChainPosition, ContentBlockRule, IdSource, MissingMediaType, ResultContent, RuleFile,
@@ -41,6 +44,11 @@ pub enum ContentBlockCompileError {
          plan with the same value"
     )]
     SelfSelectingContent { rule: String },
+    #[error(
+        "content-block rule id `{rule}` is empty or declared twice - a diagnostic that cannot name one clause \
+         names none"
+    )]
+    AmbiguousId { rule: String },
     #[error(
         "content-block rule `{rule}` maps its tool-result content to a literal that normalising never finishes \
          with: the chain answers it by re-entering itself until the depth bound"
@@ -131,6 +139,15 @@ impl ContentBlockPlan {
         let mut all: Vec<&ContentBlockRule> =
             files.iter().flat_map(|f| &f.content_blocks).collect();
         all.sort_by_key(|rule| rule.priority);
+        // An id names a clause in every diagnostic and census row: empty or shared, it names none.
+        let mut ids: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for rule in &all {
+            if rule.id.trim().is_empty() || !ids.insert(rule.id.as_str()) {
+                return Err(ContentBlockCompileError::AmbiguousId {
+                    rule: rule.id.clone(),
+                });
+            }
+        }
         for rule in &all {
             // **Exactly one** target form. Zero means the rule recognises a block and builds nothing - and
             // with an empty `require` it recognises *every* block, so it would swallow the rest of the
@@ -582,64 +599,6 @@ impl ContentBlockPlan {
     }
 }
 
-/// The first source that resolves to something this member accepts.
-///
-/// `empty_object_is_absent` is the one non-obvious rule and it is a producer fact: a dialect writes a
-/// call's arguments under one member and, in an older version, under another - and the unused one is
-/// present as `{}` rather than missing, so "the first that resolves" would always pick the empty one.
-fn member<'b>(
-    block: &'b JsonValue,
-    sources: &[ValueSource],
-    empty_object_is_absent: bool,
-) -> Option<Cow<'b, JsonValue>> {
-    sources.iter().find_map(|source| {
-        let found = match source {
-            ValueSource::Path(path) => query(block, path).into_iter().next().map(Cow::Borrowed),
-            ValueSource::Transformed(spec) => transformed(block, spec),
-        }?;
-        (!(empty_object_is_absent && found.as_object().is_some_and(serde_json::Map::is_empty)))
-            .then_some(found)
-    })
-}
-
-/// A source's value after its one transform, or nothing where the transform cannot apply.
-fn transformed<'b>(block: &'b JsonValue, spec: &TransformedSource) -> Option<Cow<'b, JsonValue>> {
-    if let Some(separator) = spec.join() {
-        let texts: Vec<&str> = query(block, &spec.path)
-            .into_iter()
-            .filter_map(JsonValue::as_str)
-            .collect();
-        return (!texts.is_empty()).then(|| Cow::Owned(JsonValue::String(texts.join(separator))));
-    }
-    let found = query(block, &spec.path).into_iter().next()?;
-    if let Some(mode) = spec.parse() {
-        let Some(text) = found.as_str() else {
-            return Some(Cow::Borrowed(found));
-        };
-        return super::message_rules::parse_value(text, mode).map(Cow::Owned);
-    }
-    if let Some(prefix) = spec.prepend() {
-        return found
-            .as_str()
-            .map(|text| Cow::Owned(JsonValue::String(format!("{prefix}{text}"))));
-    }
-    if let Some(table) = spec.map() {
-        return found
-            .as_str()
-            .and_then(|text| table.get(text))
-            .map(|mapped| Cow::Owned(mapped.clone()));
-    }
-    None
-}
-
-/// The path a source reads, whatever it then does with the value.
-fn source_path(source: &ValueSource) -> &super::schema::JsonPath {
-    match source {
-        ValueSource::Path(path) => path,
-        ValueSource::Transformed(spec) => &spec.path,
-    }
-}
-
 /// Why a transformed source cannot mean what it says.
 fn transform_defect(spec: &TransformedSource) -> Option<&'static str> {
     if spec.pipe.len() != 1 {
@@ -796,7 +755,7 @@ fn built(
     if let Some(spec) = &rule.tool_use {
         // A nameless call names nothing to run, so the case does not recognise the block. The id may be
         // absent and is reported as null: a provider that omits it has still made the call.
-        let name = member(block, &spec.name, false)?;
+        let name = usable_member(block, &spec.name, false, JsonValue::is_string)?;
         let name = name.as_str()?;
         let input = member(block, &spec.input, true)
             .map(Cow::into_owned)
@@ -809,8 +768,8 @@ fn built(
         return Some(call);
     }
     if let Some(spec) = &rule.tool_result {
-        let tool_use_id = member(block, &spec.tool_use_id, false);
-        let name = member(block, &spec.name, false);
+        let tool_use_id = usable_member(block, &spec.tool_use_id, false, JsonValue::is_string);
+        let name = usable_member(block, &spec.name, false, JsonValue::is_string);
         let selected = member(block, &spec.content, false).map(Cow::into_owned);
         let content = match spec.content_as {
             ResultContent::Normalized => {
@@ -826,7 +785,7 @@ fn built(
             }
             ResultContent::Blocks => result_blocks(selected),
         };
-        let is_error = member(block, &spec.is_error, false)
+        let is_error = usable_member(block, &spec.is_error, false, JsonValue::is_boolean)
             .and_then(|flag| flag.as_bool())
             .unwrap_or(false);
         let mut result = serde_json::Map::new();
@@ -854,7 +813,7 @@ fn built(
     if let Some(spec) = &rule.text {
         // Only a string is text. A structured value under the same member is a different shape, and the
         // case must fall through to whatever recognises it rather than stringifying it here.
-        let text = member(block, &spec.text, false)?;
+        let text = usable_member(block, &spec.text, false, JsonValue::is_string)?;
         let mut out = json!({"type": "text", "text": text.as_str()?});
         if let Some(citations) = &spec.citations {
             let cited = forms::citations(block, citations);
@@ -867,19 +826,19 @@ fn built(
     if let Some(spec) = &rule.thinking {
         // Neither member is required: a producer that names the block as reasoning has said what it is, and the
         // retired reader emitted an empty one rather than letting something else claim it.
-        let text = member(block, &spec.text, false)
+        let text = usable_member(block, &spec.text, false, JsonValue::is_string)
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or_default();
-        let signature =
-            member(block, &spec.signature, false).and_then(|v| v.as_str().map(str::to_string));
+        let signature = usable_member(block, &spec.signature, false, JsonValue::is_string)
+            .and_then(|v| v.as_str().map(str::to_string));
         return Some(json!({"type": "thinking", "text": text, "signature": signature}));
     }
     if let Some(spec) = &rule.refusal {
-        let message = member(block, &spec.message, false)?;
+        let message = usable_member(block, &spec.message, false, JsonValue::is_string)?;
         return Some(json!({"type": "refusal", "message": message.as_str()?}));
     }
     if let Some(spec) = &rule.redacted_thinking {
-        let data = member(block, &spec.data, false)
+        let data = usable_member(block, &spec.data, false, JsonValue::is_string)
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or_default();
         return Some(json!({"type": "redacted_thinking", "data": data}));

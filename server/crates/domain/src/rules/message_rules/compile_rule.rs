@@ -337,6 +337,13 @@ pub(super) fn compile_rule(
     // The section options' own literals: no split at all reads nothing, and a source that is not an attribute
     // key names nothing this reading is given.
     if let Some(spec) = sections {
+        // Sections split the carrier's raw text: a `parse` of anything else would say the carrier decodes
+        // first, and the split then reads the raw text anyway.
+        if parse.is_some() && *parse != Some(ParseMode::Text) {
+            return Err(inexpressible(
+                "`sections` splits the carrier's raw text, so a `parse` other than `text` would be ignored",
+            ));
+        }
         if spec.routes.is_empty() {
             return Err(inexpressible(
                 "`sections` with no route sends each section nowhere, so the reading could never emit",
@@ -765,6 +772,21 @@ pub(super) fn compile_rule(
             if member.sweep_prefix.as_deref() == Some("") {
                 return Err(inexpressible(
                     "a compose member has an empty `sweep_prefix`",
+                ));
+            }
+            // A sweep sniffs each value and reads unconditionally, so a `parse` or `fallback` on it would be
+            // declared and ignored; `except` is the sweep's own and means nothing on a named member.
+            if member.sweep_prefix.is_some()
+                && (member.parse.is_some() || member.fallback.is_some())
+            {
+                return Err(inexpressible(
+                    "a compose sweep sniffs each value and reads unconditionally, so `parse` and `fallback` \
+                         on it would be ignored",
+                ));
+            }
+            if member.sweep_prefix.is_none() && !member.except.is_empty() {
+                return Err(inexpressible(
+                    "`except` names keys a sweep skips, so on a named compose member it would be ignored",
                 ));
             }
             if member.sweep_prefix.is_none() && member.as_member.is_none() {

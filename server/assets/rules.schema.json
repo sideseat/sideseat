@@ -4178,8 +4178,8 @@
           "default": null
         },
         "from": {
-          "description": "The first member that is a list is the list of citations.",
-          "$ref": "#/$defs/FirstPresent_string"
+          "description": "The first member that is a list is the list of citations: a usable-mode choice, since a present member\nof another shape is stepped over.",
+          "$ref": "#/$defs/FirstUsable_string"
         },
         "cases": {
           "description": "Tried in order for each citation; the first whose `where` holds reads it. Not empty, and only the last\nmay leave out its `where`.",

@@ -92,13 +92,17 @@ pub(crate) fn create_inner_content(blocks: &[JsonValue]) -> JsonValue {
 
     // Single block optimizations for cleaner output
     if inner.len() == 1 {
-        // Single text block: use string content
-        if let Some(text) = inner[0].get("text").and_then(|t| t.as_str()) {
-            return json!(text);
-        }
-        // Single json/unknown block: use raw data directly (tracked from original block type)
+        // A single json/unknown block is its data, whole: asked before the text reduction, which otherwise took
+        // a structured value's `text` member and dropped the members beside it.
         if let Some(raw) = single_raw_data {
             return raw;
+        }
+        // A single text block is its string. Only an actual text block: the reduction is about rendering,
+        // not about any object that happens to hold a `text` member.
+        if get_block_type(&blocks[0]) == Some("text")
+            && let Some(text) = inner[0].get("text").and_then(|t| t.as_str())
+        {
+            return json!(text);
         }
     }
 
@@ -122,13 +126,14 @@ fn merge_into_tool_result(tool_result: &JsonValue, siblings: &[&JsonValue]) -> J
         content_arr.push((*block).clone());
     }
 
-    // Recreate tool_result with merged content
-    json!({
-        "type": "tool_result",
-        "tool_use_id": tool_result.get("tool_use_id").cloned(),
-        "content": json!(content_arr),
-        "is_error": tool_result.get("is_error").and_then(|e| e.as_bool()).unwrap_or(false)
-    })
+    // The result as it was, with the merged content: rebuilding it from a fixed field list dropped the
+    // `name` a Gemini-style result pairs by and the `provider_executed` that says whose execution it was.
+    let mut merged = tool_result.as_object().cloned().unwrap_or_default();
+    merged.insert("content".to_string(), json!(content_arr));
+    merged
+        .entry("is_error".to_string())
+        .or_insert_with(|| json!(false));
+    JsonValue::Object(merged)
 }
 
 /// Create a new tool_result block.

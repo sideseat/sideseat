@@ -20,6 +20,12 @@ pub(super) fn check(messages: &MessagePlan, carriers: &CarrierPlan) -> Result<()
 }
 
 fn check_rule(rule: &CompiledMessageRule, carriers: &CarrierPlan) -> Result<(), ClauseDefect> {
+    // A branch leaf is a rule of its own, with its own readings and sides.
+    if let Some(set) = &rule.branch_set {
+        for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+            check_rule(sub, carriers)?;
+        }
+    }
     let defect = |reading: &str, reason: String| {
         ClauseDefect::new(&[&rule.rule_id, reading], Some(&rule.rule_file), reason)
     };

@@ -188,7 +188,21 @@ pub(super) fn emit_rule<'p>(
             });
             return out;
         }
-        for entry in entries {
+        if entries.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+            tracing::warn!(
+                target: "sideseat::rules",
+                rule = %rule.rule_id,
+                family,
+                found = entries.len(),
+                limit = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
+                "an indexed family yielded more entries than this server reports from one carrier; the rest \
+                 are dropped"
+            );
+        }
+        for entry in entries
+            .into_iter()
+            .take(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
+        {
             // The entry's tag *and* every key it read. The tag alone is a name for the entry, not a key, so
             // it conflicted with nothing a second rule could reach.
             let mut owns = OwnedCarrier::just(&entry.carrier);
@@ -238,12 +252,17 @@ pub(super) fn emit_rule<'p>(
             if !predicates_hold(&JsonValue::String(raw.to_string()), &rule.raw_where) {
                 return out;
             }
-            // An array-valued carrier read element by element, in declared passes.
+            // An array-valued carrier read element by element, in declared passes. Capped like the ordinary
+            // readings: these emissions return before the ceiling below, so without the `take` an element
+            // array past it was unbounded.
             if let Some(elements) = &rule.elements {
                 let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
                     return out;
                 };
-                for (carrier, value, clause) in element_passes(&parsed, elements) {
+                for (carrier, value, clause) in element_passes(&parsed, elements)
+                    .into_iter()
+                    .take(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
+                {
                     // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting an
                     // event as an attribute changes what the pipeline reads it as evidence of.
                     let tagged = if elements.tags_are_events {

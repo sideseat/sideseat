@@ -289,6 +289,11 @@ pub(super) fn readings(
                 vec![element]
             };
             for element in element {
+                // The same ceiling as the outer loop: one element's wrapper member can hold any number of
+                // declarations, so the bound has to hold inside the expansion too.
+                if produced.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+                    break;
+                }
                 // Descend where declared, then lift - **one** copy step whose conflict policy is declared,
                 // where there were two members with opposite unstated ones.
                 let mut candidate = match &alternative.descend {
@@ -653,7 +658,13 @@ pub(super) fn indexed_entries(
                     let Ok(at) = position.parse::<usize>() else {
                         return Some((member, value));
                     };
-                    let at = at + blocks.len();
+                    // Checked, not assumed: a crafted index near usize::MAX plus the prepended count would
+                    // panic in a debug build and wrap to 0 in a release one, where the prepended block then
+                    // overwrites it. A member whose index cannot be moved keeps the name it had, like one
+                    // whose first segment is not an index.
+                    let Some(at) = at.checked_add(blocks.len()) else {
+                        return Some((member, value));
+                    };
                     Some(match tail.is_empty() {
                         true => (format!("{prefix}{at}"), value),
                         false => (format!("{prefix}{at}.{tail}"), value),

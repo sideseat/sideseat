@@ -124,6 +124,14 @@ pub fn compile(
         });
     }
 
+    // The event names whose role a declaration states (`event_roles`): the one place a wrap may leave its own
+    // role out, since the name decides it at read time.
+    let named_roles: std::collections::BTreeSet<&str> = assets
+        .files()
+        .iter()
+        .flat_map(|file| file.event_roles.iter().map(|role| role.name.as_str()))
+        .collect();
+
     // Predicates, checked once over every place a compiled rule holds one - after fragments and extra
     // cases are inlined, which is the only point at which they are all visible.
     for rule in &rules {
@@ -170,6 +178,56 @@ pub fn compile(
                 with_branches(rule)
                     .into_iter()
                     .find_map(|rule| raw_where_defect(&rule.raw_where))
+            })
+            .or_else(|| {
+                // The reference says one of `role` and `role_from` is required. The one exception is a rule
+                // whose emissions land under a name a declaration gives a role (`event_roles`): the name
+                // decides the role at read time, which is where every role is derived. Anywhere else a
+                // roleless envelope left the message to be inferred from unrelated payload members.
+                with_branches(rule).into_iter().find_map(|rule| {
+                    let name_decides = rule
+                        .tag_as
+                        .as_deref()
+                        .is_some_and(|tag| named_roles.contains(tag))
+                        || rule
+                            .source
+                            .event_names()
+                            .iter()
+                            .any(|name| named_roles.contains(name.as_str()));
+                    (!name_decides
+                        && rule.branch_set.is_none()
+                        && wraps(rule)
+                            .into_iter()
+                            .any(|wrap| wrap.role.is_none() && wrap.role_from.is_none()))
+                    .then_some(
+                        "an envelope states neither `role` nor `role_from`, and the rule's name carries no \
+                         declared event role - the message would be emitted roleless, its role inferred \
+                         from unrelated members of the payload",
+                    )
+                })
+            })
+            .or_else(|| {
+                // Per effective reading, not per rule: a reading that overrides the target to one that holds
+                // no messages, while the rule's envelope still wraps what it reads, would file a wrapped
+                // message as tool definitions - and the union check above cannot see it.
+                with_branches(rule).into_iter().find_map(|rule| {
+                    rule.alternatives
+                        .iter()
+                        .chain(&rule.also)
+                        .chain(&rule.fallback)
+                        .flat_map(|reading| {
+                            std::iter::once(&reading.spec).chain(&reading.fragment_cases)
+                        })
+                        .any(|spec| {
+                            let wraps = spec.wrap.is_some() || rule.wrap.is_some();
+                            let target = spec.emit.unwrap_or(rule.target);
+                            wraps && target != EmitTarget::Message
+                        })
+                        .then_some(
+                            "a reading files what it reads under a target that holds no messages, while an \
+                             envelope still wraps it - whatever the envelope builds is not a message there",
+                        )
+                })
             })
         {
             return Err(MessageCompileError::Inexpressible {
@@ -485,6 +543,27 @@ pub(super) fn wrap_role_defect(
     if let Some(defect) = wrap.role_pipe_defect() {
         return Some(defect);
     }
+
+    // What a wrap builds is read: a `content_default` with no `content_from` path to fall back from, or a
+    // content construction beside `tool_calls_from`, which replaces the content, would compile and be
+    // discarded.
+    if wrap.content_default.is_some() && wrap.content_from_any_of.is_empty() {
+        return Some(
+            "states a `content_default` with no `content_from` to fall back from, so it is never read",
+        );
+    }
+    if wrap.tool_calls_from.is_some()
+        && (wrap.block.is_some()
+            || wrap.prepend_block.is_some()
+            || !wrap.content_from_any_of.is_empty()
+            || wrap.content_default.is_some()
+            || wrap.content_as.is_some())
+    {
+        return Some(
+            "builds content beside `tool_calls_from`, which replaces the content - so whatever was built \
+             is discarded",
+        );
+    }
     if wrap.role_map().is_some_and(|(_, closed)| closed) && wrap.role.is_none() {
         return Some(
             "closes its role `map` and states no `role` to fall back on - an unmapped value then leaves the \
@@ -531,7 +610,22 @@ pub(super) fn writes_one_member_twice(wrap: &WrapSpec) -> bool {
         names.push("tool_calls");
     }
     let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-    names.iter().any(|name| !seen.insert(name))
+    if names.iter().any(|name| !seen.insert(name)) {
+        return true;
+    }
+    // A nested block constructor builds its object the same way - `type`, attachments, the content - and
+    // every insert overwrites, so `block: {"type": "tool_use", "content_as": "type"}` made a block whose type
+    // is its content.
+    wrap.block
+        .iter()
+        .chain(wrap.prepend_block.iter().map(|prepend| &prepend.block))
+        .any(|block| {
+            let mut names: Vec<&str> = vec!["type"];
+            names.push(block.content_as.as_deref().unwrap_or("content"));
+            names.extend(block.attach.iter().map(|a| a.as_member.as_str()));
+            let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            names.iter().any(|name| !seen.insert(name))
+        })
 }
 
 /// Why an aggregate rule holds a declaration it would discard.
@@ -564,6 +658,12 @@ pub(super) fn aggregate_defect(rule: &CompiledMessageRule) -> Option<&'static st
         return Some(
             "an aggregate builds one observation from every reading, so a per-reading envelope would be \
              discarded - declare the envelope on the rule, which wraps the assembled array",
+        );
+    }
+    if specs().any(|spec| spec.direction.is_some()) {
+        return Some(
+            "an aggregate is one observation, so its side is its carrier's; a per-reading `direction` beside \
+             `aggregate_into_array` would be discarded",
         );
     }
     if specs().any(|spec| spec.emit.is_some()) {

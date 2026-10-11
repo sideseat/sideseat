@@ -578,6 +578,16 @@ fn lower_atom(
     if tests == 0 {
         return refuse("a condition names a source and asks nothing of it".to_string());
     }
+    // `exists: false` asserts the source is absent, so no other test of its value can hold beside it: absent,
+    // the value tests are unknown; present, the absence is false. A defect where the atom is asserted, and
+    // still a condition under a `not`.
+    if positive && atom.exists == Some(false) && tests > 1 {
+        return refuse(
+            "a condition asserts `exists: false` and tests the value too, which no span satisfies - absent, \
+             there is no value to test; present, the absence is false"
+                .to_string(),
+        );
+    }
     if let Some(range) = &atom.version {
         return lower_version(atom, range, tests, readable);
     }

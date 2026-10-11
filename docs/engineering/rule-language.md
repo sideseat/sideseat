@@ -1942,7 +1942,7 @@ provider's item, so a new shape is seen arriving rather than lost.
 | Key | Type | What it is |
 | --- | --- | --- |
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
-| `from` | [`FirstPresent_string`](#firstpresent_string) | The first member that is a list is the list of citations. |
+| `from` | [`FirstUsable_string`](#firstusable_string) | The first member that is a list is the list of citations: a usable-mode choice, since a present member of another shape is stepped over. |
 | `cases` (required) | list of [`CitationCase`](#citationcase) | Tried in order for each citation; the first whose `where` holds reads it. Not empty, and only the last may leave out its `where`. |
 
 ### `CitationCase`

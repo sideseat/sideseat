@@ -331,3 +331,46 @@ fn a_carrier_past_a_ceiling_yields_the_ceiling_in_document_order() {
         "the last section carries the remainder: {last:?}"
     );
 }
+
+/// **A clause id names one clause.** Content-block cases and tool shapes accepted empty or repeated ids with
+/// distinct priorities, so a diagnostic or census row naming the id named nothing - refused now, in both
+/// sections (`ToolShapeError::AmbiguousId`, `ContentBlockCompileError::AmbiguousId`).
+#[test]
+fn a_clause_id_names_one_clause_in_every_section() {
+    let shapes = |ids: &[&str]| -> Result<_, _> {
+        let shapes: Vec<serde_json::Value> = ids
+            .iter()
+            .enumerate()
+            .map(|(at, id)| {
+                serde_json::json!({"id": id, "priority": at + 1,
+                    "where": {"path": "$.name", "kind": "string"}, "name": "$.name"})
+            })
+            .collect();
+        crate::rules::tool_shapes::ToolShapePlan::compile(&[serde_json::from_value(
+            serde_json::json!({"id": "t", "tool_shapes": shapes}),
+        )
+        .expect("the probe parses")])
+    };
+    assert!(shapes(&["t.a", "t.b"]).is_ok());
+    assert!(shapes(&["t.a", "t.a"]).is_err(), "one id twice");
+    assert!(shapes(&[" "]).is_err(), "an empty id");
+
+    let blocks = |ids: &[&str]| {
+        let cases: Vec<serde_json::Value> = ids
+            .iter()
+            .enumerate()
+            .map(|(at, id)| {
+                serde_json::json!({"id": id, "at": "after_provider_formats", "priority": 100_000 + at,
+                    "where": {"path": "$.probe_marker", "kind": "string"},
+                    "text": {"text": "$.probe_marker"}})
+            })
+            .collect();
+        crate::rules::content_blocks::ContentBlockPlan::compile(&[serde_json::from_value(
+            serde_json::json!({"id": "t", "content_blocks": cases}),
+        )
+        .expect("the probe parses")])
+    };
+    assert!(blocks(&["t.a", "t.b"]).is_ok());
+    assert!(blocks(&["t.a", "t.a"]).is_err(), "one id twice");
+    assert!(blocks(&[""]).is_err(), "an empty id");
+}

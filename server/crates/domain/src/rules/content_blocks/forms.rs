@@ -6,21 +6,24 @@ use serde_json::{Value as JsonValue, json};
 use super::super::schema::{
     CitationsSpec, MediaBlock, MediaSource, MissingMediaType, ProviderRunSpec, ValueSource,
 };
-use super::{call_id, member, predicates_hold, query, result_blocks};
+use super::{call_id, member, predicates_hold, query, result_blocks, usable_member};
 
 /// The citations a text states, each read by the first case whose condition holds. A citation no case reads, or
 /// one that names no source, is kept as `unknown` with the provider's item, so a shape nothing reads yet is seen.
 pub(super) fn citations(block: &JsonValue, spec: &CitationsSpec) -> Vec<JsonValue> {
-    let Some(list) = spec
-        .from
-        .iter()
-        .find_map(|path| query(block, path).into_iter().next())
-        .and_then(JsonValue::as_array)
-    else {
+    // The first member that is a list, as the reference says: a present member of another shape is stepped
+    // over rather than committing the field to a value that is not a citation list.
+    let Some(list) = spec.from.iter().find_map(|path| {
+        query(block, path)
+            .into_iter()
+            .next()
+            .and_then(JsonValue::as_array)
+    }) else {
         return Vec::new();
     };
     let text = |item: &JsonValue, sources: &[ValueSource]| {
-        member(item, sources, false).and_then(|v| v.as_str().map(str::to_string))
+        usable_member(item, sources, false, JsonValue::is_string)
+            .and_then(|v| v.as_str().map(str::to_string))
     };
     let offset = |item: &JsonValue, sources: &[ValueSource]| {
         member(item, sources, false).and_then(|v| v.as_u64())
@@ -65,7 +68,7 @@ pub(super) fn citations(block: &JsonValue, spec: &CitationsSpec) -> Vec<JsonValu
 /// A provider-run item as its two blocks: the call, and what it produced where the item holds a result yet.
 /// Both carry `provider_executed`, so the pair is read as the response's own output.
 pub(super) fn provider_run(block: &JsonValue, spec: &ProviderRunSpec) -> Option<Vec<JsonValue>> {
-    let name = member(block, &spec.name, false)?;
+    let name = usable_member(block, &spec.name, false, JsonValue::is_string)?;
     let name = name.as_str()?;
     let input = member(block, &spec.input, true)
         .map(std::borrow::Cow::into_owned)
@@ -91,13 +94,16 @@ pub(super) fn provider_run(block: &JsonValue, spec: &ProviderRunSpec) -> Option<
 
 /// A media block, or nothing where the case cannot say what the bytes are.
 pub(super) fn media_block(block: &JsonValue, spec: &MediaBlock) -> Option<JsonValue> {
-    let data = member(block, &spec.data, false)?;
+    let data = usable_member(block, &spec.data, false, JsonValue::is_string)?;
     let data = data.as_str()?;
-    let declared: Option<String> = member(block, &spec.media_type, false)
-        .and_then(|v| v.as_str().map(str::to_string))
-        .or_else(|| spec.media_type_default.clone());
-    let name = member(block, &spec.name, false).and_then(|v| v.as_str().map(str::to_string));
-    let detail = member(block, &spec.detail, false).and_then(|v| v.as_str().map(str::to_string));
+    let declared: Option<String> =
+        usable_member(block, &spec.media_type, false, JsonValue::is_string)
+            .and_then(|v| v.as_str().map(str::to_string))
+            .or_else(|| spec.media_type_default.clone());
+    let name = usable_member(block, &spec.name, false, JsonValue::is_string)
+        .and_then(|v| v.as_str().map(str::to_string));
+    let detail = usable_member(block, &spec.detail, false, JsonValue::is_string)
+        .and_then(|v| v.as_str().map(str::to_string));
     let (source, referenced, payload): (&str, Option<&str>, &str) = match &spec.source {
         // Both derived, because both are facts about the bytes rather than about the producer: the kind
         // comes from the media type, and whether this is a reference or the content itself from the value.

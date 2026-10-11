@@ -161,7 +161,7 @@ impl Pep440 {
                 .strip_prefix(word)
                 .map(|after| (*phase, after.to_string()))
         }) {
-            let (n, after) = suffix_number(&after);
+            let (n, after) = suffix_number(&after)?;
             pre = Some((phase, n));
             rest = &public[public.len() - after.len()..];
         }
@@ -170,7 +170,7 @@ impl Pep440 {
             .iter()
             .find_map(|word| after_sep.strip_prefix(word))
         {
-            let (n, after) = suffix_number(after);
+            let (n, after) = suffix_number(after)?;
             post = Some(n);
             rest = &public[public.len() - after.len()..];
         } else if let Some(digits) = rest
@@ -178,13 +178,13 @@ impl Pep440 {
             .filter(|d| d.starts_with(|c: char| c.is_ascii_digit()))
         {
             // The implicit post-release, `1.0-1`: a hyphen and a number alone.
-            let (n, after) = suffix_number(digits);
+            let (n, after) = suffix_number(digits)?;
             post = Some(n);
             rest = &public[public.len() - after.len()..];
         }
         let after_sep = separator(rest);
         if let Some(after) = after_sep.strip_prefix("dev") {
-            let (n, after) = suffix_number(after);
+            let (n, after) = suffix_number(after)?;
             dev = Some(n);
             rest = &public[public.len() - after.len()..];
         }
@@ -285,16 +285,16 @@ fn number(text: &str) -> Option<u64> {
 }
 
 /// The number after a suffix word, optionally after a separator; an omitted number is `0`.
-fn suffix_number(text: &str) -> (u64, &str) {
+///
+/// A number past `u64` fails the parse of the whole version rather than saturating: saturated, every oversized
+/// suffix compared equal, so two distinct declared bounds meant one.
+fn suffix_number(text: &str) -> Option<(u64, &str)> {
     let trimmed = text.strip_prefix(['.', '-', '_']).unwrap_or(text);
     let digits = trimmed.bytes().take_while(u8::is_ascii_digit).count();
     if digits == 0 {
-        return (0, text);
+        return Some((0, text));
     }
-    (
-        trimmed[..digits].parse().unwrap_or(u64::MAX),
-        &trimmed[digits..],
-    )
+    Some((trimmed[..digits].parse().ok()?, &trimmed[digits..]))
 }
 
 // ----------------------------------------------------------------------------

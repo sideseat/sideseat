@@ -45,11 +45,26 @@ pub enum ToolShapeError {
     NoParameterPath { id: String },
     #[error("tool shape `{id}`: {detail}")]
     Inexpressible { id: String, detail: &'static str },
+    #[error(
+        "tool shape id `{id}` is empty or declared twice - a diagnostic that cannot name one clause names none"
+    )]
+    AmbiguousId { id: String },
 }
 
 impl ToolShapePlan {
     pub fn compile(files: &[RuleFile]) -> Result<Self, ToolShapeError> {
         let mut rules: Vec<ToolShapeRule> = Vec::new();
+        // An id names a clause in every diagnostic and census row: empty or shared, it names none.
+        let mut ids: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for file in files {
+            for rule in &file.tool_shapes {
+                if rule.id.trim().is_empty() || !ids.insert(rule.id.as_str()) {
+                    return Err(ToolShapeError::AmbiguousId {
+                        id: rule.id.clone(),
+                    });
+                }
+            }
+        }
         for file in files {
             for rule in &file.tool_shapes {
                 let members =
