@@ -198,15 +198,25 @@ pub fn get_request_context(
         )?,
         calls: match ids.is_empty() || traces.is_empty() {
             true => Vec::new(),
-            false => thread_rows(
-                conn,
-                &request_context::calls_in_traces(
+            false => {
+                let mut calls = Vec::new();
+                for query in request_context::calls_in_traces(
                     &traces,
                     &ids,
                     params.ingested_before_us,
                     Backend::Duckdb,
-                ),
-            )?,
+                ) {
+                    calls.extend(thread_rows(conn, &query)?);
+                }
+                calls.sort_by(|a, b| {
+                    (a.span_timestamp, &a.span_id, &a.trace_id).cmp(&(
+                        b.span_timestamp,
+                        &b.span_id,
+                        &b.trace_id,
+                    ))
+                });
+                calls
+            }
         },
     })
 }

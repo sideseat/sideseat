@@ -139,3 +139,69 @@ async fn the_pending_read_waits_out_the_landing_horizon() {
         1
     );
 }
+
+/// A request's calls are read in every trace its thread sits in, however many: the reads once named only the first
+/// chunk of traces, so a call in any later one was never composed into the view.
+#[tokio::test]
+async fn a_call_in_a_trace_past_the_first_chunk_is_read() {
+    let (_tmp, service) = create_test_service().await;
+    let project = "p";
+    let traces: Vec<String> = (0..sideseat_query_sql::keyed::KEYED_CHUNK + 88)
+        .map(|n| format!("{n:032x}"))
+        .collect();
+    let start = Utc::now() - chrono::Duration::seconds(60);
+    let messages = r#"[{"source":{"attribute":{"key":"probe","time":"2025-01-01T00:00:00Z"}},"content":{"role":"user","content":"q"}}]"#;
+    let last = traces.len() - 1;
+    let spans: Vec<NormalizedSpan> = traces
+        .iter()
+        .enumerate()
+        .map(|(n, trace)| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.clone(),
+            span_id: format!("{n:016x}"),
+            span_name: "tool".to_string(),
+            // Later traces start earlier, so the chunks' rows interleave, and the second trace ties with the last.
+            timestamp_start: start
+                - chrono::Duration::milliseconds(if n == 2 { last } else { n } as i64),
+            gen_ai_tool_call_id: Some(format!("call-{n}")),
+            messages: Some(messages.to_string()),
+            ..Default::default()
+        })
+        .collect();
+    {
+        let conn = service.conn();
+        insert_batch(&conn, &spans).expect("spans");
+    }
+    let conn = service.conn();
+    let mut call_trace_ids = traces.clone();
+    call_trace_ids.reverse();
+    let context = crate::repositories::messages::get_request_context(
+        &conn,
+        &sideseat_ports::types::RequestContextParams {
+            project_id: sideseat_ports::types::ProjectId::from(project),
+            thread: "no-thread".to_string(),
+            before_us: Utc::now().timestamp_micros(),
+            call_ids: vec![
+                format!("call-{last}"),
+                "call-1".to_string(),
+                "call-2".to_string(),
+            ],
+            call_trace_ids,
+            ingested_before_us: None,
+        },
+    )
+    .expect("the request context");
+    assert_eq!(
+        context
+            .calls
+            .iter()
+            .map(|row| row.trace_id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            traces[2].as_str(),
+            traces[last].as_str(),
+            traces[1].as_str()
+        ],
+        "the call in the last chunk is read, and the chunks' rows are in one order, a tie broken by span"
+    );
+}

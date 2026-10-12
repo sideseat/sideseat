@@ -263,16 +263,23 @@ pub async fn get_request_context(
         calls: match ids.is_empty() || traces.is_empty() {
             true => Vec::new(),
             false => {
-                fetch_thread(
-                    client,
-                    &request_context::calls_in_traces(
-                        &traces,
-                        &ids,
-                        params.ingested_before_us,
-                        Backend::Clickhouse,
-                    ),
-                )
-                .await?
+                let mut calls = Vec::new();
+                for query in request_context::calls_in_traces(
+                    &traces,
+                    &ids,
+                    params.ingested_before_us,
+                    Backend::Clickhouse,
+                ) {
+                    calls.extend(fetch_thread(client, &query).await?);
+                }
+                calls.sort_by(|a, b| {
+                    (a.span_timestamp, &a.span_id, &a.trace_id).cmp(&(
+                        b.span_timestamp,
+                        &b.span_id,
+                        &b.trace_id,
+                    ))
+                });
+                calls
             }
         },
     })

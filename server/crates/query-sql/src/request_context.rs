@@ -85,15 +85,32 @@ pub fn thread_requests(
 /// maintained on every span for the few that carry one. The call ids narrow the keyed rows afterwards, so the scan
 /// keeps to the index and the read is proportional to the thread's traces.
 ///
-/// At most [`KEYED_CHUNK`] traces per read, which is what keeps DuckDB on the index; a caller with more reads in
-/// chunks.
-pub fn calls_in_traces(
-    trace_ids: &[&str],
+/// One read per [`KEYED_CHUNK`] of the distinct traces, which is what keeps DuckDB on the index; every trace is
+/// read. A trace's spans all come back in its own chunk, so the reads never overlap, and their rows sorted by
+/// start, span and trace are in the order one read gives.
+///
+/// Each read is built as it is asked for, so only one copy of the call ids is held at a time.
+pub fn calls_in_traces<'a>(
+    trace_ids: &[&'a str],
+    call_ids: &'a [&'a str],
+    watermark_us: Option<i64>,
+    backend: Backend,
+) -> impl Iterator<Item = ParameterizedQuery> + 'a {
+    let traces = crate::keyed::distinct_keys(trace_ids.iter().copied());
+    (0..traces.len()).step_by(KEYED_CHUNK).map(move |at| {
+        let chunk = &traces[at..traces.len().min(at + KEYED_CHUNK)];
+        calls_in_trace_chunk(chunk, call_ids, watermark_us, backend)
+    })
+}
+
+/// The read of `calls_in_traces` for one chunk of at most [`KEYED_CHUNK`] traces.
+fn calls_in_trace_chunk(
+    traces: &[&str],
     call_ids: &[&str],
     watermark_us: Option<i64>,
     backend: Backend,
 ) -> ParameterizedQuery {
-    let traces = &trace_ids[..trace_ids.len().min(KEYED_CHUNK)];
+    debug_assert!(traces.len() <= KEYED_CHUNK);
     let mut values: Vec<QueryValue> = traces
         .iter()
         .map(|id| QueryValue::String((*id).to_string()))
@@ -149,7 +166,7 @@ mod tests {
             for watermark in [None, Some(7)] {
                 for query in [
                     thread_requests("t", 10, watermark, backend),
-                    calls_in_traces(&["tr"], &["a", "b"], watermark, backend),
+                    calls_in_trace_chunk(&["tr"], &["a", "b"], watermark, backend),
                 ] {
                     assert_eq!(
                         query.sql().matches('?').count(),
@@ -186,7 +203,7 @@ mod tests {
         );
         // The calls are keyed on the trace, whose index every trace read already uses, and narrowed by their ids
         // outside that scan.
-        let calls = calls_in_traces(&["tr"], &["a"], None, Backend::Duckdb);
+        let calls = calls_in_trace_chunk(&["tr"], &["a"], None, Backend::Duckdb);
         assert!(
             calls.sql().contains("WHERE trace_id IN (?)"),
             "{}",
@@ -195,16 +212,23 @@ mod tests {
         assert!(calls.sql().contains("WHERE gen_ai_tool_call_id IN (?)"));
     }
 
-    /// More traces than one keyed read binds are cut to the chunk, so the read stays on the index.
+    /// More traces than one read names are read in chunks, every distinct trace once, on both backends -
+    /// never cut to the first chunk, which left a call in any later trace unread.
     #[test]
-    fn a_call_read_binds_at_most_one_chunk_of_traces() {
+    fn a_call_read_names_every_trace_in_chunks() {
         let many: Vec<String> = (0..KEYED_CHUNK + 10).map(|n| n.to_string()).collect();
-        let traces: Vec<&str> = many.iter().map(String::as_str).collect();
-        let query = calls_in_traces(&traces, &["a"], None, Backend::Duckdb);
-        assert_eq!(
-            query.params().len(),
-            KEYED_CHUNK + 1,
-            "the chunk of traces, and the one call id"
-        );
+        let mut traces: Vec<&str> = many.iter().map(String::as_str).collect();
+        traces.push("0");
+        for backend in [Backend::Duckdb, Backend::Clickhouse] {
+            let reads: Vec<_> = calls_in_traces(&traces, &["a"], None, backend).collect();
+            assert_eq!(reads.len(), 2);
+            assert!(
+                reads
+                    .iter()
+                    .all(|read| read.params().len() <= KEYED_CHUNK + 1)
+            );
+            let named: usize = reads.iter().map(|read| read.params().len() - 1).sum();
+            assert_eq!(named, KEYED_CHUNK + 10, "each distinct trace, once");
+        }
     }
 }
