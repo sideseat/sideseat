@@ -21,6 +21,7 @@ mod call_order;
 mod call_span;
 mod carrying;
 pub(super) mod haystack;
+mod pieces;
 mod reasoning;
 mod request_input;
 mod request_span;
@@ -133,6 +134,9 @@ fn prove_text(text: &str, haystack: &Haystack) -> Proof {
             return Proof::Partial(format!("{at} holds {fragment:?}"));
         }
     }
+    if let Some(at) = pieces::in_pieces(&haystack.carriers, &needle) {
+        return Proof::Partial(format!("{at} holds the text in pieces"));
+    }
     Proof::Absent
 }
 
@@ -202,13 +206,14 @@ pub(super) fn truncated_at(text: &str, haystack: &Haystack) -> Option<String> {
         let tail: String = chars[chars.len().saturating_sub(FRAGMENT)..]
             .iter()
             .collect();
+        // Nor in pieces too short to be found on their own.
         !haystack.carriers.iter().any(|c| {
             c.strings.iter().any(|(_, held)| {
                 held.contains(&head)
                     || held.contains(&tail)
                     || (held.chars().count() >= MIN_TEXT && rest.contains(held.as_str()))
             })
-        })
+        }) && pieces::in_pieces(&haystack.carriers, rest).is_none()
     };
     haystack.carriers.iter().find_map(|carrier| {
         carrier.strings.iter().find_map(|(at, held)| {

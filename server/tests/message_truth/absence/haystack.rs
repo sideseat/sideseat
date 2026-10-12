@@ -26,12 +26,22 @@ pub(in super::super) struct Carrier {
     pub span: Option<String>,
     /// That span's trace, as hex: span ids repeat across traces, so a span is the pair.
     pub trace: Option<String>,
+    /// Where every location of the carrier begins: its export file and its span or record.
+    pub root: String,
+    /// Whether the carrier is a log record: each of a span's records may hold one piece of its text.
+    pub record: bool,
     /// Every integer it holds - an integer attribute, an integer inside a decoded body, an integer written as
     /// text - with its location: kept apart from `strings`, so no text search matches a number, and read only
     /// where a count is the evidence - a response's output tokens.
     pub numbers: Vec<(String, i64)>,
     /// Whitespace-collapsed strings with the location each came from.
     pub strings: Vec<(String, String)>,
+    /// Every boolean attribute it holds, with its location: a flattened family's flag - a part's `thought` - is
+    /// what says what its sibling text is.
+    pub flags: Vec<(String, bool)>,
+    /// Decoded bytes of a piece (`pieces`) that are no text alone - one byte of a character cut across pieces -
+    /// with their location: joined with their neighbours they may be.
+    pub byte_pieces: Vec<(String, Vec<u8>)>,
     pub nodes: Vec<(String, Value)>,
     pub digests: Vec<(String, String)>,
 }
@@ -72,12 +82,12 @@ impl Haystack {
             for (r, resource_spans) in request.resource_spans.iter().enumerate() {
                 if let Some(resource) = &resource_spans.resource {
                     let at = format!("{file} resource[{r}]");
-                    haystack.carrier(None, None, |e| e.attributes(&at, &resource.attributes));
+                    haystack.carrier(&at, None, None, |e| e.attributes(&at, &resource.attributes));
                 }
                 for (s, scope_spans) in resource_spans.scope_spans.iter().enumerate() {
                     if let Some(scope) = &scope_spans.scope {
                         let at = format!("{file} resource[{r}].scope[{s}]");
-                        haystack.carrier(None, None, |e| {
+                        haystack.carrier(&at, None, None, |e| {
                             e.string(&format!("{at}.name"), &scope.name, 0);
                             e.string(&format!("{at}.version"), &scope.version, 0);
                             e.attributes(&at, &scope.attributes);
@@ -86,6 +96,7 @@ impl Haystack {
                     for span in &scope_spans.spans {
                         let at = format!("{file} span {:?}", span.name);
                         haystack.carrier(
+                            &at,
                             Some(hex(&span.trace_id)),
                             Some(hex(&span.span_id)),
                             |e| {
@@ -115,12 +126,12 @@ impl Haystack {
             for (r, resource_logs) in request.resource_logs.iter().enumerate() {
                 if let Some(resource) = &resource_logs.resource {
                     let at = format!("{file} resource[{r}]");
-                    haystack.carrier(None, None, |e| e.attributes(&at, &resource.attributes));
+                    haystack.carrier(&at, None, None, |e| e.attributes(&at, &resource.attributes));
                 }
                 for (s, scope_logs) in resource_logs.scope_logs.iter().enumerate() {
                     if let Some(scope) = &scope_logs.scope {
                         let at = format!("{file} resource[{r}].scope[{s}]");
-                        haystack.carrier(None, None, |e| {
+                        haystack.carrier(&at, None, None, |e| {
                             e.string(&format!("{at}.name"), &scope.name, 0);
                             e.string(&format!("{at}.version"), &scope.version, 0);
                             e.attributes(&at, &scope.attributes);
@@ -130,7 +141,8 @@ impl Haystack {
                         let at = format!("{file} log[{i}] {:?}", record.event_name);
                         let span = (!record.span_id.is_empty()).then(|| hex(&record.span_id));
                         let trace = (!record.trace_id.is_empty()).then(|| hex(&record.trace_id));
-                        haystack.carrier(trace, span, |e| {
+                        haystack.carrier(&at, trace, span, |e| {
+                            e.carrier.record = true;
                             e.string(&format!("{at}.event_name"), &record.event_name, 0);
                             e.string(&format!("{at}.severity"), &record.severity_text, 0);
                             if let Some(body) = &record.body {
@@ -147,6 +159,7 @@ impl Haystack {
 
     fn carrier(
         &mut self,
+        root: &str,
         trace: Option<String>,
         span: Option<String>,
         fill: impl FnOnce(&mut Expander<'_>),
@@ -154,6 +167,7 @@ impl Haystack {
         let mut carrier = Carrier {
             trace,
             span,
+            root: root.to_string(),
             ..Carrier::default()
         };
         let mut expander = Expander {
@@ -210,7 +224,10 @@ impl Expander<'_> {
                     self.carrier.numbers.push((at.to_string(), n));
                 }
             }
-            Some(any_value::Value::BoolValue(_)) | None => {}
+            Some(any_value::Value::BoolValue(flag)) => {
+                self.carrier.flags.push((at.to_string(), *flag))
+            }
+            None => {}
         }
     }
 
@@ -227,12 +244,22 @@ impl Expander<'_> {
             self.carrier.numbers.push((at.to_string(), n));
         }
         if depth >= MAX_DEPTH {
-            if looks_encoded(trimmed) {
+            if looks_encoded(trimmed)
+                || (super::pieces::is_piece(self.carrier, at) && short_base64(trimmed).is_some())
+            {
                 self.undecoded.push(at.to_string());
             }
             return;
         }
-        let parsed = serde_json::from_str::<Value>(trimmed)
+        let json = serde_json::from_str::<Value>(trimmed);
+        // A body nested deeper than the decoder reads is refused, not absent: the search cannot vouch for it.
+        if json
+            .as_ref()
+            .is_err_and(|error| error.to_string().contains("recursion limit"))
+        {
+            self.undecoded.push(at.to_string());
+        }
+        let parsed = json
             .ok()
             .filter(|v| !v.is_number() && !v.is_boolean() && !v.is_null())
             .map(|v| (v, "json"))
@@ -245,7 +272,14 @@ impl Expander<'_> {
         }
         if let Some(bytes) = data_uri(trimmed) {
             self.bytes(&format!("{at}|data-uri"), &bytes, depth + 1);
-        } else if let Some(bytes) = base64_payload(trimmed) {
+        } else if let Some(bytes) = base64_payload(trimmed).or_else(|| {
+            // A piece of a segmented export may be encoded on its own, however short: the gate that keeps ordinary
+            // words from being read as base64 does not apply to a piece, whose decoded form is one more
+            // representation of it, never a replacement for the text as written.
+            super::pieces::is_piece(self.carrier, at)
+                .then(|| short_base64(trimmed))
+                .flatten()
+        }) {
             self.bytes(&format!("{at}|base64"), &bytes, depth + 1);
         }
         if trimmed.contains('\\') {
@@ -261,10 +295,16 @@ impl Expander<'_> {
             at.to_string(),
             truth::hex_digest(&sha2::Sha256::digest(bytes)),
         ));
-        if let Ok(text) = std::str::from_utf8(bytes)
-            && !text.chars().any(|c| c.is_control() && !c.is_whitespace())
-        {
-            self.string(at, text, depth);
+        match std::str::from_utf8(bytes) {
+            Ok(text) if !text.chars().any(|c| c.is_control() && !c.is_whitespace()) => {
+                self.string(at, text, depth);
+            }
+            Err(_) if super::pieces::is_piece(self.carrier, at) => {
+                self.carrier
+                    .byte_pieces
+                    .push((at.to_string(), bytes.to_vec()));
+            }
+            _ => {}
         }
     }
 
@@ -293,7 +333,9 @@ impl Expander<'_> {
                     self.carrier.numbers.push((at.to_string(), n));
                 }
             }
-            Value::Bool(_) | Value::Null => {}
+            // A flag inside a decoded body - a part's `thought` - says what its sibling text is, as an attribute's does.
+            Value::Bool(flag) => self.carrier.flags.push((at.to_string(), *flag)),
+            Value::Null => {}
         }
     }
 }
@@ -372,6 +414,20 @@ fn percent_decode(text: &str) -> Vec<u8> {
 fn base64_payload(text: &str) -> Option<Vec<u8>> {
     let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
     if compact.len() < 16
+        || !compact
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=' | '-' | '_'))
+    {
+        return None;
+    }
+    decode_base64(&compact)
+}
+
+/// A string of two or more characters, entirely base64, padded or not: what a short encoded piece of a segmented
+/// export is - one character encodes to two.
+fn short_base64(text: &str) -> Option<Vec<u8>> {
+    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+    if compact.len() < 2
         || !compact
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=' | '-' | '_'))

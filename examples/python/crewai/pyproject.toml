@@ -22,6 +22,10 @@ tool_round_call_spans = "the own span of a call that answers a tool round: CrewA
 reason = "reasoning the model signed and withheld the text of: CrewAI's telemetry exports no reasoning part for it, and no payload holds one"
 scenarios = ["mcp_tools"]
 
+[tool.sideseat-example.truth.unexported.visible_reasoning]
+reason = "reasoning the model showed: CrewAI's telemetry records the response's text and no reasoning part, and no payload holds the reasoning's text"
+scenarios = ["reasoning"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

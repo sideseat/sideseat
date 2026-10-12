@@ -90,17 +90,7 @@
     "signed": true,
     "redacted": false
    },
-   "require": {
-    "anchor": "model_call",
-    "views": [
-     "span",
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "exact"
-   },
+   "require": null,
    "call": "call-001",
    "seal": "d0c59fb8578c70c658b9c39b993342febd6d1529ac5e26eaaddbdb97a2e49cff"
   },
@@ -163,6 +153,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "not_exported",
+   "detail": "reasoning the model showed: CrewAI's telemetry records the response's text and no reasoning part, and no payload holds the reasoning's text",
+   "subject": "fact-002"
   }
  ],
  "requests": {

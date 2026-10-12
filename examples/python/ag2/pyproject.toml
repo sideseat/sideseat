@@ -37,6 +37,10 @@ modes = { streaming = ["native@1.0.2", "native@1.0.3"], tool_use = ["native@1.0.
 reason = "reasoning the model signed and withheld the text of: AG2's telemetry exports no reasoning part for it, and no payload holds one"
 scenarios = ["multi_turn", "session", "structured_output"]
 
+[tool.sideseat-example.truth.unexported.visible_reasoning]
+reason = "reasoning the model showed: AG2's telemetry records the response's text and no reasoning part, and no payload holds the reasoning's text"
+scenarios = ["reasoning"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

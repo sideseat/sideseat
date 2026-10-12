@@ -26,6 +26,7 @@ UNEXPORTED = frozenset(
         "tool_calling_rounds",
         "reasoning_kind",
         "withheld_reasoning",
+        "visible_reasoning",
         "reasoning_signature",
         "reasoning_output",
         "reasoning_span_signature",
@@ -97,6 +98,20 @@ def apply(builder: Builder, framework: Framework) -> None:
         for fact in builder.facts:
             if fact["kind"] == "reasoning" and withheld(fact["value"]):
                 fact["require"] = None
+                gap("reasoning", "not_exported", detail, fact["id"])
+    if detail := declared("visible_reasoning"):
+        # Reasoning the model showed, which the producer's telemetry drops: no payload holds its text, which the
+        # goldens prove per capture before the fact is withdrawn. Declared for some captures only, the fact stays
+        # asserted in the document and each of those captures withdraws it (`Truth::for_fixture`).
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "reasoning"
+                and fact["value"].get("text")
+                and not withheld(fact["value"])
+                and fact["require"] is not None
+            ):
+                if not detail[1]:
+                    fact["require"] = None
                 gap("reasoning", "not_exported", detail, fact["id"])
     if detail := declared("reasoning_output"):
         # Only a call a later call of its conversation follows: the claim is that the next request's

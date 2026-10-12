@@ -530,6 +530,60 @@ def test_unexported_withheld_reasoning_is_withdrawn_with_a_gap_the_rubric_proves
     ] == [("reasoning", "not_exported", withheld["id"])]
 
 
+def test_unexported_visible_reasoning_is_withdrawn_and_a_scoped_one_stays_owed() -> (
+    None
+):
+    """`visible_reasoning` withdraws reasoning the model showed that a producer's telemetry drops, with a
+    `not_exported` gap the rubric proves; withheld reasoning is not its claim. Declared for some modes only, the
+    fact stays asserted in the document, and each named capture withdraws it."""
+
+    def reasoning_of(declaration: object) -> tuple[dict, dict, list]:
+        framework = derive.Framework.of(
+            {"unexported": {"visible_reasoning": declaration}}
+        )
+        builder = derive.assemble(
+            "p",
+            "chat",
+            [
+                model_call(
+                    wire.reasoning_part("Weigh it.", signed=True),
+                    wire.reasoning_part("", signed=True),
+                    wire.text_part("Hi."),
+                )
+            ],
+            options=derive.Options(framework=framework),
+        )
+        visible, withheld = facts_by_kind(builder, "reasoning")
+        gaps = [g for g in builder.gaps if g["reason"] == "not_exported"]
+        return visible, withheld, gaps
+
+    visible, withheld, gaps = reasoning_of("drops the reasoning it shows")
+    assert visible["require"] is None
+    assert withheld["require"] is not None
+    assert [(g["fact"], g["subject"]) for g in gaps] == [("reasoning", visible["id"])]
+    # Reasoning the provider redacted has no text to search for: it is not this claim.
+    redacted_framework = derive.Framework.of(
+        {"unexported": {"visible_reasoning": "drops the reasoning it shows"}}
+    )
+    redacted = derive.assemble(
+        "p",
+        "chat",
+        [model_call(wire.reasoning_part(None, redacted=True), wire.text_part("Hi."))],
+        options=derive.Options(framework=redacted_framework),
+    )
+    assert not any(
+        g["reason"] == "not_exported" and g["fact"] == "reasoning"
+        for g in redacted.gaps
+    )
+    scoped, _, scoped_gaps = reasoning_of(
+        {"reason": "drops it in one release", "modes": {"chat": ["native@1.0"]}}
+    )
+    assert scoped["require"] is not None
+    assert [(g["subject"], g.get("modes")) for g in scoped_gaps] == [
+        (scoped["id"], ["native@1.0"])
+    ]
+
+
 def test_an_unexported_reasoning_signature_keeps_the_step_asserted() -> None:
     """`reasoning_signature` asserts withheld reasoning without its signature, with a
     `signature_not_exported` gap the rubric proves; the step itself stays owed."""

@@ -141,10 +141,11 @@
   {
    "fact": "reasoning",
    "reason": "kind_not_exported",
-   "detail": "the model's thoughts: the Google GenAI instrumentation of the native setup records a thought part as an ordinary text part, with nothing marking it as a thought",
+   "detail": "the model's thoughts: the Google GenAI instrumentation records a thought part as an ordinary text part, with nothing marking it as a thought, in the native setup and the SDK's alike",
    "subject": "fact-002",
    "modes": [
-    "native"
+    "native",
+    "sdk"
    ]
   },
   {

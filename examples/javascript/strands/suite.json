@@ -7,6 +7,10 @@
         "reason": "reasoning the model signed and withheld the text of: Strands for TypeScript's telemetry exports no reasoning part for it, and no payload holds one",
         "scenarios": ["error", "session"]
       },
+      "visible_reasoning": {
+        "reason": "reasoning the model showed: Strands for TypeScript's telemetry records the response's text and no reasoning part, and no payload holds the reasoning's text",
+        "scenarios": ["reasoning"]
+      },
       "reasoning_output": {
         "reason": "reasoning the model signed and withheld the text of, on the call that produced it: Strands for TypeScript's telemetry leaves it out of that call's output, and only the next request's history re-sends it",
         "scenarios": ["multi_turn"]

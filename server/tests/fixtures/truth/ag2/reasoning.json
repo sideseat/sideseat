@@ -89,17 +89,7 @@
     "signed": true,
     "redacted": false
    },
-   "require": {
-    "anchor": "model_call",
-    "views": [
-     "span",
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "exact"
-   },
+   "require": null,
    "call": "call-001",
    "seal": "4f6c436de9bb0b05299c6c1f9b3732470f4cb83906f1e0a67ab65f3561d6a7dd"
   },
@@ -138,6 +128,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "not_exported",
+   "detail": "reasoning the model showed: AG2's telemetry records the response's text and no reasoning part, and no payload holds the reasoning's text",
+   "subject": "fact-002"
   }
  ],
  "requests": {

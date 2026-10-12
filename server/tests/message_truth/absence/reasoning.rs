@@ -123,7 +123,7 @@ pub(super) fn is_withheld(fact: &Fact) -> bool {
 /// Withheld reasoning has no text to search for, only its part and its signature. It is present where a
 /// payload holds its signature - known by the fact's `seal` - and where a payload holds a reasoning part
 /// that carries no signature at all (a JSON object typed as reasoning or flagged as one, `thought: true`, or
-/// a flattened attribute typing a part as reasoning): an unsigned part could be this one, so it refuses
+/// a flattened attribute typing or flagging a part as reasoning): an unsigned part could be this one, so it refuses
 /// the claim rather than being assumed to be another turn's. A part sealed with another turn's signature
 /// proves nothing about this one. Without a seal any reasoning part at all is presence. Absent only where
 /// none of that is in any payload, decoded as far as the search decodes.
@@ -149,11 +149,21 @@ pub(super) fn prove_reasoning_part(seal: Option<&str>, haystack: &Haystack) -> P
                 "{at} holds the reasoning part, or one that could be it"
             ));
         }
-        for (at, kind) in carrier.strings.iter() {
-            let (base, name) = member(at);
-            if !(name == "type" && names_reasoning(kind)) {
-                continue;
-            }
+        // A flattened part typed as reasoning, or flagged as one as a JSON part's `thought: true` flags it.
+        let typed_parts = carrier
+            .strings
+            .iter()
+            .filter(|(at, kind)| member(at).1 == "type" && names_reasoning(kind))
+            .map(|(at, _)| at)
+            .chain(
+                carrier
+                    .flags
+                    .iter()
+                    .filter(|(at, set)| *set && member(at).1 == "thought")
+                    .map(|(at, _)| at),
+            );
+        for at in typed_parts {
+            let (base, _) = member(at);
             let signed_by: Vec<&str> = carrier
                 .strings
                 .iter()
@@ -174,6 +184,14 @@ pub(super) fn prove_reasoning_part(seal: Option<&str>, haystack: &Haystack) -> P
         }
     }
     Proof::Absent
+}
+
+/// The segments of a location's key - what follows its carrier's quoted span name - as the producer named them:
+/// members, not indices, and not the decoding the search applied.
+fn key_segments(at: &str) -> impl Iterator<Item = &str> {
+    let key = at.rsplit_once('"').map_or(at, |(_, key)| key);
+    key.split(['.', '|', '[', ']'])
+        .filter(|segment| !segment.is_empty() && !segment.chars().all(|c| c.is_ascii_digit()))
 }
 
 /// Reasoning exported as text: the text is somewhere (else it is a missing fact, not a mislabelled one),
@@ -205,11 +223,47 @@ pub(super) fn prove_kind(fact: &Fact, haystack: &Haystack) -> Proof {
             return Proof::Present(format!("{at} marks the text as reasoning"));
         }
         for (at, value) in carrier.strings.iter().filter(|(_, v)| v.contains(&needle)) {
-            let base = at.rsplit_once('.').map_or(at.as_str(), |(base, _)| base);
+            // Compared as undecorated locations: a decoded sibling (`parts.0.type|base64`) is still `parts.0.type`.
+            let undecorated = super::pieces::undecorated(at);
+            let base = undecorated.rsplit_once('.').map_or("", |(base, _)| base);
+            // The attribute's own key says it - `...reasoning_content`, `...thinking.text`,
+            // `...reasoning_content.0.text` - at any segment of the key, never the carrier's location, which names a
+            // span, and a span may be named for its scenario.
+            if key_segments(at).any(member_names_reasoning) {
+                return Proof::Present(format!("{at} is named as reasoning"));
+            }
+            // A member of this part or of a part enclosing it - `parts.1.type`, not `parts.10.type`; a body's
+            // `thought` beside the `content` list its text sits in - that types it as reasoning. Enclosing is
+            // read by whole segments, and through decoding: the text decoded from inside a marked body is still
+            // inside it.
+            let sibling = |other: &str| {
+                super::pieces::undecorated(other)
+                    .rsplit_once('.')
+                    .is_some_and(|(parent, _)| {
+                        base == parent
+                            || base
+                                .strip_prefix(parent)
+                                .is_some_and(|rest| rest.starts_with(['.', '[']))
+                    })
+            };
             if carrier.strings.iter().any(|(other, kind)| {
-                other.starts_with(base) && other.ends_with(".type") && names_reasoning(kind)
+                sibling(other)
+                    && super::pieces::undecorated(other).ends_with(".type")
+                    && names_reasoning(kind)
             }) {
                 return Proof::Present(format!("{at} is typed as reasoning beside {value:?}"));
+            }
+            // A flattened sibling flag: `parts.0.thought = true` beside `parts.0.text`.
+            if let Some((flag, _)) = carrier.flags.iter().find(|(other, set)| {
+                *set && sibling(other)
+                    && member_names_reasoning(
+                        super::pieces::undecorated(other)
+                            .rsplit('.')
+                            .next()
+                            .unwrap_or(other),
+                    )
+            }) {
+                return Proof::Present(format!("{flag} flags {at} as reasoning"));
             }
         }
     }

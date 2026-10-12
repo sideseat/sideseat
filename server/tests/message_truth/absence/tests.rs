@@ -790,3 +790,5 @@ fn why_a_response_ended_does_not_mark_its_text_as_reasoning() {
         serde_json::json!({"finish_reason": "stop", "reasoning_content": THOUGHT})
     )));
 }
+
+include!("tests_pieces.rs");
