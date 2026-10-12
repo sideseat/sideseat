@@ -271,6 +271,12 @@ impl Truths {
         }
     }
 
+    /// The truth describing a fixture, projected onto it (`Truth::for_fixture`).
+    fn of(&self, fixture: &str) -> Option<Truth> {
+        let key = self.of_fixture.get(fixture)?;
+        Some(self.documents.get(key)?.for_fixture(fixture))
+    }
+
     /// The fixture's violations and what its truth allows each view to show (`allowance`), or nothing when no
     /// truth describes it.
     pub(crate) fn check(
