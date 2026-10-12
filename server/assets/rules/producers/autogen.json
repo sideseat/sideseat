@@ -647,6 +647,7 @@
               "id": "$.id",
               "name": "$.name",
               "arguments": "$.arguments",
+              "arguments_encoding": "json",
               "on_invalid_item": "skip"
             },
             "attach": [
@@ -807,6 +808,7 @@
               "id": "$.id",
               "name": "$.name",
               "arguments": "$.arguments",
+              "arguments_encoding": "json",
               "on_invalid_item": "skip"
             },
             "attach": [

@@ -18,6 +18,7 @@
 //! builds real clients with real auth flows, which is executable adapter code; calling it data would
 //! be dishonest.
 
+pub mod arguments;
 pub mod assets;
 pub mod carrier_rules;
 pub mod classify;

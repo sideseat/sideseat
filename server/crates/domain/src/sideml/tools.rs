@@ -7,21 +7,10 @@ use serde_json::{Value as JsonValue, json};
 
 use super::types::ChatRole;
 
-// ========== Helper functions ==========
-
-/// Convert a JSON value to string representation.
-/// If it's already a string, returns the string value.
-/// Otherwise, serializes the JSON to a string.
-fn json_value_to_string(value: &JsonValue) -> String {
-    match value.as_str() {
-        Some(s) => s.to_string(),
-        None => value.to_string(),
-    }
-}
-
 // ========== Tool call normalizer ==========
 
-/// Normalize tool_calls from any format to flat format
+/// Normalize tool_calls from any format to flat format, each call's arguments decoded as the member holding them
+/// declares (`rules::arguments`).
 pub fn normalize_tool_calls(msg: &JsonValue) -> Option<JsonValue> {
     let tool_calls = msg.get("tool_calls")?.as_array()?;
 
@@ -30,16 +19,23 @@ pub fn normalize_tool_calls(msg: &JsonValue) -> Option<JsonValue> {
         .filter_map(|tc| {
             // An entry may hold its call under a member the assets declare (`wraps_tool_call`).
             let members = &crate::rules::ruleset().message_members;
-            let tc = members
+            // A wrapper may state how the calls under it encode their arguments, overriding the member's.
+            let (tc, wrapped_encoding) = members
                 .tool_call_wrapper()
-                .find_map(|member| tc.get(member))
-                .unwrap_or(tc);
+                .find_map(|member| Some((tc.get(member)?, members.arguments_encoding(member))))
+                .unwrap_or((tc, None));
+            // Decoded as the member it was found under declares - never re-encoded and guessed at, which turned a
+            // tool's real string argument into the object its text spells.
             let arguments_of = |holder: &JsonValue| {
                 std::iter::once("arguments")
                     .chain(members.aliases_of("arguments"))
-                    .find_map(|member| holder.get(member))
-                    .map(json_value_to_string)
-                    .unwrap_or_default()
+                    .find_map(|member| {
+                        let found = holder.get(member)?;
+                        let encoding =
+                            wrapped_encoding.or_else(|| members.arguments_encoding(member))?;
+                        Some(crate::rules::arguments::decode(encoding, found))
+                    })
+                    .unwrap_or_else(|| json!({}))
             };
 
             // Extract name and arguments from various formats
@@ -636,11 +632,11 @@ mod tests {
         let calls = result.as_array().unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0]["name"], "Person");
-        // Arguments should be stringified JSON from "args"
-        let args_str = calls[0]["arguments"].as_str().unwrap();
-        let args: serde_json::Value = serde_json::from_str(args_str).unwrap();
-        assert_eq!(args["name"], "Jane Doe");
-        assert_eq!(args["age"], 28);
+        // The arguments under "args", decoded as that member declares.
+        assert_eq!(
+            calls[0]["arguments"],
+            json!({"name": "Jane Doe", "age": 28})
+        );
     }
 
     #[test]
@@ -660,7 +656,7 @@ mod tests {
         let calls = result.as_array().unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0]["name"], "get_weather");
-        assert_eq!(calls[0]["arguments"], "{\"city\":\"NYC\"}");
+        assert_eq!(calls[0]["arguments"], json!({"city": "NYC"}));
     }
 
     /// The declared shapes answer as the five retired readers did.

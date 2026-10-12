@@ -859,6 +859,12 @@ pub(super) fn member_value(member: &str, raw: &str, numeric: &[String]) -> JsonV
 
 /// A member of an indexed family: JSON where it looks like JSON, the text otherwise.
 ///
+/// This is the flattening's own encoding, not a guess about one member: an attribute holds only text, so an
+/// object or a list can only be written as its JSON text, and text that opens as JSON is that value. A string
+/// member that spells JSON - a tool's real string argument `{"x":1}` under `args` or `input` - is therefore the
+/// same attribute as the object it spells, and reads as that object: a limit of the representation, documented in
+/// the rule language beside the arguments encodings.
+///
 /// The sniff matters. Parsing everything would turn `true`, `42` and a bare word into non-strings, and
 /// parsing nothing would store an object as prose - so the test is whether the value *opens* as JSON,
 /// with the raw text kept when it opens that way and does not parse.
@@ -946,4 +952,25 @@ pub(super) fn resolve_attribute<'p, 's>(
     read.first_present()
         .iter()
         .find_map(|key| attrs.get(key).map(|raw| (key.as_str(), raw.as_str())))
+}
+
+#[cfg(test)]
+mod flattening_tests {
+    /// The flattening reads every member alike: text that opens as JSON is the value it spells, an arguments
+    /// member included - the representation cannot tell a string argument `{"x":1}` from that object.
+    #[test]
+    fn an_indexed_family_reads_every_member_by_the_flattening_s_encoding() {
+        let text = "{\"x\":1}";
+        for member in ["tool_calls.0.args", "content.0.input", "content.0.extra"] {
+            assert_eq!(
+                super::member_value(member, text, &[]),
+                serde_json::json!({"x": 1}),
+                "{member}"
+            );
+        }
+        assert_eq!(
+            super::member_value("tool_calls.0.args", "plain", &[]),
+            serde_json::json!("plain")
+        );
+    }
 }

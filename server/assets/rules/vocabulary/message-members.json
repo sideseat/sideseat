@@ -75,7 +75,8 @@
       "priority": 70,
       "holds_content": true,
       "means_message_shaped": true,
-      "doc": "A tool call's arguments, which are the content of a call."
+      "doc": "A tool call's arguments, which are the content of a call. JSON text where OpenAI's chat format writes them, `function.arguments`; an already decoded value passes through.",
+      "arguments_encoding": "json"
     },
     {
       "id": "members.choices",
@@ -327,7 +328,8 @@
         "args"
       ],
       "priority": 10,
-      "alias_of": "arguments"
+      "alias_of": "arguments",
+      "arguments_encoding": "value"
     },
     {
       "id": "members.call_id",
@@ -339,13 +341,22 @@
       "alias_of": "id"
     },
     {
+      "id": "members.index",
+      "doc": "A block's position in a streamed response, which a streaming client keeps on each piece it accumulated: LangChain's streamed Bedrock message holds `index` beside a call whose input is the JSON text its deltas carried.",
+      "members": [
+        "index"
+      ],
+      "marks_stream_piece": true
+    },
+    {
       "id": "members.tool_call",
-      "doc": "An entry of a message's tool calls holding the call under `tool_call`, as OpenInference's flattened attributes unflatten to.",
+      "doc": "An entry of a message's tool calls holding the call under `tool_call`, as OpenInference's flattened attributes unflatten to. Its `function.arguments` is JSON text of the arguments object, and some instrumentors encode that text again: Agno 0.1.34 writes `llm.input_messages.N.message.tool_calls.M.tool_call.function.arguments` as the JSON text of a string holding the object (`server/tests/fixtures/messages/agno/native@0.1.34/tool_use`). The arguments of a call are an object of named parameters, so a decoded string whose text is an object is that second encoding, never a string argument.",
       "members": [
         "tool_call"
       ],
       "priority": 10,
-      "wraps_tool_call": true
+      "wraps_tool_call": true,
+      "arguments_encoding": "json_twice"
     },
     {
       "id": "members.data_sources",

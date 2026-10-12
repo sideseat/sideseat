@@ -732,6 +732,34 @@ is a fixed point - reading a stored result again gives the same result - and a r
 deduplication follows the same rule, so every spelling of one result hashes alike and nothing it keeps apart
 merges.
 
+## A call's arguments
+
+Parsing cannot tell an encoded object from a tool whose argument really is the string `"{\"x\":1}"`, so how a
+representation encodes a call's arguments is declared where they are read, and never guessed from the text. The
+closed set is `arguments_encoding`:
+
+- `value`: the member holds the arguments themselves; a string is a string argument.
+- `json`: the member is JSON text, decoded once. A value that is not text is already decoded, and text that does
+  not decode is kept as written.
+- `json_twice`: as `json`, with a decoded string whose text is an object or array decoded again. Declared only
+  where a captured fixture shows the second encoding, and cited there.
+
+It is required on every `tool_calls_from` and on the `arguments` member and each spelling of it in the message
+vocabulary; SideSeat's own `arguments` member must be `json`, the form a call list SideSeat builds writes. A call
+wrapper may declare it for the calls under it (OpenInference's flattened `tool_call`), and a declared call case may
+declare it for its input, decoded after selection (`anthropic.tool_use_streamed`, which asks for the stream's `index`). SideSeat's own forms - a `tool_use`
+block's `input`, a `tool_call` message's `content` - hold the arguments themselves, whatever else the block holds;
+only a call holding a member the vocabulary marks `marks_stream_piece` (a stream's `index`) is left to its declared
+case.
+
+One representation cannot carry the distinction at all: an indexed attribute family, whose every member is text. An
+object there can only be written as its JSON text, so the family reads text that opens as JSON as that value, for
+every member alike, and a string argument that spells an object - `{"x":1}` under `args` or a flattened block's
+`input` - arrives as the same attribute as the object and reads as it. That is a limit of the flattening, not a
+guess the vocabulary could correct; the encodings above apply to the text the family leaves as text. One decoder,
+`rules::arguments::decode`, serves every reader, and a call list the engine built writes a string argument as its
+JSON text, so the `json` member that reads it downstream yields the string again.
+
 <!-- BEGIN GENERATED FROM server/assets/rules.schema.json: UPDATE_DOCS=1 cargo test --locked -p sideseat-server --test repository rule_language -->
 
 ## Reference
@@ -1376,7 +1404,16 @@ The canonical tool-call list, built from a dialect's own array of calls.
 | `id` (required) | string | Where each call's id, name and arguments are. |
 | `name` (required) | string |  |
 | `arguments` (required) | string |  |
+| `arguments_encoding` (required) | [`ArgumentsEncoding`](#argumentsencoding) | How the member at `arguments` encodes them. **Required**: whether a string there is JSON text or a string argument is the dialect's to say, and a reader that guessed turned a tool's real string argument `"{\"x\":1}"` into an object. |
 | `on_invalid_item` (required) | [`InvalidItem`](#invaliditem) | What to do with a call that has no id or no name. |
+
+### `ArgumentsEncoding`
+
+How a member holding a call's arguments encodes them.
+
+- `"value"`: The member holds the arguments themselves: a string is a string argument.
+- `"json"`: The member is JSON text, decoded once. A member that is not text is already decoded and passes through; text that does not decode is kept as the string, as a producer that writes a bare word meant it.
+- `"json_twice"`: As `json`, and a decoded string whose text is a JSON object or array is decoded again: a serialiser that encoded an already encoded payload. Declared only where a captured fixture shows it, and cited there.
 
 ### `InvalidItem`
 
@@ -1891,7 +1928,8 @@ A model asking for a tool to be run.
 | `id` | [`FirstUsable_IdSource`](#firstusable_idsource) | Ordered: the first member holding a non-blank string, else a declared `template`; absent is reported as null, because a provider that omits an id has still made the call. |
 | `name` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Required: a nameless call names nothing to run, so the case does not recognise the block. |
 | `input` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the unused one present as `{}`, so "the first that resolves" would always pick the empty one. |
-| `provider_executed` | true or false | The provider runs this tool itself, inside its response - a hosted web search, a code interpreter. Stated by the case, because the shape a provider gives such a call is what says so. |
+| `arguments_encoding` | [`ArgumentsEncoding`](#argumentsencoding) or null | How the selected input encodes the call's arguments, decoded after it is selected - so an encoded empty object, `"{}"`, is selected as the text it is and decodes to the call with no parameters. Absent, the input is the arguments themselves. |
+| `provider_executed` | true or false | The provider runs this tool itself, inside its response - a hosted web search, a code interpreter. Stated by the case, because the shape a provider gives such a call is what says so. A block that states SideSeat's own `provider_executed: true` keeps it whatever the case says. |
 
 ### `FirstUsable_IdSource`
 
@@ -2243,6 +2281,8 @@ One member name, and what its presence means.
 | `may_hold_media_bytes` | true or false | A member that may hold inline media bytes, which ingestion stores once and replaces with a reference. |
 | `holds_prose` | true or false | A member holding prose a person wrote or read, never replaced as media whatever it looks like. |
 | `marks_producer_shape` | true or false | A block holding this member beside SideML's own members is a producer's shape, not a canonical block, so the canonical passthrough leaves it to the declared cases. |
+| `marks_stream_piece` | true or false | A block holding this member is one piece of a stream - its position in the response - so a typed value in it is the stream's encoding of the value, not SideML's: a call's input there is the JSON text its deltas accumulated. The canonical passthrough leaves such a call to the declared case that states the decode. |
+| `arguments_encoding` | [`ArgumentsEncoding`](#argumentsencoding) or null | How this member encodes a call's arguments, where it is the `arguments` member or a spelling of it. Required there and refused anywhere else: decoding is declared per representation, never guessed from the text. |
 
 ### `ContextParts`
 

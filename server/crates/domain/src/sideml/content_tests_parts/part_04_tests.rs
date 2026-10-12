@@ -600,10 +600,27 @@ fn the_declared_provider_formats_match_the_readers_they_replace() {
             value
         })
     };
+    // And one for the provider formats alone: a call that is one piece of a stream - its `index` beside it - has its
+    // input decoded as JSON (`anthropic.tool_use_streamed`), where the retired reader kept the text.
+    let reviewed_call = |block: &JsonValue, value: Option<JsonValue>| {
+        value.map(|mut value| {
+            if block.get("index").is_some()
+                && value.get("type").and_then(JsonValue::as_str) == Some("tool_use")
+                && let Some(JsonValue::String(text)) = value.get("input").cloned()
+                && let Ok(decoded) = serde_json::from_str::<JsonValue>(&text)
+            {
+                value["input"] = decoded;
+            }
+            value
+        })
+    };
     for (what, block) in &cases {
         assert_eq!(
             render(block, plan.normalize(block, ChainPosition::ProviderFormats)),
-            render(block, reviewed(block, legacy_provider_formats(block))),
+            render(
+                block,
+                reviewed_call(block, reviewed(block, legacy_provider_formats(block)))
+            ),
             "the declared provider formats disagree with the readers they replace: {what}"
         );
         assert_eq!(

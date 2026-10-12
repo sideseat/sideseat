@@ -541,25 +541,8 @@ fn normalize_message(raw: &JsonValue, drop_blank_text: bool) -> ChatMessage {
                 }) {
                     continue;
                 }
-                let input = tc
-                    .get("arguments")
-                    .map(|a| match a.as_str() {
-                        Some(s) => match serde_json::from_str::<JsonValue>(s) {
-                            // Arguments JSON-encoded twice - a JSON string whose text is the object - are
-                            // that object: a serialiser that encodes an already encoded payload says
-                            // nothing more by it.
-                            Ok(JsonValue::String(inner)) => {
-                                serde_json::from_str::<JsonValue>(&inner)
-                                    .ok()
-                                    .filter(|v| v.is_object() || v.is_array())
-                                    .unwrap_or(JsonValue::String(inner))
-                            }
-                            Ok(parsed) => parsed,
-                            Err(_) => json!(s),
-                        },
-                        None => a.clone(),
-                    })
-                    .unwrap_or(json!({}));
+                // Already decoded, by the encoding its member declares (`tools::normalize_tool_calls`).
+                let input = tc.get("arguments").cloned().unwrap_or(json!({}));
 
                 content_vec.push(ContentBlock::ToolUse {
                     id,

@@ -551,6 +551,7 @@ fn the_engine_names_no_framework() {
     // stops being one: it passed while the file it did not read was free to name any producer it liked.
     const ENGINE_SOURCES: &[(&str, &str)] = &[
         ("mod.rs", include_str!("../mod.rs")),
+        ("arguments.rs", include_str!("../arguments.rs")),
         ("assets.rs", include_str!("../assets.rs")),
         ("diagnostics.rs", include_str!("../diagnostics.rs")),
         ("schema.rs", include_str!("../schema.rs")),

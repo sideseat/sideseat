@@ -165,6 +165,15 @@ pub struct MessageMemberRule {
     /// the canonical passthrough leaves it to the declared cases.
     #[serde(default)]
     pub marks_producer_shape: bool,
+    /// A block holding this member is one piece of a stream - its position in the response - so a typed value in
+    /// it is the stream's encoding of the value, not SideML's: a call's input there is the JSON text its deltas
+    /// accumulated. The canonical passthrough leaves such a call to the declared case that states the decode.
+    #[serde(default)]
+    pub marks_stream_piece: bool,
+    /// How this member encodes a call's arguments, where it is the `arguments` member or a spelling of it. Required
+    /// there and refused anywhere else: decoding is declared per representation, never guessed from the text.
+    #[serde(default)]
+    pub arguments_encoding: Option<crate::rules::arguments::ArgumentsEncoding>,
 }
 
 /// An object member whose own members are contexts.

@@ -137,6 +137,8 @@ pub struct ContentBlockPlan {
     /// ruleset's compilation - consulting the global ruleset there would re-enter its initialisation. So the
     /// plan carries its dependencies instead of reaching for the global.
     producer_shape: std::collections::BTreeSet<String>,
+    /// The members that mark a block as one piece of a stream, carried for the same reason.
+    stream_piece: std::collections::BTreeSet<String>,
     /// The members that mean "content block", carried for the same reason.
     content_block_members: std::collections::BTreeSet<String>,
 }
@@ -148,6 +150,14 @@ impl ContentBlockPlan {
         members: impl Iterator<Item = &'a String>,
     ) -> bool {
         members.into_iter().any(|m| self.producer_shape.contains(m))
+    }
+
+    /// Whether any member of this block marks it as one piece of a stream.
+    pub(crate) fn any_marks_stream_piece<'a>(
+        &self,
+        members: impl Iterator<Item = &'a String>,
+    ) -> bool {
+        members.into_iter().any(|m| self.stream_piece.contains(m))
     }
 
     /// Whether any member of this object means the value is a content block.
@@ -169,6 +179,7 @@ impl ContentBlockPlan {
                 .producer_shape_members()
                 .map(str::to_string)
                 .collect(),
+            stream_piece: members.stream_piece_members().map(str::to_string).collect(),
             content_block_members: members
                 .content_block_members()
                 .map(str::to_string)
@@ -801,11 +812,16 @@ fn built(
         let name = usable_member(block, &spec.name, false, JsonValue::is_string)?;
         let name = name.as_str()?;
         let input = member(block, &spec.input, true)
-            .map(Cow::into_owned)
+            .map(|found| match spec.arguments_encoding {
+                Some(encoding) => crate::rules::arguments::decode(encoding, &found),
+                None => found.into_owned(),
+            })
             .unwrap_or_else(|| json!({}));
         let id = call_id(block, &spec.id, name, &input);
         let mut call = json!({"type": "tool_use", "id": id, "name": name, "input": input});
-        if spec.provider_executed {
+        if spec.provider_executed
+            || block.get("provider_executed").and_then(JsonValue::as_bool) == Some(true)
+        {
             call["provider_executed"] = json!(true);
         }
         return Some(call);

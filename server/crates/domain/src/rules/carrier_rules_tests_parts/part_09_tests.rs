@@ -268,7 +268,7 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
                  "emit":"message","priority":1,
                  "wrap":{{"role":"assistant","tool_calls_from":{{"select":"$.content[*]","id":"$.id",
-                   "name":"$.name","arguments":"$.arguments","on_invalid_item":"{policy}"}}}},
+                   "name":"$.name","arguments":"$.arguments","arguments_encoding":"json","on_invalid_item":"{policy}"}}}},
                  "alternatives":[{{"id":"as_calls"}}],
                  "fallback":[{{"id":"as_text","wrap":{{"role":"assistant",
                    "content_from":"$.summary"}}}}]}}]}}"#

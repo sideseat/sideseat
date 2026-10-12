@@ -50,5 +50,16 @@ fn normalize_nested_block(
     {
         return read;
     }
+    // A piece of a stream (`marks_stream_piece`) is read by the declared case that knows its encoding - and only by
+    // one: returned data that happens to carry an `index` is no case's block and stays byte-exact, never wrapped as
+    // unknown.
+    if value.get("type").is_some_and(JsonValue::is_string)
+        && value
+            .as_object()
+            .is_some_and(|object| plan.any_marks_stream_piece(object.keys()))
+        && let Some(read) = super::declared_block_in(plan, value, false)
+    {
+        return read;
+    }
     value.clone()
 }

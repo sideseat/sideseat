@@ -294,7 +294,7 @@ fn two_declarations_must_not_write_one_output_member() {
             format!(
                 r#"{{"id":"t.r",{read},"wrap":{{"role":"assistant",
                      "tool_calls_from":{{"select":"$.calls","id":"$.id","name":"$.name","on_invalid_item":"skip",
-                       "arguments":"$.args"}}}}}}"#
+                       "arguments":"$.args","arguments_encoding":"json"}}}}}}"#
             ),
         ),
         (

@@ -53,6 +53,18 @@ pub enum MemberCompileError {
         target: String,
     },
     #[error(
+        "member rule `{rule}` in `{file}` holds a call's arguments but does not declare `arguments_encoding`, so its readers would have to guess"
+    )]
+    ArgumentsWithoutEncoding { file: String, rule: String },
+    #[error(
+        "member rule `{rule}` declares SideSeat's own `arguments` member as other than `json`, the text a call list SideSeat builds writes there"
+    )]
+    ArgumentsNotJsonText { file: String, rule: String },
+    #[error(
+        "member rule `{rule}` in `{file}` declares `arguments_encoding` but holds no call's arguments and wraps no call, so the declaration decodes nothing"
+    )]
+    EncodingWithoutArguments { file: String, rule: String },
+    #[error(
         "member rule id `{rule}` is declared in `{first}` and again in `{second}`, so what it holds would depend on which loaded last"
     )]
     DuplicateRule {
@@ -93,6 +105,9 @@ pub struct MemberPlan {
     media_bytes: BTreeSet<String>,
     prose: BTreeSet<String>,
     producer_shape: BTreeSet<String>,
+    stream_piece: BTreeSet<String>,
+    arguments_encoding:
+        std::collections::BTreeMap<String, crate::rules::arguments::ArgumentsEncoding>,
 }
 
 /// How a context member is read.
@@ -193,6 +208,15 @@ impl MemberPlan {
     }
 
     /// The other spellings of one of SideSeat's own members, in the order they are preferred.
+    /// How `member` - the `arguments` member or a spelling of it - encodes a call's arguments, or, for a call
+    /// wrapper, how the calls under it encode theirs where it says.
+    pub fn arguments_encoding(
+        &self,
+        member: &str,
+    ) -> Option<crate::rules::arguments::ArgumentsEncoding> {
+        self.arguments_encoding.get(member).copied()
+    }
+
     pub fn aliases_of(&self, member: &str) -> impl Iterator<Item = &str> {
         self.aliases
             .get(member)
@@ -235,6 +259,11 @@ impl MemberPlan {
 
     /// Every member that marks a producer's own shape, for a plan that must answer the question without
     /// consulting the assembled ruleset.
+    /// The members that mark a block as one piece of a stream.
+    pub fn stream_piece_members(&self) -> impl Iterator<Item = &str> {
+        self.stream_piece.iter().map(String::as_str)
+    }
+
     pub fn producer_shape_members(&self) -> impl Iterator<Item = &str> {
         self.producer_shape.iter().map(String::as_str)
     }
@@ -273,6 +302,7 @@ impl MemberPlan {
             + self.media_bytes.len()
             + self.prose.len()
             + self.producer_shape.len()
+            + self.stream_piece.len()
     }
 }
 
@@ -333,7 +363,8 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 || rule.holds_context_parts.is_some()
                 || rule.may_hold_media_bytes
                 || rule.holds_prose
-                || rule.marks_producer_shape;
+                || rule.marks_producer_shape
+                || rule.marks_stream_piece;
             if !says_something {
                 return Err(MemberCompileError::SaysNothing {
                     file: file_id.clone(),
@@ -362,6 +393,42 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                     file: file_id.clone(),
                     rule: rule.id.clone(),
                 });
+            }
+            // The arguments member and its spellings, and a call wrapper - a representation's own envelope, whose
+            // calls may encode their arguments as that representation does.
+            let holds_arguments = rule.members.iter().any(|member| member == "arguments")
+                || rule.alias_of.as_deref() == Some("arguments");
+            let wraps_calls = rule.wraps_tool_call;
+            match (holds_arguments || wraps_calls, rule.arguments_encoding) {
+                (true, None) if holds_arguments => {
+                    return Err(MemberCompileError::ArgumentsWithoutEncoding {
+                        file: file_id.clone(),
+                        rule: rule.id.clone(),
+                    });
+                }
+                (false, Some(_)) => {
+                    return Err(MemberCompileError::EncodingWithoutArguments {
+                        file: file_id.clone(),
+                        rule: rule.id.clone(),
+                    });
+                }
+                (true, Some(encoding)) => {
+                    // SideSeat's canonical call list writes its arguments as JSON text once
+                    // (`arguments::as_json_text_once`), so the member that reads it back must be `json`: any
+                    // other declaration would quote a real string argument, or decode it a second time.
+                    if rule.members.iter().any(|member| member == "arguments")
+                        && encoding != crate::rules::arguments::ArgumentsEncoding::Json
+                    {
+                        return Err(MemberCompileError::ArgumentsNotJsonText {
+                            file: file_id.clone(),
+                            rule: rule.id.clone(),
+                        });
+                    }
+                    for member in &rule.members {
+                        plan.arguments_encoding.insert(member.clone(), encoding);
+                    }
+                }
+                (_, None) => {}
             }
             if let Some(target) = &rule.alias_of
                 && !ALIAS_TARGETS.contains(&target.as_str())
@@ -448,6 +515,9 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 }
                 if rule.marks_producer_shape {
                     plan.producer_shape.insert(member.clone());
+                }
+                if rule.marks_stream_piece {
+                    plan.stream_piece.insert(member.clone());
                 }
             }
             // One priority per declaration, so a family's spellings sit together in declaration order -
@@ -676,5 +746,35 @@ mod tests {
                 "`{member}` holds content and is not message-shaped"
             );
         }
+    }
+
+    /// The arguments member and every spelling of it declare how they encode a call's arguments, and nothing else
+    /// may: a reader that guessed turned a tool's real string argument into the object its text spells.
+    #[test]
+    fn an_arguments_member_declares_its_encoding_and_no_other_member_does() {
+        assert!(matches!(
+            compile_rules(r#"{"id":"p.args","members":["x"],"priority":1,"alias_of":"arguments"}"#),
+            Err(MemberCompileError::ArgumentsWithoutEncoding { .. })
+        ));
+        assert!(matches!(
+            compile_rules(
+                r#"{"id":"p.other","members":["x"],"holds_prose":true,"arguments_encoding":"json"}"#
+            ),
+            Err(MemberCompileError::EncodingWithoutArguments { .. })
+        ));
+        assert!(matches!(
+            compile_rules(
+                r#"{"id":"p.arguments","members":["arguments"],"priority":1,"holds_content":true,"means_message_shaped":true,"arguments_encoding":"value"}"#
+            ),
+            Err(MemberCompileError::ArgumentsNotJsonText { .. })
+        ));
+        let plan = compile_rules(
+            r#"{"id":"p.args","members":["x"],"priority":1,"alias_of":"arguments","arguments_encoding":"value"}"#,
+        )
+        .expect("a declared spelling compiles");
+        assert_eq!(
+            plan.arguments_encoding("x"),
+            Some(crate::rules::arguments::ArgumentsEncoding::Value)
+        );
     }
 }

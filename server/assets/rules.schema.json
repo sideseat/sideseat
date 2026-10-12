@@ -2371,6 +2371,10 @@
         "arguments": {
           "type": "string"
         },
+        "arguments_encoding": {
+          "description": "How the member at `arguments` encodes them. **Required**: whether a string there is JSON text or a string\nargument is the dialect's to say, and a reader that guessed turned a tool's real string argument\n`\"{\\\"x\\\":1}\"` into an object.",
+          "$ref": "#/$defs/ArgumentsEncoding"
+        },
         "on_invalid_item": {
           "description": "What to do with a call that has no id or no name.\n\n**Required**, because it was hardcoded twice over - \"an id is mandatory\" and \"skip the invalid item\" -\nand neither is right for every producer. AutoGen's rule admits a list where *at least one* member has an\nid and a name; the constructor then dropped the others silently, so a response that called two tools\nshowed one. Skipping may be right for a producer that logs partial calls; failing the message is right\nfor one where a dropped call means the answer is not what the model did.",
           "$ref": "#/$defs/InvalidItem"
@@ -2382,7 +2386,28 @@
         "id",
         "name",
         "arguments",
+        "arguments_encoding",
         "on_invalid_item"
+      ]
+    },
+    "ArgumentsEncoding": {
+      "description": "How a member holding a call's arguments encodes them.",
+      "oneOf": [
+        {
+          "description": "The member holds the arguments themselves: a string is a string argument.",
+          "type": "string",
+          "const": "value"
+        },
+        {
+          "description": "The member is JSON text, decoded once. A member that is not text is already decoded and passes through;\ntext that does not decode is kept as the string, as a producer that writes a bare word meant it.",
+          "type": "string",
+          "const": "json"
+        },
+        {
+          "description": "As `json`, and a decoded string whose text is a JSON object or array is decoded again: a serialiser that\nencoded an already encoded payload. Declared only where a captured fixture shows it, and cited there.",
+          "type": "string",
+          "const": "json_twice"
+        }
       ]
     },
     "InvalidItem": {
@@ -3998,8 +4023,19 @@
           "description": "Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the\nunused one present as `{}`, so \"the first that resolves\" would always pick the empty one.",
           "$ref": "#/$defs/FirstUsable_ValueSource"
         },
+        "arguments_encoding": {
+          "description": "How the selected input encodes the call's arguments, decoded after it is selected - so an encoded empty\nobject, `\"{}\"`, is selected as the text it is and decodes to the call with no parameters. Absent, the\ninput is the arguments themselves.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArgumentsEncoding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "provider_executed": {
-          "description": "The provider runs this tool itself, inside its response - a hosted web search, a code interpreter.\nStated by the case, because the shape a provider gives such a call is what says so.",
+          "description": "The provider runs this tool itself, inside its response - a hosted web search, a code interpreter.\nStated by the case, because the shape a provider gives such a call is what says so. A block that states\nSideSeat's own `provider_executed: true` keeps it whatever the case says.",
           "type": "boolean",
           "default": false
         }
@@ -4908,6 +4944,22 @@
           "description": "A block holding this member beside SideML's own members is a producer's shape, not a canonical block, so\nthe canonical passthrough leaves it to the declared cases.",
           "type": "boolean",
           "default": false
+        },
+        "marks_stream_piece": {
+          "description": "A block holding this member is one piece of a stream - its position in the response - so a typed value in\nit is the stream's encoding of the value, not SideML's: a call's input there is the JSON text its deltas\naccumulated. The canonical passthrough leaves such a call to the declared case that states the decode.",
+          "type": "boolean",
+          "default": false
+        },
+        "arguments_encoding": {
+          "description": "How this member encodes a call's arguments, where it is the `arguments` member or a spelling of it. Required\nthere and refused anywhere else: decoding is declared per representation, never guessed from the text.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArgumentsEncoding"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,

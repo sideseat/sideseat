@@ -510,6 +510,7 @@
               "id": "$.call_id",
               "name": "$.name",
               "arguments": "$.arguments",
+              "arguments_encoding": "json",
               "on_invalid_item": "fail_message"
             }
           }

@@ -115,8 +115,8 @@ pub(super) fn wrapped(
 /// The canonical tool-call list: `{id, type: "function", function: {name, arguments}}` per call.
 ///
 /// A call with no id or no name is dropped - the id is what pairs a result with its call, and a nameless
-/// call names nothing to run. Arguments arrive as a serialised JSON string as often as an object, and are
-/// parsed here so nothing downstream has to know that one member is encoded twice.
+/// call names nothing to run. Arguments are decoded as the spec declares, then written as the `arguments` member
+/// of the message vocabulary reads them (`arguments::as_json_text_once`), so a string argument stays a string.
 pub(super) fn canonical_tool_calls(
     subject: Option<&JsonValue>,
     spec: &ToolCallsSpec,
@@ -131,10 +131,9 @@ pub(super) fn canonical_tool_calls(
             let id = singular(call, &spec.id, "tool call id")?.as_str()?;
             let name = singular(call, &spec.name, "tool call name")?.as_str()?;
             let arguments = match singular(call, &spec.arguments, "tool call arguments") {
-                Some(found) => match found.as_str() {
-                    Some(text) => serde_json::from_str(text).unwrap_or(json!(text)),
-                    None => found.clone(),
-                },
+                Some(found) => crate::rules::arguments::as_json_text_once(
+                    crate::rules::arguments::decode(spec.arguments_encoding, found),
+                ),
                 None => json!({}),
             };
             Some(json!({

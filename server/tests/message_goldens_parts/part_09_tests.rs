@@ -50,6 +50,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         cited_texts: usize,
         provider_runs: usize,
         canonical_results: usize,
+        decoded_call_inputs: usize,
         disagreements: Vec<String>,
     }
     impl Oracle {
@@ -111,6 +112,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
                             Some(Stated::CitedText) => self.cited_texts += 1,
                             Some(Stated::ProviderRun) => self.provider_runs += 1,
                             Some(Stated::CanonicalResult) => self.canonical_results += 1,
+                            Some(Stated::DecodedCallInput) => self.decoded_call_inputs += 1,
                             None => self.disagreements.push(disagreement),
                         },
                         None => {}
@@ -147,6 +149,15 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
                 // The canonical-form rule: a tool result whose one part encodes nothing beyond its value is
                 // that value - the same result, and the only difference.
                 Stated::CanonicalResult
+            } else if value.get("index").is_some()
+                && retired
+                    .as_ref()
+                    .is_some_and(|retired| decodes_its_call_input(retired, &declared))
+            {
+                // A streamed call's input, written as the JSON text its deltas accumulated beside the stream's
+                // position: the declared case decodes it as JSON (`anthropic.tool_use_streamed`), where the retired readers
+                // left the text for the canonical passthrough's guess to decode.
+                Stated::DecodedCallInput
             } else {
                 return None;
             };
@@ -156,6 +167,24 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
             stated = Some(this);
         }
         stated
+    }
+
+    /// The same call with its input, JSON text in the retired reading, decoded to the object or array it spells -
+    /// and nothing else different.
+    fn decodes_its_call_input(retired: &serde_json::Value, declared: &serde_json::Value) -> bool {
+        let Some(serde_json::Value::String(text)) = retired.get("input") else {
+            return false;
+        };
+        let Ok(decoded) = serde_json::from_str::<serde_json::Value>(text) else {
+            return false;
+        };
+        if !(decoded.is_object() || decoded.is_array()) {
+            return false;
+        }
+        let mut expected = retired.clone();
+        expected["input"] = decoded;
+        retired.get("type").and_then(serde_json::Value::as_str) == Some("tool_use")
+            && &expected == declared
     }
 
     /// The same text with its citations added: a Responses part reads as before plus `citations`, and a Converse
@@ -230,6 +259,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         CitedText,
         ProviderRun,
         CanonicalResult,
+        DecodedCallInput,
     }
 
     // The excuses see as much as the oracle: a citation that changes the text, or a provider run read under
@@ -286,6 +316,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         cited_texts: 0,
         provider_runs: 0,
         canonical_results: 0,
+        decoded_call_inputs: 0,
         disagreements: Vec::new(),
     };
     let mut files = 0_usize;
@@ -381,6 +412,10 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
     assert!(
         oracle.canonical_results > 0,
         "no captured one-part tool result: the stated difference covers nothing"
+    );
+    assert!(
+        oracle.decoded_call_inputs > 0,
+        "no captured streamed call input: the stated difference covers nothing"
     );
     oracle.disagreements.sort();
     oracle.disagreements.dedup();

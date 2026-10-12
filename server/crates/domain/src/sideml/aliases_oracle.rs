@@ -19,6 +19,26 @@ fn has_meaningful_data(val: &JsonValue) -> bool {
     super::has_meaningful_data_for_oracle(val)
 }
 
+/// The retired reader's arguments as the message reader then decoded them: parsed, and parsed again where a
+/// string's text is an object or array - the guess the declared `arguments_encoding` replaced, which agrees with
+/// it on every declared member the oracle reads.
+fn legacy_decoded_arguments(mut calls: JsonValue) -> JsonValue {
+    for call in calls.as_array_mut().into_iter().flatten() {
+        let Some(JsonValue::String(text)) = call.get("arguments").cloned() else {
+            continue;
+        };
+        call["arguments"] = match serde_json::from_str::<JsonValue>(&text) {
+            Ok(JsonValue::String(inner)) => serde_json::from_str::<JsonValue>(&inner)
+                .ok()
+                .filter(|v| v.is_object() || v.is_array())
+                .unwrap_or(JsonValue::String(inner)),
+            Ok(parsed) => parsed,
+            Err(_) => json!(text),
+        };
+    }
+    calls
+}
+
 pub(super) fn legacy_normalize_tool_calls(msg: &JsonValue) -> Option<JsonValue> {
     let tool_calls = msg.get("tool_calls")?.as_array()?;
 
@@ -238,7 +258,7 @@ fn the_declared_spellings_normalise_as_the_tables_they_replace() {
         let role = raw.get("role").and_then(|r| r.as_str()).unwrap_or("tool");
         assert_eq!(
             super::tools::normalize_tool_calls(raw),
-            legacy_normalize_tool_calls(raw),
+            legacy_normalize_tool_calls(raw).map(legacy_decoded_arguments),
             "tool calls: {raw}"
         );
         assert_eq!(

@@ -182,8 +182,14 @@ pub struct ToolUseBlock {
     /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
     #[serde(default)]
     pub input: FirstOf<ValueSource, true>,
+    /// How the selected input encodes the call's arguments, decoded after it is selected - so an encoded empty
+    /// object, `"{}"`, is selected as the text it is and decodes to the call with no parameters. Absent, the
+    /// input is the arguments themselves.
+    #[serde(default)]
+    pub arguments_encoding: Option<crate::rules::arguments::ArgumentsEncoding>,
     /// The provider runs this tool itself, inside its response - a hosted web search, a code interpreter.
-    /// Stated by the case, because the shape a provider gives such a call is what says so.
+    /// Stated by the case, because the shape a provider gives such a call is what says so. A block that states
+    /// SideSeat's own `provider_executed: true` keeps it whatever the case says.
     #[serde(default)]
     pub provider_executed: bool,
 }

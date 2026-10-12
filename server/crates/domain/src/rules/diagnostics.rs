@@ -442,6 +442,9 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::PriorityWithoutAQuestion { rule, .. }
             | E::TwoOrderedQuestions { rule, .. }
             | E::UnknownAliasTarget { rule, .. }
+            | E::ArgumentsWithoutEncoding { rule, .. }
+            | E::ArgumentsNotJsonText { rule, .. }
+            | E::EncodingWithoutArguments { rule, .. }
             | E::DuplicateRule { rule, .. } => vec![rule],
             E::SharedPriority { first, second, .. } | E::DuplicateMember { first, second, .. } => {
                 vec![first, second]
@@ -461,6 +464,9 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::PriorityWithoutAQuestion { file, .. }
             | E::TwoOrderedQuestions { file, .. }
             | E::UnknownAliasTarget { file, .. }
+            | E::ArgumentsWithoutEncoding { file, .. }
+            | E::ArgumentsNotJsonText { file, .. }
+            | E::EncodingWithoutArguments { file, .. }
             | E::UnnamedRule { file } => vec![file],
             E::DuplicateRule { first, second, .. } => vec![first, second],
             E::SharedPriority { .. } | E::DuplicateMember { .. } => Vec::new(),

@@ -41,7 +41,7 @@ fn a_declaration_the_engine_would_ignore_is_refused() {
         probe_compile(
             r#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json","emit":"message",
                 "priority":1,"wrap":{"role":"assistant","content_from":"$.text",
-                "tool_calls_from":{"select":"$.calls","id":"$.id","name":"$.name","arguments":"$.args",
+                "tool_calls_from":{"select":"$.calls","id":"$.id","name":"$.name","arguments":"$.args","arguments_encoding":"json",
                 "on_invalid_item":"skip"}}}]}"#,
         )
         .is_err()

@@ -326,6 +326,17 @@ fn try_sideml_passthrough(
             }
         };
     }
+    // A call's input is a value: a canonical call whose input is a string has a string argument, kept as written,
+    // whatever else the block holds. A call the vocabulary marks as one piece of a stream - its position in the
+    // response, beside the JSON text its deltas accumulated or the object they completed - is left to the declared
+    // case, which states that decode and builds both alike.
+    if block_type == "tool_use"
+        && block
+            .as_object()
+            .is_some_and(|object| plan.any_marks_stream_piece(object.keys()))
+    {
+        return None;
+    }
     if block_type == "tool_result"
         && (block.get("tool_use_id").is_some() || block.get("content").is_some())
     {
@@ -354,27 +365,6 @@ fn try_sideml_passthrough(
             result.insert("provider_executed".to_string(), json!(true));
         }
         return Some(JsonValue::Object(result));
-    }
-
-    // A streamed tool call accumulates its input as the JSON text the deltas carried. The block's input is
-    // the structured value, so the text is decoded; left as a string, the same call read from a completed
-    // response elsewhere on the span digests differently and survives as a second call.
-    if block_type == "tool_use"
-        && let (Some(name), Some(JsonValue::String(text))) = (block.get("name"), block.get("input"))
-        && let Ok(input @ (JsonValue::Object(_) | JsonValue::Array(_))) =
-            serde_json::from_str::<JsonValue>(text)
-    {
-        let mut call = serde_json::Map::new();
-        call.insert("type".to_string(), json!("tool_use"));
-        if let Some(id) = block.get("id") {
-            call.insert("id".to_string(), id.clone());
-        }
-        call.insert("name".to_string(), name.clone());
-        call.insert("input".to_string(), input);
-        if provider_executed(block) {
-            call.insert("provider_executed".to_string(), json!(true));
-        }
-        return Some(JsonValue::Object(call));
     }
 
     // Check structure based on type

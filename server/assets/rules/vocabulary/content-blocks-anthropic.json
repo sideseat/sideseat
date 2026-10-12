@@ -202,6 +202,32 @@
       }
     },
     {
+      "id": "anthropic.tool_use_streamed",
+      "doc": "A call that is one piece of a stream, its position beside it. Anthropic's input is a JSON object, and a streamed call's input arrives as the JSON text its deltas accumulated: LangChain's streamed Bedrock message keeps `\"input\": \"{\\\"city\\\": \\\"Rome\\\"}\"` beside the stream's `index`. Asked before the plain case, which reads an input as the arguments themselves.",
+      "at": "provider_formats",
+      "priority": 2004,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_use"
+            ]
+          },
+          {
+            "path": "$.index",
+            "exists": true
+          }
+        ]
+      },
+      "tool_use": {
+        "id": "$.id",
+        "name": "$.name",
+        "input": "$.input",
+        "arguments_encoding": "json"
+      }
+    },
+    {
       "id": "anthropic.tool_use",
       "at": "provider_formats",
       "priority": 2005,
@@ -215,7 +241,7 @@
         "id": "$.id",
         "name": "$.name",
         "input": "$.input",
-        "doc": "A call. The canonical passthrough reads one inside a message's content; a tool's returned value that is a lone call is read here."
+        "doc": "A call. The canonical passthrough reads one inside a message's content; a tool's returned value that is a lone call is read here, its input the arguments themselves."
       }
     },
     {

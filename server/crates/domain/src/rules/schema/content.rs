@@ -619,6 +619,10 @@ pub struct ToolCallsSpec {
     pub name: JsonPath,
     #[cfg_attr(test, schemars(with = "String"))]
     pub arguments: JsonPath,
+    /// How the member at `arguments` encodes them. **Required**: whether a string there is JSON text or a string
+    /// argument is the dialect's to say, and a reader that guessed turned a tool's real string argument
+    /// `"{\"x\":1}"` into an object.
+    pub arguments_encoding: crate::rules::arguments::ArgumentsEncoding,
     /// What to do with a call that has no id or no name.
     ///
     /// **Required**, because it was hardcoded twice over - "an id is mandatory" and "skip the invalid item" -
