@@ -53,6 +53,12 @@ const UNUSED: &[(&str, &str)] = &[
         "part of the closed set of places a route may claim, as `not_last` is used",
     ),
     (
+        "UnknownType=unconstrained",
+        "half of the closed pair an unmapped repr argument type becomes: the one shipped `tool_repr` rule \
+         maps its unknowns to a primitive, and the rule that left them unconstrained now reads its carrier \
+         as the JSON it is",
+    ),
+    (
         "ParseMode=java_tostring",
         "the JVM counterpart of `python_constructor_repr`, for a producer that records its message objects with \
          `toString`; no shipped rule reads one yet",

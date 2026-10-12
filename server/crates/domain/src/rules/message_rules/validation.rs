@@ -86,6 +86,23 @@ pub(super) fn attach_defect(attach: &AttachSpec) -> Option<&'static str> {
     if let Some(defect) = attach.pipe_defect() {
         return Some(defect);
     }
+    // A source-less attachment is a literal member of the shape: nothing is read, so a `default` would
+    // never be attached and a `parse` would decode nothing. Each reads as though it did something.
+    if attach.from.is_none()
+        && attach.from_value_any_of.is_empty()
+        && attach.from_path.is_none()
+        && attach.or_span_name_after().is_none()
+    {
+        if attach.default.is_some() {
+            return Some(
+                "names no source, so nothing is ever *missing* and the `default` would never be \
+                 attached - a literal member states its `value` instead",
+            );
+        }
+        if attach.parse.is_some() {
+            return Some("names no source, so there is nothing for `parse` to decode");
+        }
+    }
     attach.select.as_ref()?;
     if attach.from.is_none() {
         return Some("`select` reads inside the `from` attribute, and the attachment names none");
@@ -210,7 +227,9 @@ pub(super) fn canonical_path(path: &super::schema::JsonPath) -> String {
     // conditions. So a path holding a filter, or any escape, is left exactly as rendered: two spellings then
     // compare unequal and the tautology check does not fire, which under-refuses rather than convicting a
     // real condition. Every fold given up here is on a shape no asset writes.
-    if rendered.contains('?') || rendered.contains('\\') {
+    // A double-quoted name can contain `['v']` verbatim - `$["['v']"]` is a member spelled with brackets -
+    // and the same textual blindness applies, so any double quote gives the fold up too.
+    if rendered.contains('?') || rendered.contains('\\') || rendered.contains('"') {
         return rendered;
     }
     let mut out = String::with_capacity(rendered.len());
@@ -651,6 +670,88 @@ pub(super) fn rendering_defect(rule: &CompiledMessageRule) -> Option<&'static st
     {
         return Some(
             "marks as a rendering a reading that does not emit messages - only a message is left out of a view",
+        );
+    }
+    None
+}
+
+/// Why a walk's declaration can never mean what it says: a `stop_on`, a `taken_by` or a `prune_read_by` naming
+/// a clause the rule does not declare, or a `prune_read_by` clause that reads its members only in part.
+pub(super) fn walk_defect(
+    walk: &super::schema::WalkSpec,
+    alternatives: &[Alternative],
+    also: &[Alternative],
+    fallback: &[Alternative],
+    fragments: &HashMap<String, Vec<Alternative>>,
+) -> Option<&'static str> {
+    // **A walk's `stop_on` names clauses of its own rule.** A name that matches nothing can never stop the
+    // descent, so the walk silently runs to `max_depth` - and an id that is merely misspelled looks exactly like
+    // a deliberate "never stop".
+    let local: std::collections::BTreeSet<&str> = alternatives
+        .iter()
+        .chain(also.iter())
+        .chain(fallback.iter())
+        .map(|reading| reading.id.as_str())
+        .collect();
+    if walk.stop_on.iter().any(|id| !local.contains(id.as_str())) {
+        return Some(
+            "a walk's `stop_on` names a clause this rule does not declare, so it could never stop the \
+                     descent - which is indistinguishable from meaning never to stop",
+        );
+    }
+    // The same for a pruned member's `taken_by`: a clause the rule does not declare never recognises
+    // anything, so the member is never pruned - a misspelling that reads as a deliberate prune.
+    if walk
+        .prune
+        .iter()
+        .map(|pruned| pruned.taken_by.as_str())
+        .chain(walk.prune_read_by.iter().map(String::as_str))
+        .any(|id| !local.contains(id))
+    {
+        return Some(
+            "a walk prunes a member `taken_by` a clause this rule does not declare, so nothing could \
+                     ever take it and the prune never happens",
+        );
+    }
+    // A `prune_read_by` clause must read the member it is recorded against **whole**: one that descends,
+    // picks a sub-member, or collects some members reads part of it, and pruning the member would hide
+    // the parts it did not read. Asked of the clause and of every fragment case it hands its elements to.
+    let partial = |reading: &Alternative| {
+        reading.descend.is_some()
+            || !reading.then_present_any_of.is_empty()
+            || reading.collect_members.is_some()
+    };
+    // A case the clause hands each element to reads that element - so it may not select inside it or iterate
+    // it, which would read some of its members and let the element be pruned with the rest unread. What a
+    // case then builds is built from the element itself, which declares the element *the* message: its other
+    // members are that message's, exactly as a `stop_on` clause recognising a node means.
+    let partial_case = |case: &Alternative| {
+        partial(case)
+            || case.each
+            || case
+                .select
+                .as_ref()
+                .is_some_and(|path| path.to_string() != "$")
+    };
+    let partially_read = alternatives
+        .iter()
+        .chain(also.iter())
+        .chain(fallback.iter())
+        .filter(|reading| walk.prune_read_by.contains(&reading.id))
+        .any(|reading| {
+            partial(reading)
+                || reading.extra_cases.iter().any(partial_case)
+                || reading.then_fragment.as_deref().is_some_and(|name| {
+                    fragments
+                        .get(name)
+                        .is_some_and(|cases| cases.iter().any(partial_case))
+                })
+        });
+    if partially_read {
+        return Some(
+            "a walk prunes the members a clause read, and that clause reads only part of each - it \
+                     descends, picks a sub-member or collects some members - so pruning would hide the parts \
+                     it did not read",
         );
     }
     None

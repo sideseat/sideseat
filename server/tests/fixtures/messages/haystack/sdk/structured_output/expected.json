@@ -14,7 +14,7 @@
         "tool"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
@@ -60,7 +60,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
@@ -143,7 +143,7 @@
         "tool"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
@@ -192,7 +192,7 @@
         "tool"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
@@ -240,7 +240,7 @@
       "assistant"
     ],
     "tool_names": [],
-    "tool_definition_count": 0,
+    "tool_definition_count": 1,
     "messages": [
       {
         "index": 0,

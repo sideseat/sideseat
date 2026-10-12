@@ -105,6 +105,7 @@ pub enum CompileError {
     },
     NoPrimaryKey {
         clause: String,
+        found: usize,
     },
     /// Two clauses could match the same observation with equal specificity, so which one applied would
     /// depend on nothing a reader can see. Refused rather than resolved by load order.
@@ -138,10 +139,15 @@ impl std::fmt::Display for CompileError {
                 "carrier clause `{clause}` is qualified by observation type `{declared}`, which is not one \
                  this server classifies - so the clause could never match"
             ),
-            Self::NoPrimaryKey { clause } => write!(
+            Self::NoPrimaryKey { clause, found: 0 } => write!(
                 f,
                 "clause `{clause}` constrains no event, attribute or attribute prefix, so it would \
                  match every observation of a span"
+            ),
+            Self::NoPrimaryKey { clause, found } => write!(
+                f,
+                "clause `{clause}` names {found} carrier forms, which are mutually exclusive - one \
+                 observation is an event, an attribute, a prefix or a family, never two of them"
             ),
             Self::Ambiguous { first, second, key } => write!(
                 f,
@@ -355,7 +361,10 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
             // Exactly one, not at least one: a clause naming several was silently reduced to whichever
             // the indexer happened to read first, so the others were accepted and ignored.
             if match_spec.primary_key_count() != 1 {
-                return Err(CompileError::NoPrimaryKey { clause: id.clone() });
+                return Err(CompileError::NoPrimaryKey {
+                    clause: id.clone(),
+                    found: match_spec.primary_key_count(),
+                });
             }
             // An empty carrier name or prefix matches every observation of a span.
             if id.is_empty()

@@ -47,8 +47,12 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
     );
 
     // Message-shaped, against the retired list, over the shapes that distinguish the two answers.
+    // The empty object is the one deliberate divergence from the retired list: `{}` is a value a producer
+    // wrote - structured output of nothing - and the retired exclusion left `output.value = "{}"` unwrapped,
+    // so the view showed an empty roleless message instead of the empty data.
+    assert!(is_plain_data_value(&serde_json::json!({})));
+    assert!(!is_plain_data_value_legacy(&serde_json::json!({})));
     let shapes = [
-        serde_json::json!({}),
         serde_json::json!({"name": "Jane", "age": 28}),
         serde_json::json!({"role": "user", "content": "hi"}),
         serde_json::json!({"contents": []}),

@@ -112,7 +112,7 @@ pub(super) fn walked_readings(
     walk: &super::schema::WalkSpec,
     build: Option<Construction<'_>>,
 ) -> Vec<Reading> {
-    let mut out = Vec::new();
+    let mut out: Vec<(Reading, usize)> = Vec::new();
     let mut stack = vec![(root, walk.max_depth)];
     // **Work is bounded, not just depth.** A rule declares how deep to descend, which is semantics - the shape
     // of the state object a framework writes. How much work that may cost against an adversarial payload is
@@ -157,7 +157,12 @@ pub(super) fn walked_readings(
         // emitter still sees the excess and reports it.
         let keep = (sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER + 1)
             .saturating_sub(out.len());
-        out.extend(here.built.into_iter().take(keep));
+        out.extend(
+            here.built
+                .into_iter()
+                .zip(here.source_of.iter().copied().chain(std::iter::repeat(0)))
+                .take(keep),
+        );
         if depth == 0 || matched {
             continue;
         }
@@ -168,6 +173,13 @@ pub(super) fn walked_readings(
         // one, so the warning above still fires on the last pop.
         let room = (sideseat_core::constants::RULE_WALK_MAX_NODES + 1)
             .saturating_sub(visited + stack.len());
+        // The members a pruning clause read here, as a set: asked once per member below.
+        let read_here: std::collections::HashSet<&str> = here
+            .read_members
+            .iter()
+            .filter(|(clause, _)| walk.prune_read_by.contains(clause))
+            .map(|(_, member)| member.as_str())
+            .collect();
         match node {
             JsonValue::Object(map) => {
                 // A fixed order: the payload's own map order is what a reader sees, and the stack pops in
@@ -180,7 +192,7 @@ pub(super) fn walked_readings(
                         // because of what it is called.
                         let taken = walk.prune.iter().any(|pruned| {
                             &pruned.member == *key && here.recognised.contains(&pruned.taken_by)
-                        });
+                        }) || read_here.contains(key.as_str());
                         !taken && (value.is_object() || value.is_array())
                     })
                     .map(|(_, value)| value)
@@ -191,9 +203,15 @@ pub(super) fn walked_readings(
                 }
             }
             JsonValue::Array(items) => {
+                // An element a `prune_read_by` clause read here is skipped, by index, as a member is by name.
+                let read = |at: usize| {
+                    !read_here.is_empty() && read_here.contains(at.to_string().as_str())
+                };
                 let members: Vec<&JsonValue> = items
                     .iter()
-                    .filter(|v| v.is_object() || v.is_array())
+                    .enumerate()
+                    .filter(|(at, v)| (v.is_object() || v.is_array()) && !read(*at))
+                    .map(|(_, v)| v)
                     .take(room)
                     .collect();
                 for value in members.into_iter().rev() {
@@ -203,5 +221,75 @@ pub(super) fn walked_readings(
             _ => {}
         }
     }
-    out
+    in_document_order(root, out)
+}
+
+/// Record the node member an element was, where its turn produced readings.
+///
+/// By identity, not by value: two members holding equal values are two members, and only the one this
+/// element *is* was read. A member of an object by its name, an element of an array by its index: both are
+/// the node's own children, and the walk visits both.
+pub(super) fn note_read_member(
+    node: &JsonValue,
+    children: &mut Option<HashMap<*const JsonValue, String>>,
+    pending: Option<(&JsonValue, usize)>,
+    produced: usize,
+    clause: &str,
+    out: &mut Vec<(String, String)>,
+) {
+    let Some((element, start)) = pending else {
+        return;
+    };
+    if produced <= start {
+        return;
+    }
+    let index = children.get_or_insert_with(|| match node {
+        JsonValue::Object(map) => map
+            .iter()
+            .map(|(key, child)| (child as *const JsonValue, key.clone()))
+            .collect(),
+        JsonValue::Array(items) => items
+            .iter()
+            .enumerate()
+            .map(|(at, child)| (child as *const JsonValue, at.to_string()))
+            .collect(),
+        _ => HashMap::new(),
+    });
+    if let Some(member) = index.get(&(element as *const JsonValue)) {
+        out.push((clause.to_string(), member.clone()));
+    }
+}
+
+/// A walk's readings in the payload's document order, by the node each was built from.
+///
+/// The walk visits nodes in pre-order and a node's clauses read below it, so gathering order is not document
+/// order: a message a node's clause selected from a later member came out ahead of one a descent found in an
+/// earlier member, and nothing downstream can repair the order. So each reading's source node is located in
+/// one pre-order pass over the payload - stopping once every source is placed - and the readings are sorted
+/// stably by it: readings of one node keep their declaration order.
+fn in_document_order(root: &JsonValue, readings: Vec<(Reading, usize)>) -> Vec<Reading> {
+    let mut needed: std::collections::HashSet<usize> =
+        readings.iter().map(|(_, source)| *source).collect();
+    let mut position: HashMap<usize, usize> = HashMap::with_capacity(needed.len());
+    let mut stack = vec![root];
+    let mut next = 0usize;
+    while let Some(node) = stack.pop() {
+        if needed.is_empty() {
+            break;
+        }
+        let address = std::ptr::from_ref(node) as usize;
+        if needed.remove(&address) {
+            position.insert(address, next);
+        }
+        next += 1;
+        match node {
+            JsonValue::Object(map) => stack.extend(map.values().rev()),
+            JsonValue::Array(items) => stack.extend(items.iter().rev()),
+            _ => {}
+        }
+    }
+    let mut ordered = readings;
+    // A source never found (none is expected: every source is a node of this payload) keeps its place last.
+    ordered.sort_by_key(|(_, source)| position.get(source).copied().unwrap_or(usize::MAX));
+    ordered.into_iter().map(|(reading, _)| reading).collect()
 }

@@ -256,6 +256,13 @@ pub const RULE_PATH_MAX_DESCENDANTS: usize = 2;
 /// key is kept flat on its object, losslessly, and the stop is reported.
 pub const UNFLATTEN_MAX_GAP_CELLS: usize = 65_536;
 
+/// How many dotted segments one flattened key may spell.
+///
+/// A key is its own depth declaration, so one `content.` followed by thousands of `a.0.` segments built that
+/// many nested containers from a few bytes - and the structure's cost is in the containers, not the key's
+/// length. Real families are a handful of levels; past the ceiling the key is kept flat, losslessly.
+pub const UNFLATTEN_MAX_SEGMENTS: usize = 64;
+
 /// How deeply content-block normalisation may re-enter itself on one block.
 ///
 /// An unwrap and a normalised tool result each normalise what they hold through the same chain, so the

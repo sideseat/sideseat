@@ -495,6 +495,15 @@ pub struct WalkSpec {
     /// unless the member was consumed.
     #[serde(default)]
     pub prune: Vec<PruneSpec>,
+    /// Clauses whose read members are not descended into: at a node, every direct member one of these
+    /// clauses read into a reading is skipped, and only those - its siblings are still visited. For a clause
+    /// that selects members by shape rather than by name (`$.*`), where `prune` cannot name them and a
+    /// `stop_on` would stop the whole node, hiding the conversation in the members it did not read. Such a
+    /// clause reads each member whole - it, and every case it hands members to, may not descend, select
+    /// inside, iterate or collect - so a member it built a message from *is* that message, and its other
+    /// members are the message's own, exactly as a `stop_on` clause recognising a node means.
+    #[serde(default)]
+    pub prune_read_by: Vec<String>,
     /// Stop descending below a node **one of these clauses recognised**, naming them by id.
     ///
     /// A message's own members are its content, not more state, so descending into one would read its parts as

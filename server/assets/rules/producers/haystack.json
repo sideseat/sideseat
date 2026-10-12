@@ -776,7 +776,7 @@
     },
     {
       "id": "haystack.agent_tools",
-      "doc": "The official tracer serialises a non-empty Agent tool list as Python repr. The generic repr grammar keeps the tool's name and description instead of presenting framework internals as a conversation turn.",
+      "doc": "The official tracer serialises a non-empty Agent tool list as JSON: a list of typed wrappers whose `data` holds the tool - its name, description and JSON-schema parameters. Read as the set it is. It was declared as Python repr, which the captures do not hold, so the rule read nothing and the trace showed no definitions.",
       "where": {
         "all": [
           {
@@ -792,84 +792,18 @@
       "read": {
         "attribute": "haystack.agent.tools"
       },
-      "parse": "json_or_string",
+      "parse": "json",
       "emit": "tool_definitions",
-      "tool_repr": {
-        "name_field": "name",
-        "description_field": "description",
-        "name_label": "Tool Name:",
-        "description_label": "Tool Description:",
-        "arguments_label": "Tool Arguments:",
-        "repr_markers": [
-          "Tool("
-        ],
-        "parameter_members": [
-          "parameters"
-        ],
-        "type_map": [
-          [
-            "str",
-            "string"
-          ],
-          [
-            "string",
-            "string"
-          ],
-          [
-            "int",
-            "integer"
-          ],
-          [
-            "integer",
-            "integer"
-          ],
-          [
-            "float",
-            "number"
-          ],
-          [
-            "number",
-            "number"
-          ],
-          [
-            "bool",
-            "boolean"
-          ],
-          [
-            "boolean",
-            "boolean"
-          ],
-          [
-            "list",
-            "array"
-          ],
-          [
-            "array",
-            "array"
-          ],
-          [
-            "dict",
-            "object"
-          ],
-          [
-            "object",
-            "object"
-          ]
-        ],
-        "type_default": "unconstrained",
-        "entries": "$",
-        "candidates": [
-          "$"
-        ],
-        "field_terminators": [
-          "parameters",
-          "function",
-          "outputs_to_string",
-          "inputs_from_state",
-          "outputs_to_state",
-          "async_function"
-        ]
-      },
+      "aggregate_into_array": true,
+      "alternatives": [
+        {
+          "id": "tools",
+          "doc": "Each wrapper's `data` is one tool.",
+          "select": "$",
+          "each": true,
+          "descend": "data"
+        }
+      ],
       "priority": 1800
     }
   ],

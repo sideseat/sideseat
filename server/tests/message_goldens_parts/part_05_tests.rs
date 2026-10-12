@@ -784,10 +784,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
              views show",
         ),
         (
-            "haystack.agent_tools",
-            "Haystack 3.3 serialises an Agent's tool list as JSON objects rather than Python repr, so no capture holds the repr shape",
-        ),
-        (
             "google-adk.data",
             "the suite is captured; `gcp.vertex.agent.data` appears in no fixture",
         ),

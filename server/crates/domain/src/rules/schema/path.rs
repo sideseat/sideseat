@@ -22,7 +22,12 @@ impl JsonPath {
     pub fn parse(text: &str) -> Result<Self, JsonPathDefect> {
         let parsed = serde_json_path::JsonPath::parse(text)
             .map_err(|error| JsonPathDefect::Parse(error.to_string()))?;
-        let (fanout, descendants) = fanout_of(text);
+        let (fanout, descendants, root_in_filter) = fanout_of(text);
+        if root_in_filter {
+            return Err(JsonPathDefect::RootInFilter {
+                path: text.to_string(),
+            });
+        }
         if fanout > sideseat_core::constants::RULE_PATH_MAX_UNION_FANOUT as u128 {
             return Err(JsonPathDefect::UnionFanout {
                 path: text.to_string(),
@@ -101,6 +106,12 @@ pub enum JsonPathDefect {
         max = sideseat_core::constants::RULE_PATH_MAX_DESCENDANTS
     )]
     Descendants { path: String, descendants: usize },
+    #[error(
+        "path `{path}` selects from the document root inside a filter - anything but a plain member \
+         chain off `$` selects from the whole document again for every node the filter visits; ask about \
+         the current node (`@`) instead"
+    )]
+    RootInFilter { path: String },
 }
 
 /// The worst-case per-node fan-out a path's unions declare, and how many descendant segments it holds.
@@ -110,13 +121,19 @@ pub enum JsonPathDefect {
 /// exactly as a top-level one multiplies the node list - while a comma whose innermost grouping is a
 /// parenthesis separates a function's arguments and is no union arm, and quoted names are names. No shipped
 /// asset declares a union or a descendant at all, so what conservatism remains costs nothing real.
-fn fanout_of(text: &str) -> (u128, usize) {
+fn fanout_of(text: &str) -> (u128, usize, bool) {
     enum Scope {
         Bracket { arms: u128 },
         Paren,
     }
     let mut fanout: u128 = 1;
     let mut descendants = 0usize;
+    // A `$` inside a bracket re-queries the whole document per current node. Only a plain member chain off
+    // it - `$.a.b`, one lookup per node - is a statement; anything else after it (a bracket segment of any
+    // kind, a wildcard, a descendant) selects from the document again for every node the filter visits,
+    // which no later ceiling can see. Tracked while the chain lasts.
+    let mut root_chain = false;
+    let mut expanding_root = false;
     let mut quote: Option<char> = None;
     let mut escaped = false;
     let mut scopes: Vec<Scope> = Vec::new();
@@ -132,6 +149,21 @@ fn fanout_of(text: &str) -> (u128, usize) {
             }
             previous = c;
             continue;
+        }
+        if root_chain {
+            // RFC 9535's own lexis: blank space may sit between segments (`$ [*]` is a bracket segment),
+            // and a member-name shorthand is `_`, ASCII letters and digits, or any non-ASCII character - so
+            // the chain lasts through all of those and ends at anything else.
+            match c {
+                '.' if previous == '.' => expanding_root = true,
+                '[' | '*' => expanding_root = true,
+                c if c == '.'
+                    || c == '_'
+                    || c.is_ascii_alphanumeric()
+                    || !c.is_ascii()
+                    || matches!(c, ' ' | '\t' | '\n' | '\r') => {}
+                _ => root_chain = false,
+            }
         }
         match c {
             '\'' | '"' => quote = Some(c),
@@ -153,11 +185,12 @@ fn fanout_of(text: &str) -> (u128, usize) {
                 }
             }
             '.' if previous == '.' => descendants += 1,
+            '$' if !scopes.is_empty() => root_chain = true,
             _ => {}
         }
         previous = c;
     }
-    (fanout, descendants)
+    (fanout, descendants, expanding_root)
 }
 
 #[cfg(test)]
@@ -210,5 +243,39 @@ mod scope_tests {
     fn a_function_argument_comma_is_not_a_union_arm() {
         let filters = "[?match(@.name, \"a\")].children".repeat(7);
         JsonPath::parse(&format!("${filters}")).expect("function arguments are not unions");
+    }
+}
+
+#[cfg(test)]
+mod filter_root_tests {
+    use super::*;
+
+    /// A filter that expands the document root materialises it again per node - `$[?count($[*]) > 0]` is
+    /// quadratic before any reading ceiling applies - and is refused; a plain member chain off `$` is one
+    /// lookup per node and stays, as the shipped `$[?$.isError == true]` does.
+    #[test]
+    fn an_expanding_root_subquery_in_a_filter_is_refused() {
+        // Any selection off `$` beyond a member chain: a wildcard, a slice (no `*` and still the whole
+        // array), an index or slice down a member chain, a descendant, and a root filter nested in a filter.
+        for expanding in [
+            "$[?count($[*]) > 0]",
+            "$[?count($[:]) > 0]",
+            "$[?count($.items[0:]) > 0]",
+            "$[?count($..x) > 0]",
+            "$[?count(@[?count($[?@.x]) > 0]) > 0]",
+            "$[?count($ [*]) > 0]",
+            "$[?count($.\u{1F600}[*]) > 0]",
+            "$[?count($.é.items[*]) > 0]",
+        ] {
+            let error = JsonPath::parse(expanding).expect_err(expanding);
+            assert!(
+                error.to_string().contains("selects from the document root"),
+                "{expanding}: {error}"
+            );
+        }
+        JsonPath::parse("$[?$.isError == true]")
+            .expect("a plain root member lookup is a statement");
+        JsonPath::parse("$[?count(@.items[*]) > 0]")
+            .expect("expanding the current node is bounded by it");
     }
 }

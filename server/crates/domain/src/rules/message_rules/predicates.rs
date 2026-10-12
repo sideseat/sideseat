@@ -170,8 +170,15 @@ pub(super) fn element_passes(
         return Vec::new();
     };
 
+    // One over the per-carrier ceiling, so the emitter still sees the excess and reports it. The ceiling
+    // bounds the passes *built*, not only what the emitter keeps: every pass clones its elements, so building
+    // them all first was memory spent on readings already decided to be dropped.
+    let cap = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER + 1;
     let mut out = Vec::new();
     for pass in &spec.passes {
+        if out.len() >= cap {
+            break;
+        }
         let matching = items
             .iter()
             .filter(|element| predicates_hold(element, &pass.when));
@@ -222,6 +229,9 @@ pub(super) fn element_passes(
                 // two, with a message lying between them that the run claims is not there. So an element that
                 // fails the pass, derives no case, or has nothing to collect **ends** the current run.
                 for element in items {
+                    if out.len() >= cap {
+                        break;
+                    }
                     let Some(matched) = Some(element)
                         .filter(|element| predicates_hold(element, &pass.when))
                         .and_then(|element| {
@@ -256,6 +266,11 @@ pub(super) fn element_passes(
                             std::mem::take(&mut collected),
                             &mut out,
                         );
+                        // The flush may have reached the cap: a run opened past it would be built only to
+                        // be dropped.
+                        if out.len() >= cap {
+                            break;
+                        }
                         run_key = Some(key);
                     }
                     if !run_cases.iter().any(|seen| seen == &matched.id) {
@@ -263,7 +278,9 @@ pub(super) fn element_passes(
                     }
                     collected.push(part.clone());
                 }
-                flush(run_key, run_cases, collected, &mut out);
+                if out.len() < cap {
+                    flush(run_key, run_cases, collected, &mut out);
+                }
             }
             // Each element emitted as it stands, tagged by what it carries.
             None => {
@@ -271,6 +288,9 @@ pub(super) fn element_passes(
                     continue;
                 };
                 for element in matching {
+                    if out.len() >= cap {
+                        break;
+                    }
                     let Some(tag) = query(element, tag_path)
                         .into_iter()
                         .next()
@@ -288,4 +308,45 @@ pub(super) fn element_passes(
         }
     }
     out
+}
+
+/// A grouped pass builds no run past the cap: alternating keys flush a run on every element, and both the
+/// transition flush and the final one used to run past the cap and build readings the emitter drops.
+#[cfg(test)]
+mod grouped_cap_tests {
+    use super::*;
+
+    #[test]
+    fn a_grouped_pass_builds_no_run_past_the_cap() {
+        let spec: ElementsSpec = serde_json::from_value(serde_json::json!({
+            "passes": [{
+                "id": "g",
+                "where": {"path": "$.data.type", "exists": true},
+                "group": {
+                    "collect": "$.data",
+                    "key_as": "role",
+                    "by": [
+                        {"id": "u", "where": {"path": "$.data.type", "starts_with": "input_"}, "value": "user"},
+                        {"id": "a", "where": {"path": "$.data.type", "starts_with": "output_"},
+                         "value": "assistant"}
+                    ],
+                    "tag_by_key": {"user": "u.tag", "assistant": "a.tag"}
+                }
+            }]
+        }))
+        .expect("the probe spec parses");
+        let cap = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER + 1;
+        let elements: Vec<JsonValue> = (0..cap + 50)
+            .map(|i| {
+                let kind = if i % 2 == 0 {
+                    "input_text"
+                } else {
+                    "output_text"
+                };
+                serde_json::json!({"data": {"type": kind, "text": i}})
+            })
+            .collect();
+        let passes = element_passes(&JsonValue::Array(elements), &spec);
+        assert_eq!(passes.len(), cap, "built {} runs", passes.len());
+    }
 }

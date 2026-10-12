@@ -17,7 +17,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
@@ -165,7 +165,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 1,
+      "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
@@ -237,7 +237,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 1,
+      "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
@@ -276,7 +276,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 1,
+      "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
@@ -433,7 +433,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 1,
+      "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
@@ -538,7 +538,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 1,
+      "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
@@ -642,7 +642,7 @@
       "assistant"
     ],
     "tool_names": [],
-    "tool_definition_count": 1,
+    "tool_definition_count": 2,
     "messages": [
       {
         "index": 0,

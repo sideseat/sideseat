@@ -286,6 +286,7 @@ impl SpanFieldPlan {
         let field_type = rule.target.field_type();
         let mut refused = Vec::new();
         let mut accepted_empty = false;
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut merged: Vec<String> = Vec::new();
         let mut answer = Reading::Absent;
         // The sources that actually supplied the answer: one for a first-wins chain, every contributor for a
@@ -407,9 +408,11 @@ impl SpanFieldPlan {
                     if let Reading::StringList(items) = reading {
                         // A contributor, not the winner: a merge has as many witnesses as sources that
                         // supplied something, and reporting one of them would misdescribe the answer.
+                        // Deduplicated through a set, first occurrence keeping its place: a linear scan per
+                        // item made one large tags value quadratic.
                         let mut contributed = false;
                         for item in items {
-                            if !merged.contains(&item) {
+                            if seen.insert(item.clone()) {
                                 merged.push(item);
                                 contributed = true;
                             }

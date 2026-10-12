@@ -84,11 +84,11 @@
             "taken_by": "raw"
           }
         ],
+        "prune_read_by": [
+          "also_3"
+        ],
         "stop_on": [
-          "message",
-          "messages",
-          "also_3",
-          "raw"
+          "message"
         ]
       },
       "also": [
@@ -105,7 +105,7 @@
         },
         {
           "id": "also_3",
-          "doc": "Every other member of the state, since a node writes its messages under whatever name it chose. Read at this level only - descending is the walk's job, bounded there.",
+          "doc": "Every other member of the state, since a node writes its messages under whatever name it chose - read here, in declaration order, so a message in a member precedes the answer the `raw` clause reads. The members it read are not walked again (`prune_read_by`); the ones it did not are, so a conversation in nested state is still found.",
           "select": "$.*",
           "then_fragment": "langchain.message"
         },
@@ -167,11 +167,11 @@
             "taken_by": "raw"
           }
         ],
+        "prune_read_by": [
+          "also_3"
+        ],
         "stop_on": [
-          "message",
-          "messages",
-          "also_3",
-          "raw"
+          "message"
         ]
       },
       "also": [
@@ -188,7 +188,7 @@
         },
         {
           "id": "also_3",
-          "doc": "Every other member of the state, since a node writes its messages under whatever name it chose. Read at this level only - descending is the walk's job, bounded there.",
+          "doc": "Every other member of the state, since a node writes its messages under whatever name it chose - read here, in declaration order, so a message in a member precedes the answer the `raw` clause reads. The members it read are not walked again (`prune_read_by`); the ones it did not are, so a conversation in nested state is still found.",
           "select": "$.*",
           "then_fragment": "langchain.message"
         },

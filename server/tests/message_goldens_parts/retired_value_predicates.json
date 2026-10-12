@@ -4494,7 +4494,7 @@
       "exists": true
      },
      {
-      "path": "$.function",
+      "path": "$.function.name",
       "exists": false
      }
     ]

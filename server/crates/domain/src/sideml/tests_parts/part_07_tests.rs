@@ -406,7 +406,9 @@ fn test_is_plain_data_value() {
     assert!(!is_plain_data_value(&json!(42)));
     assert!(!is_plain_data_value(&json!([1, 2])));
     assert!(!is_plain_data_value(&json!(null)));
-    assert!(!is_plain_data_value(&json!({})));
+    // The empty object is a value a producer wrote - structured output of nothing - and excluding it left
+    // `output.value = "{}"` unwrapped: the view showed an empty roleless message instead of the empty data.
+    assert!(is_plain_data_value(&json!({})));
 }
 
 #[test]

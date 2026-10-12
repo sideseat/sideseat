@@ -108,8 +108,8 @@ true}` beside the test to make that span false instead.
 why no shape test can say this. It is asked alone in its atom, of `scope.version` only, which nothing else may
 read; an absent or unparseable version is unknown, never "the latest". The range is an ordered interval in the
 package's scheme, with no requirement-matcher policy: `7.0rc1` is below `7`, and a range that should include a
-series' pre-releases starts at its first one (`6.dev0` in PEP 440). Only message projections are given the scope's
-version today.
+series' pre-releases starts at its first one (`6.dev0` in PEP 440). Message projections and span marks are given the
+scope's version today.
 
 A phrase search may read several sources at once: with `contains_ignore_case` and nothing else, `source` may be
 a list of two or more `span_name` and `attr:<key>` sources (the atom holds when one that has a value contains the
@@ -1529,6 +1529,7 @@ A bounded walk over a state object.
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `max_depth` (required) | integer | How many levels below the carrier to descend. Zero means the carrier itself only. |
 | `prune` | list of [`PruneSpec`](#prunespec) | Members not descended into, **because a named clause took them here**. |
+| `prune_read_by` | list of string | Clauses whose read members are not descended into: at a node, every direct member one of these clauses read into a reading is skipped, and only those - its siblings are still visited. For a clause that selects members by shape rather than by name (`$.*`), where `prune` cannot name them and a `stop_on` would stop the whole node, hiding the conversation in the members it did not read. Such a clause reads each member whole - it, and every case it hands members to, may not descend, select inside, iterate or collect - so a member it built a message from *is* that message, and its other members are the message's own, exactly as a `stop_on` clause recognising a node means. |
 | `stop_on` | list of string | Stop descending below a node **one of these clauses recognised**, naming them by id. |
 
 ### `PruneSpec`

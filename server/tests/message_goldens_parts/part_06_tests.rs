@@ -179,9 +179,18 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
                 for key in map.keys() {
                     seen.insert(key.clone());
                 }
-                // The one reviewed delta: the retired list called Gemini's camelCase call and result parts
+                // Two reviewed deltas. The retired list called Gemini's camelCase call and result parts
                 // message-shaped, and the vocabulary declares them content blocks only, for the reason its
-                // `members.function_call` entry gives. The oracle is asked without them.
+                // `members.function_call` entry gives - the oracle is asked without them. And the retired
+                // list excluded the empty object, which left `output.value = "{}"` unwrapped and the view
+                // showing an empty roleless message instead of the empty structured output.
+                if map.is_empty() {
+                    if !is_plain_data_value(value) {
+                        disagreements
+                            .push("the empty object is bare data the producer wrote".to_string());
+                    }
+                    return;
+                }
                 let legacy = {
                     let mut without = map.clone();
                     without.remove("functionCall");

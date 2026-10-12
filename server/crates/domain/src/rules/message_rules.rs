@@ -72,11 +72,19 @@ type Reading = (
 struct Selection {
     built: Vec<Reading>,
     recognised: Vec<String>,
+    /// The node's direct members a clause read into a reading, as `(clause, member)`: what a walk's
+    /// `prune_read_by` skips, so a member read here is not read again below while its siblings still are.
+    read_members: Vec<(String, String)>,
+    /// For each built reading, in order, the address of the payload node it was built from - the element a
+    /// clause selected, or the node itself. What a walk orders its readings by: the payload's document order.
+    source_of: Vec<usize>,
 }
 
 impl Selection {
     fn absorb(&mut self, other: Selection) {
         self.built.extend(other.built);
+        self.source_of.extend(other.source_of);
+        self.read_members.extend(other.read_members);
         for id in other.recognised {
             if !self.recognised.contains(&id) {
                 self.recognised.push(id);

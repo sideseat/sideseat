@@ -320,7 +320,7 @@ impl SectionDefect for super::carrier_rules::CompileError {
         match self {
             E::IncoherentFacts { clause, .. }
             | E::UnknownObservationType { clause, .. }
-            | E::NoPrimaryKey { clause }
+            | E::NoPrimaryKey { clause, .. }
             | E::DuplicateClauseId { clause }
             | E::EmptyLiteral { clause }
             | E::Frames { clause, .. } => vec![clause],

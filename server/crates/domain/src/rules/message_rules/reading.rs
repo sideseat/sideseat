@@ -76,6 +76,8 @@ pub(super) fn all_readings(
     let mut out = Selection {
         built: Vec::new(),
         recognised: Vec::new(),
+        read_members: Vec::new(),
+        source_of: Vec::new(),
     };
     if !rule.alternatives.is_empty() {
         out.absorb(readings(parsed, &rule.alternatives, build));
@@ -93,6 +95,8 @@ pub(super) fn all_readings(
                     None => Vec::new(),
                 },
                 recognised: Vec::new(),
+                read_members: Vec::new(),
+                source_of: vec![std::ptr::from_ref(parsed) as usize],
             };
         }
         for alternative in &rule.fallback {
@@ -164,11 +168,17 @@ pub(super) fn readings(
                 None => Vec::new(),
             },
             recognised: Vec::new(),
+            read_members: Vec::new(),
+            source_of: vec![std::ptr::from_ref(parsed) as usize],
         };
     }
     // Accumulated across **every** alternative, not per alternative: a clause that recognised the node and
     // could not build says so whether or not a later clause then answered.
     let mut recognised: Vec<String> = Vec::new();
+    let mut read_members: Vec<(String, String)> = Vec::new();
+    // The node's children by identity, built once on first need: a lookup per reading that rescanned the
+    // container made a long array quadratic.
+    let mut children: Option<HashMap<*const JsonValue, String>> = None;
     for reading in alternatives {
         let alternative = &reading.spec;
         // Asked of the enclosing value, before anything is selected out of it: the discriminator for a
@@ -213,7 +223,25 @@ pub(super) fn readings(
         }
 
         let mut produced = Vec::new();
+        // Which element each reading came from, for `read_members`: the element whose turn produced readings,
+        // when it is one of the node's own members.
+        let mut pending: Option<(&JsonValue, usize)> = None;
+        // Each produced reading's source node, filled as each element's turn ends: the element itself, whatever
+        // a fragment case then selected inside it.
+        let mut produced_source: Vec<usize> = Vec::new();
         for element in elements {
+            if let Some((previous, _)) = pending {
+                produced_source.resize(produced.len(), std::ptr::from_ref(previous) as usize);
+            }
+            super::walk::note_read_member(
+                parsed,
+                &mut children,
+                pending.take(),
+                produced.len(),
+                &alternative.id,
+                &mut read_members,
+            );
+            pending = Some((element, produced.len()));
             // Built readings past the per-carrier ceiling are dropped at emission, so building them is memory
             // spent on nothing - a payload of millions of tiny elements multiplied each into an envelope. One
             // over the ceiling, so the emitter still sees the excess and reports it.
@@ -430,10 +458,23 @@ pub(super) fn readings(
                 ));
             }
         }
+        if let Some((previous, _)) = pending {
+            produced_source.resize(produced.len(), std::ptr::from_ref(previous) as usize);
+        }
+        super::walk::note_read_member(
+            parsed,
+            &mut children,
+            pending.take(),
+            produced.len(),
+            &alternative.id,
+            &mut read_members,
+        );
         if !produced.is_empty() {
             return Selection {
                 built: produced,
                 recognised,
+                read_members,
+                source_of: produced_source,
             };
         }
     }
@@ -442,6 +483,8 @@ pub(super) fn readings(
     Selection {
         built: Vec::new(),
         recognised,
+        read_members,
+        source_of: Vec::new(),
     }
 }
 
@@ -557,6 +600,12 @@ pub(super) fn indexed_entries(
 
     let mut out: Vec<IndexedEntry> = Vec::new();
     for (index, members) in &buckets {
+        // One over the per-carrier ceiling, so the emitter still sees the excess and reports it: the ceiling
+        // bounds the entries *assembled* - each one an object and its ownership strings - not only what the
+        // emitter keeps.
+        if out.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+            break;
+        }
         let index = *index;
         // The physical keys this entry read. An entry's *tag* is `family.N`, which is a name for the entry
         // and not a key any producer wrote - so owning the tag left `family.N.content` free for another

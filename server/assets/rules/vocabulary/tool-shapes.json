@@ -117,7 +117,8 @@
             "exists": true
           },
           {
-            "path": "$.function",
+            "doc": "Excluded only where `function` is the canonical nested call - Haystack writes `function` as a string naming the Python callable, and that is producer metadata beside a named object, not the OpenAI nesting.",
+            "path": "$.function.name",
             "exists": false
           }
         ]

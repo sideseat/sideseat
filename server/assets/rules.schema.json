@@ -3001,6 +3001,14 @@
             "$ref": "#/$defs/PruneSpec"
           }
         },
+        "prune_read_by": {
+          "description": "Clauses whose read members are not descended into: at a node, every direct member one of these\nclauses read into a reading is skipped, and only those - its siblings are still visited. For a clause\nthat selects members by shape rather than by name (`$.*`), where `prune` cannot name them and a\n`stop_on` would stop the whole node, hiding the conversation in the members it did not read. Such a\nclause reads each member whole - it, and every case it hands members to, may not descend, select\ninside, iterate or collect - so a member it built a message from *is* that message, and its other\nmembers are the message's own, exactly as a `stop_on` clause recognising a node means.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
         "stop_on": {
           "description": "Stop descending below a node **one of these clauses recognised**, naming them by id.\n\nA message's own members are its content, not more state, so descending into one would read its parts as\nthough they were turns. But \"was this node a message\" is a question about *which* clause answered, and\nthe boolean this replaces asked a wider one: \"did anything get selected here\". LangGraph's `also_3`\nselects every state member, so at a node holding `{\"direct\": <a message>, \"nested\": {\"messages\": […]}}`\nthe root counted as matched and the walk stopped - losing `nested`'s messages. The root was not a\nmessage; one of its children was.\n\nIds rather than a predicate, deliberately: a predicate here would restate the clause's own recognition\nlogic, and then two declarations would decide one question.\n\n**The shipped LangGraph walks name every clause**, which is what the boolean meant, and narrowing them to\nthe one clause that reads a node as a single message is the semantic fix - deferred, and this is why: it\nmakes the walk descend where it used to stop, and the blocks it then finds trip the carrier-subsequence\ninvariant on `langgraph/image_gen`. Traversal positions are assigned *after* extraction, in emission\norder, so a walk's discovery order and the payload's member order are reconciled nowhere. Naming the\nclauses is worth landing on its own: the format now states what the walk stops on rather than implying\n\"anything\", which is what made the wider reading invisible.",
           "type": "array",

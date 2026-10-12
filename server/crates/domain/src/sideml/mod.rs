@@ -275,9 +275,6 @@ pub fn is_plain_data_value(val: &JsonValue) -> bool {
     let Some(obj) = val.as_object() else {
         return false;
     };
-    if obj.is_empty() {
-        return false;
-    }
     // Declared: which members mean a value is message-shaped rather than bare data.
     !crate::rules::ruleset()
         .message_members

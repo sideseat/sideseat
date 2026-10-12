@@ -423,3 +423,345 @@ fn indexed_assembly_keeps_distinct_inputs_distinct() {
         "a non-canonical index is not a block of the list and keeps its name: {value}"
     );
 }
+
+/// **Cycle 4's compile-time refusals and diagnoses, one probe each.**
+#[test]
+fn cycle_four_declarations_that_say_nothing_are_refused() {
+    // A source-less attachment is a literal member: a `default` would never attach, a `parse` would decode
+    // nothing.
+    let attach = |extra: &str| {
+        probe_compile(&format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
+                "emit":"message","priority":1,"wrap":{{"role":"user","content_from":"$.c",
+                "attach":[{{"as":"name","value":"n"{extra}}}]}}}}]}}"#
+        ))
+    };
+    assert!(attach("").is_ok(), "a literal member is a statement");
+    assert!(
+        attach(r#","default":"fallback""#).is_err(),
+        "a default with no source"
+    );
+    assert!(
+        attach(r#","parse":"json""#).is_err(),
+        "a parse with no source"
+    );
+
+    // A compose member naming an output with no way to fill it.
+    assert!(
+        probe_compile(
+            r#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"emit":"message","priority":1,
+                "compose":{"tag":"probe","members":[{"as":"content"}],"trailing":{"role":"user"}}}]}"#,
+        )
+        .is_err(),
+        "a member with no from, fallback or sweep can never emit"
+    );
+
+    // Two mutually exclusive carrier forms are diagnosed as such, not as constraining nothing.
+    let error = crate::rules::carrier_rules::compile(&probe_assets(
+        r#"{"id":"t","carriers":[{"id":"t.c","doc":"d",
+            "match":{"event":"e","attribute":"a"},"facts":{"preset":"emission"}}]}"#,
+    ))
+    .expect_err("two carrier forms are refused");
+    assert!(
+        error.to_string().contains("mutually exclusive"),
+        "the diagnosis names the defect: {error}"
+    );
+
+    // A double-quoted member name holding bracket spellings is not folded into them: the two paths differ,
+    // so an `exists: true` beside `exists: false` over them is not a tautology and compiles.
+    assert!(
+        probe_compile(
+            r##"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json","emit":"message",
+                "priority":1,"wrap":{"role":"user","content_from":"$.c"},
+                "alternatives":[{"id":"a","where":{"any":[
+                    {"path":"$[\"['v']\"]","exists":true},
+                    {"path":"$[\".v\"]","exists":false}]}}]}]}"##,
+        )
+        .is_ok(),
+        "distinct quoted names are distinct paths"
+    );
+}
+
+/// **A walk reads a message beside more state.** The node-itself clause reads each member at its own visit
+/// and stops below it, so a message in one member never hides its siblings' - a `$.*` clause in `stop_on`
+/// used to stop the whole node when any member matched, and the sibling's conversation was never visited.
+#[test]
+fn a_walk_reads_a_message_beside_more_state() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"x"},"parse":"json","emit":"message",
+            "priority":1,"walk":{"max_depth":3,"stop_on":["m"],
+                "prune":[{"member":"messages","taken_by":"mm"}]},
+            "also":[
+                {"id":"m","where":{"all":[{"path":"$.role"},{"path":"$.content"}]},
+                 "wrap":{"role_from":"$.role","content_from":"$.content"}},
+                {"id":"mm","select":"$.messages[*]","where":{"path":"$.role"},
+                 "wrap":{"role_from":"$.role","content_from":"$.content"}}]}]}"#,
+    )
+    .expect("the walk probe compiles");
+    let attrs = probe_attrs(&[(
+        "x",
+        r#"{"direct":{"role":"user","content":"q"},
+            "nested":{"messages":[{"role":"assistant","content":"a"}]}}"#,
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let emitted = plan.run(&ctx);
+    let contents: Vec<&str> = emitted
+        .iter()
+        .filter_map(|e| e.value["content"].as_str())
+        .collect();
+    assert!(contents.contains(&"q"), "{contents:?}");
+    assert!(
+        contents.contains(&"a"),
+        "the sibling member's conversation is read too: {contents:?}"
+    );
+    assert_eq!(emitted.len(), 2, "and nothing twice: {contents:?}");
+
+    // A conversation list beside nested state: the list is pruned once read, and the sibling is still
+    // visited - a stop on the list clause stopped the whole node and the nested answer was never read.
+    let attrs = probe_attrs(&[(
+        "x",
+        r#"{"messages":[{"role":"user","content":"q"}],
+            "nested":{"messages":[{"role":"assistant","content":"a"}]}}"#,
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let contents: Vec<String> = plan
+        .run(&ctx)
+        .iter()
+        .filter_map(|e| e.value["content"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(
+        contents,
+        vec!["q".to_string(), "a".to_string()],
+        "{contents:?}"
+    );
+}
+
+/// **Literal text is a statement the language can make.** A message whose content is a bare string is
+/// normalised like any provider's - double-encoded JSON decodes - while a rule that means *exactly these
+/// characters* builds the canonical text block, which passes through verbatim: `"[]"` stays two characters.
+#[test]
+fn a_built_text_block_keeps_its_characters_verbatim() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text","emit":"message",
+            "priority":1,"wrap":{"role":"user","content_from":"$",
+            "block":{"type":"text","content_as":"text"}}}]}"#,
+    )
+    .expect("the probe compiles");
+    let attrs = probe_attrs(&[("x", "[]")]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let emitted = plan.run(&ctx);
+    assert_eq!(emitted.len(), 1);
+    let message = crate::sideml::normalize(&emitted[0].value);
+    assert_eq!(message.content.len(), 1, "{message:?}");
+    let crate::sideml::ContentBlock::Text { text, .. } = &message.content[0] else {
+        panic!("a text block: {:?}", message.content);
+    };
+    assert_eq!(text, "[]", "the characters survive normalisation");
+}
+
+/// **A named object with a producer's `function` member is still a named tool.** The named-object shape
+/// excluded anything carrying `function` because the canonical nesting uses it - but one producer writes
+/// `function` as a string naming the Python callable, and every one of its tools was silently unnameable, so
+/// the views showed no definitions at all. The exclusion is now the canonical nesting itself: `function.name`.
+#[test]
+fn a_named_tool_with_a_producer_function_member_is_still_named() {
+    assert_eq!(
+        crate::sideml::tools::extract_tool_name(&serde_json::json!({
+            "name": "get_weather",
+            "description": "d",
+            "parameters": {"type": "object"},
+            "function": "pkg.get_weather"
+        }))
+        .as_deref(),
+        Some("get_weather")
+    );
+    // The canonical nesting keeps its own clause.
+    assert_eq!(
+        crate::sideml::tools::extract_tool_name(&serde_json::json!({
+            "type": "function",
+            "function": {"name": "nested", "parameters": {}}
+        }))
+        .as_deref(),
+        Some("nested")
+    );
+}
+
+/// **The shipped LangGraph walks read a conversation beside more state, in order**, on both carriers: what a
+/// clause read at a node is pruned there, never a stop for the whole node - which hid the nested state's
+/// conversation - and a message in a member precedes the answer `raw` reads, as the state declares them.
+#[test]
+fn the_shipped_graph_walks_read_beside_a_read_member() {
+    use crate::rules::message_rules::MessageContext;
+    for carrier in ["input.value", "output.value"] {
+        for (shape, expected) in [
+            (
+                r#"{"messages":[{"role":"user","content":"q"}],
+                    "nested":{"messages":[{"role":"assistant","content":"a"}]}}"#,
+                vec!["q", "a"],
+            ),
+            (
+                r#"{"raw":"r","nested":{"messages":[{"role":"assistant","content":"a"}]}}"#,
+                vec!["r", "a"],
+            ),
+            (
+                r#"{"direct":{"role":"user","content":"q"},"raw":"a"}"#,
+                vec!["q", "a"],
+            ),
+            (
+                r#"{"direct":{"role":"user","content":"q"},
+                    "nested":{"messages":[{"role":"assistant","content":"a"}]}}"#,
+                vec!["q", "a"],
+            ),
+            // Document order across a node: a message nested in an earlier element precedes one a clause read
+            // from a later element - emitting the node's readings before visiting any element reversed them.
+            (
+                r#"{"state":[{"nested":{"role":"user","content":"q"}},
+                    {"role":"assistant","content":"a"}]}"#,
+                vec!["q", "a"],
+            ),
+        ] {
+            let attrs = probe_attrs(&[(carrier, shape), ("langgraph.node", "agent")]);
+            let ctx = MessageContext::for_span("span", &attrs, false);
+            let contents: Vec<String> = crate::rules::ruleset()
+                .messages
+                .run(&ctx)
+                .iter()
+                .filter(|e| e.rule_id.starts_with("langgraph."))
+                .filter_map(|e| {
+                    let content = &e.value["content"];
+                    content
+                        .as_str()
+                        .map(str::to_string)
+                        .or_else(|| content[0]["text"].as_str().map(str::to_string))
+                })
+                .collect();
+            assert_eq!(
+                contents, expected,
+                "{carrier}: every message once, in the state's order, from {shape}"
+            );
+        }
+    }
+}
+
+/// **`prune_read_by` names clauses of its own rule.** An id nothing declares never reads a member, so the
+/// prune would never happen - a misspelling indistinguishable from a deliberate "prune nothing".
+#[test]
+fn a_walk_prunes_only_by_a_clause_it_declares() {
+    let walk = |prune_read_by: &str| {
+        probe_compile(&format!(
+            r#"{{"id":"t","messages":[{{"id":"t.w","read":{{"attribute":"x"}},"parse":"json",
+                "emit":"message","priority":1,
+                "walk":{{"max_depth":2,"stop_on":["m"],"prune_read_by":["{prune_read_by}"]}},
+                "also":[{{"id":"m","where":{{"path":"$.role"}},
+                    "wrap":{{"role_from":"$.role","content_from":"$.content"}}}},
+                    {{"id":"any","select":"$.*","where":{{"path":"$.role"}},
+                    "wrap":{{"role_from":"$.role","content_from":"$.content"}}}}]}}]}}"#
+        ))
+    };
+    assert!(walk("any").is_ok(), "a declared clause");
+    assert!(walk("anything").is_err(), "an undeclared one");
+
+    // A pruning clause must read its members whole: one that descends into a member reads part of it, and
+    // pruning the member hides the parts it did not read - `{"box": {"picked": q, "other": a}}` lost `a`.
+    let partial = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"x"},"parse":"json",
+            "emit":"message","priority":1,
+            "walk":{"max_depth":3,"stop_on":["m"],"prune_read_by":["d"]},
+            "also":[{"id":"m","where":{"path":"$.role"},
+                "wrap":{"role_from":"$.role","content_from":"$.content"}},
+                {"id":"d","select":"$.*","descend":"picked","where":{"path":"$.role"},
+                "wrap":{"role_from":"$.role","content_from":"$.content"}}]}]}"#,
+    );
+    assert!(partial.is_err(), "a descending pruning clause is refused");
+    // The same through a fragment case it hands its elements to.
+    let through_fragment = probe_compile(
+        r#"{"id":"t","fragments":{"pick":{"doc":"d","cases":[
+            {"id":"c","descend":"picked","where":{"path":"$.role"},
+             "wrap":{"role_from":"$.role","content_from":"$.content"}}]}},
+            "messages":[{"id":"t.w","read":{"attribute":"x"},"parse":"json",
+            "emit":"message","priority":1,
+            "walk":{"max_depth":3,"stop_on":["m"],"prune_read_by":["d"]},
+            "also":[{"id":"m","where":{"path":"$.role"},
+                "wrap":{"role_from":"$.role","content_from":"$.content"}},
+                {"id":"d","select":"$.*","then_fragment":"t.pick"}]}]}"#,
+    );
+    assert!(
+        through_fragment.is_err(),
+        "a descending fragment case is refused too"
+    );
+
+    // A case selecting inside the element, or iterating it, reads only some of its members.
+    for case in [
+        r#"{"id":"c","select":"$.picked","where":{"path":"$.role"},
+            "wrap":{"role_from":"$.role","content_from":"$.content"}}"#,
+        r#"{"id":"c","select":"$.items","each":true,"where":{"path":"$.role"},
+            "wrap":{"role_from":"$.role","content_from":"$.content"}}"#,
+    ] {
+        let refused = probe_compile(&format!(
+            r#"{{"id":"t","fragments":{{"pick":{{"doc":"d","cases":[{case}]}}}},
+                "messages":[{{"id":"t.w","read":{{"attribute":"x"}},"parse":"json",
+                "emit":"message","priority":1,
+                "walk":{{"max_depth":3,"stop_on":["m"],"prune_read_by":["d"]}},
+                "also":[{{"id":"m","where":{{"path":"$.role"}},
+                    "wrap":{{"role_from":"$.role","content_from":"$.content"}}}},
+                    {{"id":"d","select":"$.*","then_fragment":"t.pick"}}]}}]}}"#
+        ));
+        assert!(
+            refused.is_err(),
+            "a case reading inside its element is refused: {case}"
+        );
+    }
+}
+
+/// **A walk's readings follow the payload's document order, whatever clause read them.** A clause selecting a
+/// nested member, or iterating a root array, read its messages at the node, ahead of earlier members a
+/// descent reads - each source is placed where the payload has it.
+#[test]
+fn a_walk_orders_every_reading_by_its_source() {
+    use crate::rules::message_rules::MessageContext;
+    let run = |rule: &str, payload: &str| -> Vec<String> {
+        let plan = probe_compile(&format!(
+            r#"{{"id":"t","messages":[{{"id":"t.w","read":{{"attribute":"x"}},"parse":"json",
+                "emit":"message","priority":1,{rule}}}]}}"#
+        ))
+        .expect("the probe compiles");
+        let attrs = probe_attrs(&[("x", payload)]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .iter()
+            .filter_map(|e| e.value["content"].as_str().map(str::to_string))
+            .collect()
+    };
+    let message = r#"{"id":"m","where":{"all":[{"path":"$.role"},{"path":"$.content"}]},
+        "wrap":{"role_from":"$.role","content_from":"$.content"}}"#;
+    // A clause selecting a nested member.
+    assert_eq!(
+        run(
+            &format!(
+                r#""walk":{{"max_depth":3,"stop_on":["m"]}},"also":[{message},
+                {{"id":"later","select":"$.box.later","where":{{"path":"$.role"}},
+                 "wrap":{{"role_from":"$.role","content_from":"$.content"}}}}]"#
+            ),
+            r#"{"box":{"earlier":{"role":"user","content":"q"},
+                "later":{"role":"assistant","content":"a"}}}"#,
+        ),
+        vec!["q", "a", "a"],
+        "the earlier member's message first: the nested selection is placed at its member (the descent \
+         finds `a` again under `box`, which this probe's own declaration does not prune)"
+    );
+    // A root array's elements iterated by a clause the walk prunes by.
+    assert_eq!(
+        run(
+            &format!(
+                r#""walk":{{"max_depth":3,"stop_on":["m"],"prune_read_by":["each"]}},"also":[{message},
+                {{"id":"each","select":"$","each":true,"where":{{"all":[{{"path":"$.role"}},
+                    {{"path":"$.content"}}]}},
+                 "wrap":{{"role_from":"$.role","content_from":"$.content"}}}}]"#
+            ),
+            r#"[{"nested":{"role":"user","content":"q"}},{"role":"assistant","content":"a"}]"#,
+        ),
+        vec!["q", "a"]
+    );
+}

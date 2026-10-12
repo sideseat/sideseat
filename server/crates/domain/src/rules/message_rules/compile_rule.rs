@@ -224,6 +224,17 @@ pub(super) fn compile_rule(
             }
         }
         for member in &compose.members {
+            // A member that names an output and no way to fill it - no `from`, no `fallback`, no sweep -
+            // states a construction the evaluator cannot perform, and compiled as though it could.
+            if member.sweep_prefix.is_none()
+                && member.from_any_of.is_empty()
+                && member.fallback.is_none()
+            {
+                return Err(inexpressible(
+                    "a compose member names an output with no source - no `from`, no `fallback` - so \
+                         nothing could ever fill it",
+                ));
+            }
             let Some(prefix) = &member.sweep_prefix else {
                 continue;
             };
@@ -486,34 +497,10 @@ pub(super) fn compile_rule(
                  so whatever was built is discarded",
         ));
     }
-    // **A walk's `stop_on` names clauses of its own rule.** A name that matches nothing can never stop the
-    // descent, so the walk silently runs to `max_depth` - and an id that is merely misspelled looks exactly like
-    // a deliberate "never stop".
-    if let Some(walk) = walk {
-        let local: std::collections::BTreeSet<&str> = alternatives
-            .iter()
-            .chain(also.iter())
-            .chain(fallback.iter())
-            .map(|reading| reading.id.as_str())
-            .collect();
-        if walk.stop_on.iter().any(|id| !local.contains(id.as_str())) {
-            return Err(inexpressible(
-                "a walk's `stop_on` names a clause this rule does not declare, so it could never stop the \
-                     descent - which is indistinguishable from meaning never to stop",
-            ));
-        }
-        // The same for a pruned member's `taken_by`: a clause the rule does not declare never recognises
-        // anything, so the member is never pruned - a misspelling that reads as a deliberate prune.
-        if walk
-            .prune
-            .iter()
-            .any(|pruned| !local.contains(pruned.taken_by.as_str()))
-        {
-            return Err(inexpressible(
-                "a walk prunes a member `taken_by` a clause this rule does not declare, so nothing could \
-                     ever take it and the prune never happens",
-            ));
-        }
+    if let Some(walk) = walk
+        && let Some(detail) = walk_defect(walk, alternatives, also, fallback, fragments)
+    {
+        return Err(inexpressible(detail));
     }
     // **An element pass states exactly one action, and its decision table is total.** Five shapes were
     // accepted and each did something other than what it said:
