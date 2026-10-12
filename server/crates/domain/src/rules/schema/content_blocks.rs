@@ -148,15 +148,17 @@ impl TransformedSource {
 #[serde(rename_all = "snake_case")]
 pub enum ResultContent {
     /// Normalised as a returned value: a list's members as blocks, a provider block as that block, anything
-    /// else as it stands.
+    /// else as it stands - and one part a producer typed that encodes nothing beyond its value is that value
+    /// (see the guide's canonical tool result).
     #[default]
     Normalized,
     /// The same, and then a list of blocks reduced to the value it holds - a lone text is its string, a lone
     /// structured value is that value - which is the form a tool-role message's content takes. For a format
     /// that writes a result as a list of blocks, so one result reads alike however it was written.
     Value,
-    /// A list of content blocks built from the value: Python constructor reprs where it holds them, otherwise
-    /// structured data as one `json` block, text as one `text` block, and nothing as an empty list. For a
+    /// Content blocks built from the value: Python constructor reprs where it holds them, and nothing as an
+    /// empty list. One structured value that is not block-shaped is that value, and one text is its string,
+    /// as the canonical tool result says; a block-shaped value or a primitive is one `json` block. For a
     /// format whose response member holds what the tool returned, encoded or not.
     Blocks,
 }

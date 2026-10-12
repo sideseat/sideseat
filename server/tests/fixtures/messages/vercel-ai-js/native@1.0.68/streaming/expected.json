@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_3qODOQiMawg8w24YRSFTC2\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
-          "content_digest": "78a2917e6ee0084c",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_3qODOQiMawg8w24YRSFTC2\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "bfd571fedc3e9861",
           "observation_type": "generation"
         },
         {

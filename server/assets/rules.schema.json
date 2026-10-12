@@ -4141,7 +4141,7 @@
       "description": "How a tool result's content is shaped once it has been selected.",
       "oneOf": [
         {
-          "description": "Normalised as a returned value: a list's members as blocks, a provider block as that block, anything\nelse as it stands.",
+          "description": "Normalised as a returned value: a list's members as blocks, a provider block as that block, anything\nelse as it stands - and one part a producer typed that encodes nothing beyond its value is that value\n(see the guide's canonical tool result).",
           "type": "string",
           "const": "normalized"
         },
@@ -4151,7 +4151,7 @@
           "const": "value"
         },
         {
-          "description": "A list of content blocks built from the value: Python constructor reprs where it holds them, otherwise\nstructured data as one `json` block, text as one `text` block, and nothing as an empty list. For a\nformat whose response member holds what the tool returned, encoded or not.",
+          "description": "Content blocks built from the value: Python constructor reprs where it holds them, and nothing as an\nempty list. One structured value that is not block-shaped is that value, and one text is its string,\nas the canonical tool result says; a block-shaped value or a primitive is one `json` block. For a\nformat whose response member holds what the tool returned, encoded or not.",
           "type": "string",
           "const": "blocks"
         }

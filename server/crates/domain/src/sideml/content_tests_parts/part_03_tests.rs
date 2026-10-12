@@ -211,7 +211,8 @@ fn constructor_repr_inside_a_tool_response_becomes_semantic_content() {
         Some(json!({
             "type": "tool_result",
             "tool_use_id": "call-1",
-            "content": [{"type": "text", "text": "Sunny, 22°C"}],
+            // One text the tool returned is that string (the canonical-form rule).
+            "content": "Sunny, 22°C",
             "is_error": false,
         })),
         "generated ids and timestamps are not product content"
@@ -256,7 +257,8 @@ fn an_unknown_constructor_remains_text() {
     });
     assert_eq!(
         normalize_content_block(&block).expect("the tool result normalises")["content"],
-        json!([{"type": "text", "text": "BusinessResult(value='keep this wording')"}])
+        // Kept as its text - which, as the tool's one returned text, is the string itself.
+        json!("BusinessResult(value='keep this wording')")
     );
 }
 

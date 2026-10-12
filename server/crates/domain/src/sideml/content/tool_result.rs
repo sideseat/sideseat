@@ -44,7 +44,12 @@ pub fn convert_to_tool_result(
     match (tool_results.len(), others.len()) {
         // No tool_result: create one wrapping all blocks
         (0, _) if !arr.is_empty() => {
-            let inner_content = create_inner_content(arr);
+            // A message's `content` list is its list of parts, by every chat convention - never the tool's return
+            // value, which is what a part holds. So a bare element is a part the producer left untyped, and no
+            // source can show a tool's own list here: that evidence exists only where a member holds the return
+            // value itself (a result block's `result`), which the declared cases judge.
+            let inner_content =
+                canonical_inner_content(&crate::rules::ruleset().content_blocks, arr, None);
             json!([create_tool_result(tool_use_id, inner_content)])
         }
 
@@ -63,7 +68,100 @@ pub fn convert_to_tool_result(
     }
 }
 
-/// Create inner content for tool_result from content blocks.
+/// A tool result's content from its blocks, in the canonical form: one part that encodes nothing beyond its
+/// value is that value ([`canonical_single_part`]), judged against `source`, the content as written. Any other
+/// single part stays a part (a json primitive, a block-shaped value, a text with citations); an `unknown` part
+/// keeps its raw value, and several parts read as [`create_inner_content`] reads them.
+pub(crate) fn canonical_inner_content(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    blocks: &[JsonValue],
+    source: Option<&JsonValue>,
+) -> JsonValue {
+    let [block] = blocks else {
+        return several_parts(plan, blocks);
+    };
+    if let Some(content) = canonical_single_part(plan, block, |value| {
+        source.is_some_and(|s| listed_by_tool(s, value))
+    }) {
+        return content;
+    }
+    if get_block_type(block) == Some("unknown")
+        && let Some(raw) = block.get("raw")
+    {
+        return raw.clone();
+    }
+    json!(blocks)
+}
+
+/// Several parts as a tool result's content: each json part as its data and each `unknown` part as its raw value,
+/// as the retired reduction reads them - except a json part around data that is not plain ([`is_plain_value`]) or a
+/// string, which keeps its part: unwrapped, returned JSON spelled like an image would become the image, and a json
+/// string text.
+fn several_parts(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    blocks: &[JsonValue],
+) -> JsonValue {
+    // A json string keeps its part too: bare in a list, a string is read as text, which it was not.
+    let block_shaped = |block: &JsonValue| {
+        get_block_type(block) == Some("json")
+            && block
+                .get("data")
+                .is_some_and(|data| data.is_string() || !is_plain_value(plan, data))
+    };
+    if !blocks.iter().any(block_shaped) {
+        return create_inner_content(blocks);
+    }
+    JsonValue::Array(
+        blocks
+            .iter()
+            .filter_map(|block| match get_block_type(block) {
+                _ if block_shaped(block) => Some(block.clone()),
+                Some("unknown") => block.get("raw").cloned(),
+                Some("json") => block.get("data").cloned(),
+                _ => Some(block.clone()),
+            })
+            .collect(),
+    )
+}
+
+/// One part as a tool result's whole content, where it encodes nothing beyond its value
+/// ([`single_part_value`]): the value - or, where `listed_by_tool` says the tool returned a one-element list
+/// holding exactly that value, that list.
+///
+/// **The tool's list is spelled with its bare element, `[value]`, never with the part.** The part,
+/// `[{"type": "json", "data": X}]`, is what a producer that typed `X` writes, so re-reading it collapses to `X`;
+/// had the list been spelled that way, reading a stored result again would have turned the tool's list into its
+/// element. `[X]` re-reads as itself on every path, which is what makes the form canonical rather than a
+/// function of how many times it was read.
+pub(crate) fn canonical_single_part(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+    listed_by_tool: impl FnOnce(&JsonValue) -> bool,
+) -> Option<JsonValue> {
+    let value = single_part_value(plan, block)?;
+    Some(if listed_by_tool(&value) {
+        json!([value])
+    } else {
+        value
+    })
+}
+
+/// Whether `source` is a one-element list holding exactly `value` - written as a list, or as the JSON text of
+/// one, which normalisation decodes. A list of one is not its element: the tool returned the list.
+fn listed_by_tool(source: &JsonValue, value: &JsonValue) -> bool {
+    let holds = |items: &[JsonValue]| matches!(items, [only] if only == value);
+    match source {
+        JsonValue::Array(items) => holds(items),
+        // Decoded only where the text can be a list: a long plain string is not parsed to find out.
+        JsonValue::String(text) if text.trim_start().starts_with('[') => {
+            serde_json::from_str::<Vec<JsonValue>>(text).is_ok_and(|items| holds(&items))
+        }
+        _ => false,
+    }
+}
+
+/// Create inner content for tool_result from content blocks - the retired reduction, which the retired
+/// provider readers still use and [`canonical_inner_content`] defers to for several parts.
 /// Single text block becomes string, single json/unknown becomes raw data, multiple become array.
 pub(crate) fn create_inner_content(blocks: &[JsonValue]) -> JsonValue {
     // Track if single block was json/unknown for optimization
@@ -144,4 +242,78 @@ fn create_tool_result(tool_use_id: &Option<String>, content: JsonValue) -> JsonV
         "content": content,
         "is_error": false
     })
+}
+
+/// The bare value a one-part tool result stands for, where the part encodes nothing beyond it.
+///
+/// A tool result's content is what the tool returned. A tool that returned one structured value returned that
+/// value, and one that returned text returned that text: `[{"type": "json", "data": X}]` and
+/// `[{"type": "text", "text": T}]` are layers around them, so one producer release wrote the bare value where
+/// the next wrote the typed part, and the two read as different results. The collapse holds only where the
+/// part says nothing more:
+///
+/// - a json part holds a **bare structured value** ([`is_bare_structured_value`]);
+/// - a text part holds **only its text** - citations or any other member are statements a string cannot make.
+///
+/// Whether the producer typed the part or the tool listed the value is the caller's to judge, from the source:
+/// see [`canonical_single_part`].
+pub(crate) fn single_part_value(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+) -> Option<JsonValue> {
+    match block.get("type").and_then(JsonValue::as_str)? {
+        // Only a part holding nothing but its value: any other member is a statement the bare value would drop.
+        "json" => {
+            let object = block.as_object()?;
+            let data = object.get("data")?;
+            (object.len() == 2 && is_bare_structured_value(plan, data)).then(|| data.clone())
+        }
+        "text" => {
+            let object = block.as_object()?;
+            let text = object.get("text")?.as_str()?;
+            (object.len() == 2).then(|| JsonValue::String(text.to_string()))
+        }
+        _ => None,
+    }
+}
+
+/// Whether a tool's structured return value is stored as itself rather than as a `json` part: an object the
+/// content chain reads as plain data - no string `type`, no member the vocabulary reads as a content block, and
+/// no declared case that reads it as a block. A block-shaped object keeps its wrapper, because unwrapped it would
+/// be re-read as the block it is spelled like - a tool returning `{"type": "text", "text": "..."}`, or an untyped
+/// shape a case declares, such as a MIME type beside data. Asked of the chain itself, so the guard cannot drift
+/// from the cases. A primitive keeps its part, because a json number is not text.
+pub(crate) fn is_bare_structured_value(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    value: &JsonValue,
+) -> bool {
+    value.as_object().is_some_and(|object| {
+        !object.get("type").is_some_and(JsonValue::is_string)
+            && !plan.any_means_content_block(object.keys())
+            && super::declared_block_in(plan, value, false).is_none()
+    })
+}
+
+/// Data no case reads as a block, at any depth: a bare structured object ([`is_bare_structured_value`]), a
+/// primitive, or a list of plain values. The one test every result path and the result identity share for
+/// whether a json part's data may stand without its part. Judged to serde_json's own nesting limit, so a parsed
+/// value is judged whole; deeper is not plain, which can only keep a part.
+pub(crate) fn is_plain_value(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    value: &JsonValue,
+) -> bool {
+    fn plain(
+        plan: &crate::rules::content_blocks::ContentBlockPlan,
+        value: &JsonValue,
+        depth: usize,
+    ) -> bool {
+        match value {
+            JsonValue::Object(_) => is_bare_structured_value(plan, value),
+            JsonValue::Array(items) => {
+                depth < 128 && items.iter().all(|item| plain(plan, item, depth + 1))
+            }
+            _ => true,
+        }
+    }
+    plain(plan, value, 0)
 }

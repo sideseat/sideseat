@@ -88,8 +88,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "608b9b1e22ba3b40",
+          "content": "395.0",
+          "content_digest": "b0c89850fca23571",
           "observation_type": "generation"
         },
         {
@@ -125,8 +125,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "2a6854b913117af3",
+          "content": "395.0",
+          "content_digest": "d3b875f637bfee72",
           "tool_name": "mcp__calculator__calculate",
           "observation_type": "tool"
         }
@@ -214,8 +214,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "2a6854b913117af3",
+          "content": "395.0",
+          "content_digest": "d3b875f637bfee72",
           "tool_name": "mcp__calculator__calculate",
           "observation_type": "tool"
         },
@@ -276,8 +276,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "2a6854b913117af3",
+          "content": "395.0",
+          "content_digest": "d3b875f637bfee72",
           "tool_name": "mcp__calculator__calculate",
           "observation_type": "tool"
         },
@@ -318,8 +318,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-        "content_digest": "2a6854b913117af3",
+        "content": "395.0",
+        "content_digest": "d3b875f637bfee72",
         "tool_name": "mcp__calculator__calculate",
         "observation_type": "tool"
       },

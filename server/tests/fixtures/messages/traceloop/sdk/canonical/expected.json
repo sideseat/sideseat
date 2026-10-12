@@ -204,8 +204,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-f725a428067c\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
-          "content_digest": "0831a8dd018a8698",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "f4899f40e72dbce5",
           "observation_type": "generation"
         },
         {
@@ -333,8 +333,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-f725a428067c\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
-          "content_digest": "0831a8dd018a8698",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "f4899f40e72dbce5",
           "observation_type": "generation"
         },
         {
@@ -439,8 +439,8 @@
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-f725a428067c\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
-          "content_digest": "0831a8dd018a8698",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "f4899f40e72dbce5",
           "observation_type": "generation"
         },
         {
@@ -485,8 +485,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-f725a428067c\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
-        "content_digest": "0831a8dd018a8698",
+        "content": "Sunny, 22°C, light breeze in Paris.",
+        "content_digest": "f4899f40e72dbce5",
         "observation_type": "generation"
       },
       {

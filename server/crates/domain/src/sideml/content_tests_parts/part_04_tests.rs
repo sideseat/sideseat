@@ -578,15 +578,37 @@ fn the_declared_provider_formats_match_the_readers_they_replace() {
             value.map(|value| value.to_string())
         }
     };
+    // One reviewed delta, applied to the retired side so nothing else can hide behind it: a tool result
+    // whose content is one part encoding nothing beyond its value - a json part around a structured value
+    // that is not block-shaped, or a text part holding only its text - is that value (the canonical-form
+    // ruling). Everything else is compared as the retired readers wrote it.
+    let reviewed = |source: &JsonValue, value: Option<JsonValue>| {
+        value.map(|mut value| {
+            if value.get("type").and_then(JsonValue::as_str) == Some("tool_result")
+                && let Some(JsonValue::Array(parts)) = value.get("content")
+                && let [part] = parts.as_slice()
+                && let Some(single) = crate::sideml::content::single_part_value(plan, part)
+            {
+                // The tool's own list of one is spelled with its bare element.
+                value["content"] =
+                    if crate::sideml::test_support::collapse_allowed_by_source(source, &single) {
+                        single
+                    } else {
+                        json!([single])
+                    };
+            }
+            value
+        })
+    };
     for (what, block) in &cases {
         assert_eq!(
             render(block, plan.normalize(block, ChainPosition::ProviderFormats)),
-            render(block, legacy_provider_formats(block)),
+            render(block, reviewed(block, legacy_provider_formats(block))),
             "the declared provider formats disagree with the readers they replace: {what}"
         );
         assert_eq!(
             render(block, normalize_content_block(block)),
-            render(block, legacy_normalize_block(block, true)),
+            render(block, reviewed(block, legacy_normalize_block(block, true))),
             "the whole chain disagrees with the retired one: {what}"
         );
     }
@@ -658,8 +680,9 @@ fn the_declared_provider_formats_match_the_readers_they_replace() {
             Some(
                 json!({"type": "tool_result", "tool_use_id": "c1", "content": [{"type": "json", "data": [ctor]}], "is_error": false}),
             ),
+            // And the one text the constructors describe is that string (the canonical-form rule).
             Some(
-                json!({"type": "tool_result", "tool_use_id": "c1", "content": [{"type": "text", "text": "Sunny"}], "is_error": false}),
+                json!({"type": "tool_result", "tool_use_id": "c1", "content": "Sunny", "is_error": false}),
             ),
         ),
     ];

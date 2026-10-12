@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"content\":[{\"type\":\"json\",\"data\":{\"value\":4}}]}",
-          "content_digest": "56315fc3c1e99867",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"content\":{\"value\":4}}",
+          "content_digest": "aa1529f0f836a327",
           "observation_type": "generation"
         },
         {
@@ -169,8 +169,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"content\":[{\"type\":\"json\",\"data\":{\"value\":4}}]}",
-          "content_digest": "56315fc3c1e99867",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"content\":{\"value\":4}}",
+          "content_digest": "aa1529f0f836a327",
           "observation_type": "agent"
         },
         {

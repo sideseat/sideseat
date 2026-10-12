@@ -86,16 +86,16 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"sunny\"}}]}",
-          "content_digest": "beecf9135fcdf643",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":{\"v\":\"sunny\"}}",
+          "content_digest": "5945b939289f4ba3",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"light rain\"}}]}",
-          "content_digest": "e05cb1e61dcd82ea",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":{\"v\":\"light rain\"}}",
+          "content_digest": "74df159dbd0bae03",
           "observation_type": "generation"
         },
         {
@@ -218,16 +218,16 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"sunny\"}}]}",
-          "content_digest": "beecf9135fcdf643",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":{\"v\":\"sunny\"}}",
+          "content_digest": "5945b939289f4ba3",
           "observation_type": "agent"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"light rain\"}}]}",
-          "content_digest": "e05cb1e61dcd82ea",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":{\"v\":\"light rain\"}}",
+          "content_digest": "74df159dbd0bae03",
           "observation_type": "agent"
         }
       ]

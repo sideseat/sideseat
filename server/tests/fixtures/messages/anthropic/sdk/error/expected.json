@@ -85,8 +85,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01YF1Uq93FDDZkg3SKNZp4R1\",\"content\":[{\"type\":\"text\",\"text\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "ec384934a4b674eb",
+          "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "46fb7b3266098943",
           "observation_type": "generation"
         },
         {
@@ -161,8 +161,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01YF1Uq93FDDZkg3SKNZp4R1\",\"content\":[{\"type\":\"text\",\"text\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "ec384934a4b674eb",
+          "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "46fb7b3266098943",
           "observation_type": "generation"
         },
         {
@@ -230,8 +230,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01YF1Uq93FDDZkg3SKNZp4R1\",\"content\":[{\"type\":\"text\",\"text\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "ec384934a4b674eb",
+          "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "46fb7b3266098943",
           "observation_type": "generation"
         },
         {
@@ -290,8 +290,8 @@
         "index": 2,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01YF1Uq93FDDZkg3SKNZp4R1\",\"content\":[{\"type\":\"text\",\"text\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-        "content_digest": "ec384934a4b674eb",
+        "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+        "content_digest": "46fb7b3266098943",
         "observation_type": "generation"
       },
       {

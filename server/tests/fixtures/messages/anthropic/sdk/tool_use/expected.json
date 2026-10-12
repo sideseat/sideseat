@@ -146,32 +146,32 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "1ea3737aee1daa18",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "c2355e83dcaca31a",
           "observation_type": "generation"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "ce5f7d6eeb0f0532",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "ca5b6071cc47f575",
           "observation_type": "generation"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01499ypdfuBh4xpi5p5Gta1i\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "b2fdd9d20e18b77f",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "9115029cb0298df0",
           "observation_type": "generation"
         },
         {
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_016kso9qBwhDShh3UY4zRSdE\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "d701d93ca4b2a9d8",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "f7766fc45a2960c6",
           "observation_type": "generation"
         },
         {
@@ -268,32 +268,32 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "1ea3737aee1daa18",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "c2355e83dcaca31a",
           "observation_type": "generation"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "ce5f7d6eeb0f0532",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "ca5b6071cc47f575",
           "observation_type": "generation"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01499ypdfuBh4xpi5p5Gta1i\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "b2fdd9d20e18b77f",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "9115029cb0298df0",
           "observation_type": "generation"
         },
         {
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_016kso9qBwhDShh3UY4zRSdE\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "d701d93ca4b2a9d8",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "f7766fc45a2960c6",
           "observation_type": "generation"
         },
         {
@@ -383,32 +383,32 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "1ea3737aee1daa18",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "c2355e83dcaca31a",
           "observation_type": "generation"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "ce5f7d6eeb0f0532",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "ca5b6071cc47f575",
           "observation_type": "generation"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01499ypdfuBh4xpi5p5Gta1i\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-          "content_digest": "b2fdd9d20e18b77f",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "9115029cb0298df0",
           "observation_type": "generation"
         },
         {
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_016kso9qBwhDShh3UY4zRSdE\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-          "content_digest": "d701d93ca4b2a9d8",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "f7766fc45a2960c6",
           "observation_type": "generation"
         },
         {
@@ -454,32 +454,32 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-        "content_digest": "1ea3737aee1daa18",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01QgmDNdKAXDWU398poPMxny\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "c2355e83dcaca31a",
         "observation_type": "generation"
       },
       {
         "index": 2,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-        "content_digest": "ce5f7d6eeb0f0532",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "ca5b6071cc47f575",
         "observation_type": "generation"
       },
       {
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01499ypdfuBh4xpi5p5Gta1i\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
-        "content_digest": "b2fdd9d20e18b77f",
+        "content": "10% chance of rain in Paris tomorrow.",
+        "content_digest": "9115029cb0298df0",
         "observation_type": "generation"
       },
       {
         "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_016kso9qBwhDShh3UY4zRSdE\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
-        "content_digest": "d701d93ca4b2a9d8",
+        "content": "80% chance of rain in Tokyo tomorrow.",
+        "content_digest": "f7766fc45a2960c6",
         "observation_type": "generation"
       },
       {

@@ -706,6 +706,32 @@ range. Each versioned capture directory (`native@<version>[+<profile>]`) must ma
 - `make harden-spec` model-checks the precedence, three-valued logic, claiming and content-chain models in
   `server/specs/`; the domain tests hold the engine to the same manifests (`UPDATE_SPECS=1` regenerates them).
 
+## The canonical tool result
+
+A tool result's content is what the tool returned, and there is exactly one way to store each return value:
+
+- **One structured value is that value**, where it is not block-shaped: `[{"type": "json", "data": X}]`
+  normalises to `X`. Block-shaped means `X` carries a string `type`, a member the message vocabulary reads
+  as a content block, or a shape a declared case reads as a block (a MIME type beside data, an MCP tool result) -
+  the content chain's own reading decides. Unwrapped, a tool returning `{"type": "text", "text": "..."}` would be re-read as the
+  text block it is spelled like, so that wrapper is a distinction and stays.
+- **One text is its string**: `[{"type": "text", "text": T}]` normalises to `T` - unless the part carries
+  anything beyond its text, such as citations, which a string cannot hold.
+- **Everything else stays a list of blocks**: several parts, a typed part of any other kind, and a primitive,
+  which keeps its `json` part (a json number is not text).
+- **Only a part the producer typed collapses.** A tool that returned a list of one value returned that list,
+  not its element, so `[X]` stays `[X]` - spelled with its bare element, never as `[{"type": "json", "data":
+  X}]`, which is a typed part and would collapse when the stored result is read again. The evidence is a member
+  holding the return value itself, such as a result block's `result`; a message's `content` list is a list of
+  parts, so its one untyped element is a part and collapses.
+- **One datum written twice is one value.** A producer that writes a value beside its own wrapping wrote it
+  once; deduplication keeps one part, and that part collapses as the wrapping alone does.
+
+Releases that differ only in which of the two spellings they write therefore read as the same result, the form
+is a fixed point - reading a stored result again gives the same result - and a result's identity for
+deduplication follows the same rule, so every spelling of one result hashes alike and nothing it keeps apart
+merges.
+
 <!-- BEGIN GENERATED FROM server/assets/rules.schema.json: UPDATE_DOCS=1 cargo test --locked -p sideseat-server --test repository rule_language -->
 
 ## Reference
@@ -1914,9 +1940,9 @@ What a tool returned.
 
 How a tool result's content is shaped once it has been selected.
 
-- `"normalized"`: Normalised as a returned value: a list's members as blocks, a provider block as that block, anything else as it stands.
+- `"normalized"`: Normalised as a returned value: a list's members as blocks, a provider block as that block, anything else as it stands - and one part a producer typed that encodes nothing beyond its value is that value (see the guide's canonical tool result).
 - `"value"`: The same, and then a list of blocks reduced to the value it holds - a lone text is its string, a lone structured value is that value - which is the form a tool-role message's content takes. For a format that writes a result as a list of blocks, so one result reads alike however it was written.
-- `"blocks"`: A list of content blocks built from the value: Python constructor reprs where it holds them, otherwise structured data as one `json` block, text as one `text` block, and nothing as an empty list. For a format whose response member holds what the tool returned, encoded or not.
+- `"blocks"`: Content blocks built from the value: Python constructor reprs where it holds them, and nothing as an empty list. One structured value that is not block-shaped is that value, and one text is its string, as the canonical tool result says; a block-shaped value or a primitive is one `json` block. For a format whose response member holds what the tool returned, encoded or not.
 
 ### `JsonDataBlock`
 

@@ -95,6 +95,69 @@ pub use normalize::{SideMLMessage, to_sideml, to_sideml_batch, to_sideml_with_co
 pub mod test_support {
     pub use super::provenance::PositionPath;
 
+    /// Whether the canonical collapse to `value` is one the source allows: never where the source holds a
+    /// one-element list whose element is that value - the tool's own list, which stays a list.
+    pub fn collapse_allowed_by_source(
+        source: &serde_json::Value,
+        value: &serde_json::Value,
+    ) -> bool {
+        fn holds_listed(node: &serde_json::Value, value: &serde_json::Value, depth: usize) -> bool {
+            if depth > 64 {
+                return false;
+            }
+            match node {
+                serde_json::Value::Array(items) => {
+                    (items.len() == 1 && &items[0] == value)
+                        || items
+                            .iter()
+                            .any(|item| holds_listed(item, value, depth + 1))
+                }
+                serde_json::Value::Object(members) => members
+                    .values()
+                    .any(|member| holds_listed(member, value, depth + 1)),
+                serde_json::Value::String(text) => serde_json::from_str::<serde_json::Value>(text)
+                    .ok()
+                    .filter(|decoded| decoded.is_array() || decoded.is_object())
+                    .is_some_and(|decoded| holds_listed(&decoded, value, depth + 1)),
+                _ => false,
+            }
+        }
+        !holds_listed(source, value, 0)
+    }
+
+    /// A tool result with its content in canonical form: one part that encodes nothing beyond its value is
+    /// that value (`content::single_part_value`) - or, where `source` holds the value as the one element of its
+    /// own list, that list, spelled with its bare element; and a block-shaped object keeps its json part. For an
+    /// equivalence oracle comparing against a reader that predates the rule.
+    pub fn with_canonical_result_content(
+        mut value: serde_json::Value,
+        source: &serde_json::Value,
+    ) -> serde_json::Value {
+        if value.get("type").and_then(serde_json::Value::as_str) == Some("tool_result")
+            && let Some(serde_json::Value::Array(parts)) = value.get("content")
+            && let [part] = parts.as_slice()
+            && let Some(single) =
+                super::content::single_part_value(&crate::rules::ruleset().content_blocks, part)
+        {
+            value["content"] = if collapse_allowed_by_source(source, &single) {
+                single
+            } else {
+                serde_json::json!([single])
+            };
+        } else if value.get("type").and_then(serde_json::Value::as_str) == Some("tool_result")
+            && let Some(content) = value.get("content").filter(|content| content.is_object())
+            && !super::content::is_bare_structured_value(
+                &crate::rules::ruleset().content_blocks,
+                content,
+            )
+        {
+            // A block-shaped value keeps its json part: unwrapped, the chain re-reads it as the block it is
+            // spelled like, which a retired reader that unwrapped every json part did not ask.
+            value["content"] = serde_json::json!([{"type": "json", "data": content.clone()}]);
+        }
+        value
+    }
+
     pub fn message_structure_keys_legacy() -> &'static [&'static str] {
         super::message_structure_keys_legacy()
     }

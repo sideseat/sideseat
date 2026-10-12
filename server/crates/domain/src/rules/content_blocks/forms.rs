@@ -6,7 +6,7 @@ use serde_json::{Value as JsonValue, json};
 use super::super::schema::{
     CitationsSpec, MediaBlock, MediaSource, MissingMediaType, ProviderRunSpec, ValueSource,
 };
-use super::{call_id, member, predicates_hold, query, result_blocks, usable_member};
+use super::{call_id, member, predicates_hold, query, usable_member};
 
 /// The citations a text states, each read by the first case whose condition holds. A citation no case reads, or
 /// one that names no source, is kept as `unknown` with the provider's item, so a shape nothing reads yet is seen.
@@ -196,4 +196,35 @@ pub(super) fn media_block(block: &JsonValue, spec: &MediaBlock) -> Option<JsonVa
         result.insert("detail".to_string(), json!(detail));
     }
     Some(JsonValue::Object(result))
+}
+
+/// What a tool returned, as a list of content blocks. See [`ResultContent::Blocks`].
+///
+/// Under the caller's plan, never the global ruleset: this runs while a plan's own literals are validated,
+/// inside the ruleset's compilation.
+pub(super) fn result_blocks(
+    plan: &super::ContentBlockPlan,
+    selected: Option<JsonValue>,
+) -> JsonValue {
+    let Some(value) = selected else {
+        return json!([]);
+    };
+    // A tool result's content is what the tool returned (`sideml::content::single_part_value`): one structured
+    // value is that value and one text is that string, where the part around it encodes nothing - so one
+    // release writing the part where the previous wrote the value does not make the same result two results.
+    if let Some(blocks) =
+        crate::sideml::content::try_normalize_python_constructor_content(plan, &value)
+    {
+        if let JsonValue::Array(parts) = &blocks
+            && let [part] = parts.as_slice()
+            && let Some(value) = crate::sideml::content::single_part_value(plan, part)
+        {
+            return value;
+        }
+        return blocks;
+    }
+    if crate::sideml::content::is_bare_structured_value(plan, &value) || value.is_string() {
+        return value;
+    }
+    json!([{"type": "json", "data": value}])
 }

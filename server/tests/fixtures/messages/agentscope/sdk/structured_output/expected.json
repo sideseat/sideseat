@@ -67,8 +67,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01H4Bxv2xoYQuBLAqQECJ8Nv\",\"name\":\"GenerateStructuredOutput\",\"content\":[{\"type\":\"text\",\"text\":\"Structured output generated successfully.\"}]}",
-          "content_digest": "fbb6ef3dc04d7ceb",
+          "content": "Structured output generated successfully.",
+          "content_digest": "f16c3d658cb7985e",
           "tool_name": "GenerateStructuredOutput",
           "observation_type": "tool"
         }
@@ -156,8 +156,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01H4Bxv2xoYQuBLAqQECJ8Nv\",\"name\":\"GenerateStructuredOutput\",\"content\":[{\"type\":\"text\",\"text\":\"Structured output generated successfully.\"}]}",
-          "content_digest": "fbb6ef3dc04d7ceb",
+          "content": "Structured output generated successfully.",
+          "content_digest": "f16c3d658cb7985e",
           "tool_name": "GenerateStructuredOutput",
           "observation_type": "tool"
         },
@@ -218,8 +218,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01H4Bxv2xoYQuBLAqQECJ8Nv\",\"name\":\"GenerateStructuredOutput\",\"content\":[{\"type\":\"text\",\"text\":\"Structured output generated successfully.\"}]}",
-          "content_digest": "fbb6ef3dc04d7ceb",
+          "content": "Structured output generated successfully.",
+          "content_digest": "f16c3d658cb7985e",
           "tool_name": "GenerateStructuredOutput",
           "observation_type": "tool"
         },
@@ -260,8 +260,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01H4Bxv2xoYQuBLAqQECJ8Nv\",\"name\":\"GenerateStructuredOutput\",\"content\":[{\"type\":\"text\",\"text\":\"Structured output generated successfully.\"}]}",
-        "content_digest": "fbb6ef3dc04d7ceb",
+        "content": "Structured output generated successfully.",
+        "content_digest": "f16c3d658cb7985e",
         "tool_name": "GenerateStructuredOutput",
         "observation_type": "tool"
       },

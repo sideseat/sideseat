@@ -48,8 +48,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"content\":[{\"type\":\"text\",\"text\":\"Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs.\\n\\n| | Day 1 (today) | …[935 chars]",
-          "content_digest": "f121f4869621cc70",
+          "content": "Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs. | | Day 1 (today) | Day 2 (tomorrow) | |---|---|---| | **Sky** | Sunny | Sunny | | **High** | 21 °C | 22 °C | | **Low** | Not avail…[809 chars]",
+          "content_digest": "bffa5c92ac47c70c",
           "observation_type": "generation"
         },
         {
@@ -186,8 +186,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona, Spain\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": …[272 chars]",
-          "content_digest": "5dd7455fc898bfe9",
+          "content": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "81b627bb8f2d1056",
           "observation_type": "generation"
         },
         {
@@ -213,8 +213,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"content\":[{\"type\":\"text\",\"text\":\"Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs.\\n\\n…[955 chars]",
-          "content_digest": "ce96ff9f432d4d91",
+          "content": "Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs. | | Day 1 (today) | Day 2 (tomorrow) | |---|---|---| | **Sky** | Sunny | Sunny | | **High** | 21 °C | 22 °C | | **Low** | Not avail…[809 chars]",
+          "content_digest": "ed553fdfc0fe54cd",
           "tool_name": "TeamAssign",
           "observation_type": "tool"
         }
@@ -242,8 +242,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona, Spain\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 21}, {\\\"day\\…[293 chars]",
-          "content_digest": "7ccc681528fa5ec6",
+          "content": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "755a3bb4d047b117",
           "tool_name": "get_weather",
           "observation_type": "tool"
         }
@@ -422,8 +422,8 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona, Spain\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 21}, {\\\"day\\…[293 chars]",
-          "content_digest": "7ccc681528fa5ec6",
+          "content": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "755a3bb4d047b117",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -440,8 +440,8 @@
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"content\":[{\"type\":\"text\",\"text\":\"Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs.\\n\\n…[955 chars]",
-          "content_digest": "ce96ff9f432d4d91",
+          "content": "Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs. | | Day 1 (today) | Day 2 (tomorrow) | |---|---|---| | **Sky** | Sunny | Sunny | | **High** | 21 °C | 22 °C | | **Low** | Not avail…[809 chars]",
+          "content_digest": "ed553fdfc0fe54cd",
           "tool_name": "TeamAssign",
           "observation_type": "tool"
         },
@@ -545,8 +545,8 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona, Spain\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 21}, {\\\"day\\…[293 chars]",
-          "content_digest": "7ccc681528fa5ec6",
+          "content": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "755a3bb4d047b117",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -563,8 +563,8 @@
           "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"content\":[{\"type\":\"text\",\"text\":\"Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs.\\n\\n…[955 chars]",
-          "content_digest": "ce96ff9f432d4d91",
+          "content": "Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs. | | Day 1 (today) | Day 2 (tomorrow) | |---|---|---| | **Sky** | Sunny | Sunny | | **High** | 21 °C | 22 °C | | **Low** | Not avail…[809 chars]",
+          "content_digest": "ed553fdfc0fe54cd",
           "tool_name": "TeamAssign",
           "observation_type": "tool"
         },
@@ -611,8 +611,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"content\":[{\"type\":\"text\",\"text\":\"Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs.\\n\\n…[955 chars]",
-        "content_digest": "ce96ff9f432d4d91",
+        "content": "Here is the Barcelona forecast for the next two days. The tool returned only sky conditions and daily highs. | | Day 1 (today) | Day 2 (tomorrow) | |---|---|---| | **Sky** | Sunny | Sunny | | **High** | 21 °C | 22 °C | | **Low** | Not avail…[809 chars]",
+        "content_digest": "ed553fdfc0fe54cd",
         "tool_name": "TeamAssign",
         "observation_type": "tool"
       },
@@ -629,8 +629,8 @@
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona, Spain\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 21}, {\\\"day\\…[293 chars]",
-        "content_digest": "7ccc681528fa5ec6",
+        "content": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+        "content_digest": "755a3bb4d047b117",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },

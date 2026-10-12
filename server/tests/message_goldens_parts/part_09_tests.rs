@@ -49,6 +49,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         reasoning_items: usize,
         cited_texts: usize,
         provider_runs: usize,
+        canonical_results: usize,
         disagreements: Vec<String>,
     }
     impl Oracle {
@@ -109,6 +110,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
                         Some((_, disagreement)) => match stated_difference(value) {
                             Some(Stated::CitedText) => self.cited_texts += 1,
                             Some(Stated::ProviderRun) => self.provider_runs += 1,
+                            Some(Stated::CanonicalResult) => self.canonical_results += 1,
                             None => self.disagreements.push(disagreement),
                         },
                         None => {}
@@ -136,6 +138,15 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
                 Stated::CitedText
             } else if runs_what_it_named(value, &declared, retired.as_ref()) {
                 Stated::ProviderRun
+            } else if retired.as_ref().is_some_and(|retired| {
+                sideseat_domain::sideml::test_support::with_canonical_result_content(
+                    retired.clone(),
+                    value,
+                ) == declared
+            }) {
+                // The canonical-form rule: a tool result whose one part encodes nothing beyond its value is
+                // that value - the same result, and the only difference.
+                Stated::CanonicalResult
             } else {
                 return None;
             };
@@ -218,6 +229,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
     enum Stated {
         CitedText,
         ProviderRun,
+        CanonicalResult,
     }
 
     // The excuses see as much as the oracle: a citation that changes the text, or a provider run read under
@@ -273,6 +285,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         reasoning_items: 0,
         cited_texts: 0,
         provider_runs: 0,
+        canonical_results: 0,
         disagreements: Vec::new(),
     };
     let mut files = 0_usize;
@@ -364,6 +377,10 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
     assert!(
         oracle.provider_runs > 0,
         "no captured provider-run block: the stated difference covers nothing"
+    );
+    assert!(
+        oracle.canonical_results > 0,
+        "no captured one-part tool result: the stated difference covers nothing"
     );
     oracle.disagreements.sort();
     oracle.disagreements.dedup();

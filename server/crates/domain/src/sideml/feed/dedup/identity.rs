@@ -5,13 +5,17 @@ mod canonical_json;
 mod delta_occurrence;
 mod own_output;
 mod plain_occurrence;
+mod result_identity;
 mod wrappers;
 
-#[cfg(test)]
-pub(in crate::sideml::feed) use canonical_json::normalize_structured_json_for_hash;
 pub(in crate::sideml::feed) use canonical_json::{
-    hash_json_into, hash_structured_json_into, hash_tool_input_into, normalize_json_for_hash,
+    hash_json_into, hash_structured_json_into, hash_tool_input_into,
 };
+#[cfg(test)]
+pub(in crate::sideml::feed) use canonical_json::{
+    normalize_json_for_hash, normalize_structured_json_for_hash,
+};
+pub(in crate::sideml::feed) use result_identity::hash_tool_result_content_into;
 use wrappers::{call_id, restates};
 pub(in crate::sideml::feed) use wrappers::{emitted_below_a_wrapper, generation_wrappers};
 
@@ -881,84 +885,6 @@ fn compute_tool_use_id_hash(tool_use_id: &str) -> u64 {
     "tool_result_by_id".hash(&mut hasher);
     tool_use_id.hash(&mut hasher);
     hasher.finish()
-}
-
-/// Feed a tool result's canonical form to a hasher, unwrapping the shapes frameworks wrap them in.
-///
-/// A tool result arrives wrapped differently per framework - a bare string, an array of content
-/// blocks, `{"json": ...}`, `{"type": "text", "text": ...}`, `{"type": "json", "data": ...}` - and two
-/// wrappings of one answer must hash alike. The array-with-text branch still builds its joined text,
-/// which is small by construction: the megabytes live in image blocks, which yield no text and so take
-/// the streaming JSON path.
-pub(in crate::sideml::feed) fn hash_tool_result_content_into<H: Hasher>(
-    content: &serde_json::Value,
-    hasher: &mut H,
-) {
-    use serde_json::Value as JsonValue;
-    match content {
-        JsonValue::String(s) => s.trim().hash(hasher),
-        JsonValue::Array(arr) => {
-            let texts: Vec<String> = arr.iter().filter_map(extract_text_from_block).collect();
-            if texts.is_empty() {
-                hash_json_into(content, hasher);
-            } else {
-                texts.join("\n").trim().hash(hasher);
-            }
-        }
-        JsonValue::Object(obj) => {
-            if let Some(inner) = structured_value_under(obj) {
-                return hash_json_into(inner, hasher);
-            }
-            if obj.get("type").and_then(|t| t.as_str()) == Some("text")
-                && let Some(text) = obj.get("text").and_then(|t| t.as_str())
-            {
-                return text.trim().hash(hasher);
-            }
-            if obj.get("type").and_then(|t| t.as_str()) == Some("json")
-                && let Some(data) = obj.get("data")
-            {
-                if let Some(inner) = data.as_object().and_then(structured_value_under) {
-                    return hash_json_into(inner, hasher);
-                }
-                return hash_json_into(data, hasher);
-            }
-            hash_json_into(content, hasher)
-        }
-        _ => content.to_string().hash(hasher),
-    }
-}
-
-/// The value an object wraps, under a member declared `wraps_structured_value`, whatever sits beside it.
-fn structured_value_under(
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> Option<&serde_json::Value> {
-    crate::rules::ruleset()
-        .message_members
-        .structured_value_wrapper()
-        .find_map(|member| object.get(member))
-}
-
-/// Extract text from a content block for normalization.
-fn extract_text_from_block(block: &serde_json::Value) -> Option<String> {
-    let obj = block.as_object()?;
-    let block_type = obj.get("type").and_then(|t| t.as_str())?;
-
-    match block_type {
-        "text" => obj
-            .get("text")
-            .and_then(|t| t.as_str())
-            .map(|s| s.trim().to_string()),
-        "json" => {
-            if let Some(data) = obj.get("data") {
-                if let Some(inner) = data.as_object().and_then(structured_value_under) {
-                    return Some(normalize_json_for_hash(inner));
-                }
-                return Some(normalize_json_for_hash(data));
-            }
-            None
-        }
-        _ => None,
-    }
 }
 
 /// Compute hash of semantic content (excludes enrichment/metadata blocks).

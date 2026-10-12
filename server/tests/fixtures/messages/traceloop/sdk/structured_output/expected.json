@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
-          "content_digest": "3e6da0846f283688",
+          "content": "Plan recorded.",
+          "content_digest": "3b67b2869bedfe62",
           "observation_type": "generation"
         },
         {
@@ -157,8 +157,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
-          "content_digest": "3e6da0846f283688",
+          "content": "Plan recorded.",
+          "content_digest": "3b67b2869bedfe62",
           "observation_type": "generation"
         },
         {
@@ -216,8 +216,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
-          "content_digest": "3e6da0846f283688",
+          "content": "Plan recorded.",
+          "content_digest": "3b67b2869bedfe62",
           "observation_type": "generation"
         },
         {
@@ -257,8 +257,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
-        "content_digest": "3e6da0846f283688",
+        "content": "Plan recorded.",
+        "content_digest": "3b67b2869bedfe62",
         "observation_type": "generation"
       },
       {

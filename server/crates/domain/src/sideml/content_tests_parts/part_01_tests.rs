@@ -19,15 +19,11 @@ fn a_returned_value_keeps_its_own_members() {
     );
     // In an array: the same members survive. What matters is that `value` is still there - stripping it
     // would report the tool as having returned `{"amount": 7}`.
-    let elements = in_array.as_array().expect("an array of blocks");
-    assert_eq!(elements.len(), 1);
-    let data = elements[0]
-        .get("data")
-        .or_else(|| elements[0].get("raw"))
-        .expect("the block carries what was returned");
-    assert!(
-        data.get("value").is_some(),
-        "the returned member survived normalisation: {in_array}"
+    // The tool's own list of one, spelled with its bare element.
+    assert_eq!(
+        in_array,
+        json!([{"value": {"amount": 7}}]),
+        "the returned member survived normalisation"
     );
 }
 

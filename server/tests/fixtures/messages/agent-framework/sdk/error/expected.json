@@ -85,8 +85,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"content\":[{\"type\":\"text\",\"text\":\"Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "6b370f58f79a5425",
+          "content": "Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "294cca1bccbfd975",
           "observation_type": "generation"
         },
         {
@@ -188,8 +188,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"content\":[{\"type\":\"text\",\"text\":\"Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "6b370f58f79a5425",
+          "content": "Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "294cca1bccbfd975",
           "observation_type": "agent"
         },
         {
@@ -255,8 +255,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"content\":[{\"type\":\"text\",\"text\":\"Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "6b370f58f79a5425",
+          "content": "Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "294cca1bccbfd975",
           "observation_type": "agent"
         },
         {
@@ -324,8 +324,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"content\":[{\"type\":\"text\",\"text\":\"Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-          "content_digest": "6b370f58f79a5425",
+          "content": "Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "294cca1bccbfd975",
           "observation_type": "agent"
         },
         {
@@ -410,8 +410,8 @@
         "index": 5,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"content\":[{\"type\":\"text\",\"text\":\"Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}]}",
-        "content_digest": "6b370f58f79a5425",
+        "content": "Error: Function failed. Exception: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+        "content_digest": "294cca1bccbfd975",
         "observation_type": "agent"
       }
     ]

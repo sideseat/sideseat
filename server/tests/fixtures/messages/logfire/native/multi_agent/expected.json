@@ -83,8 +83,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "12f4472bd7bf56fc",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "81763ab7116c7078",
           "observation_type": "generation"
         },
         {
@@ -214,8 +214,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "12f4472bd7bf56fc",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "81763ab7116c7078",
           "observation_type": "generation"
         },
         {
@@ -298,8 +298,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "12f4472bd7bf56fc",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "81763ab7116c7078",
           "observation_type": "generation"
         },
         {
@@ -380,8 +380,8 @@
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-        "content_digest": "12f4472bd7bf56fc",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bb097eb249e357aeba95b89a0a628f65\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "81763ab7116c7078",
         "observation_type": "generation"
       },
       {

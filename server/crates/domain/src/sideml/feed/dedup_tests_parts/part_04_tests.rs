@@ -144,3 +144,249 @@ fn a_restated_member_lands_on_its_original_s_rank() {
     );
     assert_eq!(survivors.len(), 3, "{survivors:?}");
 }
+
+/// A result's identity keeps the distinctions the canonical form keeps: a one-element list left standing is
+/// the tool's own list, and a part with citations or a non-text sibling says more than its text - each hashed
+/// as joined text merged distinct results. A list of plain text parts is still its joined text.
+#[test]
+fn a_result_identity_keeps_what_the_canonical_form_keeps() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let text = |t: &str| serde_json::json!({"type": "text", "text": t});
+    assert_ne!(
+        hash(serde_json::json!(["ok"])),
+        hash(serde_json::json!("ok")),
+        "the tool's own list of one"
+    );
+    assert_eq!(
+        hash(serde_json::json!([text("ok")])),
+        hash(serde_json::json!("ok")),
+        "a plain text part is its text"
+    );
+    assert_ne!(
+        hash(serde_json::json!([text("a"), {"type": "image", "source": "url", "data": "u"}])),
+        hash(serde_json::json!([text("a"), text("b")]))
+    );
+    let cited = serde_json::json!({"type": "text", "text": "a", "citations": [{"kind": "url"}]});
+    assert_ne!(
+        hash(serde_json::json!([cited, text("b")])),
+        hash(serde_json::json!([text("a"), text("b")]))
+    );
+    assert_eq!(
+        hash(serde_json::json!([text("a"), text("b")])),
+        hash(serde_json::json!("a\nb")),
+        "plain text parts are their joined text"
+    );
+}
+
+/// Every spelling the canonical form treats as one result hashes as one, and nothing it keeps apart merges:
+/// a json part is its data beside siblings as alone, a typed object standing as the content is the list holding
+/// it, and a text with citations is not its text.
+#[test]
+fn a_result_identity_follows_the_canonical_form() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let datum = serde_json::json!({"city": "Paris"});
+    let part = serde_json::json!({"type": "json", "data": datum.clone()});
+    assert_eq!(hash(serde_json::json!([part.clone()])), hash(datum.clone()));
+    assert_eq!(hash(part.clone()), hash(datum.clone()));
+    assert_ne!(
+        hash(serde_json::json!([datum.clone()])),
+        hash(datum.clone())
+    );
+    let text = serde_json::json!({"type": "text", "text": "a"});
+    assert_eq!(
+        hash(serde_json::json!([text.clone(), part])),
+        hash(serde_json::json!([text, datum])),
+        "a json sibling is its data, wrapped or not"
+    );
+    let cited = |source: &str| serde_json::json!({"type": "text", "text": "a", "citations": [{"kind": "url", "source": source}]});
+    assert_eq!(hash(cited("s")), hash(serde_json::json!([cited("s")])));
+    assert_ne!(hash(cited("s")), hash(cited("t")));
+    assert_ne!(hash(cited("s")), hash(serde_json::json!("a")));
+    let extra = serde_json::json!({"type": "json", "data": {"ok": true}, "note": 1});
+    assert_ne!(hash(extra), hash(serde_json::json!({"ok": true})));
+}
+
+/// A json part is its data only where the data is plain - nothing the content chain reads as a block - and a
+/// returned list is its elements however it was wrapped: a json-wrapped value spelled like an image is not the
+/// image, and one list returned through two readers is one answer.
+#[test]
+fn a_result_identity_unwraps_only_plain_data() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let image =
+        serde_json::json!({"type": "image", "source": "url", "data": "https://example.com/a.png"});
+    let text = serde_json::json!({"type": "text", "text": "done"});
+    assert_ne!(
+        hash(serde_json::json!([{"type": "json", "data": image.clone()}, text.clone()])),
+        hash(serde_json::json!([image, text])),
+        "returned JSON spelled like an image is not the image"
+    );
+    let media = serde_json::json!({"mime_type": "image/png", "data": "AAAA"});
+    assert_ne!(
+        hash(serde_json::json!([{"type": "json", "data": media.clone()}])),
+        hash(media),
+        "an untyped shape a case reads as a block keeps its part"
+    );
+    let city = serde_json::json!({"city": "Paris"});
+    assert_eq!(
+        hash(serde_json::json!([{"type": "json", "data": [city.clone()]}])),
+        hash(serde_json::json!([city])),
+        "a returned list of one, wrapped or listed"
+    );
+    assert_eq!(
+        hash(serde_json::json!([{"type": "json", "data": ["a", "b"]}])),
+        hash(serde_json::json!([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}])),
+        "a returned list of strings is its texts"
+    );
+    assert_eq!(
+        hash(serde_json::json!([{"type": "json", "data": ["a"]}])),
+        hash(serde_json::json!(["a"]))
+    );
+    assert_ne!(hash(serde_json::json!(["a"])), hash(serde_json::json!("a")));
+}
+
+/// The identity guards hold under a declared structured-value wrapper, for a reader's `unknown` primitive
+/// elements, and at any depth a parse produces.
+#[test]
+fn a_result_identity_guards_wrappers_primitives_and_depth() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let image = serde_json::json!({"type": "image", "source": "url", "data": "u"});
+    let text = serde_json::json!({"type": "text", "text": "done"});
+    assert_ne!(
+        hash(serde_json::json!([{"type": "json", "data": {"json": image.clone()}}, text.clone()])),
+        hash(serde_json::json!([image, text]))
+    );
+    assert_eq!(
+        hash(serde_json::json!([{"type": "unknown", "raw": 7}])),
+        hash(serde_json::json!([{"type": "json", "data": [7]}]))
+    );
+    let mut deep = serde_json::json!({"city": "Paris"});
+    for _ in 0..9 {
+        deep = serde_json::json!([deep]);
+    }
+    assert_eq!(
+        hash(deep.clone()),
+        hash(serde_json::json!([{"type": "json", "data": deep}]))
+    );
+}
+
+/// A json part around a declared wrapper keeps its distinction from the bare value, as the canonical form does.
+#[test]
+fn a_wrapped_value_in_a_json_part_is_not_the_bare_value() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let city = serde_json::json!({"city": "Paris"});
+    assert_ne!(
+        hash(serde_json::json!([{"type": "json", "data": {"json": city.clone()}}])),
+        hash(city)
+    );
+}
+
+/// A scalar result and its replay through a json part are one result, as they were before the canonical form.
+#[test]
+fn a_scalar_result_and_its_wrapped_replay_hash_alike() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    for scalar in [
+        serde_json::json!(7),
+        serde_json::json!(true),
+        serde_json::json!(null),
+    ] {
+        assert_eq!(
+            hash(scalar.clone()),
+            hash(serde_json::json!([{"type": "json", "data": scalar}]))
+        );
+    }
+}
+
+/// A declared wrapper's value is the value however it is listed, and a scalar is the text it renders as - one
+/// producer states a result both ways.
+#[test]
+fn a_result_identity_reads_wrappers_as_values_and_scalars_as_their_text() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let city = serde_json::json!({"city": "Paris"});
+    assert_eq!(
+        hash(serde_json::json!({"json": [city.clone()]})),
+        hash(serde_json::json!([city]))
+    );
+    assert_eq!(
+        hash(serde_json::json!({"json": 7})),
+        hash(serde_json::json!({"type": "json", "data": 7}))
+    );
+    for (scalar, text) in [
+        (serde_json::json!(7), "7"),
+        (serde_json::json!(true), "true"),
+        (serde_json::json!(null), "null"),
+    ] {
+        let text = serde_json::json!(text);
+        assert_eq!(
+            hash(serde_json::json!({"type": "json", "data": scalar.clone()})),
+            hash(text.clone())
+        );
+        assert_eq!(
+            hash(serde_json::json!([{"type": "json", "data": scalar.clone()}])),
+            hash(text.clone())
+        );
+        assert_eq!(hash(scalar), hash(text));
+    }
+}
+
+/// A declared wrapper around block-shaped data is returned JSON, as a json part around it is - neither is the
+/// blocks it is spelled like.
+#[test]
+fn a_wrapped_block_list_is_returned_json_not_the_blocks() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let image = serde_json::json!({"type": "image", "source": "url", "data": "u"});
+    assert_ne!(
+        hash(serde_json::json!({"json": [image.clone()]})),
+        hash(serde_json::json!([image.clone()]))
+    );
+    assert_ne!(
+        hash(serde_json::json!({"type": "json", "data": [image.clone()]})),
+        hash(serde_json::json!([image]))
+    );
+}
+
+/// A declared wrapper around block-shaped data is a json part by another spelling, and hashes as one.
+#[test]
+fn a_wrapped_block_list_hashes_as_its_json_part() {
+    let hash = |content: serde_json::Value| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        super::identity::hash_tool_result_content_into(&content, &mut hasher);
+        std::hash::Hasher::finish(&hasher)
+    };
+    let image = serde_json::json!({"type": "image", "source": "url", "data": "u"});
+    assert_eq!(
+        hash(serde_json::json!({"json": [image.clone()]})),
+        hash(serde_json::json!([{"type": "json", "data": [image]}]))
+    );
+}

@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
-          "content_digest": "938413a7e0cd11ce",
+          "content": "Plan recorded.",
+          "content_digest": "c4279d3140397298",
           "observation_type": "generation"
         },
         {
@@ -178,8 +178,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
-          "content_digest": "938413a7e0cd11ce",
+          "content": "Plan recorded.",
+          "content_digest": "c4279d3140397298",
           "observation_type": "agent"
         }
       ]

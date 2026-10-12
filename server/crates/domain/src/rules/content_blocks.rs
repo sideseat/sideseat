@@ -819,14 +819,19 @@ fn built(
                 crate::sideml::content::normalize_tool_result_content_in(plan, selected)
             }
             ResultContent::Value => {
-                match crate::sideml::content::normalize_tool_result_content_in(plan, selected) {
-                    JsonValue::Array(blocks) => {
-                        crate::sideml::content::create_inner_content(&blocks)
-                    }
+                match crate::sideml::content::normalize_tool_result_content_in(
+                    plan,
+                    selected.clone(),
+                ) {
+                    JsonValue::Array(blocks) => crate::sideml::content::canonical_inner_content(
+                        plan,
+                        &blocks,
+                        selected.as_ref(),
+                    ),
                     other => other,
                 }
             }
-            ResultContent::Blocks => result_blocks(plan, selected),
+            ResultContent::Blocks => forms::result_blocks(plan, selected),
         };
         let is_error = usable_member(block, &spec.is_error, false, JsonValue::is_boolean)
             .and_then(|flag| flag.as_bool())
@@ -971,25 +976,6 @@ impl NormalisationDepth {
 impl Drop for NormalisationDepth {
     fn drop(&mut self) {
         NORMALISATION_DEPTH.with(|depth| depth.set(depth.get() - 1));
-    }
-}
-
-/// What a tool returned, as a list of content blocks. See [`ResultContent::Blocks`].
-///
-/// Under the caller's plan, never the global ruleset: this runs while a plan's own literals are validated,
-/// inside the ruleset's compilation.
-fn result_blocks(plan: &ContentBlockPlan, selected: Option<JsonValue>) -> JsonValue {
-    let Some(value) = selected else {
-        return json!([]);
-    };
-    if let Some(blocks) =
-        crate::sideml::content::try_normalize_python_constructor_content(plan, &value)
-    {
-        return blocks;
-    }
-    match value {
-        JsonValue::String(text) => json!([{"type": "text", "text": text}]),
-        other => json!([{"type": "json", "data": other}]),
     }
 }
 

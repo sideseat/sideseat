@@ -12,12 +12,21 @@ pub(super) fn normalize_tool_result_content(
 ) -> JsonValue {
     match content {
         None => JsonValue::Null,
-        Some(JsonValue::Array(items)) => JsonValue::Array(
-            items
+        Some(JsonValue::Array(items)) => {
+            let blocks: Vec<JsonValue> = items
                 .iter()
                 .map(|item| normalize_nested_block(plan, item))
-                .collect(),
-        ),
+                .collect();
+            // The canonical tool result holds here as on every other path: one typed part that encodes
+            // nothing beyond its value is the value, judged against the part as the producer wrote it.
+            if let ([block], [source]) = (blocks.as_slice(), items.as_slice())
+                && let Some(content) =
+                    super::canonical_single_part(plan, block, |value| source == value)
+            {
+                return content;
+            }
+            JsonValue::Array(blocks)
+        }
         Some(value) => normalize_nested_block(plan, value),
     }
 }

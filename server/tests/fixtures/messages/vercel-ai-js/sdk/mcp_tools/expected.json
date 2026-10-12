@@ -121,8 +121,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"name\":\"calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "4f6cb607cf5f3c93",
+          "content": "395.0",
+          "content_digest": "32c0fb33d020381c",
           "tool_name": "calculate",
           "observation_type": "tool"
         }
@@ -249,8 +249,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"name\":\"calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "4f6cb607cf5f3c93",
+          "content": "395.0",
+          "content_digest": "32c0fb33d020381c",
           "tool_name": "calculate",
           "observation_type": "tool"
         },
@@ -309,8 +309,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"name\":\"calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "4f6cb607cf5f3c93",
+          "content": "395.0",
+          "content_digest": "32c0fb33d020381c",
           "tool_name": "calculate",
           "observation_type": "tool"
         },
@@ -351,8 +351,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"name\":\"calculate\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-        "content_digest": "4f6cb607cf5f3c93",
+        "content": "395.0",
+        "content_digest": "32c0fb33d020381c",
         "tool_name": "calculate",
         "observation_type": "tool"
       },

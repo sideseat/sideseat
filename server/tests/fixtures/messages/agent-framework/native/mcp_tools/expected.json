@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_012KNQCX48oSEL75qh46eS7d\",\"content\":[{\"type\":\"json\",\"data\":{\"result\":395.0}}]}",
-          "content_digest": "0a37c8b627eba53d",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_012KNQCX48oSEL75qh46eS7d\",\"content\":{\"result\":395.0}}",
+          "content_digest": "d2119bf86f8b6057",
           "observation_type": "generation"
         },
         {
@@ -176,8 +176,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_012KNQCX48oSEL75qh46eS7d\",\"content\":[{\"type\":\"json\",\"data\":{\"result\":395.0}}]}",
-          "content_digest": "0a37c8b627eba53d",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_012KNQCX48oSEL75qh46eS7d\",\"content\":{\"result\":395.0}}",
+          "content_digest": "d2119bf86f8b6057",
           "observation_type": "agent"
         },
         {

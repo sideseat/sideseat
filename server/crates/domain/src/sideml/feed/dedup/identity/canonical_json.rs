@@ -2,7 +2,9 @@
 
 use std::hash::{Hash, Hasher};
 
-/// Normalize JSON for consistent hashing: sort object keys.
+/// Normalize JSON for consistent hashing: sort object keys. The materialised form, kept as the oracle the
+/// streaming [`hash_json_into`] is tested against.
+#[cfg(test)]
 pub(in crate::sideml::feed) fn normalize_json_for_hash(value: &serde_json::Value) -> String {
     normalize_json(value, EmptyMembers::Keep)
 }
@@ -55,6 +57,7 @@ impl EmptyMembers {
     }
 }
 
+#[cfg(test)]
 fn normalize_json(value: &serde_json::Value, empty: EmptyMembers) -> String {
     use serde_json::Value as JsonValue;
     match value {

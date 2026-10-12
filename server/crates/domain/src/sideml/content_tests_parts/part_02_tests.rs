@@ -24,12 +24,13 @@ fn test_tool_result_deduplication() {
     ]);
 
     let result = normalize_tool_result_content(Some(content));
-    let arr = result.as_array().unwrap();
 
-    // Both blocks normalize to the same {type: "json", data: ...}
-    // Deduplication should keep only one
-    assert_eq!(arr.len(), 1);
-    assert_eq!(arr[0]["type"], "json");
+    // Both blocks normalize to the same {type: "json", data: ...}; deduplication keeps one, and that one part
+    // is the value it wraps - the canonical form, as the wrapping alone would read.
+    assert_eq!(
+        result,
+        json!({"status": "success", "content": [{"json": {"city": "NYC"}}]})
+    );
 }
 
 /// Two identical parts are two occurrences, not one datum written twice.

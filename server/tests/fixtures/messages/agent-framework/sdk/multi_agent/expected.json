@@ -122,8 +122,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "d01518be81d4cd4c",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "658ebd4a7ff69fe7",
           "observation_type": "generation"
         },
         {
@@ -178,8 +178,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"content\":[{\"type\":\"text\",\"text\":\"Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for.\\n\\n| | Day 1 | Day 2 |\\n…[994 chars]",
-          "content_digest": "1d13400cd60cbc33",
+          "content": "Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for. | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21 °C (70 °F) | 22 °C (72 °F) | | **Low** | Not pr…[868 chars]",
+          "content_digest": "4eb40f35d789d798",
           "observation_type": "generation"
         },
         {
@@ -292,8 +292,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
-          "content_digest": "d01518be81d4cd4c",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "658ebd4a7ff69fe7",
           "observation_type": "agent"
         },
         {
@@ -347,8 +347,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"content\":[{\"type\":\"text\",\"text\":\"Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for.\\n\\n| | Day 1 | Day 2 |\\n…[994 chars]",
-          "content_digest": "1d13400cd60cbc33",
+          "content": "Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for. | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21 °C (70 °F) | 22 °C (72 °F) | | **Low** | Not pr…[868 chars]",
+          "content_digest": "4eb40f35d789d798",
           "observation_type": "agent"
         },
         {

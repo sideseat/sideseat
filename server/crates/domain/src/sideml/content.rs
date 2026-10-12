@@ -37,8 +37,12 @@ pub(crate) use python_repr::{
     try_parse_python_literal,
 };
 pub(crate) use stable_hash::compute_short_hash;
+pub(crate) use tool_result::canonical_inner_content;
+use tool_result::canonical_single_part;
 pub use tool_result::convert_to_tool_result;
+#[cfg(test)]
 pub(crate) use tool_result::create_inner_content;
+pub(crate) use tool_result::{is_bare_structured_value, is_plain_value, single_part_value};
 
 /// Normalize content to Vec<ContentBlock> format.
 ///
@@ -210,7 +214,18 @@ pub(crate) fn normalize_block_in(
             Some(json!({"type": "text", "text": s}))
         };
     }
+    declared_block_in(plan, block, consult_envelopes)
+        // Finally, handle unknown formats
+        .or_else(|| try_unknown_fallback(plan, block))
+}
 
+/// What the chain reads a value as before its unknown fallback: the passthrough, the declared positions, and the
+/// cited-text fallback. `None` is a value no case reads as a block.
+pub(crate) fn declared_block_in(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+    consult_envelopes: bool,
+) -> Option<JsonValue> {
     // First check if block is already in SideML format (idempotent operation)
     try_sideml_passthrough(plan, block)
         // OpenInference nested message_content wrapper
@@ -249,8 +264,6 @@ pub(crate) fn normalize_block_in(
             )
         })
         .or_else(|| cited_text_fallback(block))
-        // Finally, handle unknown formats
-        .or_else(|| try_unknown_fallback(plan, block))
 }
 
 /// Whether a SideML tool block says the provider ran the tool, which a rebuilt block keeps.
@@ -495,10 +508,25 @@ pub(crate) fn normalize_tool_result_content_in(
                 })
                 .collect();
             if normalized.is_empty() {
-                json!(null)
-            } else {
-                json!(deduplicate_content_blocks(normalized))
+                return json!(null);
             }
+            // One part that encodes nothing beyond its value is the value, unless its source is that value - the
+            // tool's own one-element list (`canonical_single_part`).
+            if let [(block, source)] = normalized.as_slice()
+                && let Some(content) = canonical_single_part(plan, block, |value| source == value)
+            {
+                return content;
+            }
+            // Asked again after deduplication: several sources that are one datum in several encodings are a
+            // producer's wrapping of it - one source envelopes another - never a tool's list, so the one part
+            // they leave is the value, as the wrapping alone would have been.
+            let blocks = deduplicate_content_blocks(normalized);
+            if let [block] = blocks.as_slice()
+                && let Some(content) = canonical_single_part(plan, block, |_| false)
+            {
+                return content;
+            }
+            json!(blocks)
         }
         Some(JsonValue::String(s)) => json!(s), // Keep string as-is
         Some(obj @ JsonValue::Object(_)) => {

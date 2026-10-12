@@ -133,10 +133,12 @@ fn a_media_value_is_decoded_the_same_way_by_every_caller() {
 /// the same relation.
 #[test]
 fn two_positions_collapse_only_when_one_envelopes_the_other() {
-    let parts = |content: serde_json::Value| {
-        normalize_tool_result_content(Some(content))
-            .as_array()
-            .map_or(0, Vec::len)
+    // How many parts the result holds: a content that is no list is one value - the canonical form of a
+    // single part that encodes nothing beyond it.
+    let parts = |content: serde_json::Value| match normalize_tool_result_content(Some(content)) {
+        serde_json::Value::Array(items) => items.len(),
+        serde_json::Value::Null => 0,
+        _ => 1,
     };
 
     // Two encodings in two positions are both retained.
@@ -163,6 +165,11 @@ fn two_positions_collapse_only_when_one_envelopes_the_other() {
         parts(json!([{"type": "json", "value": datum}, datum])),
         1,
         "and the order does not matter"
+    );
+    assert_eq!(
+        normalize_tool_result_content(Some(json!([datum, {"type": "json", "value": datum}]))),
+        datum,
+        "the one datum is the value, as its wrapping alone reads"
     );
 
     // Two *different* data, each wrapped, stay two: containment is about one pair, not about the shape.
