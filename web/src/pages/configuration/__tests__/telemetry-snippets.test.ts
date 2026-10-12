@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -10,6 +10,10 @@ import { FRAMEWORKS, withConnection } from "../telemetry-frameworks";
  * existed, because reading the TypeScript source it lives in does not reveal it — the
  * snippet only breaks once Python parses it. So parse it with Python.
  */
+
+// Several cases here shell out to `uvx` or Python, which take seconds each on a loaded machine; under the default
+// 5 s timeout they flaked in the pre-push gate while other builds ran beside it.
+vi.setConfig({ testTimeout: 120_000 });
 
 /** The version, pinned: an unpinned `uvx pyflakes` makes the verdict depend on what PyPI serves today. */
 const PYFLAKES = "pyflakes==3.4.0";
@@ -138,15 +142,12 @@ describe("telemetry page Python snippets - undefined names", () => {
     expect(undefinedNames("x = TotallyUndefined()")).not.toEqual([]);
   });
 
-  // Each case shells out to `uvx pyflakes`, which takes seconds on a loaded machine, so the default
-  // 5 s test timeout flakes exactly when the pre-push gate runs beside other builds.
   it.each(pythonFrameworks.map((f) => [f.id, f] as const))(
     "%s: SDK snippet has no undefined names",
     (_id, f) => {
       if (!available) return;
       expect(undefinedNames(f.code()), `${f.id}:\n${f.code()}`).toEqual([]);
     },
-    60_000,
   );
 });
 
