@@ -212,3 +212,87 @@ fn an_openai_agents_request_is_read_from_its_items_unless_they_were_cut_short() 
             .any(|m| m.content["content"].as_str() == Some("Describe the image."))
     );
 }
+
+/// A tool message that states its call id under a declared member keeps it, and the span keeps its own: the span's
+/// `gen_ai.tool.call.id` is written onto a tool message only where the message states no id of its own, so where
+/// the two differ each statement stays where the producer made it.
+#[test]
+fn a_tool_message_s_stated_call_id_is_not_overwritten_by_the_span_s() {
+    use opentelemetry_proto::tonic::trace::v1::Span;
+
+    let event = |name: &str, attributes: Vec<_>| Event {
+        name: name.to_string(),
+        time_unix_nano: 1734023444422429000,
+        attributes,
+        dropped_attributes_count: 0,
+    };
+    let span = Span {
+        trace_id: vec![0; 16],
+        span_id: vec![0; 8],
+        parent_span_id: vec![],
+        name: "execute_tool my_tool".to_string(),
+        kind: 1,
+        start_time_unix_nano: 1734023444422359000,
+        end_time_unix_nano: 1734023444423724000,
+        attributes: vec![
+            make_kv("gen_ai.operation.name", "execute_tool"),
+            make_kv("gen_ai.tool.name", "my_tool"),
+            make_kv("gen_ai.tool.call.id", "call_from_span"),
+        ],
+        events: vec![
+            event(
+                "gen_ai.tool.message",
+                vec![
+                    make_kv("content", r#"{"city": "NYC"}"#),
+                    make_kv("tool_use_id", "call_stated"),
+                ],
+            ),
+            event(
+                "gen_ai.choice",
+                vec![
+                    make_kv("content", "Sunny"),
+                    make_kv("tool_use_id", "call_stated"),
+                ],
+            ),
+        ],
+        links: vec![],
+        status: None,
+        trace_state: String::new(),
+        flags: 0,
+        dropped_attributes_count: 0,
+        dropped_events_count: 0,
+        dropped_links_count: 0,
+    };
+    let span_attrs = make_attrs(&[
+        ("gen_ai.operation.name", "execute_tool"),
+        ("gen_ai.tool.name", "my_tool"),
+        ("gen_ai.tool.call.id", "call_from_span"),
+    ]);
+    let (messages, _, _) =
+        extract_messages_for_span(&span, &span_attrs, Utc::now(), ExtractionMode::FirstMatch);
+    assert_eq!(messages.len(), 2, "{messages:?}");
+    // The span's own statement stays on the span.
+    let mut span_data = crate::traces::extract::attributes::SpanData::default();
+    crate::traces::extract::attributes::tests::extract_genai_as_production_does(
+        &mut span_data,
+        &span_attrs,
+        "execute_tool my_tool",
+    );
+    assert_eq!(
+        span_data.gen_ai_tool_call_id.as_deref(),
+        Some("call_from_span")
+    );
+    for message in &messages {
+        assert_ne!(
+            message.content.get("tool_call_id").and_then(|v| v.as_str()),
+            Some("call_from_span"),
+            "the span's id overwrote the message's own: {message:?}"
+        );
+        assert_eq!(
+            sideseat_domain::sideml::tools::extract_tool_use_id(&message.content, "tool")
+                .as_deref(),
+            Some("call_stated"),
+            "{message:?}"
+        );
+    }
+}

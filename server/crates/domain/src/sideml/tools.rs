@@ -87,7 +87,7 @@ pub fn extract_tool_use_id(msg: &JsonValue, role: &str) -> Option<String> {
 
 /// The call id a message states under its own members, as [`extract_tool_use_id`] reads them: not one of its
 /// content blocks'.
-pub(crate) fn stated_tool_use_id<'m>(msg: &'m JsonValue, role: &str) -> Option<&'m str> {
+pub fn stated_tool_use_id<'m>(msg: &'m JsonValue, role: &str) -> Option<&'m str> {
     // Standard tool_call_id field (OpenAI format, any role)
     if let Some(id) = msg.get("tool_call_id").and_then(|i| i.as_str()) {
         return Some(id);

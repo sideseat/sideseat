@@ -619,17 +619,12 @@ pub(super) fn extract_messages_for_scoped_span(
                     if msg.content.get("role").is_none() {
                         msg.content["role"] = json!("tool_call");
                     }
-                    // Map "id" to "tool_call_id"
-                    if msg.content.get("tool_call_id").is_none() {
-                        let id = msg
-                            .content
-                            .get("id")
-                            .and_then(|v| v.as_str())
-                            .map(String::from)
-                            .or_else(|| tool_call_id.cloned());
-                        if let Some(id) = id {
-                            msg.content["tool_call_id"] = json!(id);
-                        }
+                    // The message's call id under `tool_call_id`, which the call reading reads: the id the message
+                    // states under a declared member, else the span's.
+                    if msg.content.get("tool_call_id").is_none()
+                        && let Some(id) = own_or_span_call_id(&msg.content, tool_call_id)
+                    {
+                        msg.content["tool_call_id"] = json!(id);
                     }
                     // Add tool name
                     if msg.content.get("name").is_none() {
@@ -645,13 +640,7 @@ pub(super) fn extract_messages_for_scoped_span(
                     // (extract_tool_use_id in sideml/tools.rs looks for tool_call_id)
                     if msg.content.get("tool_call_id").is_none() =>
                 {
-                    let id = msg
-                        .content
-                        .get("id")
-                        .and_then(|v| v.as_str())
-                        .map(String::from)
-                        .or_else(|| tool_call_id.cloned());
-                    if let Some(id) = id {
+                    if let Some(id) = own_or_span_call_id(&msg.content, tool_call_id) {
                         msg.content["tool_call_id"] = json!(id);
                     }
                 }
@@ -707,6 +696,19 @@ pub(super) fn extract_messages_for_scoped_span(
     // Debug: Log final message count
     // Debug: Log AutoGen extraction results
     (raw_messages, tool_definitions, tool_names)
+}
+
+/// The call id to write under `tool_call_id` on a tool span's message: the one the message states under a declared
+/// call-id member, or else the span's `gen_ai.tool.call.id`. A message naming its call is not made to name another;
+/// where the two differ the producer said two things, and each stays where it was said - the span's attribute on
+/// the span, the message's id on the message.
+fn own_or_span_call_id(
+    content: &serde_json::Value,
+    span_call_id: Option<&String>,
+) -> Option<String> {
+    sideseat_domain::sideml::tools::stated_tool_use_id(content, "tool")
+        .map(str::to_string)
+        .or_else(|| span_call_id.cloned())
 }
 
 #[cfg(test)]
