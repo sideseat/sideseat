@@ -1,6 +1,6 @@
 ##@ Utilities
 
-.PHONY: push push-head deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
+.PHONY: push push-head deps-check node-floor download-prices clean-stale target-budget clean-docker disk disk-guard clean
 
 deps-check: ## Report outdated dependencies
 	@./scripts/check/deps.sh
@@ -27,6 +27,10 @@ download-prices: ## Refresh model pricing data
 # Reclaim stale and incremental Cargo artifacts without removing the current build.
 clean-stale: ## Remove stale Cargo artifacts
 	@./scripts/dev/clean-stale.sh
+
+# Every worktree's Cargo target held to TARGET_CAP_GB each and TARGETS_TOTAL_GB together; ARGS=--report only lists.
+target-budget: ## Hold every worktree's Cargo target to a hard size budget
+	@./scripts/dev/target-budget.sh $(ARGS)
 
 # Docker resources created by test and benchmark targets. Keep this list explicit:
 # machine-wide prune commands can remove caches or anonymous volumes owned by other projects.
