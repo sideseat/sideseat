@@ -216,7 +216,11 @@
         "exists": true
       },
       "tool_result": {
-        "tool_use_id": "$.toolResult.toolUseId",
+        "tool_use_id": {
+          "first_of": ["$.toolResult.toolUseId", "$.toolResult.tool_use_id"],
+          "mode": "usable",
+          "doc": "The call id under the member Converse writes, then the snake_case spelling the message-members vocabulary declares for it (`members.result_call_id`): the block reads what the message-level fallback reads, so its own reading carries the id."
+        },
         "content": "$.toolResult.content",
         "content_as": "value",
         "is_error": {

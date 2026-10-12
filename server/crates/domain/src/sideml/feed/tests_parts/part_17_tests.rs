@@ -479,8 +479,83 @@ fn a_joined_stream_keeps_its_stated_call_id() {
     assert!(ids.contains(&("tool_result", Some("call-a"))), "{ids:?}");
 }
 
-/// The block an id was read from keeps it even where its own reading could not: a result whose id sits under a
-/// member the block's shape does not read still answers that call, through the message - the one carrier left.
+/// A message on both signals is one message when its copies differ only in how a call's arguments were encoded:
+/// one signal writes them as JSON text, the other as the object.
+#[test]
+fn copies_differing_only_in_argument_encoding_are_one_message() {
+    let message = |arguments: serde_json::Value, seconds: u32| {
+        json!({
+            "source": {"event": {"name": "gen_ai.assistant.message", "time": format!("2025-01-01T00:00:{seconds:02}Z")}},
+            "content": {
+                "role": "assistant",
+                "tool_calls": [{"id": "call-a", "type": "function", "function": {"name": "lookup", "arguments": arguments}}]
+            }
+        })
+    };
+    let mut row = make_span_row(
+        "trace1",
+        "model",
+        None,
+        &json!([message(json!(r#"{"city":"Paris"}"#), 1)]).to_string(),
+        "[]",
+        "[]",
+    );
+    row.observation_type = Some("generation".to_string());
+    row.log_messages_json = json!([message(json!({"city": "Paris"}), 2)]).to_string();
+    let result = process_span(vec![row], &FeedOptions::new());
+    let calls: Vec<&BlockEntry> = result
+        .messages
+        .iter()
+        .filter(|block| block.entry_type == "tool_use")
+        .collect();
+    assert_eq!(calls.len(), 1, "{:?}", result.messages);
+    // One message, so the copy kept keeps its own instant: the span's.
+    assert_eq!(
+        calls[0].timestamp,
+        fixed_time() + chrono::Duration::seconds(1)
+    );
+}
+
+/// Copies of one call on both signals, stamped either side of the span's start, differing only in argument
+/// encoding: one message, which takes the later instant - the one that says it was sent with this call.
+#[test]
+fn copies_differing_only_in_argument_encoding_keep_the_later_instant() {
+    let message = |arguments: serde_json::Value, seconds: u32| {
+        json!({
+            "source": {"event": {"name": "gen_ai.assistant.message", "time": format!("2025-01-01T00:00:{seconds:02}Z")}},
+            "content": {
+                "role": "assistant",
+                "tool_calls": [{"id": "call-a", "type": "function", "function": {"name": "lookup", "arguments": arguments}}]
+            }
+        })
+    };
+    let answer = json!({
+        "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:20Z"}},
+        "content": {"role": "assistant", "content": "Sunny."}
+    });
+    let mut rows = streamed_call(
+        vec![message(json!(r#"{"city":"Paris"}"#), 0), answer.clone()],
+        Some("Sunny."),
+    );
+    rows[1].span_timestamp = fixed_time() + chrono::Duration::seconds(5);
+    rows[1].log_messages_json = json!([message(json!({"city": "Paris"}), 10), answer]).to_string();
+    let result = process_spans(rows, &FeedOptions::new());
+    let calls: Vec<&BlockEntry> = result
+        .messages
+        .iter()
+        .filter(|block| block.entry_type == "tool_use")
+        .collect();
+    assert_eq!(calls.len(), 1, "{:?}", result.messages);
+    assert_eq!(
+        calls[0].timestamp,
+        fixed_time() + chrono::Duration::seconds(10),
+        "{:?}",
+        calls
+    );
+}
+
+/// A result whose id sits under the snake_case spelling of Converse's member answers that call, and the text beside
+/// it does not: the block reads the spelling the vocabulary declares, as the message-level fallback does.
 #[test]
 fn the_block_an_id_was_read_from_keeps_it() {
     let msg = json!([{
@@ -501,6 +576,8 @@ fn the_block_an_id_was_read_from_keeps_it() {
         .map(|block| (block.entry_type.as_str(), block.tool_use_id.as_deref()))
         .collect();
     assert!(ids.contains(&("tool_result", Some("call-a"))), "{ids:?}");
+    // The block reads the snake_case spelling itself, so the message keeps no copy for the text to take.
+    assert!(ids.contains(&("text", None)), "{ids:?}");
 }
 
 /// Nothing added to a message after it is read takes the id its lone call carries: not the error it reports,
