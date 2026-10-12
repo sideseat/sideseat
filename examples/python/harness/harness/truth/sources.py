@@ -129,6 +129,57 @@ def _unexported(builder: Builder, unexported: dict[str, str]) -> None:
         builder.gap(kind, "not_exported", unexported[kind], subject=fact["id"])
 
 
+def _silent_call_spans(builder: Builder, silent: dict[str, str]) -> None:
+    """Declare, per mode, that each call's request span records none of its output: a claim the rubric proves
+    per call from the capture (``call_span_records_no_output``), never an exemption by producer."""
+    for mode, reason in sorted(silent.items()):
+        for record in builder.calls:
+            if not record["outputs"]:
+                continue
+            entry = {
+                "fact": "response",
+                "reason": "call_span_records_no_output",
+                "detail": reason,
+                "subject": record["id"],
+                "modes": [mode],
+            }
+            if entry not in builder.gaps:
+                builder.gaps.append(entry)
+
+
+def _unexported_outputs(builder: Builder, unexported: dict[str, str]) -> None:
+    """Declare, per mode, that a call's request span records none of its response: each output part gets an
+    ``output_not_exported`` gap the rubric proves against the span the call is tied to by its metadata."""
+    for mode, reason in sorted(unexported.items()):
+        for record in builder.calls:
+            for output in record["outputs"]:
+                entry = {
+                    "fact": next(f["kind"] for f in builder.facts if f["id"] == output),
+                    "reason": "output_not_exported",
+                    "detail": reason,
+                    "subject": output,
+                    "modes": [mode],
+                }
+                if entry not in builder.gaps:
+                    builder.gaps.append(entry)
+
+
+def _unexported_inputs(builder: Builder, unexported: dict[str, str]) -> None:
+    """Declare, per mode, that a call's request span records none of its request: an ``input_not_exported``
+    gap per call, which the rubric proves against the span the call is tied to."""
+    for mode, reason in sorted(unexported.items()):
+        for record in builder.calls:
+            entry = {
+                "fact": "request",
+                "reason": "input_not_exported",
+                "detail": reason,
+                "subject": record["id"],
+                "modes": [mode],
+            }
+            if entry not in builder.gaps:
+                builder.gaps.append(entry)
+
+
 @functools.cache
 def _cli_driver() -> Any:
     """The CLI capture driver, which declares the CLIs and the prompts of each scenario."""
@@ -155,6 +206,9 @@ def cli(target: Target) -> dict[str, Any]:
     turns = driver.SCENARIOS[target.scenario].turns
     builder = assemble(target.producer, target.scenario, calls, prompts=[tuple(turns)])
     _unexported(builder, driver.CLIS[target.producer].unexported)
+    _silent_call_spans(builder, driver.CLIS[target.producer].silent_call_spans)
+    _unexported_outputs(builder, driver.CLIS[target.producer].unexported_outputs)
+    _unexported_inputs(builder, driver.CLIS[target.producer].unexported_inputs)
     source = {
         "kind": "cassette",
         "path": _relative(cassette),

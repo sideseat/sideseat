@@ -31,6 +31,7 @@ UNEXPORTED = frozenset(
         "reasoning_span_signature",
         "tool_calling_round_output",
         "parallel_tool_results",
+        "parallel_call_order",
         "structured_tool_results",
         "tool_round_call_spans",
         "tool_round_traces",
@@ -172,6 +173,18 @@ def apply(builder: Builder, framework: Framework) -> None:
                 ):
                     fact["require"] = None
                     gap("tool_result", "not_exported", detail, fact["id"])
+    if detail := declared("parallel_call_order"):
+        # The order of one response's parallel calls, where no payload holds two of them together: the rubric
+        # proves per capture that no carrier holds any two of the response's calls, and only then stops
+        # asserting their relative order - never their presence, nor their place against the rest.
+        for record in builder.calls:
+            calls = [
+                output
+                for output in record["outputs"]
+                if facts[output]["kind"] == "tool_call"
+            ]
+            if len(calls) >= 2:
+                gap("response", "call_order_not_exported", detail, record["id"])
     if detail := declared("tool_round_call_spans"):
         # The call that answers a tool round continues the run the previous call's span records; the rubric
         # proves per capture that no model-call span exists and that span shows this call's output.

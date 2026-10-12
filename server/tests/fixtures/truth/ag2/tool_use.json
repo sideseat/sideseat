@@ -472,6 +472,17 @@
    ]
   },
   {
+   "fact": "response",
+   "reason": "call_order_not_exported",
+   "detail": "the order of one response's parallel tool calls: AG2 1.0.2 to 1.0.4 record no output on the chat span and each call alone on its own execute_tool span, which run in reverse, and no payload holds two of them together",
+   "subject": "call-001",
+   "modes": [
+    "native@1.0.2",
+    "native@1.0.3",
+    "native@1.0.4"
+   ]
+  },
+  {
    "fact": "tool_result",
    "reason": "not_exported",
    "detail": "the result of a tool that returned data rather than text: AG2 1.0.2 and 1.0.3 record `gen_ai.tool.call.result` only for a text result, and no payload holds the data",

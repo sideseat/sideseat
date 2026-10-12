@@ -300,6 +300,42 @@
    "reason": "tool_not_deterministic",
    "detail": "Bash is not one of the shared deterministic tools",
    "subject": "fact-002"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "output_not_exported",
+   "detail": "Without the detailed tracing tier a claude_code.llm_request span carries the model, stop reason and token usage but none of the response; the answer and the calls reach telemetry only as log records on the interaction span and the tools' spans",
+   "subject": "fact-002",
+   "modes": [
+    "logs"
+   ]
+  },
+  {
+   "fact": "text",
+   "reason": "output_not_exported",
+   "detail": "Without the detailed tracing tier a claude_code.llm_request span carries the model, stop reason and token usage but none of the response; the answer and the calls reach telemetry only as log records on the interaction span and the tools' spans",
+   "subject": "fact-003",
+   "modes": [
+    "logs"
+   ]
+  },
+  {
+   "fact": "request",
+   "reason": "input_not_exported",
+   "detail": "Without the detailed tracing tier a claude_code.llm_request span carries none of its request; the prompt reaches telemetry only as the user_prompt log record on the interaction span",
+   "subject": "call-001",
+   "modes": [
+    "logs"
+   ]
+  },
+  {
+   "fact": "request",
+   "reason": "input_not_exported",
+   "detail": "Without the detailed tracing tier a claude_code.llm_request span carries none of its request; the prompt reaches telemetry only as the user_prompt log record on the interaction span",
+   "subject": "call-002",
+   "modes": [
+    "logs"
+   ]
   }
  ],
  "requests": {

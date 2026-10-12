@@ -17,9 +17,13 @@
 //! the documentation from the truths themselves (`limitations_section`).
 
 mod attachment;
+mod call_order;
 mod call_span;
+mod carrying;
 pub(super) mod haystack;
 mod reasoning;
+mod request_input;
+mod request_span;
 #[cfg(test)]
 mod tests;
 
@@ -31,6 +35,7 @@ use serde_json::Value;
 use super::predicates::{json_eq, same_tool, semantic_eq};
 use super::truth::{self, Fact, Truth};
 use attachment::{prove_attachment, prove_reference};
+pub(super) use carrying::carrying_spans;
 use haystack::{Carrier, Haystack, MAX_DEPTH, collapse_whitespace};
 use reasoning::{is_withheld, prove_kind, prove_reasoning_part, prove_signature};
 
@@ -361,6 +366,13 @@ pub(super) enum Claim<'t> {
     /// A call's trace context (`trace_not_propagated`): its span has no parent, in a trace other than the
     /// conversation's previous call's.
     Untraced(&'t str),
+    /// A call's request span is silent (`call_span_records_no_output`): every candidate model-request span
+    /// records none of its output and nothing identifying it.
+    RequestSpan(&'t str),
+    /// The order among a response's parallel calls (`call_order_not_exported`): no carrier holds two of them.
+    CallOrder(&'t str),
+    /// A call's request, on the span it is tied to (`input_not_exported`): that span records none of it.
+    Input(&'t str),
 }
 
 impl Claim<'_> {
@@ -375,6 +387,9 @@ impl Claim<'_> {
             Claim::SpanSignature(_) => "reasoning signature, on the span that produced it",
             Claim::CallSpan(_) => "model call's own span",
             Claim::Untraced(_) => "model call's trace context",
+            Claim::RequestSpan(_) => "model call's output, on its request span",
+            Claim::CallOrder(_) => "order of a response's parallel calls",
+            Claim::Input(_) => "model call's request, on its span",
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
@@ -409,6 +424,9 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                 "span_signature_not_exported" => Claim::SpanSignature(fact(subject)?),
                 "call_span_not_exported" => Claim::CallSpan(subject),
                 "trace_not_propagated" => Claim::Untraced(subject),
+                "call_span_records_no_output" => Claim::RequestSpan(subject),
+                "call_order_not_exported" => Claim::CallOrder(subject),
+                "input_not_exported" => Claim::Input(subject),
                 "call_not_exported" => {
                     let call = truth.calls.iter().find(|c| c.id == subject)?;
                     Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
@@ -439,14 +457,20 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         Claim::Fact(fact) => prove(fact, haystack),
         Claim::Id(fact) => prove_id(fact, haystack),
         Claim::Metadata(field, values) => prove_metadata(field, values, haystack),
+        Claim::CallOrder(_) => Proof::Unprovable(
+            "a response's call order is proven against its truth, not from the claim alone"
+                .to_string(),
+        ),
         Claim::Kind(fact) => prove_kind(fact, haystack),
         Claim::Signature(fact) => prove_signature(fact.seal.as_deref(), haystack),
-        Claim::Output(_) | Claim::SpanSignature(_) | Claim::CallSpan(_) | Claim::Untraced(_) => {
-            Proof::Unprovable(
-                "this absence is searched for on the spans the capture's calls are tied to"
-                    .to_string(),
-            )
-        }
+        Claim::Output(_)
+        | Claim::SpanSignature(_)
+        | Claim::CallSpan(_)
+        | Claim::Untraced(_)
+        | Claim::RequestSpan(_)
+        | Claim::Input(_) => Proof::Unprovable(
+            "this absence is searched for on the spans the capture's calls are tied to".to_string(),
+        ),
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
         // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
         // which only a copy of the response would. A response with any other part, or a call with no
@@ -811,6 +835,8 @@ fn every_absence_gap_is_proven() {
                             | Claim::SpanSignature(_)
                             | Claim::CallSpan(_)
                             | Claim::Untraced(_)
+                            | Claim::RequestSpan(_)
+                            | Claim::Input(_)
                     )
             });
             let checked = truth.for_fixture(fixture);
@@ -846,10 +872,25 @@ fn every_absence_gap_is_proven() {
                         }
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
+                    Claim::RequestSpan(call) => match &matched {
+                        Some((recon, _)) => request_span::prove_request_span_silent(
+                            &checked, call, recon, &haystack,
+                        ),
+                        None => Proof::Unprovable("the capture was not reconstructed".to_string()),
+                    },
                     Claim::Untraced(call) => match &matched {
                         Some((recon, matching)) => {
                             super::propagation::prove_untraced(&checked, call, recon, matching)
                         }
+                        None => Proof::Unprovable("the capture was not reconstructed".to_string()),
+                    },
+                    Claim::CallOrder(call) => {
+                        call_order::prove_call_order(&checked, call, &haystack)
+                    }
+                    Claim::Input(call) => match &matched {
+                        Some((recon, matching)) => request_input::prove_input_unexported(
+                            &checked, call, recon, matching, &haystack,
+                        ),
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
                     _ => prove_claim(claim, &haystack),

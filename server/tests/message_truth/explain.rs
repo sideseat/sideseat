@@ -615,6 +615,18 @@ fn check_attribution(
             }
             continue;
         }
+        // A part of a call whose request span is silent is shown on a span whose own payload records it.
+        if let Some(spans) = context.carried_spans.get(fact_id) {
+            if !spans.contains(&(block.trace.clone(), block.span.clone())) {
+                out.push(Violation::new(
+                    ViolationView::from(scope.kind),
+                    "attribution.span",
+                    fact_id,
+                    format!("shown on {}, whose payload does not record it", shown_on()),
+                ));
+            }
+            continue;
+        }
         // Which span reports a result - the tool's, or the next request's - is the framework's, and
         // so is the span of a call no model response states.
         if fact.call.is_none()

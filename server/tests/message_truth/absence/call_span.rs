@@ -116,31 +116,10 @@ pub(super) fn prove_call_span(
 /// A raw span the published conventions mark as a model call, whatever the reading made of it: OpenInference's
 /// `LLM` kind, a GenAI operation that calls a model, or a requested model stated.
 fn raw_model_call_span(paths: &[std::path::PathBuf]) -> Option<String> {
-    use opentelemetry_proto::tonic::common::v1::any_value::Value;
-    const MODEL_OPERATIONS: &[&str] = &["chat", "text_completion", "generate_content"];
-    for path in paths {
-        let request = crate::decode_request(path);
-        for span in request
-            .resource_spans
-            .iter()
-            .flat_map(|r| &r.scope_spans)
-            .flat_map(|s| &s.spans)
-        {
-            let marked = span.attributes.iter().any(|kv| {
-                let text = match kv.value.as_ref().and_then(|v| v.value.as_ref()) {
-                    Some(Value::StringValue(s)) => s.as_str(),
-                    _ => "",
-                };
-                matches!(kv.key.as_str(), "gen_ai.request.model" | "llm.model_name")
-                    || (kv.key == "openinference.span.kind" && text == "LLM")
-                    || (kv.key == "gen_ai.operation.name" && MODEL_OPERATIONS.contains(&text))
-            });
-            if marked {
-                return Some(format!("span {:?}", span.name));
-            }
-        }
-    }
-    None
+    super::request_span::marked_model_call_spans(paths)
+        .into_iter()
+        .next()
+        .map(|(_, _, label)| label)
 }
 
 /// Whether an object names the tool in one of its members, directly or in a nested `function`: a call written

@@ -128,6 +128,18 @@ class Cli:
     #: derived from a cassette asks for it otherwise, and no reading could ever supply it.
     #: ``text`` means the assistant's text in any response but a turn's final one.
     unexported: dict[str, str] = {}
+    #: The capture modes whose model-request spans record none of a call's output and nothing identifying the
+    #: call, with the reason: every call with output gets a ``call_span_records_no_output`` gap in that mode,
+    #: which the rubric proves per call from each capture - a span carrying an output or a response id
+    #: refuses it.
+    silent_call_spans: dict[str, str] = {}
+    #: The capture modes whose model-request spans record none of the response, though their metadata - output
+    #: tokens and finish - still ties each to its call: every output part gets an ``output_not_exported`` gap
+    #: in that mode, which the rubric proves per part against the span the call is tied to.
+    unexported_outputs: dict[str, str] = {}
+    #: The capture modes whose model-request spans record none of what their call was sent: every call gets an
+    #: ``input_not_exported`` gap in that mode, which the rubric proves against the span the call is tied to.
+    unexported_inputs: dict[str, str] = {}
 
     def binary(self) -> str:
         found = os.getenv(self.binary_env) or shutil.which(self.binary_name)
@@ -166,6 +178,15 @@ class ClaudeCode(Cli):
     binary_env = "CLAUDE_BIN"
     binary_name = "claude"
     modes = ("native", "logs")
+    unexported_outputs = {
+        "logs": "Without the detailed tracing tier a claude_code.llm_request span carries the model, stop "
+        "reason and token usage but none of the response; the answer and the calls reach telemetry only as "
+        "log records on the interaction span and the tools' spans",
+    }
+    unexported_inputs = {
+        "logs": "Without the detailed tracing tier a claude_code.llm_request span carries none of its request; "
+        "the prompt reaches telemetry only as the user_prompt log record on the interaction span",
+    }
 
     def environment(self, run: Run) -> dict[str, str]:
         env = super().environment(run)
@@ -244,6 +265,11 @@ class Codex(Cli):
     binary_env = "CODEX_BIN"
     binary_name = "codex"
     modes = ("native",)
+    silent_call_spans = {
+        "native": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST "
+        "/responses) carries no output and no request or response id; the response is reported on other "
+        "spans (handle_output_item_done, dispatch_tool_call_with_state)",
+    }
     unexported = {
         "system": "Codex exports no system prompt or instructions, in any signal",
         "text": "Codex exports a turn's final reply (codex.agent_response) and nothing the model wrote "

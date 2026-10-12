@@ -288,6 +288,13 @@ impl Gap {
 }
 
 impl Truth {
+    /// Whether a gap of this reason names this subject and holds for this fixture's mode.
+    pub fn gap_holds(&self, reason: &str, subject: &str, fixture: &str) -> bool {
+        self.gaps.iter().any(|g| {
+            g.reason == reason && g.subject.as_deref() == Some(subject) && g.holds_for(fixture)
+        })
+    }
+
     /// Remove these facts and everything that names them, leaving a document still internally consistent.
     pub fn withdraw(&mut self, facts: &BTreeSet<String>) {
         if facts.is_empty() {
@@ -491,6 +498,15 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // A model call the producer records on no span of its own - an agent span holds every call of its run -
         // so no span can be tied to it; its parts are asserted where the conversation shows them.
         "call_span_not_exported" => effects(GapSubject::Call, false, false, true),
+        // A model call whose request span is exported but records none of its output and nothing identifying
+        // it, so no span can be tied to the call; its parts are asserted where the conversation shows them.
+        "call_span_records_no_output" => effects(GapSubject::Call, false, false, true),
+        // The relative order of a response's parallel tool calls, where no payload holds two of them: only
+        // that order is withdrawn; their presence and their place against the rest stay asserted.
+        "call_order_not_exported" => effects(GapSubject::Call, false, false, true),
+        // A call whose tied span records none of its request: that span's view owes no input; the
+        // conversation views still owe every part.
+        "input_not_exported" => effects(GapSubject::Call, false, false, true),
         // A call the producer started a new trace for: what it was sent is at home in that trace too.
         "trace_not_propagated" => effects(GapSubject::Call, false, false, true),
         // A call's model or finish the producer states wrongly, where the right one is in no payload:

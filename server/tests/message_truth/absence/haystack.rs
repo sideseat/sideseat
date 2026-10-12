@@ -24,6 +24,12 @@ pub(in super::super) const MAX_DEPTH: usize = 8;
 pub(in super::super) struct Carrier {
     /// The span this carrier belongs to, as hex: a span with its events, or a log record a span emitted.
     pub span: Option<String>,
+    /// That span's trace, as hex: span ids repeat across traces, so a span is the pair.
+    pub trace: Option<String>,
+    /// Every integer it holds - an integer attribute, an integer inside a decoded body, an integer written as
+    /// text - with its location: kept apart from `strings`, so no text search matches a number, and read only
+    /// where a count is the evidence - a response's output tokens.
+    pub numbers: Vec<(String, i64)>,
     /// Whitespace-collapsed strings with the location each came from.
     pub strings: Vec<(String, String)>,
     pub nodes: Vec<(String, Value)>,
@@ -66,12 +72,12 @@ impl Haystack {
             for (r, resource_spans) in request.resource_spans.iter().enumerate() {
                 if let Some(resource) = &resource_spans.resource {
                     let at = format!("{file} resource[{r}]");
-                    haystack.carrier(None, |e| e.attributes(&at, &resource.attributes));
+                    haystack.carrier(None, None, |e| e.attributes(&at, &resource.attributes));
                 }
                 for (s, scope_spans) in resource_spans.scope_spans.iter().enumerate() {
                     if let Some(scope) = &scope_spans.scope {
                         let at = format!("{file} resource[{r}].scope[{s}]");
-                        haystack.carrier(None, |e| {
+                        haystack.carrier(None, None, |e| {
                             e.string(&format!("{at}.name"), &scope.name, 0);
                             e.string(&format!("{at}.version"), &scope.version, 0);
                             e.attributes(&at, &scope.attributes);
@@ -79,24 +85,28 @@ impl Haystack {
                     }
                     for span in &scope_spans.spans {
                         let at = format!("{file} span {:?}", span.name);
-                        haystack.carrier(Some(hex(&span.span_id)), |e| {
-                            e.string(&format!("{at}.name"), &span.name, 0);
-                            e.string(&format!("{at}.trace_state"), &span.trace_state, 0);
-                            e.attributes(&at, &span.attributes);
-                            if let Some(status) = &span.status {
-                                e.string(&format!("{at}.status"), &status.message, 0);
-                            }
-                            for (i, event) in span.events.iter().enumerate() {
-                                let at = format!("{at}.events[{i}]");
-                                e.string(&format!("{at}.name"), &event.name, 0);
-                                e.attributes(&at, &event.attributes);
-                            }
-                            for (i, link) in span.links.iter().enumerate() {
-                                let at = format!("{at}.links[{i}]");
-                                e.string(&format!("{at}.trace_state"), &link.trace_state, 0);
-                                e.attributes(&at, &link.attributes);
-                            }
-                        });
+                        haystack.carrier(
+                            Some(hex(&span.trace_id)),
+                            Some(hex(&span.span_id)),
+                            |e| {
+                                e.string(&format!("{at}.name"), &span.name, 0);
+                                e.string(&format!("{at}.trace_state"), &span.trace_state, 0);
+                                e.attributes(&at, &span.attributes);
+                                if let Some(status) = &span.status {
+                                    e.string(&format!("{at}.status"), &status.message, 0);
+                                }
+                                for (i, event) in span.events.iter().enumerate() {
+                                    let at = format!("{at}.events[{i}]");
+                                    e.string(&format!("{at}.name"), &event.name, 0);
+                                    e.attributes(&at, &event.attributes);
+                                }
+                                for (i, link) in span.links.iter().enumerate() {
+                                    let at = format!("{at}.links[{i}]");
+                                    e.string(&format!("{at}.trace_state"), &link.trace_state, 0);
+                                    e.attributes(&at, &link.attributes);
+                                }
+                            },
+                        );
                     }
                 }
             }
@@ -105,12 +115,12 @@ impl Haystack {
             for (r, resource_logs) in request.resource_logs.iter().enumerate() {
                 if let Some(resource) = &resource_logs.resource {
                     let at = format!("{file} resource[{r}]");
-                    haystack.carrier(None, |e| e.attributes(&at, &resource.attributes));
+                    haystack.carrier(None, None, |e| e.attributes(&at, &resource.attributes));
                 }
                 for (s, scope_logs) in resource_logs.scope_logs.iter().enumerate() {
                     if let Some(scope) = &scope_logs.scope {
                         let at = format!("{file} resource[{r}].scope[{s}]");
-                        haystack.carrier(None, |e| {
+                        haystack.carrier(None, None, |e| {
                             e.string(&format!("{at}.name"), &scope.name, 0);
                             e.string(&format!("{at}.version"), &scope.version, 0);
                             e.attributes(&at, &scope.attributes);
@@ -119,7 +129,8 @@ impl Haystack {
                     for (i, record) in scope_logs.log_records.iter().enumerate() {
                         let at = format!("{file} log[{i}] {:?}", record.event_name);
                         let span = (!record.span_id.is_empty()).then(|| hex(&record.span_id));
-                        haystack.carrier(span, |e| {
+                        let trace = (!record.trace_id.is_empty()).then(|| hex(&record.trace_id));
+                        haystack.carrier(trace, span, |e| {
                             e.string(&format!("{at}.event_name"), &record.event_name, 0);
                             e.string(&format!("{at}.severity"), &record.severity_text, 0);
                             if let Some(body) = &record.body {
@@ -134,8 +145,14 @@ impl Haystack {
         haystack
     }
 
-    fn carrier(&mut self, span: Option<String>, fill: impl FnOnce(&mut Expander<'_>)) {
+    fn carrier(
+        &mut self,
+        trace: Option<String>,
+        span: Option<String>,
+        fill: impl FnOnce(&mut Expander<'_>),
+    ) {
         let mut carrier = Carrier {
+            trace,
             span,
             ..Carrier::default()
         };
@@ -187,9 +204,13 @@ impl Expander<'_> {
                     }
                 }
             }
-            Some(any_value::Value::IntValue(_) | any_value::Value::DoubleValue(_))
-            | Some(any_value::Value::BoolValue(_))
-            | None => {}
+            Some(any_value::Value::IntValue(n)) => self.carrier.numbers.push((at.to_string(), *n)),
+            Some(any_value::Value::DoubleValue(d)) => {
+                if let Some(n) = whole(Some(*d)) {
+                    self.carrier.numbers.push((at.to_string(), n));
+                }
+            }
+            Some(any_value::Value::BoolValue(_)) | None => {}
         }
     }
 
@@ -201,6 +222,10 @@ impl Expander<'_> {
             .strings
             .push((at.to_string(), collapse_whitespace(text)));
         let trimmed = text.trim();
+        // An integer written as text is a count too: producers write counters both ways.
+        if let Some(n) = whole(trimmed.parse::<f64>().ok()) {
+            self.carrier.numbers.push((at.to_string(), n));
+        }
         if depth >= MAX_DEPTH {
             if looks_encoded(trimmed) {
                 self.undecoded.push(at.to_string());
@@ -262,7 +287,13 @@ impl Expander<'_> {
                     self.json(&format!("{at}.{key}"), item, depth);
                 }
             }
-            Value::Number(_) | Value::Bool(_) | Value::Null => {}
+            // A count inside a decoded body is as much a count as an integer attribute.
+            Value::Number(n) => {
+                if let Some(n) = whole(n.as_f64()) {
+                    self.carrier.numbers.push((at.to_string(), n));
+                }
+            }
+            Value::Bool(_) | Value::Null => {}
         }
     }
 }
@@ -389,6 +420,13 @@ fn unescape(text: &str) -> String {
 }
 
 /// Lowercase hex, as a span id is written everywhere else.
-fn hex(bytes: &[u8]) -> String {
+pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// A number with no fractional part, as an integer: a count written `45`, `45.0` or `4.5e1` is one count.
+fn whole(value: Option<f64>) -> Option<i64> {
+    value
+        .filter(|v| v.is_finite() && v.fract() == 0.0 && v.abs() < 9.0e15)
+        .map(|v| v as i64)
 }

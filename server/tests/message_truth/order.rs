@@ -20,22 +20,27 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
             .unwrap_or_default()
     };
     let mut out: Vec<Constraint> = Vec::new();
-    // Part order within one response holds in every view, the feed included - for an unexported
-    // response too, since its calls are executed, and recorded, in the order it lists them. Each of
-    // those is recorded on its own, so the feed, newest first, lists them in reverse.
+    // Part order within one response holds in every view, the feed included - for an unexported response too,
+    // since its calls are executed, and recorded, in the order it lists them; each of those is recorded on its
+    // own, so the feed, newest first, lists them in reverse. A run of parallel tool calls whose order no payload
+    // states (`call_order_not_exported`) is one group: its members owe each other no order, and every member
+    // owes the parts around the run theirs - for `[text, A, B, after]`, text precedes both calls and both precede
+    // after.
+    let is_call = |id: &str| context.fact(id).is_some_and(|f| f.kind == "tool_call");
     for call in &truth.calls {
         let reversed = feed && context.unexported(&call.id);
-        for pair in call.outputs.windows(2) {
+        let unordered_calls = context.call_order_unexported(&call.id);
+        for (earlier, later) in part_order(&call.outputs, unordered_calls, &is_call) {
             let (first, second) = if reversed {
-                (&pair[1], &pair[0])
+                (later, earlier)
             } else {
-                (&pair[0], &pair[1])
+                (earlier, later)
             };
             out.push((
                 "order.parts",
-                format!("{}<{}", pair[0], pair[1]),
-                vec![first.clone()],
-                vec![second.clone()],
+                format!("{earlier}<{later}"),
+                vec![first.to_string()],
+                vec![second.to_string()],
             ));
         }
     }
@@ -217,6 +222,35 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
     out
 }
 
+/// The ordered pairs one response's parts owe each other: each part before the next, except that a run of tool
+/// calls whose order is unexported (`unordered_calls`) is one group - its members owe each other nothing, and each
+/// owes the parts on either side of the run.
+fn part_order<'p>(
+    outputs: &'p [String],
+    unordered_calls: bool,
+    is_call: &impl Fn(&str) -> bool,
+) -> Vec<(&'p str, &'p str)> {
+    let mut groups: Vec<Vec<&'p str>> = Vec::new();
+    for part in outputs {
+        let joins = unordered_calls
+            && is_call(part)
+            && groups.last().is_some_and(|g| g.iter().all(|p| is_call(p)));
+        match groups.last_mut() {
+            Some(group) if joins => group.push(part),
+            _ => groups.push(vec![part]),
+        }
+    }
+    let mut pairs = Vec::new();
+    for window in groups.windows(2) {
+        for earlier in &window[0] {
+            for later in &window[1] {
+                pairs.push((*earlier, *later));
+            }
+        }
+    }
+    pairs
+}
+
 pub(super) fn check(
     context: &Context<'_>,
     scope: &Scope<'_>,
@@ -271,6 +305,7 @@ fn check_sequence(
     for (c, conversation) in context.truth.conversations.iter().enumerate() {
         let mut group = 0usize;
         let mut in_inputs = false;
+        let mut previous_unordered: Option<&str> = None;
         for id in &conversation.sequence {
             // An unexported response's parts are not a response anyone recorded: with their results they
             // form one run of inputs, which may permute.
@@ -278,9 +313,21 @@ fn check_sequence(
                 .fact(id)
                 .and_then(|f| f.call.as_deref())
                 .is_some_and(|c| !context.unexported(c));
-            if output || !in_inputs {
+            // Consecutive tool calls of one response whose order no payload states share a group, so they may
+            // permute among themselves and with nothing else.
+            let unordered_call = context
+                .fact(id)
+                .filter(|f| f.kind == "tool_call")
+                .and_then(|f| {
+                    f.call
+                        .as_deref()
+                        .filter(|c| context.call_order_unexported(c))
+                });
+            let continues = unordered_call.is_some() && unordered_call == previous_unordered;
+            if (output || !in_inputs) && !continues {
                 group += 1;
             }
+            previous_unordered = unordered_call;
             in_inputs = !output;
             rank.insert(id.as_str(), (c, group));
         }
@@ -370,5 +417,34 @@ pub(super) fn check_split_feed(
                 ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::part_order;
+
+    /// A run of unordered calls owes no order inside it, and owes the parts around it all of theirs: for
+    /// `[text, A, B, after]`, `[B, text, A]` must still fail, because text precedes B.
+    #[test]
+    fn an_unordered_run_still_owes_its_neighbours() {
+        let outputs: Vec<String> = ["text", "A", "B", "after"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let is_call = |id: &str| id == "A" || id == "B";
+        let pairs = part_order(&outputs, true, &is_call);
+        for owed in [("text", "A"), ("text", "B"), ("A", "after"), ("B", "after")] {
+            assert!(pairs.contains(&owed), "{owed:?} is owed: {pairs:?}");
+        }
+        assert!(
+            !pairs.contains(&("A", "B")) && !pairs.contains(&("B", "A")),
+            "{pairs:?}"
+        );
+        // Without the gap, every adjacent pair is owed, exactly as before.
+        assert_eq!(
+            part_order(&outputs, false, &is_call),
+            vec![("text", "A"), ("A", "B"), ("B", "after")]
+        );
     }
 }

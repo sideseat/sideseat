@@ -75,6 +75,10 @@ pub(super) struct Context<'a> {
     /// For each text its framework writes itself (`evidence: framework`), the spans whose raw payload holds it
     /// as written: where the views must attribute it (`authored`).
     pub authored_spans: BTreeMap<String, BTreeSet<String>>,
+    /// For each part of a call whose request span is silent (`call_span_records_no_output`), the spans whose
+    /// own raw carriers hold it: the call has no span, so where the telemetry records the part is where the
+    /// views must attribute it.
+    pub carried_spans: BTreeMap<String, BTreeSet<(String, String)>>,
     /// What this fixture's recorded requests account for in its views (`requests`).
     pub accounted: super::requests::Accounted,
     /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
@@ -100,6 +104,7 @@ impl<'a> Context<'a> {
             off_span_homes: BTreeMap::new(),
             splits: super::propagation::Splits::default(),
             authored_spans: BTreeMap::new(),
+            carried_spans: BTreeMap::new(),
             accounted,
             trace_label: BTreeMap::new(),
         };
@@ -147,6 +152,41 @@ impl<'a> Context<'a> {
                 context.home_trace.insert(fact.id.as_str(), trace);
             }
         }
+        // The parts of a call whose request span is silent: attributed by the carriers that hold them, and at
+        // home in the one trace those carriers are in. Searched only where such a call exists.
+        let silent: BTreeSet<&str> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "call_span_records_no_output" && g.holds_for(&recon.fixture))
+            .filter_map(|g| g.subject.as_deref())
+            .collect();
+        let off_span_any = truth.facts.iter().any(|f| context.owed_off_span(f));
+        let haystack = (!silent.is_empty() || off_span_any)
+            .then(|| super::absence::haystack::Haystack::of_fixture(&recon.paths));
+        // Every tool call's wire id: a carrier holding one is that call's record (`carrying_spans`).
+        let call_ids: BTreeSet<&str> = truth
+            .facts
+            .iter()
+            .filter(|f| f.kind == "tool_call")
+            .filter_map(super::absence::wire_id)
+            .collect();
+        if let Some(haystack) = haystack.as_ref() {
+            for fact in truth
+                .facts
+                .iter()
+                .filter(|f| f.call.as_deref().is_some_and(|c| silent.contains(c)))
+            {
+                let spans = super::absence::carrying_spans(fact, haystack, &call_ids);
+                let traces: BTreeSet<&str> =
+                    spans.iter().map(|(trace, _)| trace.as_str()).collect();
+                if let [trace] = traces.into_iter().collect::<Vec<_>>()[..] {
+                    context
+                        .home_trace
+                        .insert(fact.id.as_str(), trace.to_string());
+                }
+                context.carried_spans.insert(fact.id.clone(), spans);
+            }
+        }
         context.splits = super::propagation::split(truth, recon, matching);
         context.authored_spans = super::authored::emitting_spans(truth, recon, matching);
         let recorded = truth.requests.get(&recon.fixture);
@@ -191,8 +231,26 @@ impl<'a> Context<'a> {
                         .map(|v| v.key.clone()),
                 );
             }
-            // Neither a transcript nor a run to say where it belongs: no span can be named for it.
-            if recorded.is_some() || ran {
+            // And the spans whose own raw carriers record it: the telemetry says where the part is. A span id
+            // another trace reuses is left out - these homes are named by span alone, so it would name both.
+            let carried: BTreeSet<String> = haystack
+                .as_ref()
+                .map(|h| super::absence::carrying_spans(fact, h, &call_ids))
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(trace, span)| {
+                    recon
+                        .views
+                        .iter()
+                        .filter(|v| v.kind == ViewKind::Span && &v.key == span)
+                        .all(|v| &v.trace == trace)
+                })
+                .map(|(_, span)| span)
+                .collect();
+            let known = !carried.is_empty();
+            homes.extend(carried);
+            // Neither a transcript, a run nor a carrier to say where it belongs: no span can be named for it.
+            if recorded.is_some() || ran || known {
                 context.off_span_homes.insert(fact.id.clone(), homes);
             }
         }
@@ -281,6 +339,14 @@ impl<'a> Context<'a> {
             .gaps
             .iter()
             .any(|g| g.reason == "call_not_exported" && g.subject.as_deref() == Some(call))
+    }
+
+    /// Whether the order among a call's parallel tool calls is proven unexported (`call_order_not_exported`).
+    pub fn call_order_unexported(&self, call: &str) -> bool {
+        self.truth
+            .gaps
+            .iter()
+            .any(|g| g.reason == "call_order_not_exported" && g.subject.as_deref() == Some(call))
     }
 
     /// Whether a fact is the result of a call an unexported response made.

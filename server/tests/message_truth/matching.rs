@@ -160,9 +160,14 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
     let unexported = proven("call_not_exported");
     // A call proven to have no span of its own (`call_span_not_exported`) is tied to none.
     let spanless = proven("call_span_not_exported");
+    // A call whose request span is proven silent (`call_span_records_no_output`) has no span to find.
+    let silent = proven("call_span_records_no_output");
     let off_span = proven("output_not_exported");
     for call in truth.calls.iter().filter(|c| {
-        c.succeeded() && !unexported.contains(c.id.as_str()) && !spanless.contains(c.id.as_str())
+        c.succeeded()
+            && !unexported.contains(c.id.as_str())
+            && !spanless.contains(c.id.as_str())
+            && !silent.contains(c.id.as_str())
     }) {
         let signature = signature(truth, call);
         if signature.is_empty() {

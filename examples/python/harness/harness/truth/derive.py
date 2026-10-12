@@ -329,6 +329,8 @@ class Framework:
     #: first of one response, where the producer records only the first of the turn's tool messages
     #: (``not_exported``; it withdraws them); ``structured_tool_results`` - the results a tool returned as
     #: data rather than text, where the producer records only text (``not_exported``; it withdraws them);
+    #: ``parallel_call_order`` - the relative order of one response's parallel tool calls, where no payload
+    #: holds two of them together (``call_order_not_exported``; their presence stays asserted);
     #: ``tool_round_call_spans`` - the own span of a call that answers a tool round, where the producer
     #: records the whole run on one agent span and no model-call span (``call_span_not_exported``);
     #: ``tool_round_traces`` - the trace context of such a call, which the producer starts a new trace for

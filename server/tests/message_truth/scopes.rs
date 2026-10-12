@@ -9,6 +9,34 @@ use super::recon::ViewKind;
 use super::truth::Fact;
 use super::{Violation, ViolationView};
 
+/// What one span's payload records of silent calls: the facts, and the calls they belong to.
+type Recorded<'a> = (Vec<&'a Fact>, BTreeSet<&'a str>);
+
+/// Each (trace, span)'s recorded facts, from each fact's homes. Identical content is owed once: two calls
+/// answering the same words both name every span recording those words, and a span showing them once has shown
+/// what it records.
+fn records_by_span<'a>(
+    homes: impl Iterator<Item = (&'a Fact, &'a BTreeSet<(String, String)>)>,
+) -> std::collections::BTreeMap<(&'a str, &'a str), Recorded<'a>> {
+    let mut carried: std::collections::BTreeMap<(&str, &str), Recorded<'_>> =
+        std::collections::BTreeMap::new();
+    for (fact, spans) in homes {
+        for (trace, span) in spans {
+            let entry = carried.entry((trace.as_str(), span.as_str())).or_default();
+            if entry
+                .0
+                .iter()
+                .any(|owed| owed.kind == fact.kind && owed.value == fact.value)
+            {
+                continue;
+            }
+            entry.0.push(fact);
+            entry.1.extend(fact.call.as_deref());
+        }
+    }
+    carried
+}
+
 pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
     let recon = context.recon;
     let truth = context.truth;
@@ -64,6 +92,46 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
             own: Some(super::checks::ScopeOwn {
                 calls,
                 label: generation.label.as_str(),
+                outputs,
+            }),
+        });
+    }
+    // The spans whose own payload records a part of a call whose request span is silent
+    // (`call_span_records_no_output`): the call has no span to be checked on, so each span recording its parts
+    // owes those parts in its own view, as a call's span owes its call's - grouped per span, once and in order.
+    let carried = records_by_span(context.carried_spans.iter().filter_map(|(fact_id, homes)| {
+        context
+            .fact(fact_id)
+            .filter(|f| context.asserted_in(f, "span"))
+            .map(|f| (f, homes))
+    }));
+    for ((trace, span), (facts, calls)) in carried {
+        let Some((view_index, view)) = recon.views.iter().enumerate().find(|(_, v)| {
+            v.kind == ViewKind::Span && v.key == span && (v.trace.is_empty() || v.trace == trace)
+        }) else {
+            continue;
+        };
+        let label = recon
+            .generations
+            .iter()
+            .find(|g| g.span == span && g.trace == trace)
+            .map_or(span, |g| g.label.as_str());
+        let outputs: BTreeSet<&str> = facts.iter().map(|f| f.id.as_str()).collect();
+        scopes.push(Scope {
+            kind: ViewKind::Span,
+            blocks: view
+                .blocks
+                .iter()
+                .enumerate()
+                .map(|(i, b)| (view_index, i, b))
+                .collect(),
+            facts,
+            by_trace: false,
+            split: None,
+            foreign: Vec::new(),
+            own: Some(super::checks::ScopeOwn {
+                calls: calls.into_iter().collect(),
+                label,
                 outputs,
             }),
         });
@@ -177,6 +245,44 @@ pub(super) fn report_foreign(scope: &Scope<'_>, assigned: &Assigned, out: &mut V
                 &fact.id,
                 format!("also shown in {copies} block(s) of a view that does not own it"),
             ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::records_by_span;
+    use crate::message_truth::truth::Fact;
+
+    /// Two calls answering the same words, each on its own span: each span records the words once and owes them
+    /// once - not both facts, which a span legitimately showing one answer could never satisfy.
+    #[test]
+    fn identical_answers_are_owed_once_per_span() {
+        let (truth, _, _) = crate::message_truth::mutations::baseline("codex/native/tool_use");
+        let template = truth
+            .facts
+            .iter()
+            .find(|f| f.kind == "text")
+            .expect("an answer")
+            .clone();
+        let answer = |id: &str, call: &str| -> Fact {
+            let mut fact = template.clone();
+            fact.id = id.to_string();
+            fact.call = Some(call.to_string());
+            fact.value = serde_json::json!({"text": "the same words"});
+            fact
+        };
+        let (a, b) = (answer("fact-1", "call-1"), answer("fact-2", "call-2"));
+        let spans: BTreeSet<(String, String)> = [("t", "s1"), ("t", "s2")]
+            .into_iter()
+            .map(|(t, s)| (t.to_string(), s.to_string()))
+            .collect();
+        let carried = records_by_span([(&a, &spans), (&b, &spans)].into_iter());
+        assert_eq!(carried.len(), 2);
+        for (facts, _) in carried.values() {
+            assert_eq!(facts.len(), 1, "one answer owed per span");
         }
     }
 }

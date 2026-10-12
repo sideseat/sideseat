@@ -68,6 +68,50 @@
       "priority": 285
     }
   ],
+  "observation_types": [
+    {
+      "id": "observation.codex_model_request",
+      "priority": 5,
+      "doc": "Codex's span for one model request: its client posting to the Responses API. It records none of the response - Codex reports that on other spans - but it is the model call, and the only span that is: read before `observation.transport`, which would otherwise take it for an HTTP call duplicating a generation Codex never writes.",
+      "where": {
+        "all": [
+          {"source": "attr:code.module.name", "equals": "codex_api::endpoint::session"},
+          {
+            "source": "span_name",
+            "equals": "endpoint_session.stream_encoded_json_with"
+          },
+          {
+            "source": "attr:api.path",
+            "equals": "/responses"
+          }
+        ]
+      },
+      "result": "generation",
+      "replaces_legacy_result": "span"
+    }
+  ],
+  "span_categories": [
+    {
+      "id": "category.codex_model_request",
+      "priority": 5,
+      "doc": "The same statement, read as a category.",
+      "where": {
+        "all": [
+          {"source": "attr:code.module.name", "equals": "codex_api::endpoint::session"},
+          {
+            "source": "span_name",
+            "equals": "endpoint_session.stream_encoded_json_with"
+          },
+          {
+            "source": "attr:api.path",
+            "equals": "/responses"
+          }
+        ]
+      },
+      "result": "llm",
+      "replaces_legacy_result": "http"
+    }
+  ],
   "message_events": [
     {
       "id": "codex.message_event.user_prompt",

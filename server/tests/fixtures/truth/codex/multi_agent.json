@@ -458,6 +458,60 @@
    "reason": "not_exported",
    "detail": "Codex exports a turn's final reply (codex.agent_response) and nothing the model wrote between tool calls",
    "subject": "fact-005"
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_records_no_output",
+   "detail": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST /responses) carries no output and no request or response id; the response is reported on other spans (handle_output_item_done, dispatch_tool_call_with_state)",
+   "subject": "call-001",
+   "modes": [
+    "native"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_records_no_output",
+   "detail": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST /responses) carries no output and no request or response id; the response is reported on other spans (handle_output_item_done, dispatch_tool_call_with_state)",
+   "subject": "call-002",
+   "modes": [
+    "native"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_records_no_output",
+   "detail": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST /responses) carries no output and no request or response id; the response is reported on other spans (handle_output_item_done, dispatch_tool_call_with_state)",
+   "subject": "call-003",
+   "modes": [
+    "native"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_records_no_output",
+   "detail": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST /responses) carries no output and no request or response id; the response is reported on other spans (handle_output_item_done, dispatch_tool_call_with_state)",
+   "subject": "call-004",
+   "modes": [
+    "native"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_records_no_output",
+   "detail": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST /responses) carries no output and no request or response id; the response is reported on other spans (handle_output_item_done, dispatch_tool_call_with_state)",
+   "subject": "call-005",
+   "modes": [
+    "native"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_span_records_no_output",
+   "detail": "Codex's span for a model request (endpoint_session.stream_encoded_json_with, POST /responses) carries no output and no request or response id; the response is reported on other spans (handle_output_item_done, dispatch_tool_call_with_state)",
+   "subject": "call-006",
+   "modes": [
+    "native"
+   ]
   }
  ]
 }

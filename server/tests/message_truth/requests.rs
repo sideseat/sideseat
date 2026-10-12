@@ -38,10 +38,10 @@ pub(super) struct Accounted {
 
 /// One expected input block: where it sits in the request, its role, and the fact it must show.
 pub(super) struct Expected {
-    label: String,
-    role: &'static str,
-    fact: Fact,
-    part: Value,
+    pub(super) label: String,
+    pub(super) role: &'static str,
+    pub(super) fact: Fact,
+    pub(super) part: Value,
     /// Which message of the request sent it; `None` for a system part.
     message: Option<usize>,
     /// The occurrence names a conversation fact, rather than content only the request carries.
@@ -803,6 +803,9 @@ pub(super) fn check_requests(
         let Some(&generation) = matching.span_of.get(call).filter(|_| established) else {
             continue;
         };
+        // A span proven to record none of its request (`input_not_exported`) owes none of it: only a part's
+        // absence is waived - what the span does show is still held to the request.
+        let inputs_unexported = truth.gap_holds("input_not_exported", call, &recon.fixture);
         let span = &recon.generations[generation].span;
         let Some(view) = recon.span_view(span) else {
             continue;
@@ -895,6 +898,8 @@ pub(super) fn check_requests(
                     "request.role",
                     format!("shown as {}, sent as {}", blocks[j].role, item.role),
                 )
+            } else if inputs_unexported {
+                continue;
             } else {
                 // Whether the content is in the payloads at all decides what this is. Present: the
                 // telemetry carried what the call was sent and the reconstruction lost it. Absent: the
