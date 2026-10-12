@@ -643,6 +643,11 @@ pub trait FileMetaStore: Send + Sync {
     ///   there is no span to find yet. Without this the reconciliation is a read-then-act race with exactly
     ///   the window it is meant to close.
     ///
+    /// `durable` is deliberately not a condition: the associations a release exists to drop are durable ones,
+    /// confirmed when their spans were written and left behind when those spans expired. A durable association a
+    /// live span still needs is protected by `keep`, which is why `SurvivorReferences` may answer more than the
+    /// survivors but never less, and by the caller's re-check.
+    ///
     /// Returns the hashes actually removed, so the caller reconciles the set the statement produced rather
     /// than one it read beforehand - the same reason `delete_trace_files` uses `RETURNING`.
     async fn release_trace_files_except(

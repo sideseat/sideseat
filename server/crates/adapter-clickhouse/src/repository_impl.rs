@@ -886,10 +886,14 @@ impl SurvivorReferences for ClickhouseRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<Vec<u8>>, DataError> {
+        let spans = self.0.every_replica_spans();
+        let raw = self.0.every_replica_table("otel_raw");
         tenant_query!(
             self,
             project_id,
             crate::repositories::raw::survivor_records,
+            &spans,
+            &raw,
             project_id,
             trace_ids
         )
@@ -900,10 +904,12 @@ impl SurvivorReferences for ClickhouseRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
+        let spans = self.0.every_replica_spans();
         tenant_query!(
             self,
             project_id,
             query::file_reference_fields_for_traces,
+            &spans,
             project_id,
             trace_ids
         )

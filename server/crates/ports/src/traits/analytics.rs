@@ -29,6 +29,11 @@ pub struct FilterOptionRow {
 pub trait SurvivorReferences: Send + Sync {
     /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
     /// traces.
+    ///
+    /// Both reads decide which file associations survive a release, so an answer may hold more than the
+    /// winners - an earlier revision a lagging replica still serves keeps its files a little longer - but never
+    /// less: a span or record an acknowledged write committed on any replica must be in it. A store that cannot
+    /// read every copy fails the read rather than answering from the copies it reached.
     async fn file_reference_fields_for_traces(
         &self,
         project_id: &ProjectId,

@@ -139,3 +139,106 @@ async fn a_collected_record_s_leftover_rows_read_and_expire_alike() {
     );
     assert_eq!(embedded, distributed, "DuckDB (reference) and ClickHouse");
 }
+
+/// One shard on two replicas, the second lagging: a span the first acknowledged, naming an attachment, is not yet
+/// on the second. A survivor reconciliation made through the second must still see the span - its reads go to
+/// every replica - and keep the file; one that read the second replica's own tables released the association
+/// and reclaimed the bytes of a span that exists.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn two_replica_reconciliation_keeps_a_file_whose_span_a_lagging_replica_lacks() {
+    let (Ok(url), Ok(second_url)) = (
+        std::env::var(TWO_REPLICA_URL_ENV),
+        std::env::var(TWO_REPLICA_SECOND_URL_ENV),
+    ) else {
+        eprintln!(
+            "clickhouse two-replica: skipped - set {TWO_REPLICA_URL_ENV} and {TWO_REPLICA_SECOND_URL_ENV} (or run \
+             `make test-clickhouse-two-replica`)"
+        );
+        return;
+    };
+    let database = "sideseat_two_replica_survivors";
+    let first: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::new(replicated_backend_at(&url, database).await);
+    let second = sideseat_adapter_clickhouse::ClickhouseRepository(Arc::new(
+        ClickhouseService::init(
+            &layout_config(&second_url, database, true),
+            Arc::new(sideseat_server::runtime::clock::SystemClock),
+        )
+        .await
+        .expect("the second replica's service"),
+    ));
+    let user = std::env::var(USER_ENV).ok();
+    let password = std::env::var(PASSWORD_ENV).ok();
+    let lagging = raw_client_at(&second_url, database, &user, &password).with_option(
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
+    let fetches = |verb: &'static str| {
+        let lagging = lagging.clone();
+        async move {
+            for table in ["otel_spans_local", "otel_raw_local"] {
+                lagging
+                    .query(&format!("SYSTEM {verb} FETCHES {table}"))
+                    .execute()
+                    .await
+                    .expect("toggle the second replica's fetches");
+            }
+        }
+    };
+    fetches("STOP").await;
+
+    let FilePipeline {
+        _temp,
+        pipeline,
+        transactional,
+        files,
+        blobs: _,
+    } = file_pipeline(&first).await;
+    let outcomes = pipeline
+        .run_batch_outcomes_for_test(&[export_with_attachment(41)])
+        .await;
+    let project = ProjectId::from("default");
+    let trace = "29".repeat(16);
+    let referenced = sideseat_domain::files::FileService::hashes_referenced_by_trace(
+        &project,
+        &trace,
+        first.as_ref(),
+    )
+    .await;
+    let lagging_rows: Result<Vec<String>, _> = lagging
+        .query("SELECT span_id FROM otel_spans_local WHERE trace_id = ?")
+        .bind(&trace)
+        .fetch_all()
+        .await;
+    let reconciled = files
+        .reconcile_trace_survivors(&project, std::slice::from_ref(&trace), &second)
+        .await;
+    fetches("START").await;
+
+    assert_eq!(
+        outcomes,
+        vec![sideseat_ingestion::traces::IngestOutcome::Stored]
+    );
+    let referenced = referenced.expect("references");
+    assert!(!referenced.is_empty(), "the span names its attachment");
+    assert!(
+        lagging_rows.expect("the lagging replica's rows").is_empty(),
+        "the fixture must lag: the second replica already holds the span"
+    );
+    reconciled.expect("the reconciliation");
+    for hash in &referenced {
+        let file = transactional
+            .get_file(&project, hash)
+            .await
+            .expect("file row")
+            .expect("the live span's file is still registered");
+        assert!(
+            file.ref_count > 0,
+            "the live span's file is still owned: {file:?}"
+        );
+        files
+            .get_file(&project, hash)
+            .await
+            .expect("the live span's attachment is still readable");
+    }
+}

@@ -678,7 +678,13 @@ fn cleanup_trace_reads_share_winner_and_tenant_scoping() {
     let traces = vec!["trace-'a".to_string(), "trace-b".to_string()];
     for backend in [Backend::Duckdb, Backend::Clickhouse] {
         let alive = surviving_trace_ids("tenant-'quoted", &traces, backend).expect("alive");
-        let fields = file_reference_fields("tenant-'quoted", &traces, backend).expect("fields");
+        let fields = match backend {
+            Backend::Duckdb => duckdb_file_reference_fields("tenant-'quoted", &traces),
+            Backend::Clickhouse => {
+                clickhouse_survivor_reference_fields("every_replica", "tenant-'quoted", &traces)
+            }
+        }
+        .expect("fields");
         for query in [&alive, &fields] {
             assert_eq!(query.sql().matches('?').count(), query.params().len());
             assert!(query.sql().contains("project_id = ?"));
@@ -690,6 +696,8 @@ fn cleanup_trace_reads_share_winner_and_tenant_scoping() {
             Backend::Clickhouse => {
                 assert!(alive.sql().contains("FROM otel_spans FINAL"));
                 assert!(fields.sql().contains("coalesce(messages, '')"));
+                assert!(fields.sql().contains("FROM every_replica FINAL"));
+                assert!(fields.sql().contains("skip_unavailable_shards = 0"));
             }
         }
     }

@@ -390,17 +390,19 @@ pub async fn traces_without_spans(
 }
 
 /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
-/// traces.
+/// traces, read over `spans` (`ClickhouseService::every_replica_spans`).
 ///
 /// `FINAL`, so an expired revision's text does not keep an association alive on behalf of a span that is no
-/// longer current - the DuckDB side reads `DEDUP_SPANS` for the same reason.
+/// longer current - the DuckDB side reads `DEDUP_SPANS` for the same reason. On every replica, because a
+/// release decides from this which files a live span still names (`SurvivorReferences`).
 pub async fn file_reference_fields_for_traces(
     client: &clickhouse::Client,
+    spans: &str,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<String>, ClickhouseError> {
     let Some(statement) =
-        analytics::file_reference_fields(project_id, trace_ids, Backend::Clickhouse)
+        analytics::clickhouse_survivor_reference_fields(spans, project_id, trace_ids)
     else {
         return Ok(Vec::new());
     };

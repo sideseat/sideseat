@@ -446,33 +446,58 @@ pub async fn span_raw_ids(
         .collect())
 }
 
+/// The records a survivor read asks for at once: the bound list stays small, and a trace with a long history
+/// costs more reads rather than one statement past the server's limits.
+const SURVIVOR_RECORD_CHUNK: usize = 512;
+
 /// The latest records the surviving span rows of these traces name - every physical row, superseded
 /// revisions included, as the DuckDB adapter answers: a record lives while any row names it.
+///
+/// Both reads are over every replica (`spans`, `raw` - `ClickhouseService::every_replica_table`), since a release
+/// keeps only the media of the records this returns (`SurvivorReferences`): a row or a record an acknowledged
+/// insert committed on one replica is found however far the others lag, and an unreachable replica fails the
+/// read. Each replica answers its own latest version of a record, and every distinct one is kept: two
+/// deliveries of one record can share a version and still differ - one inline, one with its media stored apart -
+/// so neither stands for the other.
 pub async fn survivor_records(
     client: &Client,
+    spans: &str,
+    raw: &str,
     project_id: &ProjectId,
     trace_ids: &[String],
 ) -> Result<Vec<Vec<u8>>, ClickhouseError> {
     if trace_ids.is_empty() {
         return Ok(Vec::new());
     }
+    let raw_ids: Vec<String> = client
+        .query(&format!(
+            "SELECT DISTINCT assumeNotNull(raw_id) FROM {spans} \
+             WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL \
+             SETTINGS skip_unavailable_shards = 0"
+        ))
+        .bind(project_id.as_str())
+        .bind(trace_ids)
+        .fetch_all()
+        .await?;
     #[derive(Row, Deserialize)]
     struct RecordOnly {
         #[serde(with = "binary_string")]
         record: Vec<u8>,
     }
-    let rows: Vec<RecordOnly> = client
-        .query(
-            // `GLOBAL IN`: both tables are `Distributed` on a cluster, where a plain `IN` over one inside a read of
-            // the other is refused (`distributed_product_mode = deny`), as `consistency.rs` explains.
-            "SELECT record FROM otel_raw FINAL WHERE project_id = ? AND raw_id GLOBAL IN ( \
-                 SELECT DISTINCT raw_id FROM otel_spans \
-                 WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL)",
-        )
-        .bind(project_id.as_str())
-        .bind(project_id.as_str())
-        .bind(trace_ids)
-        .fetch_all()
-        .await?;
-    Ok(rows.into_iter().map(|row| row.record).collect())
+    let mut records = Vec::new();
+    for chunk in raw_ids.chunks(SURVIVOR_RECORD_CHUNK) {
+        let rows: Vec<RecordOnly> = client
+            .query(&format!(
+                "SELECT record FROM {raw} FINAL WHERE project_id = ? AND raw_id IN ? \
+                 SETTINGS skip_unavailable_shards = 0"
+            ))
+            .bind(project_id.as_str())
+            .bind(chunk)
+            .fetch_all()
+            .await?;
+        records.extend(rows.into_iter().map(|row| row.record));
+    }
+    records.sort_unstable();
+    records.dedup();
+    Ok(records)
 }

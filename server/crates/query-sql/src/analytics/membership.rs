@@ -246,26 +246,46 @@ pub fn surviving_trace_ids(
     )
 }
 
-/// Read every field that can carry an external file reference for selected winning spans.
-pub fn file_reference_fields(
+/// Read every field that can carry an external file reference for selected winning spans, on DuckDB.
+pub fn duckdb_file_reference_fields(
     project_id: &str,
     trace_ids: &[String],
-    backend: Backend,
 ) -> Option<ParameterizedQuery> {
-    let projection = match backend {
-        Backend::Duckdb => "messages, tool_definitions, metadata",
-        Backend::Clickhouse => {
-            "coalesce(messages, ''), coalesce(tool_definitions, ''), coalesce(metadata, '')"
-        }
-    };
     trace_identity_read(
         project_id,
         trace_ids,
-        backend,
-        projection,
+        Backend::Duckdb,
+        "messages, tool_definitions, metadata",
         ", messages, tool_definitions, metadata",
         QueryOperation::FileReferenceFieldsForTraces,
     )
+}
+
+/// The same fields on ClickHouse, over `spans` - every replica of the span table on a cluster - so a span an
+/// acknowledged insert committed on any one replica keeps its files however far the others lag. Each replica's
+/// own winners (`FINAL`): a lagging one may still answer an earlier revision, which keeps that revision's files
+/// a little longer, never fewer. An unreachable replica fails the read (`skip_unavailable_shards = 0`) rather
+/// than leaving its spans out.
+pub fn clickhouse_survivor_reference_fields(
+    spans: &str,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Option<ParameterizedQuery> {
+    if trace_ids.is_empty() {
+        return None;
+    }
+    let mut params = Vec::with_capacity(1 + trace_ids.len());
+    params.push(QueryValue::String(project_id.to_string()));
+    params.extend(trace_ids.iter().cloned().map(QueryValue::String));
+    Some(ParameterizedQuery {
+        sql: format!(
+            "SELECT coalesce(messages, ''), coalesce(tool_definitions, ''), coalesce(metadata, '') \
+             FROM {spans} FINAL WHERE project_id = ? AND trace_id IN ({}) \
+             SETTINGS skip_unavailable_shards = 0",
+            placeholders(trace_ids.len())
+        ),
+        params,
+    })
 }
 
 /// `projection` over the winning rows of these traces. `columns` lists - after a comma - the columns

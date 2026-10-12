@@ -346,8 +346,7 @@ pub fn file_reference_fields_for_traces(
 ) -> Result<Vec<String>, DuckdbError> {
     let mut fields = Vec::new();
     for chunk in trace_ids.chunks(KEYED_CHUNK) {
-        let Some(query) = analytics::file_reference_fields(project_id, chunk, Backend::Duckdb)
-        else {
+        let Some(query) = analytics::duckdb_file_reference_fields(project_id, chunk) else {
             continue;
         };
         let values = duckdb_values(query.params());
