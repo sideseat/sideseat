@@ -4,6 +4,7 @@
 #   docker build -t sideseat-bench -f scripts/deploy/bench/Dockerfile .
 #   uv run --locked --script scripts/perf/ingest-throughput.py container --cores 1,2,4,8 --memory 2g
 #   docker run --rm --cpus 1 --memory 2g sideseat-bench hot-path      # per-stage microseconds per span
+#   docker run --rm --cpus 1 --memory 2g sideseat-bench write-path    # the write path, per export, by batch size
 #
 # The same two commands on a real A1 host confirm the figure there; nothing in the image depends on the
 # machine that built it.
@@ -24,13 +25,17 @@ RUN --mount=type=cache,target=/cargo-target --mount=type=cache,target=/usr/local
     cp /cargo-target/profiling/sideseat /usr/local/bin/sideseat && \
     CARGO_TARGET_DIR=/cargo-target cargo test --locked --profile profiling -p sideseat-server --test ingest_hot_path \
       --no-run --message-format=json 2>/dev/null | \
-      sed -n 's/.*"executable":"\([^"]*ingest_hot_path[^"]*\)".*/\1/p' | head -1 | xargs -I{} cp {} /usr/local/bin/ingest-hot-path
+      sed -n 's/.*"executable":"\([^"]*ingest_hot_path[^"]*\)".*/\1/p' | head -1 | xargs -I{} cp {} /usr/local/bin/ingest-hot-path && \
+    CARGO_TARGET_DIR=/cargo-target cargo test --locked --profile profiling -p sideseat-server --test ingest_write_path \
+      --no-run --message-format=json 2>/dev/null | \
+      sed -n 's/.*"executable":"\([^"]*ingest_write_path[^"]*\)".*/\1/p' | head -1 | xargs -I{} cp {} /usr/local/bin/ingest-write-path
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /usr/local/bin/sideseat /usr/local/bin/sideseat
 COPY --from=build /usr/local/bin/ingest-hot-path /usr/local/bin/ingest-hot-path
+COPY --from=build /usr/local/bin/ingest-write-path /usr/local/bin/ingest-write-path
 # The benchmark reads the corpus from the path it was compiled against.
 COPY --from=build /src/server/tests/fixtures/messages /src/server/tests/fixtures/messages
 COPY scripts/deploy/bench/entrypoint.sh /usr/local/bin/entrypoint.sh
