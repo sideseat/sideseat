@@ -76,7 +76,8 @@ pub fn run_retention(
             result.deleted_count += deleted;
         }
 
-        let deleted = cleanup_logs_by_time(conn, max_age_minutes, now)?;
+        let (deleted, trace_ids) = cleanup_logs_by_time(conn, max_age_minutes, record_intent, now)?;
+        merge_trace_ids(&mut result.trace_ids_by_project, trace_ids);
         if deleted > 0 {
             tracing::debug!(
                 deleted,
@@ -153,8 +154,10 @@ pub fn run_retention_for_project_with_pressure(
 
         result.deleted_count +=
             cleanup_project_metrics_by_time(conn, project_id, max_age_minutes, now)?;
-        result.deleted_count +=
-            cleanup_project_logs_by_time(conn, project_id, max_age_minutes, now)?;
+        let (deleted, trace_ids) =
+            cleanup_project_logs_by_time(conn, project_id, max_age_minutes, record_intent, now)?;
+        result.deleted_count += deleted;
+        merge_trace_ids(&mut result.trace_ids_by_project, trace_ids);
     }
 
     if let Some(max_spans) = config.max_spans {
@@ -813,44 +816,70 @@ fn delete_metrics_before(
 pub fn cleanup_logs_by_time(
     conn: &Connection,
     minutes: u64,
+    record_intent: CleanupRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<u64, DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = now - TimeDelta::minutes(minutes_i64);
-    delete_expired_log_pages(conn, None, cutoff, now)
+    delete_expired_log_pages(conn, None, cutoff, now, record_intent)
 }
 
 fn cleanup_project_logs_by_time(
     conn: &Connection,
     project_id: &str,
     minutes: u64,
+    record_intent: CleanupRecorder<'_>,
     now: chrono::DateTime<Utc>,
-) -> Result<u64, DuckdbError> {
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = now - TimeDelta::minutes(minutes_i64);
-    delete_expired_log_pages(conn, Some(project_id), cutoff, now)
+    delete_expired_log_pages(conn, Some(project_id), cutoff, now, record_intent)
 }
 
-/// Delete expired logs a page at a time, each page's search terms with it in one transaction.
+/// Delete expired logs a page at a time, each page's search terms and media references with it in one
+/// transaction. The traces of a page's logs are recorded as owing a file release first
+/// (`record_intent`), as span retention records its traces, and returned for the caller's survivor reconciliation:
+/// once the rows are gone, nothing else can name them.
 fn delete_expired_log_pages(
     conn: &Connection,
     project_id: Option<&str>,
     cutoff: chrono::DateTime<Utc>,
     now: chrono::DateTime<Utc>,
-) -> Result<u64, DuckdbError> {
+    record_intent: CleanupRecorder<'_>,
+) -> Result<(u64, BTreeMap<String, Vec<String>>), DuckdbError> {
     let mut total_deleted = 0u64;
+    let mut all_trace_ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for _ in 0..MAX_METRICS_CLEANUP_BATCHES {
-        let deleted = in_transaction(conn, |conn| {
-            execute_statement(
+        let (deleted, trace_ids) = in_transaction(conn, |conn| {
+            let traces = media_traces_of_page(
                 conn,
-                &dml::retention::retention_delete_expired_log_terms(
+                &dml::retention::retention_expiring_log_traces(
                     project_id,
                     cutoff,
                     now,
                     RETENTION_BATCH_SIZE,
                 ),
             )?;
-            execute_statement(
+            if !traces.is_empty() {
+                record_intent(&traces)?;
+            }
+            for statement in [
+                dml::retention::retention_delete_expired_log_media(
+                    project_id,
+                    cutoff,
+                    now,
+                    RETENTION_BATCH_SIZE,
+                ),
+                dml::retention::retention_delete_expired_log_terms(
+                    project_id,
+                    cutoff,
+                    now,
+                    RETENTION_BATCH_SIZE,
+                ),
+            ] {
+                execute_statement(conn, &statement)?;
+            }
+            let deleted = execute_statement(
                 conn,
                 &dml::retention::retention_delete_expired_logs(
                     project_id,
@@ -858,14 +887,33 @@ fn delete_expired_log_pages(
                     now,
                     RETENTION_BATCH_SIZE,
                 ),
-            )
+            )?;
+            Ok((deleted, traces))
         })?;
+        merge_trace_ids(&mut all_trace_ids, trace_ids);
         if deleted == 0 {
             break;
         }
         total_deleted += deleted;
     }
-    Ok(total_deleted)
+    Ok((total_deleted, all_trace_ids))
+}
+
+/// The `(project, trace)` pairs a page's logs belong to, grouped by project.
+fn media_traces_of_page(
+    conn: &Connection,
+    statement: &DmlStatement,
+) -> Result<BTreeMap<String, Vec<String>>, DuckdbError> {
+    let values = duckdb_values(statement.params());
+    let mut stmt = conn.prepare(statement.sql())?;
+    let mut rows = stmt.query(values.as_slice())?;
+    let mut traces: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    while let Some(row) = rows.next()? {
+        let project: String = row.get(0)?;
+        let trace: String = row.get(1)?;
+        traces.entry(project).or_default().push(trace);
+    }
+    Ok(traces)
 }
 
 fn execute_statement(conn: &Connection, statement: &DmlStatement) -> Result<u64, DuckdbError> {

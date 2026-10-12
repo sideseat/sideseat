@@ -86,7 +86,12 @@ SPAN_TABLES = {
     "otel_raw_traces": "traces",
     "otel_raw_pending": "traces",
 }
-LOG_TABLES = {"otel_logs": "logs", "log_terms": "logs"}
+LOG_TABLES = {
+    "otel_logs": "logs",
+    "log_terms": "logs",
+    # Derived from the records: which file each traced record names, so a release can see it.
+    "log_media_refs": "logs",
+}
 METRIC_TABLES = {"otel_metrics": "metrics"}
 ANALYTICS_OWNER = {**RAW_TABLES, **SPAN_TABLES, **LOG_TABLES, **METRIC_TABLES}
 # Transactional tables whose rows exist per stored span or file. Everything else there is fixed.

@@ -217,6 +217,20 @@ Persistence order is deliberate:
 Files precede rows that reference them. If the second write fails, retention can reclaim an orphaned file;
 the reverse order would leave a row promising bytes that do not exist.
 
+Logs follow the same protocol through the same module (`ingestion/src/media.rs`). A log record's media is
+its bytes values large enough to be an attachment and of a media type the content names; they are cut out
+before anything is derived from them, since the derived body renders bytes as hex. The derived columns hold
+the `#!B64!#` reference as a string, and the raw record keeps its `bytesValue` member holding the reference,
+which is not base64, so the raw form restores the record exactly from the stored objects. The address is
+BLAKE3 of the base64 text, the file store's and the raw store's own. A file is owned by `(project, trace,
+hash)` whichever signal names it, and released only when neither a span nor a log of the trace names it: the
+survivor reconciliation reads the trace's log references too - DuckDB from `log_media_refs`, a row per
+media-bearing log written and deleted with it, ClickHouse from the trace's log rows - and the log age pass
+records a media-bearing log's trace for release before it deletes, at the bound the span pass uses.
+
+A record without a trace keeps its media inline: there is no trace to own the file under. No captured
+record does this. The planned extension is the log's own identity in the trace position of the owner key.
+
 A failed write does not release its associations on its own account. A ClickHouse insert can store its rows
 and still report failure, and one whose answer was lost can land after the caller gave up. So a project whose
 write failed has its associations settled by the references its stored rows and raw records hold: confirmed

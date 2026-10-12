@@ -201,6 +201,11 @@ pub struct NormalizedLog {
     /// (`CarrierRule::frames_requests`); `None` on every other record. Derived like `messages`, and what a framed
     /// request's view reads frames by.
     pub frame_key: Option<u128>,
+    /// The `#!B64!#` references this record's media was replaced by, which the file store owns under the record's
+    /// trace. Derived at ingest and never serialised - not producer content, not part of identity or size - but
+    /// what a store that cannot find a trace's log rows cheaply indexes, so a release sees what they name.
+    #[serde(skip)]
+    pub media: Vec<String>,
 }
 
 // ============================================================================

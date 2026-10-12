@@ -11,7 +11,7 @@ use tempfile::TempDir;
 use tokio::fs;
 
 #[derive(Debug)]
-struct TestClock;
+pub(super) struct TestClock;
 
 impl Clock for TestClock {
     fn now(&self) -> chrono::DateTime<Utc> {
@@ -23,7 +23,7 @@ fn test_hash() -> String {
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string()
 }
 
-async fn setup_test() -> (
+pub(super) async fn setup_test() -> (
     TempDir,
     Arc<dyn TransactionalRepository + Send + Sync>,
     Arc<CacheService>,
@@ -47,7 +47,7 @@ async fn setup_test() -> (
     (temp_dir, database, cache)
 }
 
-async fn create_file_service(
+pub(super) async fn create_file_service(
     config: FilesConfig,
     app_storage: &AppStorage,
     database: Arc<dyn TransactionalRepository + Send + Sync>,
@@ -633,6 +633,15 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
             // The re-check, after it committed.
             Ok(vec![format!("#!B64!#image/png::{}", self.hash)])
         }
+
+        async fn media_log_trace_ids(
+            &self,
+            _project_id: &ProjectId,
+            _after: Option<&str>,
+            _limit: usize,
+        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
+            Ok(Vec::new())
+        }
     }
 
     let racing_analytics = RacingAnalytics {
@@ -733,6 +742,15 @@ async fn a_failed_recheck_reclaims_nothing_it_released() {
             Err(sideseat_ports::error::DataError::Conflict(
                 "the analytics store is unavailable".to_string(),
             ))
+        }
+
+        async fn media_log_trace_ids(
+            &self,
+            _project_id: &ProjectId,
+            _after: Option<&str>,
+            _limit: usize,
+        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
+            Ok(Vec::new())
         }
     }
 

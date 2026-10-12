@@ -414,7 +414,8 @@ async fn expired_logs_take_their_search_terms() {
     )
     .expect("terms");
 
-    let deleted = super::cleanup_logs_by_time(&conn, 1, Utc::now()).expect("cleanup");
+    let (deleted, _) =
+        super::cleanup_logs_by_time(&conn, 1, &no_intent, Utc::now()).expect("cleanup");
     assert_eq!(deleted, 1);
     assert_eq!(
         term_rows(&conn, "log_terms"),
@@ -422,4 +423,50 @@ async fn expired_logs_take_their_search_terms() {
         "the expired log's terms outlived it"
     );
     assert_eq!(signal_count(&conn, "otel_logs", "default"), 1);
+}
+
+/// An expired traced log records its trace as owing a file release before it goes, and its media references go
+/// with it; a live one's stay, so a release still sees what it names.
+#[tokio::test]
+async fn an_expired_media_log_records_its_trace_and_takes_its_references() {
+    let (_temp_dir, analytics) = create_test_service().await;
+    let conn = analytics.conn();
+    insert_governed_log(
+        &conn,
+        "default",
+        "digest-old",
+        "2020-01-01 00:00:00",
+        None,
+        10,
+    );
+    let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+    insert_governed_log(&conn, "default", "digest-new", &recent, None, 10);
+    conn.execute_batch(
+        "UPDATE otel_logs SET trace_id = 'trace-old' WHERE log_digest = 'digest-old';
+         UPDATE otel_logs SET trace_id = 'trace-new' WHERE log_digest = 'digest-new';
+         INSERT INTO log_media_refs VALUES
+           ('default', 'trace-old', 'span-a', 'digest-old', 0, '#!B64!#image/png::aa'),
+           ('default', 'trace-new', 'span-b', 'digest-new', 0, '#!B64!#image/png::bb')",
+    )
+    .expect("references");
+    let recorded = std::sync::Mutex::new(BTreeMap::new());
+    let record = |traces: &BTreeMap<String, Vec<String>>| {
+        recorded.lock().expect("lock").extend(traces.clone());
+        Ok(())
+    };
+    let (deleted, traces) =
+        super::cleanup_logs_by_time(&conn, 1, &record, Utc::now()).expect("cleanup");
+    assert_eq!(deleted, 1);
+    let expected = BTreeMap::from([("default".to_string(), vec!["trace-old".to_string()])]);
+    assert_eq!(traces, expected);
+    assert_eq!(
+        *recorded.lock().expect("lock"),
+        expected,
+        "recorded before the delete"
+    );
+    assert_eq!(
+        term_rows(&conn, "log_media_refs"),
+        1,
+        "the live log's reference stays"
+    );
 }

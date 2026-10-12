@@ -109,6 +109,17 @@ type ContentBlock =
 Reasoning whose text the model withheld is a thinking block with empty text, and `signed: true` where the
 telemetry carried its signature. The signature itself stays in the stored telemetry and is not served.
 
+### Media
+
+Images, documents and audio that arrive inline - as base64 in a span's messages, or as bytes or base64 in a log
+record - are stored once per project, by content hash, and the content holds a reference to them instead:
+`#!B64!#<media type>::<hash>`. A file is kept for as long as any span or log of its run names it.
+
+A string your application writes that contains that spelling is read as a reference too, in every view: SideSeat
+checks it against the project's own stored files, shows the media where the project holds those bytes, and
+replaces it with `[content not stored (<media type>)]` where it does not. Bytes stored by another project are never
+shown. The stored raw telemetry is unaffected: it keeps the string exactly as your application wrote it.
+
 ## Sessions
 
 A **session** groups related runs together (for example, multi-turn conversations).

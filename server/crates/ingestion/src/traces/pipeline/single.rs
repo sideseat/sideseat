@@ -1,6 +1,11 @@
 use super::*;
 
 impl TracePipeline {
+    /// The file service this pipeline stores media through, which the other signals share.
+    pub fn file_service(&self) -> &Arc<FileService> {
+        &self.file_service
+    }
+
     /// Extract, enrich and write one request, answering whether it was stored.
     ///
     /// Used by the ingest path when the topic backend is not durable: with an in-memory queue an

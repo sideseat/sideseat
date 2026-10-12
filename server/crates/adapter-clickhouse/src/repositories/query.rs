@@ -2,6 +2,7 @@
 //!
 //! Provides the same interface as DuckDB query repository but uses ClickHouse SQL.
 
+mod log_media;
 mod rows;
 
 use std::collections::{HashMap, HashSet};
@@ -91,6 +92,7 @@ pub async fn span_winners(
 /// # SQL Injection Safety
 /// All values that could potentially come from user input are parameterized.
 use crate::ClickhouseError;
+pub use log_media::media_log_trace_ids;
 use rows::{ChSessionRow, ChSpanRow, ChTraceRow};
 use sideseat_ports::types::{
     FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
@@ -400,6 +402,7 @@ pub async fn file_reference_fields_for_traces(
     spans: &str,
     project_id: &str,
     trace_ids: &[String],
+    logs: &str,
 ) -> Result<Vec<String>, ClickhouseError> {
     let Some(statement) =
         analytics::clickhouse_survivor_reference_fields(spans, project_id, trace_ids)
@@ -408,11 +411,15 @@ pub async fn file_reference_fields_for_traces(
     };
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
     let rows: Vec<(String, String, String)> = query.fetch_all().await?;
-    Ok(rows
+    let mut fields: Vec<String> = rows
         .into_iter()
         .flat_map(|(messages, tool_definitions, metadata)| [messages, tool_definitions, metadata])
         .filter(|text| !text.is_empty())
-        .collect())
+        .collect();
+    // And what the traces' log rows still name.
+    log_media::reference_fields_for_traces(client, project_id, trace_ids, logs, &mut fields)
+        .await?;
+    Ok(fields)
 }
 
 /// The project's stored trace ids after `after`, at most `limit`, over `spans`

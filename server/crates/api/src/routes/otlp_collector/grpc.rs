@@ -199,6 +199,7 @@ impl OtlpGrpcServer {
             analytics,
             database,
             trace_pipeline,
+            files,
             clock,
             staging,
             storage_governance,
@@ -218,7 +219,7 @@ impl OtlpGrpcServer {
             Arc::clone(&analytics),
             Arc::clone(&database),
         ));
-        let log_signal = Arc::new(LogSignal::new(analytics, Arc::clone(&database)));
+        let log_signal = Arc::new(LogSignal::new(analytics, Arc::clone(&database), files));
         Ok(Self {
             addr,
             trace_signal,
@@ -315,6 +316,9 @@ pub struct IngestStores {
     pub database: Arc<crate::dependencies::TransactionalStore>,
     /// Present exactly when the queue is not durable, in which case traces are written in the request.
     pub trace_pipeline: Option<Arc<sideseat_ingestion::traces::TracePipeline>>,
+    /// The file service log media is stored through. Logs are written in the request whatever the
+    /// queue, so this is present even where the trace pipeline is not.
+    pub files: Arc<sideseat_domain::files::FileService>,
     pub clock: Arc<dyn Clock>,
     pub staging: Arc<StagingService>,
     pub storage_governance: Arc<StorageGovernanceService>,

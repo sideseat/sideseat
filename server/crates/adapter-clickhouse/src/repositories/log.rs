@@ -207,17 +207,31 @@ pub async fn insert_batch(
     client: &Client,
     table_name: &str,
     logs: &[NormalizedLog],
-) -> Result<(), ClickhouseError> {
+) -> Result<(), super::span::SpanInsertError> {
     if logs.is_empty() {
         return Ok(());
     }
     let target = dml::log_write_target(Backend::Clickhouse, Some(table_name));
-    let mut insert: clickhouse::insert::Insert<ChLogInsertRow> =
-        client.insert(target.table()).await?;
+    // As a span insert reports it: settled while no row was sent, in doubt once one was and the failure says the
+    // write may yet land - which decides whether the rows' file associations may be released.
+    let mut insert: clickhouse::insert::Insert<ChLogInsertRow> = client
+        .insert(target.table())
+        .await
+        .map_err(|error| super::span::SpanInsertError {
+            error: error.into(),
+            sent: false,
+        })?;
+    let sent = |error: clickhouse::error::Error| super::span::SpanInsertError {
+        error: error.into(),
+        sent: true,
+    };
     for log in logs {
-        insert.write(&ChLogInsertRow::from(log)).await?;
+        insert
+            .write(&ChLogInsertRow::from(log))
+            .await
+            .map_err(sent)?;
     }
-    insert.end().await?;
+    insert.end().await.map_err(sent)?;
     Ok(())
 }
 

@@ -1,12 +1,16 @@
 {
  "passes": 3,
  "tables": {
+  "log_media_refs": {
+   "columns": 262136,
+   "indexes": 262144
+  },
   "log_terms": {
-   "columns": 9174880,
+   "columns": 6553448,
    "indexes": 0
   },
   "otel_logs": {
-   "columns": 6815680,
+   "columns": 3145664,
    "indexes": 1310720
   },
   "otel_metrics": {
@@ -23,19 +27,19 @@
   },
   "otel_spans": {
    "columns": 10223424,
-   "indexes": 3932160
+   "indexes": 3670016
   },
   "schema_version": {
    "columns": 262136,
    "indexes": 0
   },
   "span_terms": {
-   "columns": 9961168,
+   "columns": 10223304,
    "indexes": 0
   }
  },
- "residual": 525064,
- "analytics_used": 49283072,
+ "residual": 525072,
+ "analytics_used": 43515904,
  "transactional": {
   "api_keys": 20480,
   "auth_methods": 20480,
@@ -63,20 +67,20 @@
   "sqlite_sequence": 4096,
   "staged_payload_anomalies": 8192,
   "staged_payloads": 16384,
-  "trace_files": 266240,
+  "trace_files": 282624,
   "users": 12288
  },
- "media": 4145647,
+ "media": 4322820,
  "signals": {
   "traces": {
    "items": 40971,
-   "stored_excluding_media": 30981616,
-   "per_item": 756.18
+   "stored_excluding_media": 30997992,
+   "per_item": 756.58
   },
   "logs": {
    "items": 8013,
-   "stored_excluding_media": 17301280,
-   "per_item": 2159.15
+   "stored_excluding_media": 11534112,
+   "per_item": 1439.42
   },
   "metrics": {
    "items": 1440,

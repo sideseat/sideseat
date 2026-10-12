@@ -315,7 +315,7 @@ pub async fn insert_batch(
     Ok(())
 }
 
-/// A span insert that failed, and whether any of it may have reached the server.
+/// A span or log insert that failed, and whether any of it may have reached the server.
 #[derive(Debug)]
 pub struct SpanInsertError {
     pub error: ClickhouseError,

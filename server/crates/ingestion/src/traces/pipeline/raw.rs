@@ -29,7 +29,7 @@ use sideseat_ports::types::{
     ProjectId, RawOrigin, RawRecordRow, StagedSignal, raw_version, raw_version_above,
 };
 
-use super::super::persist::PendingFileWrite;
+use crate::media::PendingFileWrite;
 use crate::received::ReceivedPayload;
 
 /// A span's identity within one project: hex trace id, hex span id.

@@ -359,6 +359,20 @@ pub fn file_reference_fields_for_traces(
                 }
             }
         }
+        // And what the traces' log rows still name: their media references, one per row of `log_media_refs`.
+        if let Some(query) = sideseat_query_sql::log_media::references_for_traces(
+            project_id,
+            chunk,
+            Backend::Duckdb,
+            "log_media_refs",
+        ) {
+            let values = duckdb_values(query.params());
+            let mut stmt = conn.prepare(query.sql())?;
+            let mut rows = stmt.query(values.as_slice())?;
+            while let Some(row) = rows.next()? {
+                fields.push(row.get::<_, String>(0)?);
+            }
+        }
     }
     Ok(fields)
 }
@@ -376,6 +390,35 @@ pub fn stored_trace_ids_after(
     let mut statement = conn.prepare(query.sql())?;
     let rows = statement.query_map(values.as_slice(), |row| row.get::<_, String>(0))?;
     Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// The first column of every row a query returns, as text.
+pub fn string_column(
+    conn: &Connection,
+    query: &sideseat_query_sql::analytics::ParameterizedQuery,
+) -> Result<Vec<String>, DuckdbError> {
+    let values = duckdb_values(query.params());
+    let mut stmt = conn.prepare(query.sql())?;
+    let mut rows = stmt.query(values.as_slice())?;
+    let mut out = Vec::new();
+    while let Some(row) = rows.next()? {
+        out.push(row.get::<_, String>(0)?);
+    }
+    Ok(out)
+}
+
+/// The media references of these traces' logs, deleted with the log rows (`log_media_refs`).
+fn delete_log_media_of_traces(
+    conn: &Connection,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<(), DuckdbError> {
+    if let Some(refs) =
+        sideseat_query_sql::log_media::duckdb_delete_for_traces(project_id, trace_ids)
+    {
+        conn.execute(refs.sql(), duckdb_values(refs.params()).as_slice())?;
+    }
+    Ok(())
 }
 
 pub fn delete_traces(
@@ -406,6 +449,7 @@ pub fn delete_traces(
         .expect("non-empty trace set produces a log delete");
         let values = duckdb_values(logs.params());
         conn.execute(logs.sql(), values.as_slice())?;
+        delete_log_media_of_traces(conn, project_id, trace_ids)?;
         Ok(deleted as u64)
     })
 }
@@ -530,6 +574,7 @@ pub fn delete_sessions(
         .expect("non-empty trace set produces a log delete");
         let values = duckdb_values(logs.params());
         conn.execute(logs.sql(), values.as_slice())?;
+        delete_log_media_of_traces(conn, project_id, &trace_ids)?;
         Ok(())
     })?;
     Ok(trace_ids)
@@ -559,6 +604,11 @@ pub fn delete_spans(
                 .expect("non-empty span set produces a log delete");
         let values = duckdb_values(logs.params());
         conn.execute(logs.sql(), values.as_slice())?;
+        if let Some(refs) =
+            sideseat_query_sql::log_media::duckdb_delete_for_spans(project_id, spans)
+        {
+            conn.execute(refs.sql(), duckdb_values(refs.params()).as_slice())?;
+        }
         Ok(deleted as u64)
     })
 }
@@ -597,6 +647,8 @@ pub fn delete_project_data(conn: &Connection, project_id: &str) -> Result<u64, D
         conn.execute(plan.delete_metrics.sql(), metric_values.as_slice())?;
         let log_values = duckdb_values(plan.delete_logs.params());
         conn.execute(plan.delete_logs.sql(), log_values.as_slice())?;
+        let refs = sideseat_query_sql::log_media::duckdb_delete_for_project(project_id);
+        conn.execute(refs.sql(), duckdb_values(refs.params()).as_slice())?;
         Ok(deleted as u64)
     })
 }

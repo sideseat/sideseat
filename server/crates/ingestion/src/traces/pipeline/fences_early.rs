@@ -474,194 +474,27 @@ impl TracePipeline {
             .retain(|(project, trace, _)| surviving.contains(&(project.as_str(), trace.as_str())));
         orphaned
     }
-
-    /// Mark this batch's associations durable, reporting a confirmation that matched fewer rows than it had.
-    ///
-    /// A shortfall means an association this batch owns is **not there** - something removed it between the
-    /// file write and here - so the span row now committed carries a `#!B64!#` reference whose file nothing
-    /// holds, and the orphan sweeper reclaims on zero references. That is the dangling reference the
-    /// write-files-before-rows ordering exists to prevent, so it cannot be inferred from a bare `Ok`: the
-    /// count is the only evidence, and it was previously discarded.
-    ///
-    /// Reported rather than repaired. Re-creating the row would point it at bytes that may already have been
-    /// collected, turning a detectable inconsistency into an undetectable one; the deletion sweep converges
-    /// on the trace either way. What this buys is that the case is *visible* if it ever happens, instead of
-    /// being the silent `Ok(0)` it was.
     pub(super) async fn confirm_associations(
         &self,
         created: &[(String, String, String)],
         path: &str,
     ) {
-        if created.is_empty() {
-            return;
-        }
-        match self
-            .file_service
-            .database()
-            .as_ref()
-            .confirm_trace_file_associations(created)
-            .await
-        {
-            Ok(confirmed) if confirmed < created.len() as u64 => tracing::error!(
-                path,
-                expected = created.len(),
-                confirmed,
-                "Fewer file associations were confirmed than this batch owns; a committed span may reference                  a file that nothing holds. Something removed the association between the file write and the                  confirmation."
-            ),
-            Ok(_) => {}
-            Err(e) => tracing::warn!(
-                error = %e,
-                path,
-                "Could not confirm this batch's file associations as durable; they keep a pending writer and                  a later failure path could release them"
-            ),
-        }
+        crate::media::confirm_associations(&self.file_service, created, path).await;
     }
-
-    /// Settle associations whose rows this batch did not write itself, by the rows that are stored.
-    ///
-    /// Two callers have such associations. A failed write: a failed ClickHouse insert can still have landed its
-    /// rows, so its associations cannot be released on the failure alone - if the exporter never retried, its
-    /// readable rows would name files the sweeper then reclaims. And an exact redelivery, whose rows are already
-    /// in place: releasing what it re-created would undo the one thing a redelivery can repair, an association
-    /// an earlier failure lost.
-    ///
-    /// Each trace's stored references are read, and an association they name is confirmed - those rows are
-    /// committed - while the rest are released. The read-then-act shape that `release_created_associations`
-    /// avoids is sound here only because the write in question has finished: none of its rows can land after
-    /// the read, and a concurrent batch's association holds its own pending count, which this does not touch.
-    /// A project whose write is `in_doubt` has not finished, so its unreferenced associations are kept pending
-    /// rather than released, and so are all of a trace's whose read fails: an association kept too long holds
-    /// quota, one released under a live row loses the file.
     pub(super) async fn settle_associations_by_stored_rows(
         &self,
         associations: &[(String, String, String)],
         in_doubt: &HashSet<String>,
     ) {
-        // In order, so the confirmations and releases are written in the same order every time.
-        let mut by_trace = BTreeMap::new();
-        for association in associations {
-            by_trace
-                .entry((association.0.as_str(), association.1.as_str()))
-                .or_insert_with(Vec::new)
-                .push(association);
-        }
-        let mut confirm = Vec::new();
-        let mut release = Vec::new();
-        let mut kept = 0usize;
-        for ((project_id, trace_id), associations) in by_trace {
-            match sideseat_domain::files::FileService::hashes_referenced_by_trace(
-                &ProjectId::from(project_id),
-                trace_id,
-                self.analytics.as_ref(),
-            )
-            .await
-            {
-                Ok(referenced) => {
-                    for association in associations {
-                        if referenced.contains(&association.2) {
-                            confirm.push(association.clone());
-                        } else if in_doubt.contains(project_id) {
-                            kept += 1;
-                        } else {
-                            release.push(association.clone());
-                        }
-                    }
-                }
-                Err(error) => {
-                    kept += associations.len();
-                    tracing::error!(
-                        %error,
-                        project_id,
-                        trace_id,
-                        "Could not read which file references are stored; keeping the associations pending"
-                    );
-                }
-            }
-        }
-        if kept > 0 {
-            tracing::warn!(
-                kept,
-                "File associations of a write that may still land are kept pending: released now, a row landing \
-                 later would name a file the sweeper had reclaimed"
-            );
-        }
-        self.confirm_associations(&confirm, "stored rows").await;
-        self.release_created_associations(&release).await;
+        crate::media::settle_associations_by_stored_rows(
+            &self.file_service,
+            self.analytics.as_ref(),
+            associations,
+            in_doubt,
+        )
+        .await;
     }
-
-    /// Release associations this batch referenced, decrementing its own writer.
-    ///
-    /// # Why a dropped trace's association is not deleted outright here
-    ///
-    /// A crashed writer's increment is never decremented, so a decrement-to-zero release cannot reclaim it
-    /// and the file's quota is held. Deleting the non-durable row outright *from this path* was tried and
-    /// reverted: it is unsafe. `durable = false` does not prove no analytics row committed - confirmation runs
-    /// after the write and its failure is only logged - and a concurrent batch that passed the fence before
-    /// the tombstone can be committing spans for the same trace right now. Deleting the shared row then
-    /// leaves that batch's readable spans pointing at a file with no association, which the orphan sweeper
-    /// may reclaim: a dangling reference, the one outcome the write-files-before-rows ordering exists to
-    /// prevent.
-    ///
-    /// The reclamation belongs where the information is. `advance_pending_deletions` deletes the trace's
-    /// rows, confirms by direct read that nothing is still readable, and *only then* calls
-    /// `FileService::cleanup_traces`, which removes every association for the trace regardless of
-    /// `pending_writers` and recomputes the reference counts. So a stuck increment on a tombstoned trace is
-    /// reclaimed by that sweep - leased, backed off, and retried until the rows are provably gone - and this
-    /// path only ever undoes its own reference.
-    ///
-    /// Best effort and logged rather than fatal: the batch has already failed and will be redelivered,
-    /// so the useful thing is to leave as little behind as possible. A release that itself fails leaves
-    /// the association, which is the state this exists to avoid - so it is worth a warning, but not worth
-    /// turning a retryable batch into a different failure.
-    ///
-    /// `sync_ref_count` follows each release, recomputing the count from the associations that remain
-    /// rather than subtracting - so a concurrent batch holding its own association keeps the file, and
-    /// the count cannot drift however the two interleave.
     pub(super) async fn release_created_associations(&self, created: &[(String, String, String)]) {
-        if created.is_empty() {
-            return;
-        }
-        let repo = self.file_service.database().as_ref();
-        let mut released = 0usize;
-        for (project_id, trace_id, hash) in created {
-            let typed_project_id = ProjectId::from(project_id.as_str());
-            // No read here, deliberately.
-            //
-            // An earlier version asked the analytics store whether the trace had rows and skipped the
-            // release if it did - which is a read-then-act pair, and therefore not a decision at all: a
-            // second batch can commit between the read and the delete, and its file loses its protection.
-            // The `provisional` marker replaces that with a single statement. The delete matches only rows
-            // still marked provisional, and a batch that committed has already cleared the marker, so
-            // "another batch owns this now" is a *stored fact* rather than something observed and hoped to
-            // still hold.
-            match repo
-                .release_trace_file_association(&typed_project_id, trace_id, hash)
-                .await
-            {
-                Ok(true) => {
-                    released += 1;
-                    if let Err(e) = repo.sync_ref_count(&typed_project_id, hash).await {
-                        tracing::warn!(
-                            error = %e,
-                            project_id, hash,
-                            "Released an association but could not recompute the file's reference count"
-                        );
-                    }
-                }
-                Ok(false) => {}
-                Err(e) => tracing::warn!(
-                    error = %e,
-                    project_id, trace_id, hash,
-                    "Could not release an association after a failed analytics write; the file it \
-                     references will hold quota until the association is removed"
-                ),
-            }
-        }
-        if released > 0 {
-            tracing::debug!(
-                released,
-                "Released file associations created by a batch whose analytics write failed"
-            );
-        }
+        crate::media::release_created_associations(&self.file_service, created).await;
     }
 }

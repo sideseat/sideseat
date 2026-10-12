@@ -127,6 +127,7 @@ impl ApiServer {
                     .with_storage_governance(Arc::clone(&app.storage_governance)),
                 )
             }),
+            app.files.clone(),
             Arc::clone(&app.ingest_admission),
         )
         .layer(DefaultBodyLimit::max(OTLP_BODY_LIMIT));

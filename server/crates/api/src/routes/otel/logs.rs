@@ -79,6 +79,28 @@ pub struct LogDto {
     pub ingested_at: DateTime<Utc>,
 }
 
+/// The raw record as the producer wrote its strings: stored with every producer `#!` escaped, so the references
+/// beside them are only SideSeat's (`file_uri::escape_producer_text`). The references stay, as a span's raw view
+/// shows them.
+fn unescape_raw_log(mut value: serde_json::Value) -> serde_json::Value {
+    fn walk(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::String(text) => {
+                if let std::borrow::Cow::Owned(original) =
+                    sideseat_core::utils::file_uri::unescape_producer_text(text)
+                {
+                    *text = original;
+                }
+            }
+            serde_json::Value::Object(members) => members.values_mut().for_each(walk),
+            serde_json::Value::Array(items) => items.iter_mut().for_each(walk),
+            _ => {}
+        }
+    }
+    walk(&mut value);
+    value
+}
+
 impl LogDto {
     pub(super) fn from_row(row: LogRow, include_raw_log: bool) -> Self {
         Self {
@@ -110,7 +132,9 @@ impl LogDto {
             scope_attributes: parse_json(row.scope_attributes),
             scope_schema_url: row.scope_schema_url,
             resource_schema_url: row.resource_schema_url,
-            raw_log: include_raw_log.then(|| parse_json(row.raw_log)).flatten(),
+            raw_log: include_raw_log
+                .then(|| parse_json(row.raw_log).map(unescape_raw_log))
+                .flatten(),
             ingested_at: row.ingested_at,
         }
     }

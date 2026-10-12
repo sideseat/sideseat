@@ -682,6 +682,7 @@ impl StagingService {
                             &request,
                             self.analytics.as_ref(),
                             self.database.as_ref(),
+                            Some(trace_pipeline.file_service()),
                             current.created_at,
                         )
                         .await

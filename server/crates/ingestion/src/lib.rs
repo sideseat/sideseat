@@ -7,6 +7,7 @@
 mod accounting;
 mod frame_keys;
 pub mod logs;
+mod media;
 mod message_events;
 pub mod metrics;
 pub mod otlp;

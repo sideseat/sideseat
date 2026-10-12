@@ -42,9 +42,11 @@ use super::enrich::enrich_batch;
 use super::extract::files::FileExtractionCache;
 use super::extract::{ExtractionMode, extract_attributes_batch, extract_messages_batch};
 use super::persist::{
-    BatchInput, IncomingReference, PendingFileWrite, SpanWrite, SseSpanEvent, note_unstored_files,
-    persist_extracted_files, prepare_batch, publish_sse_events, reconcile_incoming_references,
+    BatchInput, SpanWrite, SseSpanEvent, note_unstored_files, prepare_batch, publish_sse_events,
     write_to_duckdb,
+};
+use crate::media::{
+    IncomingReference, PendingFileWrite, persist_extracted_files, reconcile_incoming_references,
 };
 use crate::received::ReceivedPayload;
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};

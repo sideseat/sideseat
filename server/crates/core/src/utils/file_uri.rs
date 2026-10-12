@@ -12,6 +12,32 @@ pub fn is_valid_file_hash(hash: &str) -> bool {
     hash.len() == FILE_HASH_HEX_LENGTH && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+/// The two characters every reference begins with, which an escaped producer string never holds unescaped.
+const REFERENCE_LEAD: &str = "#!";
+
+/// A producer's own string, escaped for a store where SideSeat's references sit beside it: every `#!` becomes `#!!`.
+///
+/// A reference begins with `#!`, so an escaped string can never contain one - not whole, not at a boundary where an
+/// escaped occurrence meets the text after it - and only a reference SideSeat wrote reads as one. Escaping the
+/// lead itself rather than the whole prefix is what makes that hold: `#!B64!#!B64!#` escaped by prefix re-forms a
+/// prefix from the first one's tail and the second's head. Lossless: [`unescape_producer_text`] gives back the
+/// original exactly. Borrowed where there is nothing to escape, which is nearly always.
+pub fn escape_producer_text(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains(REFERENCE_LEAD) {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    std::borrow::Cow::Owned(text.replace(REFERENCE_LEAD, "#!!"))
+}
+
+/// A producer string as it was before [`escape_producer_text`]: each `#!!` is `#!` again, and a `#!` that is not
+/// followed by `!` - the lead of a reference SideSeat wrote - is left as it is.
+pub fn unescape_producer_text(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains("#!!") {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    std::borrow::Cow::Owned(text.replace("#!!", REFERENCE_LEAD))
+}
+
 /// Parsed components of a `#!B64!#` file URI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileUri<'a> {
@@ -177,5 +203,33 @@ mod tests {
             "empty-hash URI should not parse"
         );
         assert!(!is_file_uri(&uri));
+    }
+
+    /// Escaping is lossless, and an escaped producer string holds no reference whatever it was spelled like.
+    #[test]
+    fn an_escaped_producer_string_holds_no_reference_and_unescapes_exactly() {
+        let reference = format!(
+            "{FILE_URI_PREFIX}image/png::{}",
+            "a".repeat(FILE_HASH_HEX_LENGTH)
+        );
+        for original in [
+            reference.clone(),
+            format!("see {reference} here"),
+            format!("{FILE_URI_PREFIX}!B64!#"),
+            "#!!".to_string(),
+            "#!#!!#".to_string(),
+            "#!/bin/sh".to_string(),
+            "plain".to_string(),
+        ] {
+            let escaped = escape_producer_text(&original);
+            assert!(
+                !escaped.contains(FILE_URI_PREFIX),
+                "{original:?} -> {escaped:?}"
+            );
+            assert_eq!(unescape_producer_text(&escaped), original);
+        }
+        // A reference SideSeat wrote beside an escaped string survives the unescape.
+        let mixed = format!("{} {reference}", escape_producer_text("#!!"));
+        assert_eq!(unescape_producer_text(&mixed), format!("#!! {reference}"));
     }
 }

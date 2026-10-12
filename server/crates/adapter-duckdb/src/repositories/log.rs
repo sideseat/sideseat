@@ -46,7 +46,35 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
             stored.entry(identity).or_default().push(ingested_us);
         }
         super::keyed::delete_rows(conn, target.table(), &rowids)?;
-
+        // A replaced identity's reference rows for the references this delivery writes again go, so they are
+        // not doubled.
+        let rewritten: Vec<(String, String, u32, String)> = logs
+            .iter()
+            .filter(|log| {
+                stored.contains_key(&(
+                    log.project_id.clone().unwrap_or_default(),
+                    log.log_digest.clone(),
+                    log.ordinal,
+                ))
+            })
+            .flat_map(|log| {
+                log.media.iter().map(|uri| {
+                    (
+                        log.project_id.clone().unwrap_or_default(),
+                        log.log_digest.clone(),
+                        log.ordinal,
+                        uri.clone(),
+                    )
+                })
+            })
+            .collect();
+        if let Some(delete) = sideseat_query_sql::log_media::duckdb_delete_rewritten(&rewritten) {
+            conn.execute(delete.sql(), query_values(delete.params()).as_slice())?;
+        }
+        // The replaced rows' other media references stay: a replacement that no longer names a file still leaves the
+        // association its earlier delivery made, and only a reference the release can see lets the release run
+        // when the record goes. Kept until the record's row is deleted, they hold a file no longer than the record
+        // lives; and nothing here reads the reference table, so a write costs what it writes.
         let mut appender = conn.appender(target.table())?;
         for log in logs {
             let (search_fields, search_truncated) =
@@ -93,9 +121,36 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
         }
         appender.flush()?;
         drop(appender);
+        write_media_refs(conn, logs)?;
         super::search::replace_log_terms(conn, logs, &stored)?;
         Ok(())
     })
+}
+
+/// One reference row per media-bearing log and reference (`log_media_refs`). A log without a trace holds its media
+/// inline, so it has none.
+fn write_media_refs(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), DuckdbError> {
+    if logs.iter().all(|log| log.media.is_empty()) {
+        return Ok(());
+    }
+    let mut appender = conn.appender("log_media_refs")?;
+    for log in logs {
+        let Some(trace_id) = log.trace_id.as_deref() else {
+            continue;
+        };
+        for uri in &log.media {
+            appender.append_row(params![
+                log.project_id.as_deref().unwrap_or_default(),
+                trace_id,
+                log.span_id.as_deref(),
+                log.log_digest.as_str(),
+                log.ordinal,
+                uri.as_str(),
+            ])?;
+        }
+    }
+    appender.flush()?;
+    Ok(())
 }
 
 pub fn list_logs(
@@ -308,5 +363,47 @@ mod tests {
         assert_eq!(options["severity_text"][0].value, "ERROR");
         assert_eq!(options["severity_text"][0].count, 2);
         assert_eq!(options["service_name"][0].value, "checkout");
+    }
+
+    /// A redelivery keeps one reference row per reference it writes again, and the reference an earlier delivery
+    /// wrote that this one no longer names stays until the record's row goes.
+    #[tokio::test]
+    async fn a_redelivery_keeps_one_reference_row_each_and_the_earlier_ones() {
+        let (_directory, service) = service().await;
+        let conn = service.conn();
+        let kept = format!("#!B64!#image/png::{}", "a".repeat(64));
+        let dropped = format!("#!B64!#image/png::{}", "b".repeat(64));
+        let first = NormalizedLog {
+            media: vec![kept.clone(), dropped.clone()],
+            ..fixture("digest-a", 0, 0)
+        };
+        insert_batch(&conn, std::slice::from_ref(&first)).unwrap();
+        for _ in 0..3 {
+            insert_batch(
+                &conn,
+                &[NormalizedLog {
+                    media: vec![kept.clone()],
+                    ..first.clone()
+                }],
+            )
+            .unwrap();
+        }
+        let query = sideseat_query_sql::log_media::references_for_traces(
+            "logs-project",
+            &["trace-1".to_string()],
+            Backend::Duckdb,
+            "log_media_refs",
+        )
+        .expect("a reference read");
+        let mut uris = super::super::query::string_column(&conn, &query).unwrap();
+        uris.sort();
+        let mut rows: Vec<(String, i64)> = Vec::new();
+        for uri in uris {
+            match rows.last_mut() {
+                Some((last, count)) if *last == uri => *count += 1,
+                _ => rows.push((uri, 1)),
+            }
+        }
+        assert_eq!(rows, vec![(kept, 1), (dropped, 1)]);
     }
 }

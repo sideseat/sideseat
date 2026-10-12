@@ -76,6 +76,7 @@ pub fn routes(
     staging: Arc<StagingService>,
     storage_governance: Arc<StorageGovernanceService>,
     trace_pipeline: Option<Arc<sideseat_ingestion::traces::TracePipeline>>,
+    files: Arc<sideseat_domain::files::FileService>,
     admission: Arc<IngestAdmission>,
 ) -> Router {
     // Use stream topic for traces (at-least-once delivery)
@@ -87,7 +88,13 @@ pub fn routes(
         Arc::clone(&analytics),
         Arc::clone(&database),
     ));
-    let log_signal = Arc::new(LogSignal::new(analytics, Arc::clone(&database)));
+    let log_signal = Arc::new(LogSignal::new(
+        analytics,
+        Arc::clone(&database),
+        // Logs are written in the request whatever the queue, so they hold the file service
+        // themselves rather than borrowing the trace pipeline's, which a durable queue omits.
+        files,
+    ));
 
     let state = OtlpState {
         trace_signal,

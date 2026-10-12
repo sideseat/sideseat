@@ -749,16 +749,21 @@ impl Signal for MetricsSignal {
 pub struct LogSignal {
     analytics: Arc<dyn AnalyticsRepository + Send + Sync>,
     database: Arc<dyn TransactionalRepository + Send + Sync>,
+    /// Where the records' media is stored. Required rather than optional: a log signal without one
+    /// would keep media inline and commit references no association protects.
+    files: Arc<sideseat_domain::files::FileService>,
 }
 
 impl LogSignal {
     pub fn new(
         analytics: Arc<dyn AnalyticsRepository + Send + Sync>,
         database: Arc<dyn TransactionalRepository + Send + Sync>,
+        files: Arc<sideseat_domain::files::FileService>,
     ) -> Self {
         Self {
             analytics,
             database,
+            files,
         }
     }
 }
@@ -876,6 +881,7 @@ impl Signal for LogSignal {
             request,
             self.analytics.as_ref(),
             self.database.as_ref(),
+            Some(self.files.as_ref()),
             context.clock.now(),
             context.storage_governance,
         )

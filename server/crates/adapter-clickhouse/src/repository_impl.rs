@@ -360,11 +360,32 @@ impl LogStore for ClickhouseRepository {
                 .or_default()
                 .push(log);
         }
+        // One insert per tenant, reported as span inserts are: which committed, and whether the failed one is in
+        // doubt - the evidence a caller needs to release, or keep, the files the rows name.
+        let mut committed = Vec::new();
         for (project_id, logs) in by_project {
             let client = self.0.tenant_client_str(&project_id);
-            log::insert_batch(&client, &table, &logs)
-                .await
-                .map_err(DataError::from)?;
+            if let Err(failure) = log::insert_batch(&client, &table, &logs).await {
+                let in_doubt = failure.in_doubt();
+                let error = DataError::from(failure.error);
+                let error = if in_doubt {
+                    DataError::InDoubt {
+                        project: Some(project_id.clone()),
+                        source: Box::new(error),
+                    }
+                } else {
+                    error
+                };
+                return Err(if committed.is_empty() {
+                    error
+                } else {
+                    DataError::PartiallyWritten {
+                        committed_projects: committed,
+                        source: Box::new(error),
+                    }
+                });
+            }
+            committed.push(project_id);
         }
         Ok(())
     }
@@ -911,7 +932,25 @@ impl SurvivorReferences for ClickhouseRepository {
             query::file_reference_fields_for_traces,
             &spans,
             project_id,
-            trace_ids
+            trace_ids,
+            &self.0.every_replica_table("otel_logs")
+        )
+    }
+
+    async fn media_log_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        tenant_query!(
+            self,
+            project_id,
+            query::media_log_trace_ids,
+            project_id.as_str(),
+            after,
+            limit,
+            &self.0.every_replica_table("otel_logs")
         )
     }
 

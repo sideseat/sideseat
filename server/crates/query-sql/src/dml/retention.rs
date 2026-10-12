@@ -296,6 +296,44 @@ pub fn retention_delete_expired_log_terms(
     )
 }
 
+/// The traces of one oldest page of expired DuckDB logs, recorded as owing a file release before the page goes
+/// ([`retention_delete_expired_logs`], same arguments, same transaction). Every traced log, not only one that holds
+/// media now: a redelivery may have replaced a record that named a file with one that does not, and only the
+/// release can see the association it left.
+pub fn retention_expiring_log_traces(
+    project_id: Option<&str>,
+    cutoff: DateTime<Utc>,
+    now: DateTime<Utc>,
+    limit: i64,
+) -> DmlStatement {
+    retention_statement(
+        format!(
+            "SELECT DISTINCT project_id, trace_id FROM otel_logs WHERE trace_id IS NOT NULL AND rowid IN (\
+             SELECT rowid FROM ({}) page) ORDER BY project_id, trace_id",
+            expired_log_page(project_id.is_some())
+        ),
+        expired_log_values(project_id, cutoff, now, limit),
+    )
+}
+
+/// Delete the media references of one oldest page of expired DuckDB logs, before the page itself (same arguments,
+/// same transaction): a reference left behind would keep a file no record names.
+pub fn retention_delete_expired_log_media(
+    project_id: Option<&str>,
+    cutoff: DateTime<Utc>,
+    now: DateTime<Utc>,
+    limit: i64,
+) -> DmlStatement {
+    retention_statement(
+        format!(
+            "DELETE FROM log_media_refs WHERE (project_id, log_digest, ordinal) IN (\
+             SELECT project_id, log_digest, ordinal FROM ({}) page)",
+            expired_log_page(project_id.is_some())
+        ),
+        expired_log_values(project_id, cutoff, now, limit),
+    )
+}
+
 /// Delete one oldest page of expired DuckDB logs, optionally of one project.
 pub fn retention_delete_expired_logs(
     project_id: Option<&str>,
@@ -360,6 +398,30 @@ pub fn retention_expiring_traces_clickhouse(
              WHERE project_id = ? AND timestamp_start < fromUnixTimestamp64Micro(?) \
              AND (isNull(hold_until) OR hold_until < fromUnixTimestamp64Micro(?)) \
              SETTINGS skip_unavailable_shards = 0"
+        ),
+        vec![
+            QueryValue::String(project_id.to_string()),
+            QueryValue::Int64(cutoff.timestamp_micros()),
+            QueryValue::Int64(now.timestamp_micros()),
+        ],
+    )
+}
+
+/// The traces whose logs a ClickHouse age delete at `cutoff` removes: recorded as owing a file release before the
+/// delete, as [`retention_expiring_traces_clickhouse`] records the span rows' traces. Every traced log, for the
+/// reason [`retention_expiring_log_traces`] gives; a log without a trace holds its media inline.
+pub fn retention_expiring_log_traces_clickhouse(
+    logs: &str,
+    project_id: &str,
+    cutoff: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> DmlStatement {
+    retention_statement(
+        format!(
+            "SELECT DISTINCT assumeNotNull(trace_id) FROM {logs} \
+             WHERE project_id = ? AND timestamp < fromUnixTimestamp64Micro(?) \
+             AND (isNull(hold_until) OR hold_until < fromUnixTimestamp64Micro(?)) \
+             AND isNotNull(trace_id) SETTINGS skip_unavailable_shards = 0"
         ),
         vec![
             QueryValue::String(project_id.to_string()),

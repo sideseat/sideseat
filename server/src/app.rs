@@ -312,6 +312,7 @@ impl CoreApp {
                             .with_storage_governance(Arc::clone(&app.storage_governance)),
                         )
                     }),
+                    files: app.files.clone(),
                     clock: Arc::clone(&app.clock),
                     staging: Arc::clone(&app.staging),
                     storage_governance: Arc::clone(&app.storage_governance),

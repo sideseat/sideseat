@@ -51,7 +51,7 @@ use sideseat_core::utils::file_uri::parse_file_uri;
 use sideseat_ports::cache::CacheKey;
 
 pub use error::FileServiceError;
-pub use references::collect_file_references_in_str;
+pub use references::{collect_file_references_in_str, replace_file_reference};
 
 /// File metadata without content
 #[derive(Debug, Clone)]
@@ -906,6 +906,8 @@ impl sideseat_ports::blobs::RetentionFileReconciler for FileService {
             .map_err(|error| error.to_string())
     }
 }
+#[cfg(test)]
+mod log_retention_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;

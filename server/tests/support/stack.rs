@@ -175,7 +175,7 @@ pub async fn stores(root: &Path, clock: Arc<dyn Clock>) -> Stores {
         clock,
         traces: TraceSignal::new(trace_topic, Some(Arc::clone(&pipeline))),
         metrics: MetricsSignal::new(Arc::clone(&analytics_port), Arc::clone(&database_port)),
-        logs: LogSignal::new(analytics_port, database_port),
+        logs: LogSignal::new(analytics_port, database_port, Arc::clone(&files)),
         database,
         analytics,
         staging,

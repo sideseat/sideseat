@@ -18,17 +18,47 @@ const EXPIRING_TRACES_PER_RECORD: usize = 1024;
 pub async fn record_expiring_traces(
     client: &Client,
     spans: &str,
+    logs: &str,
     project_id: &sideseat_ports::types::ProjectId,
     cutoff: DateTime<Utc>,
     now: DateTime<Utc>,
     record: &(dyn sideseat_ports::traits::TransactionalRepository + Send + Sync),
 ) -> Result<usize, String> {
-    let statement = dml::retention::retention_expiring_traces_clickhouse(
-        spans,
-        project_id.as_str(),
-        cutoff,
-        now,
-    );
+    let spans_recorded = record_traces_of(
+        client,
+        &dml::retention::retention_expiring_traces_clickhouse(
+            spans,
+            project_id.as_str(),
+            cutoff,
+            now,
+        ),
+        project_id,
+        record,
+    )
+    .await?;
+    // And the traces of expiring logs, so their files are released once the logs are gone too.
+    let logs_recorded = record_traces_of(
+        client,
+        &dml::retention::retention_expiring_log_traces_clickhouse(
+            logs,
+            project_id.as_str(),
+            cutoff,
+            now,
+        ),
+        project_id,
+        record,
+    )
+    .await?;
+    Ok(spans_recorded + logs_recorded)
+}
+
+/// Stream the trace ids `statement` selects and record each chunk as owing a retention cleanup.
+async fn record_traces_of(
+    client: &Client,
+    statement: &dml::DmlStatement,
+    project_id: &sideseat_ports::types::ProjectId,
+    record: &(dyn sideseat_ports::traits::TransactionalRepository + Send + Sync),
+) -> Result<usize, String> {
     let mut query = client.query(statement.sql());
     for value in statement.params() {
         query = match value {

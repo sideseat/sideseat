@@ -51,4 +51,27 @@ impl SurvivorReferences for DuckdbRepository {
         .map_err(DataError::from)?
         .map_err(Into::into)
     }
+
+    async fn media_log_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        let db = Arc::clone(&self.0);
+        let query = sideseat_query_sql::log_media::media_trace_page(
+            project_id.as_str(),
+            after,
+            limit,
+            sideseat_query_sql::Backend::Duckdb,
+            "log_media_refs",
+        );
+        DuckdbService::run_query(&self.0, move || {
+            let conn = db.conn();
+            query::string_column(&conn, &query)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
 }

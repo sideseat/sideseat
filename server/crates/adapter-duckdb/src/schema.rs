@@ -504,6 +504,23 @@ CREATE TABLE IF NOT EXISTS log_terms (
     ingested_at TIMESTAMP NOT NULL
 );
 
+-- The media references of the log rows that hold any, one row per log and reference: what a file release reads
+-- to see which media a trace's logs still name, since otel_logs has no trace lookup. Written and deleted in the
+-- transactions that write and delete the log rows, so it never outlives one. Rows exist only for media-bearing
+-- logs, so the table costs nothing for a store without any, and a scan of it is bounded by them.
+CREATE TABLE IF NOT EXISTS log_media_refs (
+    project_id VARCHAR NOT NULL,
+    trace_id VARCHAR NOT NULL,
+    span_id VARCHAR,
+    log_digest VARCHAR NOT NULL,
+    ordinal UINTEGER NOT NULL,
+    uri VARCHAR NOT NULL
+);
+-- A redelivery replaces its own identity's reference rows for the references it writes again, found by digest: the
+-- write reads the rows of what it replaces, never the table. Indexing only rows that exist - media logs - costs
+-- next to nothing.
+CREATE INDEX IF NOT EXISTS idx_log_media_refs_digest ON log_media_refs(log_digest);
+
 "#;
 
 #[cfg(test)]
@@ -531,6 +548,7 @@ mod tests {
             "otel_logs",
             "span_terms",
             "log_terms",
+            "log_media_refs",
             "otel_raw",
             "otel_raw_pending",
             "otel_raw_traces",

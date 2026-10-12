@@ -449,7 +449,13 @@ bounding purges, without the confirm fence, or with one project-wide cutoff, TLC
 prunes it yet - bounded live telemetry leaves unbounded collection state behind, counted in the project's held
 transactional bytes. And owner rows are released only by deletion and SideSeat's own retention passes: ClickHouse's
 90-day time-to-live can reap rows while SideSeat is not running (the age pass runs a day ahead of it, hourly, but
-not while stopped), leaving their owners unreleased. Both are arbiter-state retention and are pruned there. The
+not while stopped), leaving their owners unreleased. The same holds for the file associations of the logs the TTL
+reaps while SideSeat is stopped: the log age pass records a media-bearing log's trace for release at the same bound
+as the span pass, so only a stopped server lets the TTL remove a log unrecorded, and what it leaves is a held
+association - a file kept too long, never a reference to bytes that are gone. A record that arrives already older
+than the TTL can likewise be reaped by a merge before the hourly pass sees it, spans and logs alike: the same held
+association, and the same remedy in that slice - recording the intent at ingest for a record already past the bound. Both are arbiter-state retention and
+are pruned there. The
 project's held transactional bytes are also computed there, as a sum over the arbiter's rows beside the deletion
 journal, on every storage read and quota admission - work in proportion to what is stored; that slice replaces the
 sum with a per-project counter kept in the transactions that touch those rows, if admission runs it per batch.
@@ -462,6 +468,14 @@ read through the span table's `trace_id` index - which the production connection
 keyed read materialises the trace's rows; and the release's lookup of the records indexed under the traces filters
 `otel_raw_traces` by a `trace_id` it has no index on, which scans that table. Paging owners alone would not bound
 it; an index answering (trace, record) presence does, and that slice measures it.
+
+### Deferred: log records into the raw store
+
+Log records are their own raw form, `otel_logs.raw_log`: the OTLP/JSON of the record, media held by reference and
+producer strings escaped (`file_uri::escape_producer_text`), so it restores exactly from its stored objects. The
+cleaner form is the one traces have: the export as received, an SSR1 record in `otel_raw` with media by hash, from
+which `raw_log` is derived like every other log column. It moves raw ownership for logs under the arbiter, so it is
+the storage slice's, after its retention work.
 
 ### Deferred: content-defined chunking of re-sent history
 

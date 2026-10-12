@@ -473,6 +473,7 @@ impl ClickhouseService {
         retention::record_expiring_traces(
             &self.tenant_client(project_id),
             &self.every_replica_spans(),
+            &self.every_replica_table("otel_logs"),
             project_id,
             cutoff,
             now,
@@ -670,7 +671,8 @@ impl ClickhouseService {
     }
 
     /// The age the explicit pass expires at when none shorter is configured: a day inside the schema's 90-day
-    /// TTL, so the pass, running hourly, records a trace's cleanup before the TTL can reap its rows unrecorded.
+    /// TTL, so the pass, running hourly, records a trace's cleanup before the TTL can reap its rows unrecorded -
+    /// its spans' and its media-bearing logs', which the pass records together (`record_age_expiry`).
     const AGE_AHEAD_OF_TTL_MINUTES: u64 = 89 * 24 * 60;
 
     /// Start retention cleanup task

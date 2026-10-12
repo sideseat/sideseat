@@ -548,6 +548,17 @@ impl SurvivorReferences for DedupAnalyticsRepository {
             .stored_trace_ids_after(project_id, after, limit)
             .await
     }
+
+    async fn media_log_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .media_log_trace_ids(project_id, after, limit)
+            .await
+    }
 }
 
 #[async_trait]

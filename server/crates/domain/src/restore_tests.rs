@@ -394,6 +394,17 @@ impl SurvivorReferences for PartialDiscovery {
             }
         }
     }
+
+    async fn media_log_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .media_log_trace_ids(project_id, after, limit)
+            .await
+    }
 }
 
 /// A restore whose discovery stops early - a page it cannot read, a trace it cannot repair - fails before
@@ -614,4 +625,51 @@ async fn ownership_rebuilt_before_the_journal_keeps_a_file_a_live_trace_names() 
             "rebuilt first: {rebuild_first}; the live trace's file kept its bytes: {kept}"
         );
     }
+}
+
+/// A trace whose only rows are logs is still reached: restored beside an older ownership snapshot that holds no
+/// association for it, its media survives the orphan sweep because the repair finds the trace through its logs.
+#[tokio::test]
+async fn association_repair_reaches_a_trace_whose_only_rows_are_logs() {
+    let stores = stores().await;
+    let project = ProjectId::from("default");
+    let hash = "f".repeat(64);
+    let uri = format!("#!B64!#image/png::{hash}");
+    stores
+        .files
+        .storage()
+        .store(&project, &hash, b"log-media")
+        .await
+        .expect("restored blob");
+    stores
+        .database
+        .restore_orphan_metadata(&project, &hash, Some("image/png"), 9, "sha256")
+        .await
+        .expect("metadata with no owner");
+    stores
+        .analytics
+        .insert_logs(&[sideseat_ports::types::NormalizedLog {
+            project_id: Some("default".to_owned()),
+            log_digest: "a".repeat(64),
+            trace_id: Some("log-only".to_owned()),
+            timestamp: TestClock.now(),
+            raw_log: serde_json::json!({"body": {"bytesValue": uri.clone()}}),
+            media: vec![uri],
+            ..Default::default()
+        }])
+        .await
+        .expect("analytics restore");
+
+    reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
+        .await
+        .expect("repair");
+
+    assert!(
+        stores
+            .files
+            .file_exists(&project, &hash)
+            .await
+            .expect("lookup"),
+        "the orphan sweep collected media a surviving log names"
+    );
 }

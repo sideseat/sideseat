@@ -3,6 +3,7 @@
 mod extract;
 mod identity;
 mod ingest;
+mod media;
 mod messages;
 
 pub use extract::extract_logs_batch;

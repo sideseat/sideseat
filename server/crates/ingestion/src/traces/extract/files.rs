@@ -170,7 +170,7 @@ impl FileExtractionCache {
 /// (`may_hold_media_bytes`). Handles OTLP dotted attributes like
 /// `llm.input_messages.0.message.contents.1.message_content.image.source.data`, where the last segment is the
 /// member.
-fn is_extractable_key(key: &str) -> bool {
+pub(crate) fn is_extractable_key(key: &str) -> bool {
     let leaf = key.rsplit('.').next().unwrap_or(key);
     sideseat_domain::rules::ruleset()
         .message_members
@@ -179,7 +179,7 @@ fn is_extractable_key(key: &str) -> bool {
 
 /// Whether a key (or its last dotted segment) holds prose, which is never replaced as media even when it is
 /// valid base64 (`holds_prose`).
-fn is_protected_key(key: &str) -> bool {
+pub(crate) fn is_protected_key(key: &str) -> bool {
     let leaf = key.rsplit('.').next().unwrap_or(key);
     sideseat_domain::rules::ruleset()
         .message_members
@@ -352,6 +352,20 @@ fn extract_recursive(
         }
         _ => false,
     }
+}
+
+/// One base64 string a signal knows holds bytes, extracted where it is media: its file and the reference that
+/// replaces it. `None` for bytes too small to be an attachment, too large to store, or of no media type the
+/// content names - an opaque signature is bytes, not media, and stays inline.
+pub(crate) fn extract_media_string(
+    s: &str,
+    cache: Option<&FileExtractionCache>,
+) -> Option<(ExtractedFile, String)> {
+    let mut files = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let uri = extract_or_cache(s, &mut files, &mut seen, cache, try_extract_base64)?;
+    let file = files.pop()?;
+    file.media_type.is_some().then_some((file, uri))
 }
 
 /// Record an extracted file, deduplicating by hash within the same extraction.
@@ -590,7 +604,7 @@ fn check_base64_charset(s: &str) -> Option<bool> {
 }
 
 /// BLAKE3 hash of raw base64 bytes, returned as 64-char hex string.
-fn blake3_base64(b64: &[u8]) -> String {
+pub(crate) fn blake3_base64(b64: &[u8]) -> String {
     blake3::hash(b64).to_hex().to_string()
 }
 

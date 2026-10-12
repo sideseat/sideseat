@@ -12,6 +12,8 @@ pub mod display;
 pub mod dml;
 /// DuckDB reads keyed by one identity column, answered from its index.
 pub mod keyed;
+/// The media references of stored log rows.
+pub mod log_media;
 /// Typed OTLP log reads.
 pub mod logs;
 /// Typed message-context and message-feed statements.

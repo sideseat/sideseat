@@ -19,6 +19,24 @@ pub fn extract_logs_batch(
     request: &ExportLogsServiceRequest,
     received_at: DateTime<Utc>,
 ) -> Vec<NormalizedLog> {
+    extract_logs(request, received_at, false).0
+}
+
+/// The batch's rows with their media cut out (`super::media`), and the files those rows reference: what ingestion
+/// stores. [`extract_logs_batch`] keeps media inline, for the readers that need only identity.
+pub(crate) fn extract_logs_batch_with_media(
+    request: &ExportLogsServiceRequest,
+    received_at: DateTime<Utc>,
+) -> (Vec<NormalizedLog>, Vec<crate::media::PendingFileWrite>) {
+    extract_logs(request, received_at, true)
+}
+
+fn extract_logs(
+    request: &ExportLogsServiceRequest,
+    received_at: DateTime<Utc>,
+    with_media: bool,
+) -> (Vec<NormalizedLog>, Vec<crate::media::PendingFileWrite>) {
+    let mut files = Vec::new();
     let mut result = Vec::new();
     let mut ordinals: HashMap<String, u32> = HashMap::new();
 
@@ -48,35 +66,51 @@ pub fn extract_logs_batch(
                 let this_ordinal = *ordinal;
                 *ordinal = ordinal.saturating_add(1);
 
+                let trace_id = nonempty_hex(&record.trace_id);
+                let project_id = resource_map.get(PROJECT_ID_ATTR).cloned();
+                // The record as the raw form keeps it, and the record every derived column is read from: one and
+                // the same unless it carries media, which both then hold by reference.
+                let mut raw_log = serde_json::to_value(record).unwrap_or_default();
+                // Producer strings escaped first, so a reference in the raw form is only ever SideSeat's.
+                super::media::escape_raw_record(&mut raw_log);
+                let media = with_media
+                    .then(|| {
+                        super::media::extract_record_media(
+                            record,
+                            &mut raw_log,
+                            project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                            trace_id.as_deref(),
+                        )
+                    })
+                    .flatten();
+                let (record, media) = match media {
+                    Some(media) => {
+                        files.extend(media.files);
+                        (std::borrow::Cow::Owned(media.derived), media.references)
+                    }
+                    None => (std::borrow::Cow::Borrowed(record), Vec::new()),
+                };
+                let record = record.as_ref();
                 let time =
                     (record.time_unix_nano != 0).then(|| nanos_to_datetime(record.time_unix_nano));
                 let observed_time = (record.observed_time_unix_nano != 0)
                     .then(|| nanos_to_datetime(record.observed_time_unix_nano));
                 let attributes_map = extract_attributes(&record.attributes);
-                let body = record
-                    .body
-                    .as_ref()
-                    .map(any_value_to_json)
-                    .unwrap_or_default();
-                let body_text = record.body.as_ref().and_then(body_text);
                 let scope_name = scope
                     .map(|scope| scope.name.as_str())
                     .filter(|n| !n.is_empty());
-                let messages = super::messages::log_record_messages(record, scope_name);
-                let trace_id = nonempty_hex(&record.trace_id);
-                let project_id = resource_map.get(PROJECT_ID_ATTR).cloned();
-                // Stored in the project's and trace's form, which keeps the frames read to the trace's frames
-                // (`RequestFrames::stored_key`). A record no request named a project for is attributed to the
-                // default one, as the write fence attributes it.
-                let frame_key = super::messages::log_record_frame_key(record, &messages)
-                    .zip(trace_id.as_deref())
-                    .and_then(|(key, trace)| {
-                        sideseat_domain::rules::carrier_rules::RequestFrames::stored_key(
-                            project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
-                            trace,
-                            &key,
-                        )
-                    });
+                let DerivedContent {
+                    body,
+                    body_text,
+                    attributes,
+                    messages,
+                    frame_key,
+                } = derive_content(
+                    record,
+                    scope_name,
+                    project_id.as_deref(),
+                    trace_id.as_deref(),
+                );
 
                 let mut log = NormalizedLog {
                     project_id,
@@ -89,7 +123,7 @@ pub fn extract_logs_batch(
                     severity_text: nonempty(&record.severity_text),
                     body,
                     body_text,
-                    attributes: attrs_to_typed_json(&record.attributes),
+                    attributes,
                     dropped_attributes_count: record.dropped_attributes_count,
                     flags: record.flags,
                     trace_id,
@@ -110,21 +144,81 @@ pub fn extract_logs_batch(
                     scope_attributes: scope_attributes.clone(),
                     scope_schema_url: nonempty(&scope_logs.schema_url),
                     resource_schema_url: nonempty(&resource_logs.schema_url),
-                    raw_log: serde_json::to_value(record).unwrap_or_default(),
+                    raw_log,
                     ingested_at: Some(received_at),
                     hold_until: None,
                     logical_bytes: 0,
                     search: Default::default(),
-                    messages: (!messages.is_empty())
-                        .then(|| serde_json::to_string(&messages).unwrap_or_default()),
+                    messages,
                     frame_key,
+                    media,
                 };
                 log.logical_bytes = crate::accounting::log_logical_bytes(&mut log);
                 result.push(log);
             }
         }
     }
-    result
+    (result, files)
+}
+
+/// The columns a record's content derives: its body, the body's text, its attributes, the messages its events
+/// carry and the frame key they state. One function, so a record re-derived after its references were verified
+/// (`super::ingest`) reads exactly as one derived at extraction.
+pub(crate) struct DerivedContent {
+    pub body: serde_json::Value,
+    pub body_text: Option<String>,
+    pub attributes: serde_json::Value,
+    pub messages: Option<String>,
+    pub frame_key: Option<u128>,
+}
+
+pub(crate) fn derive_content(
+    record: &opentelemetry_proto::tonic::logs::v1::LogRecord,
+    scope_name: Option<&str>,
+    project_id: Option<&str>,
+    trace_id: Option<&str>,
+) -> DerivedContent {
+    derive_content_rewriting(record, scope_name, project_id, trace_id, |_| {})
+}
+
+/// [`derive_content`], with `rewrite` applied to the messages' JSON before it is serialised - where a value decoded
+/// out of the record's text (JSON spelling `#` as `\u0023`, say) first appears, and the one place it can be
+/// changed structurally whatever its depth.
+pub(crate) fn derive_content_rewriting(
+    record: &opentelemetry_proto::tonic::logs::v1::LogRecord,
+    scope_name: Option<&str>,
+    project_id: Option<&str>,
+    trace_id: Option<&str>,
+    rewrite: impl FnOnce(&mut serde_json::Value),
+) -> DerivedContent {
+    let messages = super::messages::log_record_messages(record, scope_name);
+    // Stored in the project's and trace's form, which keeps the frames read to the trace's frames
+    // (`RequestFrames::stored_key`). A record no request named a project for is attributed to the default one, as
+    // the write fence attributes it.
+    let frame_key = super::messages::log_record_frame_key(record, &messages)
+        .zip(trace_id)
+        .and_then(|(key, trace)| {
+            sideseat_domain::rules::carrier_rules::RequestFrames::stored_key(
+                project_id.unwrap_or(DEFAULT_PROJECT_ID),
+                trace,
+                &key,
+            )
+        });
+    DerivedContent {
+        body: record
+            .body
+            .as_ref()
+            .map(any_value_to_json)
+            .unwrap_or_default(),
+        body_text: record.body.as_ref().and_then(body_text),
+        attributes: attrs_to_typed_json(&record.attributes),
+        messages: (!messages.is_empty()).then(|| {
+            let mut value = serde_json::to_value(&messages).unwrap_or_default();
+            rewrite(&mut value);
+            value.to_string()
+        }),
+        frame_key,
+    }
 }
 
 fn body_text(value: &AnyValue) -> Option<String> {

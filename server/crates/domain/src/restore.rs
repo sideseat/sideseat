@@ -295,6 +295,23 @@ async fn repair_project_ownership(
             break;
         }
     }
+    // Traces whose only rows are logs: no span lists them, and an older ownership snapshot may hold no row for
+    // them either, so the media their logs name is found here or the orphan sweep collects it.
+    let mut after = None::<String>;
+    loop {
+        let trace_ids = survivors
+            .media_log_trace_ids(project_id, after.as_deref(), TRACE_PAGE_SIZE)
+            .await?;
+        if trace_ids.is_empty() {
+            break;
+        }
+        report.analytics_traces_scanned += trace_ids.len() as u64;
+        repair_trace_batch(project_id, &trace_ids, survivors, files, &mut report.files).await?;
+        after = trace_ids.last().cloned();
+        if trace_ids.len() < TRACE_PAGE_SIZE {
+            break;
+        }
+    }
     report.ownership_traces_scanned += visit_owning_traces(
         OwningStep::Repair,
         project_id,

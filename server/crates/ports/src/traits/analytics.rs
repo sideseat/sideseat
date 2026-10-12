@@ -61,6 +61,15 @@ pub trait SurvivorReferences: Send + Sync {
         after: Option<&str>,
         limit: usize,
     ) -> Result<Vec<String>, DataError>;
+
+    /// One page of the traces whose stored logs hold media, in trace order after `after`: how a repair finds a
+    /// trace whose only rows are logs, which no span-based traversal reaches.
+    async fn media_log_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError>;
 }
 
 // ============================================================================
