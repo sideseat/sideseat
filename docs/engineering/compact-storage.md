@@ -195,7 +195,12 @@ what remains is one single-column index per key a read looks rows up by (`otel_s
 error. Every read keyed on one of them is written so the key is its scan's only filter
 (`sideseat_query_sql::keyed`), binds at most 512 keys, and stays on the index however many rows its keys find
 (DuckDB's `index_scan_max_count`, raised on the connection), so a long trace or a span id a client reuses costs the
-rows it asks for rather than the table; deletes go by the row ids a keyed read found. What an index scan holds of
+rows it asks for rather than the table; deletes go by the row ids a keyed read found. The keys are bound one
+placeholder each: a list bound as one value - split from a string, or cast to `VARCHAR[]` for `= ANY` or `unnest`,
+the only list forms the Rust driver can bind - is not read through the index at all, and scanned every row of a
+million to find 64 on 1.5.6. No read depends on that form. Writing the keys into the statement as literals instead
+of binding them was measured too and saved nothing: the same cost at 1, 64 and 512 keys over a million spans, and
+per-export write-path and server ingest figures within noise in the pinned 1-core container. What an index scan holds of
 those rows sits outside `memory_limit`: DuckDB 1.5.6 gathers the key's row ids in a `std::set` while the scan
 initialises, about 50 B a row, then keeps them as an array of 8 B a row, neither through the buffer manager; and it
 fetches the rows one at a time, roughly 30 µs a row. Both grow with the rows a key finds, which the read has to
