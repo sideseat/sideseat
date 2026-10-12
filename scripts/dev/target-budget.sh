@@ -31,13 +31,15 @@ done
 size_kb() { du -sk "$1" 2>/dev/null | awk '{print $1}'; }
 gb() { awk -v kb="$1" 'BEGIN { printf "%.1f GB", kb / 1048576 }'; }
 # Busy also covers the gaps between a multi-step script's cargo runs, when nothing holds the lock: a worktree whose
-# verify-head or push lock (<worktree>.lock) is taken, and a target anything has written in the last
-# BUSY_IDLE_MINUTES.
+# verify-head or push lock (<worktree>.lock) is taken, a target held with .budget-hold, and a target anything has
+# written in the last BUSY_IDLE_MINUTES.
 busy() {
   local target="$1" worktree
   worktree="${target%/target}"
   worktree="${worktree%-target}"
   [ -d "$worktree.lock" ] && return 0
+  # A deliberate, time-boxed hold: `touch <target>/.budget-hold` keeps a target for HOLD_HOURS from the touch.
+  [ -n "$(find "$target/.budget-hold" -mmin "-$(( ${HOLD_HOURS:-2} * 60 ))" -print 2>/dev/null)" ] && return 0
   lsof -t "$target"/*/.cargo-lock >/dev/null 2>&1 && return 0
   pgrep -f -- "$target/" >/dev/null 2>&1 && return 0
   [ -n "$(find "$target" -maxdepth 3 -mmin "-${busy_idle_minutes}" -print -quit 2>/dev/null)" ]
