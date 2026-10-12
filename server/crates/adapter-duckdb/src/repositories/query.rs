@@ -363,6 +363,21 @@ pub fn file_reference_fields_for_traces(
     Ok(fields)
 }
 
+/// The project's stored trace ids after `after`, at most `limit` (`SurvivorReferences::stored_trace_ids_after`).
+pub fn stored_trace_ids_after(
+    conn: &Connection,
+    project_id: &str,
+    after: Option<&str>,
+    limit: usize,
+) -> Result<Vec<String>, DuckdbError> {
+    let query =
+        analytics::stored_trace_ids_after("otel_spans", project_id, after, limit, Backend::Duckdb);
+    let values = duckdb_values(query.params());
+    let mut statement = conn.prepare(query.sql())?;
+    let rows = statement.query_map(values.as_slice(), |row| row.get::<_, String>(0))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
 pub fn delete_traces(
     conn: &Connection,
     project_id: &str,

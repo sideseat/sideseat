@@ -15,12 +15,12 @@ use crate::files::{FileRestoreRepairReport, FileService, FileServiceError, Missi
 use sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS;
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
-    AnalyticsRepository, DeletionRecord, DeletionScope, TransactionalRepository,
+    AnalyticsRepository, DeletionRecord, DeletionScope, SurvivorReferences, TransactionalRepository,
 };
-use sideseat_ports::types::{ListTracesParams, ProjectId};
+use sideseat_ports::types::ProjectId;
 
 const JOURNAL_PAGE_SIZE: usize = 256;
-const TRACE_PAGE_SIZE: u32 = 256;
+const TRACE_PAGE_SIZE: usize = 256;
 
 type TransactionalStore = dyn TransactionalRepository + Send + Sync;
 type AnalyticsStore = dyn AnalyticsRepository + Send + Sync;
@@ -150,6 +150,43 @@ pub async fn reconcile_restored_associations(
     analytics: &Arc<AnalyticsStore>,
     files: &FileService,
 ) -> Result<AssociationRepairReport, RestoreRepairError> {
+    reconcile_restored_associations_with(database, analytics, analytics.as_ref(), files).await
+}
+
+/// That every stored trace of every project was found and its ownership repaired: what the orphan sweep needs
+/// before it may run.
+///
+/// The association table is the only index from a file to the rows that name it, and a restored backup may be
+/// missing exactly the associations a live span needs. The repair rebuilds them from the traces the analytics
+/// traversal finds - `SurvivorReferences::stored_trace_ids_after`, which reads every replica and fails rather
+/// than answer from part of them - so after a complete traversal every file a stored span or record names is
+/// owned again, and the sweep's own claim, which asks the associations, keeps it. A traversal that stops early
+/// returns its error before this exists, and the sweep takes it by value, so nothing collects orphans on the
+/// strength of a partial one.
+struct DiscoveryComplete(());
+
+/// The orphan sweep that ends a restore, once every trace was found and repaired.
+async fn sweep_restored_orphans(
+    _discovered: DiscoveryComplete,
+    files: &FileService,
+) -> Result<u64, RestoreRepairError> {
+    Ok(cleanup_zero_ref_files_governed(
+        files.storage(),
+        files.database(),
+        FILE_DELETION_CLAIM_STALE_SECS,
+        files.governance(),
+    )
+    .await?)
+}
+
+/// `reconcile_restored_associations`, with the reads that find and repair each trace's ownership taken from
+/// `survivors` - the analytics store's own, but for a test that makes one of them fail.
+async fn reconcile_restored_associations_with(
+    database: &Arc<TransactionalStore>,
+    analytics: &Arc<AnalyticsStore>,
+    survivors: &dyn SurvivorReferences,
+    files: &FileService,
+) -> Result<AssociationRepairReport, RestoreRepairError> {
     let temp =
         cleanup_orphan_temp_files(files.temp_dir(), files.storage(), files.database()).await?;
     let mut report = AssociationRepairReport {
@@ -176,81 +213,158 @@ pub async fn reconcile_restored_associations(
             continue;
         }
 
-        let mut trace_page = 1;
-        loop {
-            let (traces, _) = analytics
-                .list_traces(&ListTracesParams {
-                    project_id: project_id.clone(),
-                    page: trace_page,
-                    limit: TRACE_PAGE_SIZE,
-                    include_nongenai: true,
-                    ..ListTracesParams::default()
-                })
-                .await?;
-            if traces.is_empty() {
-                break;
-            }
-            let trace_ids = traces
-                .iter()
-                .map(|trace| trace.trace_id.clone())
-                .collect::<Vec<_>>();
-            report.analytics_traces_scanned += trace_ids.len() as u64;
-            reconcile_trace_batch(&project_id, &trace_ids, analytics, files, &mut report.files)
-                .await?;
-            if traces.len() < TRACE_PAGE_SIZE as usize {
-                break;
-            }
-            trace_page += 1;
-        }
-
-        let mut after = None::<String>;
-        loop {
-            let trace_ids = database
-                .restore_association_trace_ids(
-                    &project_id,
-                    after.as_deref(),
-                    TRACE_PAGE_SIZE as usize,
-                )
-                .await?;
-            if trace_ids.is_empty() {
-                break;
-            }
-            report.ownership_traces_scanned += trace_ids.len() as u64;
-            reconcile_trace_batch(&project_id, &trace_ids, analytics, files, &mut report.files)
-                .await?;
-            after = trace_ids.last().cloned();
-            if trace_ids.len() < TRACE_PAGE_SIZE as usize {
-                break;
-            }
-        }
+        // Every trace's ownership is rebuilt before any is released: a file a stale association of one trace
+        // holds may be named by a live trace a later page reaches, and releasing it first reclaimed its bytes
+        // before that trace was repaired.
+        repair_project_ownership(&project_id, database, survivors, files, &mut report).await?;
+        // Then what no survivor names is released. Only a trace that holds an association has any to release.
+        visit_owning_traces(
+            OwningStep::Release,
+            &project_id,
+            database,
+            survivors,
+            files,
+            &mut report.files,
+        )
+        .await?;
     }
 
-    report.orphan_files_deleted = cleanup_zero_ref_files_governed(
-        files.storage(),
-        files.database(),
-        FILE_DELETION_CLAIM_STALE_SECS,
-        files.governance(),
-    )
-    .await?;
+    report.orphan_files_deleted = sweep_restored_orphans(DiscoveryComplete(()), files).await?;
     normalize_missing_content(&mut report.files.missing_content);
     Ok(report)
 }
 
-async fn reconcile_trace_batch(
+/// Rebuild the file ownership the restored analytics rows name, and release and collect nothing: the first step
+/// of a restore repair, before the deletion journal and retention reclaim files.
+///
+/// Those passes reclaim a file once the associations of the traces they delete are gone. A restored
+/// transactional backup can lack the association a live trace holds on the same file, so without this the file
+/// was reclaimed by a deleted trace's cleanup while the live trace still named it. Rebuilt first, the live
+/// trace's association keeps the file counted through both.
+pub async fn rebuild_restored_ownership(
+    database: &Arc<TransactionalStore>,
+    analytics: &Arc<AnalyticsStore>,
+    files: &FileService,
+) -> Result<AssociationRepairReport, RestoreRepairError> {
+    let mut report = AssociationRepairReport::default();
+    let mut projects = database
+        .restore_project_ids(usize::MAX)
+        .await?
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    projects.extend(analytics.analytics_project_ids(usize::MAX).await?);
+    for project_id in projects {
+        report.projects_scanned += 1;
+        if database.get_project(project_id.as_str()).await?.is_none() {
+            continue;
+        }
+        repair_project_ownership(
+            &project_id,
+            database,
+            analytics.as_ref(),
+            files,
+            &mut report,
+        )
+        .await?;
+    }
+    normalize_missing_content(&mut report.files.missing_content);
+    Ok(report)
+}
+
+/// Rebuild one project's ownership from both traversals: the traces its stored rows name, read from every
+/// copy, and the traces that hold an association.
+async fn repair_project_ownership(
+    project_id: &ProjectId,
+    database: &Arc<TransactionalStore>,
+    survivors: &dyn SurvivorReferences,
+    files: &FileService,
+    report: &mut AssociationRepairReport,
+) -> Result<(), RestoreRepairError> {
+    let mut after = None::<String>;
+    loop {
+        let trace_ids = survivors
+            .stored_trace_ids_after(project_id, after.as_deref(), TRACE_PAGE_SIZE)
+            .await?;
+        if trace_ids.is_empty() {
+            break;
+        }
+        report.analytics_traces_scanned += trace_ids.len() as u64;
+        repair_trace_batch(project_id, &trace_ids, survivors, files, &mut report.files).await?;
+        after = trace_ids.last().cloned();
+        if trace_ids.len() < TRACE_PAGE_SIZE {
+            break;
+        }
+    }
+    report.ownership_traces_scanned += visit_owning_traces(
+        OwningStep::Repair,
+        project_id,
+        database,
+        survivors,
+        files,
+        &mut report.files,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn repair_trace_batch(
     project_id: &ProjectId,
     trace_ids: &[String],
-    analytics: &Arc<AnalyticsStore>,
+    survivors: &dyn SurvivorReferences,
     files: &FileService,
     file_report: &mut FileRestoreRepairReport,
 ) -> Result<(), RestoreRepairError> {
     let repaired = files
-        .repair_trace_associations_after_restore(project_id, trace_ids, analytics.as_ref())
+        .repair_trace_associations_after_restore(project_id, trace_ids, survivors)
         .await?;
     merge_file_report(file_report, repaired);
-    files
-        .reconcile_trace_survivors(project_id, trace_ids, analytics.as_ref())
-        .await?;
     Ok(())
+}
+
+/// What a pass over the traces that hold an association does to each page of them.
+#[derive(Clone, Copy)]
+enum OwningStep {
+    /// Rebuild the ownership their stored rows name.
+    Repair,
+    /// Release the ownership no stored row names.
+    Release,
+}
+
+/// `step` over every page of the traces that hold an association in the project, in order; the traces visited.
+async fn visit_owning_traces(
+    step: OwningStep,
+    project_id: &ProjectId,
+    database: &Arc<TransactionalStore>,
+    survivors: &dyn SurvivorReferences,
+    files: &FileService,
+    file_report: &mut FileRestoreRepairReport,
+) -> Result<u64, RestoreRepairError> {
+    let mut visited = 0u64;
+    let mut after = None::<String>;
+    loop {
+        let trace_ids = database
+            .restore_association_trace_ids(project_id, after.as_deref(), TRACE_PAGE_SIZE)
+            .await?;
+        if trace_ids.is_empty() {
+            break;
+        }
+        visited += trace_ids.len() as u64;
+        match step {
+            OwningStep::Repair => {
+                repair_trace_batch(project_id, &trace_ids, survivors, files, file_report).await?
+            }
+            OwningStep::Release => {
+                files
+                    .reconcile_trace_survivors(project_id, &trace_ids, survivors)
+                    .await?
+            }
+        }
+        after = trace_ids.last().cloned();
+        if trace_ids.len() < TRACE_PAGE_SIZE {
+            break;
+        }
+    }
+    Ok(visited)
 }
 
 fn merge_file_report(target: &mut FileRestoreRepairReport, source: FileRestoreRepairReport) {
@@ -273,341 +387,5 @@ fn normalize_missing_content(missing: &mut Vec<MissingFileReference>) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::{TimeZone, Utc};
-    use sideseat_adapter_blob_storage::FilesystemStorage;
-    use sideseat_adapter_cache::CacheService;
-    use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
-    use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::config::{
-        CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
-    };
-    use sideseat_core::storage::{AppStorage, DataSubdir};
-    use sideseat_ports::blobs::FileStorage;
-    use sideseat_ports::clock::Clock;
-    use sideseat_ports::types::{NormalizedSpan, StagedPayload, StagedSignal};
-    use tempfile::TempDir;
-
-    #[derive(Debug)]
-    struct TestClock;
-
-    impl Clock for TestClock {
-        fn now(&self) -> chrono::DateTime<Utc> {
-            Utc.timestamp_opt(1_700_000_000, 0).single().unwrap()
-        }
-    }
-
-    struct TestStores {
-        _root: TempDir,
-        database: Arc<TransactionalStore>,
-        analytics: Arc<AnalyticsStore>,
-        files: FileService,
-    }
-
-    async fn stores() -> TestStores {
-        let root = TempDir::new().expect("temp dir");
-        let app_storage = AppStorage::init_for_test(root.path().to_path_buf());
-        let clock: Arc<dyn Clock> = Arc::new(TestClock);
-        let sqlite = Arc::new(
-            SqliteService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .expect("sqlite"),
-        );
-        let database: Arc<TransactionalStore> = Arc::new(SqliteRepository(Arc::clone(&sqlite)));
-        let duckdb = Arc::new(
-            DuckdbService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .expect("duckdb"),
-        );
-        let analytics: Arc<AnalyticsStore> = Arc::new(DuckdbRepository(duckdb));
-        let cache = Arc::new(
-            CacheService::new(&CacheConfig {
-                backend: CacheBackendType::Memory,
-                max_entries: 100,
-                eviction_policy: EvictionPolicy::TinyLfu,
-                redis_url: None,
-            })
-            .await
-            .expect("cache"),
-        );
-        let storage: Arc<dyn FileStorage> = Arc::new(FilesystemStorage::new(
-            app_storage.subdir(DataSubdir::Files),
-        ));
-        let files = FileService::new(
-            FilesConfig {
-                enabled: true,
-                storage: StorageBackend::Filesystem,
-                quota_bytes: 1024 * 1024,
-                filesystem_path: None,
-                s3: None,
-            },
-            app_storage.subdir(DataSubdir::FilesTemp),
-            storage,
-            Arc::clone(&database),
-            cache,
-        )
-        .await
-        .expect("files");
-        TestStores {
-            _root: root,
-            database,
-            analytics,
-            files,
-        }
-    }
-
-    fn span(trace_id: &str, span_id: &str, messages: Option<String>) -> NormalizedSpan {
-        NormalizedSpan {
-            project_id: Some("default".to_owned()),
-            trace_id: trace_id.to_owned(),
-            span_id: span_id.to_owned(),
-            timestamp_start: TestClock.now(),
-            messages,
-            ..NormalizedSpan::default()
-        }
-    }
-
-    #[tokio::test]
-    async fn journal_replay_removes_a_trace_resurrected_by_the_analytics_restore() {
-        let stores = stores().await;
-        stores
-            .analytics
-            .insert_spans(vec![span("resurrected", "span", None)])
-            .await
-            .expect("analytics restore");
-        stores
-            .database
-            .append_deletions(&[DeletionRecord {
-                project_id: ProjectId::from("default"),
-                cause: sideseat_ports::traits::DeletionCause::Requested,
-                scope: DeletionScope::Trace,
-                target_id: "resurrected".to_owned(),
-                span_id: None,
-                recorded_at: TestClock.now(),
-            }])
-            .await
-            .expect("newer transactional backup");
-
-        let report = replay_deletion_journal(&stores.database, &stores.analytics, &stores.files)
-            .await
-            .expect("replay");
-
-        assert_eq!(report.entries_applied, 1);
-        assert_eq!(report.traces_applied, 1);
-        assert!(
-            stores
-                .analytics
-                .get_trace(&ProjectId::from("default"), "resurrected")
-                .await
-                .expect("trace lookup")
-                .is_none()
-        );
-    }
-
-    #[tokio::test]
-    async fn association_repair_reaches_a_fixed_point_before_gc() {
-        let stores = stores().await;
-        let present = "c".repeat(64);
-        let missing = "d".repeat(64);
-        let stale = "e".repeat(64);
-        for (hash, bytes) in [
-            (&present, b"live".as_slice()),
-            (&stale, b"stale".as_slice()),
-        ] {
-            stores
-                .files
-                .storage()
-                .store(&ProjectId::from("default"), hash, bytes)
-                .await
-                .expect("restored blob");
-        }
-        stores
-            .database
-            .restore_orphan_metadata(&ProjectId::from("default"), &stale, None, 5, "sha256")
-            .await
-            .expect("stale metadata");
-        stores
-            .database
-            .restore_durable_trace_file(&ProjectId::from("default"), "gone", &stale)
-            .await
-            .expect("stale ownership");
-        stores
-            .database
-            .sync_ref_count(&ProjectId::from("default"), &stale)
-            .await
-            .expect("stale count");
-        stores
-            .analytics
-            .insert_spans(vec![span(
-                "survivor",
-                "span",
-                Some(format!(
-                    r##"[{{"present":"#!B64!#image/png::{present}","missing":"#!B64!#::{missing}"}}]"##
-                )),
-            )])
-            .await
-            .expect("analytics restore");
-
-        let first =
-            reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
-                .await
-                .expect("first repair");
-        assert_eq!(first.files.metadata_rebuilt, 1);
-        assert_eq!(first.files.associations_rebuilt, 1);
-        assert_eq!(
-            first.files.missing_content,
-            [MissingFileReference {
-                project_id: ProjectId::from("default"),
-                trace_id: "survivor".to_owned(),
-                hash: missing.clone(),
-            }]
-        );
-        assert!(
-            stores
-                .files
-                .storage()
-                .exists(&ProjectId::from("default"), &present)
-                .await
-                .expect("live blob lookup")
-        );
-        assert!(
-            !stores
-                .files
-                .storage()
-                .exists(&ProjectId::from("default"), &stale)
-                .await
-                .expect("stale blob lookup")
-        );
-        assert!(
-            stores
-                .database
-                .get_file(&ProjectId::from("default"), &stale)
-                .await
-                .expect("stale metadata lookup")
-                .is_none()
-        );
-
-        let second =
-            reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
-                .await
-                .expect("fixed point");
-        assert_eq!(second.files.metadata_rebuilt, 0);
-        assert_eq!(second.files.associations_rebuilt, 0);
-        assert_eq!(second.orphan_files_deleted, 0);
-        assert_eq!(second.files.missing_content.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn association_repair_removes_projects_missing_from_transactional_restore() {
-        let stores = stores().await;
-        let analytics_only = ProjectId::from("analytics-only");
-        let metadata_only = ProjectId::from("metadata-only");
-        let staged_only = ProjectId::from("staged-only");
-        let analytics_blob = "a".repeat(64);
-        let metadata_blob = "b".repeat(64);
-        let staged_blob = "f".repeat(64);
-
-        for (project_id, hash) in [
-            (&analytics_only, &analytics_blob),
-            (&metadata_only, &metadata_blob),
-            (&staged_only, &staged_blob),
-        ] {
-            stores
-                .files
-                .storage()
-                .store(project_id, hash, b"unreachable")
-                .await
-                .expect("unreachable blob");
-        }
-        stores
-            .database
-            .restore_orphan_metadata(&metadata_only, &metadata_blob, None, 11, "sha256")
-            .await
-            .expect("metadata without project");
-        let mut unreachable = span(
-            "unreachable-trace",
-            "span",
-            Some(format!(r##"[{{"file":"#!B64!#::{analytics_blob}"}}]"##)),
-        );
-        unreachable.project_id = Some(analytics_only.to_string());
-        stores
-            .analytics
-            .insert_spans(vec![unreachable])
-            .await
-            .expect("analytics project without metadata");
-        stores
-            .database
-            .create_staged_payload(&StagedPayload {
-                id: "restored-staged-payload".to_owned(),
-                project_id: staged_only.clone(),
-                signal: StagedSignal::Traces,
-                blob_hash: staged_blob.clone(),
-                byte_len: 11,
-                created_at: TestClock.now(),
-                redrive_attempts: 0,
-                unconfirmed: false,
-                records: Vec::new(),
-                raw_id: None,
-            })
-            .await
-            .expect("staged payload without project");
-
-        let report =
-            reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
-                .await
-                .expect("repair");
-
-        assert_eq!(report.projects_without_metadata_deleted, 3);
-        assert_eq!(report.unreachable_analytics_rows_deleted, 1);
-        assert_eq!(report.unreachable_staged_payloads_deleted, 1);
-        assert_eq!(report.unreachable_blobs_deleted, 3);
-        assert!(
-            stores
-                .analytics
-                .get_trace(&analytics_only, "unreachable-trace")
-                .await
-                .expect("unreachable trace lookup")
-                .is_none()
-        );
-        assert!(
-            stores
-                .database
-                .get_file(&metadata_only, &metadata_blob)
-                .await
-                .expect("unreachable metadata lookup")
-                .is_none()
-        );
-        for (project_id, hash) in [
-            (&analytics_only, &analytics_blob),
-            (&metadata_only, &metadata_blob),
-            (&staged_only, &staged_blob),
-        ] {
-            assert!(
-                !stores
-                    .files
-                    .storage()
-                    .exists(project_id, hash)
-                    .await
-                    .expect("unreachable blob lookup")
-            );
-        }
-        assert!(
-            stores
-                .database
-                .get_staged_payload("restored-staged-payload")
-                .await
-                .expect("staged payload lookup")
-                .is_none()
-        );
-
-        let second =
-            reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
-                .await
-                .expect("fixed point");
-        assert_eq!(second.projects_without_metadata_deleted, 0);
-        assert_eq!(second.unreachable_analytics_rows_deleted, 0);
-        assert_eq!(second.unreachable_staged_payloads_deleted, 0);
-        assert_eq!(second.unreachable_blobs_deleted, 0);
-    }
-}
+#[path = "restore_tests.rs"]
+mod tests;

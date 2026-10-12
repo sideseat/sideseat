@@ -9,8 +9,8 @@ use serde::Serialize;
 use sideseat_core::constants::RESTORE_PENDING_MARKER;
 use sideseat_core::storage::AppStorage;
 use sideseat_domain::restore::{
-    AssociationRepairReport, JournalReplayReport, reconcile_restored_associations,
-    replay_deletion_journal,
+    AssociationRepairReport, JournalReplayReport, rebuild_restored_ownership,
+    reconcile_restored_associations, replay_deletion_journal,
 };
 use sideseat_domain::storage_governance::RestoreQuotaRepairReport;
 
@@ -18,6 +18,7 @@ use super::CoreApp;
 
 #[derive(Debug, Serialize)]
 struct RestoreRepairCommandReport {
+    ownership_rebuilt_before_journal: AssociationRepairReport,
     journal: JournalReplayReport,
     retention_completed: bool,
     association_repair_before_quota: AssociationRepairReport,
@@ -59,6 +60,10 @@ pub(super) fn refuse_pending_restore() -> Result<()> {
 }
 
 pub(super) async fn run_restore_repair(app: CoreApp, report_path: Option<&Path>) -> Result<()> {
+    // Before anything reclaims a file: the journal and retention release a deleted trace's files, and a live
+    // trace the backup lost the association of may name the same one.
+    let ownership_rebuilt_before_journal =
+        rebuild_restored_ownership(&app.database_port, &app.analytics_port, &app.files).await?;
     let journal =
         replay_deletion_journal(&app.database_port, &app.analytics_port, &app.files).await?;
 
@@ -88,6 +93,7 @@ pub(super) async fn run_restore_repair(app: CoreApp, report_path: Option<&Path>)
     app.analytics.checkpoint().await?;
 
     let report = RestoreRepairCommandReport {
+        ownership_rebuilt_before_journal,
         journal,
         retention_completed: true,
         association_repair_before_quota,

@@ -50,6 +50,17 @@ pub trait SurvivorReferences: Send + Sync {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<Vec<u8>>, DataError>;
+
+    /// Up to `limit` of the trace ids the project's stored span rows name, in order, after `after`: the
+    /// traversal a restore repairs ownership from, before it lets orphans be collected. Under the same contract
+    /// as the reads above - every replica, more rather than fewer, failing rather than partial - since a trace
+    /// this misses has its files collected while its spans still name them.
+    async fn stored_trace_ids_after(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError>;
 }
 
 // ============================================================================

@@ -34,4 +34,21 @@ impl SurvivorReferences for DuckdbRepository {
         .map_err(DataError::from)?
         .map_err(Into::into)
     }
+
+    async fn stored_trace_ids_after(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let after = after.map(str::to_owned);
+        DuckdbService::run_query(&self.0, move || {
+            query::stored_trace_ids_after(&db.conn(), &pid, after.as_deref(), limit)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
 }

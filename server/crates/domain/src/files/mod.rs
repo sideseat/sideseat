@@ -530,7 +530,9 @@ impl FileService {
         // this once did, let a span that committed between the scan and the release lose its file. Dropping
         // them silently instead left their stored `ref_count` above zero with no association to rediscover
         // them from, which the orphan sweeper never reclaims. Restored as durable, they are counted again and
-        // the next pass, whose scans succeed, releases the ones nothing references.
+        // the next pass, whose scans succeed, releases the ones nothing references. The failure is still the
+        // caller's to see: a retention cleanup that took it for success would not come back for that pass, and
+        // a restore would go on to collect orphans after a read it could not complete.
         let now_referenced = match Self::referenced_hashes(project_id, trace_id, analytics).await {
             Ok(hashes) => hashes,
             Err(e) => {
@@ -547,7 +549,7 @@ impl FileService {
                         .await?;
                     repo.sync_ref_count(project_id, hash).await?;
                 }
-                return Ok(Vec::new());
+                return Err(e);
             }
         };
 

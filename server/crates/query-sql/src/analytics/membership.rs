@@ -288,6 +288,37 @@ pub fn clickhouse_survivor_reference_fields(
     })
 }
 
+/// Up to `limit` distinct trace ids of the project's span rows in `spans`, in order, after `after` - every
+/// physical row, so a trace whose only rows are superseded revisions is still found. On ClickHouse `spans` is
+/// every replica, and an unreachable one fails the read.
+pub fn stored_trace_ids_after(
+    spans: &str,
+    project_id: &str,
+    after: Option<&str>,
+    limit: usize,
+    backend: Backend,
+) -> ParameterizedQuery {
+    let mut params = vec![QueryValue::String(project_id.to_string())];
+    let after_filter = match after {
+        Some(after) => {
+            params.push(QueryValue::String(after.to_string()));
+            " AND trace_id > ?"
+        }
+        None => "",
+    };
+    let settings = match backend {
+        Backend::Duckdb => "",
+        Backend::Clickhouse => " SETTINGS skip_unavailable_shards = 0",
+    };
+    ParameterizedQuery {
+        sql: format!(
+            "SELECT DISTINCT trace_id FROM {spans} WHERE project_id = ?{after_filter} \
+             ORDER BY trace_id LIMIT {limit}{settings}"
+        ),
+        params,
+    }
+}
+
 /// `projection` over the winning rows of these traces. `columns` lists - after a comma - the columns
 /// `projection` reads beyond the identity: DuckDB fetches only those for the keyed rows, and fetching every
 /// column measured three times slower than scanning a small table whole.

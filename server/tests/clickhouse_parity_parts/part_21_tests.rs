@@ -242,3 +242,124 @@ async fn two_replica_reconciliation_keeps_a_file_whose_span_a_lagging_replica_la
             .expect("the live span's attachment is still readable");
     }
 }
+
+/// A restore on one shard of two replicas, the second lagging, from a transactional backup that lacks a live
+/// trace's file associations: the trace is found only on the first replica, and the restore runs through the
+/// second. Its discovery reads every replica, so it finds the trace, rebuilds the association and keeps the file;
+/// one that listed the second replica's traces found nothing that names the file, and its orphan sweep deleted the
+/// bytes of a span that exists.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn two_replica_restore_keeps_a_file_whose_trace_a_lagging_replica_lacks() {
+    let (Ok(url), Ok(second_url)) = (
+        std::env::var(TWO_REPLICA_URL_ENV),
+        std::env::var(TWO_REPLICA_SECOND_URL_ENV),
+    ) else {
+        eprintln!(
+            "clickhouse two-replica: skipped - set {TWO_REPLICA_URL_ENV} and {TWO_REPLICA_SECOND_URL_ENV} (or run \
+             `make test-clickhouse-two-replica`)"
+        );
+        return;
+    };
+    let database = "sideseat_two_replica_restore";
+    let first: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::new(replicated_backend_at(&url, database).await);
+    let second: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::new(sideseat_adapter_clickhouse::ClickhouseRepository(Arc::new(
+            ClickhouseService::init(
+                &layout_config(&second_url, database, true),
+                Arc::new(sideseat_server::runtime::clock::SystemClock),
+            )
+            .await
+            .expect("the second replica's service"),
+        )));
+    let user = std::env::var(USER_ENV).ok();
+    let password = std::env::var(PASSWORD_ENV).ok();
+    let lagging = raw_client_at(&second_url, database, &user, &password).with_option(
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
+    let fetches = |verb: &'static str| {
+        let lagging = lagging.clone();
+        async move {
+            for table in ["otel_spans_local", "otel_raw_local"] {
+                lagging
+                    .query(&format!("SYSTEM {verb} FETCHES {table}"))
+                    .execute()
+                    .await
+                    .expect("toggle the second replica's fetches");
+            }
+        }
+    };
+    fetches("STOP").await;
+
+    let FilePipeline {
+        _temp,
+        pipeline,
+        transactional,
+        files,
+        blobs: _,
+    } = file_pipeline(&first).await;
+    let outcomes = pipeline
+        .run_batch_outcomes_for_test(&[export_with_attachment(43)])
+        .await;
+    let project = ProjectId::from("default");
+    let trace = "2b".repeat(16);
+    let referenced = sideseat_domain::files::FileService::hashes_referenced_by_trace(
+        &project,
+        &trace,
+        first.as_ref(),
+    )
+    .await;
+    // The transactional backup predates the trace's associations.
+    let unowned = transactional
+        .delete_trace_files(&project, std::slice::from_ref(&trace))
+        .await;
+    if let Ok(hashes) = &unowned {
+        for hash in hashes {
+            transactional
+                .sync_ref_count(&project, hash)
+                .await
+                .expect("the backup's count");
+        }
+    }
+    let lagging_rows: Result<Vec<String>, _> = lagging
+        .query("SELECT span_id FROM otel_spans_local WHERE trace_id = ?")
+        .bind(&trace)
+        .fetch_all()
+        .await;
+    let restored =
+        sideseat_domain::restore::reconcile_restored_associations(&transactional, &second, &files)
+            .await;
+    fetches("START").await;
+
+    assert_eq!(
+        outcomes,
+        vec![sideseat_ingestion::traces::IngestOutcome::Stored]
+    );
+    let referenced = referenced.expect("references");
+    assert!(!referenced.is_empty(), "the span names its attachment");
+    assert!(
+        !unowned.expect("drop the associations").is_empty(),
+        "the premise: the backup holds no association for the trace"
+    );
+    assert!(
+        lagging_rows.expect("the lagging replica's rows").is_empty(),
+        "the fixture must lag: the second replica already holds the span"
+    );
+    restored.expect("the restore");
+    for hash in &referenced {
+        let file = transactional
+            .get_file(&project, hash)
+            .await
+            .expect("file row")
+            .expect("the live span's file is still registered");
+        assert!(
+            file.ref_count > 0,
+            "the restore owns the live span's file again: {file:?}"
+        );
+        files
+            .get_file(&project, hash)
+            .await
+            .expect("the live span's attachment is still readable");
+    }
+}

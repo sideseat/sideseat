@@ -921,3 +921,22 @@ fn without_a_window_every_trace_condition_names_traces() {
     };
     assert!(!traces::trace_conditions_select_whole_traces(&windowed));
 }
+
+#[test]
+fn the_restore_traversal_pages_by_trace_id_and_fails_on_a_missing_replica() {
+    for backend in [Backend::Duckdb, Backend::Clickhouse] {
+        let first = stored_trace_ids_after("spans", "tenant-'quoted", None, 256, backend);
+        let next = stored_trace_ids_after("spans", "tenant-'quoted", Some("t-'1"), 256, backend);
+        for query in [&first, &next] {
+            assert_eq!(query.sql().matches('?').count(), query.params().len());
+            assert!(!query.sql().contains("tenant-'quoted"));
+            assert!(query.sql().contains("ORDER BY trace_id LIMIT 256"));
+            assert_eq!(
+                query.sql().contains("skip_unavailable_shards = 0"),
+                backend == Backend::Clickhouse
+            );
+        }
+        assert!(!first.sql().contains("trace_id > ?"));
+        assert!(next.sql().contains("trace_id > ?"));
+    }
+}

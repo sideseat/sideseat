@@ -914,6 +914,24 @@ impl SurvivorReferences for ClickhouseRepository {
             trace_ids
         )
     }
+
+    async fn stored_trace_ids_after(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        let spans = self.0.every_replica_spans();
+        tenant_query!(
+            self,
+            project_id,
+            query::stored_trace_ids_after,
+            &spans,
+            project_id.as_str(),
+            after,
+            limit
+        )
+    }
 }
 
 // After the query macros, which it uses.

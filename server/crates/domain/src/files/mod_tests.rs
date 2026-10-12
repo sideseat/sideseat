@@ -603,6 +603,15 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
 
     #[async_trait::async_trait]
     impl sideseat_ports::traits::SurvivorReferences for RacingAnalytics {
+        async fn stored_trace_ids_after(
+            &self,
+            _project_id: &ProjectId,
+            _after: Option<&str>,
+            _limit: usize,
+        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
+            Ok(Vec::new())
+        }
+
         async fn survivor_raw_records(
             &self,
             _project_id: &ProjectId,
@@ -653,7 +662,8 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
 /// A span that commits during the release keeps its file even when the re-check that would have seen it fails.
 ///
 /// The failed re-check used to hand the released hashes on to be reclaimed, so the window the re-check closes
-/// was open whenever it failed. They are restored instead, for the next pass to settle.
+/// was open whenever it failed. They are restored instead, for the next pass to settle, and the failure is
+/// returned: a retention pass or a restore that took it for success would not come back for it.
 #[tokio::test]
 async fn a_failed_recheck_reclaims_nothing_it_released() {
     let (temp_dir, database, cache) = setup_test().await;
@@ -695,6 +705,15 @@ async fn a_failed_recheck_reclaims_nothing_it_released() {
 
     #[async_trait::async_trait]
     impl sideseat_ports::traits::SurvivorReferences for FailingRecheck {
+        async fn stored_trace_ids_after(
+            &self,
+            _project_id: &ProjectId,
+            _after: Option<&str>,
+            _limit: usize,
+        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
+            Ok(Vec::new())
+        }
+
         async fn survivor_raw_records(
             &self,
             _project_id: &ProjectId,
@@ -726,7 +745,7 @@ async fn a_failed_recheck_reclaims_nothing_it_released() {
             },
         )
         .await
-        .expect("reconcile");
+        .expect_err("the failed re-check is the caller's to see, though it was compensated");
 
     assert!(
         service

@@ -415,6 +415,24 @@ pub async fn file_reference_fields_for_traces(
         .collect())
 }
 
+/// The project's stored trace ids after `after`, at most `limit`, over `spans`
+/// (`ClickhouseService::every_replica_spans`; `SurvivorReferences::stored_trace_ids_after`).
+pub async fn stored_trace_ids_after(
+    client: &clickhouse::Client,
+    spans: &str,
+    project_id: &str,
+    after: Option<&str>,
+    limit: usize,
+) -> Result<Vec<String>, ClickhouseError> {
+    let statement =
+        analytics::stored_trace_ids_after(spans, project_id, after, limit, Backend::Clickhouse);
+    Ok(
+        bind_analytics_values(client.query(statement.sql()), statement.params())
+            .fetch_all()
+            .await?,
+    )
+}
+
 pub async fn delete_traces(
     client: &Client,
     table: &str,

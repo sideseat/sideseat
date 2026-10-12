@@ -226,9 +226,14 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
     assert!(!restored.data_path(RESTORE_PENDING_MARKER).exists());
     let first: Value =
         serde_json::from_slice(&fs::read(&first_report).expect("first report")).expect("json");
+    // Ownership is rebuilt before the journal and retention reclaim anything, so the later pass finds it done.
+    assert_eq!(
+        first["ownership_rebuilt_before_journal"]["files"]["associations_rebuilt"],
+        1
+    );
     assert_eq!(
         first["association_repair_before_quota"]["files"]["associations_rebuilt"],
-        1
+        0
     );
     assert_eq!(
         first["association_repair_before_quota"]["files"]["missing_content"][0]["hash"],
@@ -239,10 +244,15 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
     run_repair(&live, &second_report);
     let second: Value =
         serde_json::from_slice(&fs::read(&second_report).expect("second report")).expect("json");
-    assert_eq!(
-        second["association_repair_before_quota"]["files"]["associations_rebuilt"], 0,
-        "a second repair must be a fixed point"
-    );
+    for pass in [
+        "ownership_rebuilt_before_journal",
+        "association_repair_before_quota",
+    ] {
+        assert_eq!(
+            second[pass]["files"]["associations_rebuilt"], 0,
+            "a second repair must be a fixed point: {pass}"
+        );
+    }
 
     let storage = AppStorage::init_for_test(live);
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);

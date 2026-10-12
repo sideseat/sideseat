@@ -537,6 +537,17 @@ impl SurvivorReferences for DedupAnalyticsRepository {
             .file_reference_fields_for_traces(project_id, trace_ids)
             .await
     }
+
+    async fn stored_trace_ids_after(
+        &self,
+        project_id: &ProjectId,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .stored_trace_ids_after(project_id, after, limit)
+            .await
+    }
 }
 
 #[async_trait]
