@@ -589,6 +589,25 @@ fn normalize_message(raw: &JsonValue, drop_blank_text: bool) -> ChatMessage {
         remove_blank_text_beside_visible_content(&mut content_vec);
     }
 
+    // A call id read from the first content block, where the message states none, is that block's. A block that
+    // carries it as its own needs no message-level copy beside other blocks, and the copy is what passed it on - to
+    // a sibling call split from this message, to text or an error beside it. A message that is that one block keeps
+    // it, marked borrowed, so a stream joining other readings to it drops it. Where no block carries it - its block's
+    // reading missed the member - the message keeps it, as the one carrier left.
+    let stated = tools::stated_tool_use_id(&raw, role_str).is_some();
+    let owned = |id: &String| {
+        content_vec.iter().any(|block| match block {
+            ContentBlock::ToolUse { id: Some(own), .. }
+            | ContentBlock::ToolResult {
+                tool_use_id: Some(own),
+                ..
+            } => own == id,
+            _ => false,
+        })
+    };
+    let tool_use_id_borrowed = !stated && tool_use_id.as_ref().is_some_and(owned);
+    let tool_use_id = tool_use_id.filter(|_| !tool_use_id_borrowed || content_vec.len() == 1);
+
     // Parse finish reason, under SideSeat's member or a declared spelling of it.
     let finish_reason = std::iter::once("finish_reason")
         .chain(members.aliases_of("finish_reason"))
@@ -632,6 +651,7 @@ fn normalize_message(raw: &JsonValue, drop_blank_text: bool) -> ChatMessage {
         name: raw.get("name").and_then(|n| n.as_str()).map(String::from),
         content: content_vec,
         tool_use_id,
+        tool_use_id_borrowed,
         finish_reason,
         index: raw.get("index").and_then(|i| i.as_i64()).map(|i| i as i32),
         tool_choice,

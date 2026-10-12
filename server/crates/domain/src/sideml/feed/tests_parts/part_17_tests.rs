@@ -312,3 +312,267 @@ fn a_move_that_would_reorder_the_stream_is_not_made() {
         ["ABC"]
     );
 }
+
+// ============================================================================
+// Call identity: whose id a block carries
+// ============================================================================
+
+/// A call id read from a message's first content block is that block's: a sibling call that states no id of its
+/// own does not take it, so two calls never share one id they were not both given.
+#[test]
+fn a_first_block_s_call_id_is_not_its_sibling_s() {
+    let msg = json!([{
+        "source": {"event": {"name": "gen_ai.assistant.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "assistant",
+            "content": [
+                {"toolUse": {"toolUseId": "call-a", "name": "lookup", "input": {"city": "Paris"}}},
+                {"text": "And the forecast:"},
+                {"toolUse": {"name": "forecast", "input": {"city": "Tokyo"}}}
+            ]
+        }
+    }]);
+    let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::default());
+    let calls: Vec<(&str, Option<&str>)> = result
+        .messages
+        .iter()
+        .filter_map(|block| match &block.content {
+            ContentBlock::ToolUse { name, .. } => {
+                Some((name.as_str(), block.tool_use_id.as_deref()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(calls.len(), 2, "{:?}", result.messages);
+    assert!(calls.contains(&("lookup", Some("call-a"))), "{calls:?}");
+    let forecast = calls
+        .iter()
+        .find(|(name, _)| *name == "forecast")
+        .expect("the second call");
+    assert_ne!(
+        forecast.1,
+        Some("call-a"),
+        "the sibling took the first block's id: {calls:?}"
+    );
+    let text = result
+        .messages
+        .iter()
+        .find(|block| block.entry_type == "text")
+        .expect("the text between them");
+    assert_eq!(text.tool_use_id, None, "the text took the first block's id");
+}
+
+/// An id the message states under its own members is the message's: a call and the result beside it that names
+/// none both carry it.
+#[test]
+fn a_message_s_stated_call_id_is_shared_by_its_blocks() {
+    let msg = json!([{
+        "source": {"event": {"name": "gen_ai.assistant.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "assistant",
+            "tool_call_id": "call-a",
+            "content": [
+                {"type": "tool_use", "id": "call-a", "name": "lookup", "input": {}},
+                {"type": "tool_result", "content": "ok"}
+            ]
+        }
+    }]);
+    let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::default());
+    let ids: Vec<(&str, Option<&str>)> = result
+        .messages
+        .iter()
+        .map(|block| (block.entry_type.as_str(), block.tool_use_id.as_deref()))
+        .collect();
+    assert!(ids.contains(&("tool_use", Some("call-a"))), "{ids:?}");
+    assert!(ids.contains(&("tool_result", Some("call-a"))), "{ids:?}");
+}
+
+/// A stream that was cut off joins what arrived: the call still arriving is left out, and the id its reading named
+/// goes with it rather than passing to the settled call beside it, which named none.
+#[test]
+fn a_left_out_call_s_id_does_not_pass_to_the_call_a_join_keeps() {
+    let rows = streamed_call(
+        vec![
+            streamed(
+                json!([{"type": "tool_use", "name": "lookup", "input": {"city": "Paris"}}]),
+                "settled_chunk",
+                1,
+            ),
+            streamed(
+                json!([{"toolUse": {"toolUseId": "call-a", "name": "forecast", "input": {}}}]),
+                "chunk",
+                2,
+            ),
+        ],
+        None,
+    );
+    let result = process_spans(rows, &FeedOptions::new());
+    let calls: Vec<(&str, Option<&str>)> = result
+        .messages
+        .iter()
+        .filter_map(|block| match &block.content {
+            ContentBlock::ToolUse { name, .. } => {
+                Some((name.as_str(), block.tool_use_id.as_deref()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(calls.iter().any(|(name, _)| *name == "lookup"), "{calls:?}");
+    assert!(
+        calls.iter().all(|(_, id)| *id != Some("call-a")),
+        "a call took the left-out call's id: {calls:?}"
+    );
+}
+
+/// Text beside a message's only call is not that call: the id the message read from the call's block stays the
+/// call's.
+#[test]
+fn text_beside_a_lone_call_does_not_take_its_id() {
+    let msg = json!([{
+        "source": {"event": {"name": "gen_ai.assistant.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "assistant",
+            "content": [
+                {"toolUse": {"toolUseId": "call-a", "name": "lookup", "input": {"city": "Paris"}}},
+                {"text": "Looking it up."}
+            ]
+        }
+    }]);
+    let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::default());
+    let text = result
+        .messages
+        .iter()
+        .find(|block| block.entry_type == "text")
+        .expect("the text");
+    assert_eq!(text.tool_use_id, None, "{:?}", result.messages);
+}
+
+/// A joined stream keeps an id its terminal states under its own members: the call and the result beside it
+/// that names none both carry it, as they would unstreamed.
+#[test]
+fn a_joined_stream_keeps_its_stated_call_id() {
+    let terminal = json!({
+        "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:02Z"}},
+        "content": {
+            "role": "assistant",
+            "tool_call_id": "call-a",
+            "content": [
+                {"type": "tool_use", "id": "call-a", "name": "lookup", "input": {}},
+                {"type": "tool_result", "content": "ok"}
+            ]
+        },
+        "stream": "delta"
+    });
+    let rows = streamed_call(
+        vec![streamed(json!("Checking. "), "chunk", 1), terminal],
+        None,
+    );
+    let result = process_spans(rows, &FeedOptions::new());
+    let ids: Vec<(&str, Option<&str>)> = result
+        .messages
+        .iter()
+        .map(|block| (block.entry_type.as_str(), block.tool_use_id.as_deref()))
+        .collect();
+    assert!(ids.contains(&("tool_result", Some("call-a"))), "{ids:?}");
+}
+
+/// The block an id was read from keeps it even where its own reading could not: a result whose id sits under a
+/// member the block's shape does not read still answers that call, through the message - the one carrier left.
+#[test]
+fn the_block_an_id_was_read_from_keeps_it() {
+    let msg = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "user",
+            "content": [
+                {"toolResult": {"tool_use_id": "call-a", "content": [{"text": "ok"}]}},
+                {"text": "after"}
+            ]
+        }
+    }]);
+    let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::default());
+    let ids: Vec<(&str, Option<&str>)> = result
+        .messages
+        .iter()
+        .map(|block| (block.entry_type.as_str(), block.tool_use_id.as_deref()))
+        .collect();
+    assert!(ids.contains(&("tool_result", Some("call-a"))), "{ids:?}");
+}
+
+/// Nothing added to a message after it is read takes the id its lone call carries: not the error it reports,
+/// not text a stream joins to it.
+#[test]
+fn what_joins_a_lone_call_later_does_not_take_its_id() {
+    let call = json!({"toolUse": {"toolUseId": "call-a", "name": "lookup", "input": {}}});
+    let with_error = json!([{
+        "source": {"event": {"name": "gen_ai.assistant.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"role": "assistant", "content": [call.clone()], "error": {"message": "rate limited"}}
+    }]);
+    let row = make_span_row("trace1", "span1", None, &with_error.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::default());
+    assert!(
+        result
+            .messages
+            .iter()
+            .filter(|block| block.entry_type != "tool_use")
+            .all(|block| block.tool_use_id.is_none()),
+        "{:?}",
+        result.messages
+    );
+    let terminal = json!({
+        "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:02Z"}},
+        "content": {"role": "assistant", "content": [call]},
+        "stream": "delta"
+    });
+    let rows = streamed_call(
+        vec![streamed(json!("Checking. "), "chunk", 1), terminal],
+        None,
+    );
+    let result = process_spans(rows, &FeedOptions::new());
+    assert!(
+        result
+            .messages
+            .iter()
+            .filter(|block| block.entry_type == "text")
+            .all(|block| block.tool_use_id.is_none()),
+        "{:?}",
+        result.messages
+    );
+}
+
+/// A tool result answering a call by an id its block carries is named after that call, whatever else its message
+/// holds.
+#[test]
+fn a_result_beside_an_error_is_named_after_its_call() {
+    let rows = json!([
+        {
+            "source": {"event": {"name": "gen_ai.assistant.message", "time": "2025-01-01T00:00:00Z"}},
+            "content": {"role": "assistant", "content": [{"type": "tool_use", "id": "c", "name": "lookup", "input": {}}]}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.tool.message", "time": "2025-01-01T00:00:01Z"}},
+            "content": {
+                "role": "tool",
+                "content": [{"toolResult": {"toolUseId": "c", "content": [{"text": "ok"}]}}],
+                "error": {"message": "warning"}
+            }
+        }
+    ]);
+    let row = make_span_row("trace1", "span1", None, &rows.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::default());
+    let answered = result
+        .messages
+        .iter()
+        .find(|block| block.entry_type == "tool_result")
+        .expect("the result");
+    assert_eq!(
+        answered.name.as_deref(),
+        Some("lookup"),
+        "{:?}",
+        result.messages
+    );
+}

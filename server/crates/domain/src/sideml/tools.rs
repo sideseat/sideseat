@@ -84,14 +84,22 @@ pub fn normalize_tool_calls(msg: &JsonValue) -> Option<JsonValue> {
 /// - `toolResult.toolUseId`: Bedrock/Strands nested format
 /// - `toolUse.toolUseId`: Bedrock/Strands nested format
 pub fn extract_tool_use_id(msg: &JsonValue, role: &str) -> Option<String> {
+    stated_tool_use_id(msg, role)
+        .map(str::to_string)
+        .or_else(|| first_block_call_id(msg))
+}
+
+/// The call id a message states under its own members, as [`extract_tool_use_id`] reads them: not one of its
+/// content blocks'.
+pub(crate) fn stated_tool_use_id<'m>(msg: &'m JsonValue, role: &str) -> Option<&'m str> {
     // Standard tool_call_id field (OpenAI format, any role)
     if let Some(id) = msg.get("tool_call_id").and_then(|i| i.as_str()) {
-        return Some(id.to_string());
+        return Some(id);
     }
 
     // Anthropic tool_use_id field (any role)
     if let Some(id) = msg.get("tool_use_id").and_then(|i| i.as_str()) {
-        return Some(id.to_string());
+        return Some(id);
     }
 
     let members = &crate::rules::ruleset().message_members;
@@ -102,12 +110,17 @@ pub fn extract_tool_use_id(msg: &JsonValue, role: &str) -> Option<String> {
             .chain(members.aliases_of("id"))
             .find_map(|member| msg.get(member).and_then(|i| i.as_str()))
     {
-        return Some(id.to_string());
+        return Some(id);
     }
 
-    // The call id inside the first content block, where that block holds a tool result or call under a member the
-    // assets declare, and the id is under a declared call-id member. Precedence is declared, never the payload's
-    // member order: the bundled-result members in rank order, then the call members.
+    None
+}
+
+/// The call id inside the first content block, where that block holds a tool result or call under a member the
+/// assets declare, and the id is under a declared call-id member. Precedence is declared, never the payload's
+/// member order: the bundled-result members in rank order, then the call members. The id is that block's.
+fn first_block_call_id(msg: &JsonValue) -> Option<String> {
+    let members = &crate::rules::ruleset().message_members;
     if let Some(content) = msg.get("content").and_then(|c| c.as_array())
         && let Some(first) = content.first()
     {

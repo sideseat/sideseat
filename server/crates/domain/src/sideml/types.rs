@@ -731,6 +731,12 @@ pub struct ChatMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_use_id: Option<String>,
 
+    /// `tool_use_id` is the message's one content block's own id, read from that block, not one the message
+    /// states: a stream that joins other readings to this message drops it. Derived when the message is read, so
+    /// never serialised.
+    #[serde(skip)]
+    pub tool_use_id_borrowed: bool,
+
     /// Normalized finish reason
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<FinishReason>,

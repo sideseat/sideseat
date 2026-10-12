@@ -178,9 +178,18 @@ pub(crate) fn finish_sideml(mut messages: Vec<SideMLMessage>) -> Vec<SideMLMessa
     // IMPORTANT: Must happen BEFORE name enrichment so flattened messages get enriched.
     let mut messages = flatten_tool_blocks(messages);
     for msg in &mut messages {
+        // The message's id, or the one its result carries as its own (`normalize_message` keeps no message-level
+        // copy of an id a block carries beside other blocks).
+        let own = msg.sideml.content.iter().find_map(|block| match block {
+            ContentBlock::ToolResult {
+                tool_use_id: Some(id),
+                ..
+            } => Some(id),
+            _ => None,
+        });
         if msg.sideml.role == ChatRole::Tool
             && msg.sideml.name.is_none()
-            && let Some(tool_use_id) = &msg.sideml.tool_use_id
+            && let Some(tool_use_id) = msg.sideml.tool_use_id.as_ref().or(own)
             && let Some(name) = tool_names.get(tool_use_id)
         {
             msg.sideml.name = Some(name.clone());

@@ -208,6 +208,7 @@ fn reassemble_row(
                 Some(StreamMark::Delta) => {
                     let mut response = messages[terminal[0]].clone();
                     response.sideml.content = joined(true);
+                    drop_borrowed_id(&mut response);
                     response.sideml.finish_reason = terminal
                         .iter()
                         .find_map(|&index| messages[index].sideml.finish_reason);
@@ -240,6 +241,16 @@ fn reassemble_row(
         .collect()
 }
 
+/// A joined response holds other readings' blocks, so an id the reading it stands in had from its one block
+/// (`ChatMessage::tool_use_id_borrowed`) is no longer the message's: the block carries it, wherever the join shows
+/// it, and on the message it would pass to calls and text it never named. An id the reading stated stays.
+fn drop_borrowed_id(response: &mut SideMLMessage) {
+    if response.sideml.tool_use_id_borrowed {
+        response.sideml.tool_use_id = None;
+        response.sideml.tool_use_id_borrowed = false;
+    }
+}
+
 /// A segment's chunks as one message, the response so far: where the last of them stood, with no finish reason.
 fn join_chunks(
     messages: &[SideMLMessage],
@@ -253,6 +264,7 @@ fn join_chunks(
     response.sideml.content =
         response_blocks(messages, pieces, &Calls::of(messages, beside, pieces, true));
     response.sideml.finish_reason = None;
+    drop_borrowed_id(&mut response);
     replaced.insert(last, response);
     for &index in earlier {
         dropped[index] = true;
