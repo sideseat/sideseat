@@ -191,8 +191,8 @@ fn raw_records(stores: &stack::Stores) -> Vec<RawVersion> {
     let conn = duckdb(stores).conn();
     let mut statement = conn
         .prepare(
-            "SELECT raw_id, version, record FROM otel_raw WHERE project_id = ? \
-             ORDER BY raw_id, version",
+            "SELECT raw_id, version_key, record FROM otel_raw WHERE project_id = ? \
+             ORDER BY raw_id, version_key",
         )
         .expect("prepare");
     statement

@@ -506,12 +506,34 @@ impl TracePipeline {
                 .or_insert(span.hold_until);
         }
         let hold_of = |draft: &RawDraft| hold_by_project.get(draft.project_id()).copied().flatten();
+        // The arbiter's epoch, read before the records are written and keying their first versions: a version is
+        // keyed under the epoch its writer read, whatever is decided before it lands (`RawRecordOwnership.tla`,
+        // `Insert`).
+        let epochs = match self
+            .raw_epochs(drafts.iter().map(|(_, draft)| draft.project_id()))
+            .await
+        {
+            Ok(epochs) => epochs,
+            Err(error) => {
+                tracing::error!(%error, "Could not read the raw arbiter's epoch; refusing the batch");
+                self.release_created_associations(&created_associations)
+                    .await;
+                return failed();
+            }
+        };
         let raw_rows = drafts
             .iter()
             .filter_map(|(index, draft)| {
                 // A request whose every span a fence refused stores no record: no row would name it.
                 let keep = kept_by_draft.get(index)?;
-                Some(draft.row(&requests[*index], keep, draft.received_at(), hold_of(draft)))
+                let epoch = epochs.get(draft.project_id()).copied().unwrap_or(0);
+                Some(draft.row(
+                    &requests[*index],
+                    keep,
+                    draft.received_at(),
+                    hold_of(draft),
+                    epoch,
+                ))
             })
             .collect::<Result<Vec<_>, _>>();
         let raw_rows = match raw_rows {

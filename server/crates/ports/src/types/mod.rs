@@ -22,7 +22,9 @@ mod transactional;
 pub use order::{OrderBy, OrderDirection};
 pub use project_id::ProjectId;
 pub use raw::{
-    RawCollection, RawConfirmOutcome, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow,
+    RAW_VERSION_EPOCH_SHIFT, RAW_VERSION_MAX_EPOCH, RAW_VERSION_MAX_N, RawCollection,
+    RawConfirmOutcome, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow, raw_version,
+    raw_version_above, raw_version_epoch,
 };
 
 // Re-export enum types

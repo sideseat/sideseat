@@ -339,6 +339,31 @@ re-derivation can tell the two apart. Every version keeps the record's `received
 replays at one instant. ClickHouse keeps the records in one partition: it resolves `FINAL` a partition at a time, and
 partitioned by receipt month, a record's versions in two months were two latest versions.
 
+A version is keyed `(epoch << 32) | n` in `version_key`: the raw arbiter's per-project epoch the writer read before
+it wrote, then its place within that epoch (`sideseat_ports::types::raw_version`). Versions order by epoch first,
+and a collection decision is recorded at an epoch and bumps it, so its purge - bounded to the versions keyed at or
+below that epoch - can never reach a version keyed above it, however late or often it runs. A version keyed at or
+below it is not protected by the key alone: a writer that read the epoch before the decision lands within the
+purge's bound, and the protocol's confirm fence must refuse that version ownership and have it re-keyed above the
+decision (`server/specs/RawRecordOwnership.tla`, `Confirm` and `Rekey`; `server/specs/RawRecordCutoff.tla`). A store whose
+versions are the receipt instants of earlier builds - a `version` column - is refused at startup with the reset
+named.
+
+**Being built.** The arbiter's tables (`raw_owners`, `raw_writers`, `raw_collections` in the transactional store),
+the epoch-keyed versions, the epoch-bounded purge, the supersede purge and the horizon-filtered queue read exist;
+the pipeline's use of them does not yet. Until it lands, the reconciler below still decides who names a record from
+the analytics rows, readers apply no cutoff or ownership, and ClickHouse appends a repair before it queues it. What
+the wiring will hold: a reconciler reads a queue entry only once the **landing horizon** (30 s) has passed since it
+was enqueued, so the version its writer was landing has landed by the read - on DuckDB the version and its entry
+commit in one transaction; on ClickHouse the entry is written before the insert, and the **landing fence is
+pending**, so nothing will stop a submitted insert committing after the horizon, past a client timeout or its
+process's death. Without the fence, what the model proves for `FencedLanding = FALSE` is what will hold: a late
+landing is never read (readers apply each record's cutoff and live ownership) and never costs an acknowledged
+export its record, but its bytes - or a derived row no trace owns - persist until the record is next touched or
+its time-to-live expires, not within one pass. The fence (an `INSERT ... SELECT FROM input()` gated by a deadline
+on the server's clock, under its execution-time cap) is its own slice after the wiring, and the late-landing count
+and log that make an exceeded horizon visible land with the wiring.
+
 Keeping the record and its rows agreeing is a protocol, not an invariant one statement can hold, because nothing is
 atomic across the record, the rows and the tombstones:
 

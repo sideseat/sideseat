@@ -594,8 +594,48 @@ pub trait RawStore: Send + Sync {
         raw_ids: &[String],
     ) -> Result<(), DataError>;
 
-    /// Up to `limit` queued entries, oldest first, across projects.
-    async fn pending_raw_records(&self, limit: usize) -> Result<Vec<RawPending>, DataError>;
+    /// Up to `limit` queued entries, oldest first, across projects - only those enqueued before
+    /// `enqueued_before` when one is given, every entry when it is `None` (a horizon of zero).
+    ///
+    /// The cutoff is the landing horizon: a version whose entry was enqueued before it has landed by now, so
+    /// the pass that reads the entry sees it. Efficiency only - correctness holds at a horizon of zero, a late
+    /// landing being invisible behind its record's cutoff and reclaimed on its record's next touch. The cutoff
+    /// is compared with the store's own clock (`enqueued_at`), so skew between it and the caller's moves the
+    /// horizon by the skew and nothing else.
+    async fn pending_raw_records(
+        &self,
+        limit: usize,
+        enqueued_before: Option<DateTime<Utc>>,
+    ) -> Result<Vec<RawPending>, DataError>;
+
+    /// The collection purge (`RawRecordOwnership.tla`, `RPurge`): delete every version of the record keyed
+    /// under an epoch at or below `up_to_epoch`, and the record's trace-index rows once no version remains.
+    /// Bounded by the decision's epoch, so it can never reach a version written after the decision, however
+    /// late it runs or however often a takeover repeats it.
+    async fn purge_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        up_to_epoch: i64,
+    ) -> Result<(), DataError>;
+
+    /// The supersede purge: delete the record's versions strictly below `below_version` - the latest the caller
+    /// read, so a version written since is above it and stays. What they held beyond the latest is deleted
+    /// content only (`RawRecordOwnership.tla`, `Private`).
+    async fn delete_superseded_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        below_version: i64,
+    ) -> Result<(), DataError>;
+
+    /// The span identities whose stored rows name this record, for the collection's removal of rows no trace
+    /// owns. Bounded by one export's spans.
+    async fn spans_naming_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<(String, String)>, DataError>;
 
     /// Remove exactly these entries; one enqueued since they were read stays.
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError>;

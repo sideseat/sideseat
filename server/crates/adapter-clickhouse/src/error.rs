@@ -26,6 +26,16 @@ pub enum ClickhouseError {
         partition_key: String,
     },
 
+    /// A store whose raw records carry versions under the earlier meaning - a receipt instant, in a `version`
+    /// column - rather than the arbiter's `(epoch << 32) | n` key in `version_key`: read as keys, those versions
+    /// would sort as epochs no decision ever reached, out of every collection purge's bound.
+    #[error(
+        "the store's {table} keys its versions by receipt instant (a `version` column), a layout this build does \
+         not read correctly: the raw arbiter keys versions by epoch (`version_key`). It does not change a store's \
+         layout. To start fresh, drop the configured database. Nothing is deleted automatically."
+    )]
+    UnkeyedRawVersions { table: String },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -98,9 +108,8 @@ impl From<ClickhouseError> for DataError {
                 Self::unsupported_schema("clickhouse", refusal)
             }
             ClickhouseError::Connection(msg) => Self::Config(msg),
-            refusal @ ClickhouseError::IncompatibleLayout { .. } => {
-                Self::Config(refusal.to_string())
-            }
+            refusal @ (ClickhouseError::IncompatibleLayout { .. }
+            | ClickhouseError::UnkeyedRawVersions { .. }) => Self::Config(refusal.to_string()),
             ClickhouseError::Io(e) => Self::Io(e),
             ClickhouseError::Timeout { timeout_secs } => Self::Timeout {
                 backend: "clickhouse",

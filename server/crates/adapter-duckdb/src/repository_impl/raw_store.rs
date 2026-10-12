@@ -104,8 +104,53 @@ impl RawStore for DuckdbRepository {
         .await
     }
 
-    async fn pending_raw_records(&self, limit: usize) -> Result<Vec<RawPending>, DataError> {
-        run(&self.0, move |conn| raw::pending(conn, limit)).await
+    async fn pending_raw_records(
+        &self,
+        limit: usize,
+        enqueued_before: Option<DateTime<Utc>>,
+    ) -> Result<Vec<RawPending>, DataError> {
+        run(&self.0, move |conn| {
+            raw::pending(conn, limit, enqueued_before)
+        })
+        .await
+    }
+
+    async fn purge_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        up_to_epoch: i64,
+    ) -> Result<(), DataError> {
+        let (project_id, raw_id) = (project_id.clone(), raw_id.to_string());
+        run(&self.0, move |conn| {
+            raw::purge_versions(conn, &project_id, &raw_id, up_to_epoch)
+        })
+        .await
+    }
+
+    async fn delete_superseded_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        below_version: i64,
+    ) -> Result<(), DataError> {
+        let (project_id, raw_id) = (project_id.clone(), raw_id.to_string());
+        run(&self.0, move |conn| {
+            raw::delete_superseded(conn, &project_id, &raw_id, below_version)
+        })
+        .await
+    }
+
+    async fn spans_naming_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<(String, String)>, DataError> {
+        let (project_id, raw_id) = (project_id.clone(), raw_id.to_string());
+        run(&self.0, move |conn| {
+            raw::spans_naming(conn, &project_id, &raw_id)
+        })
+        .await
     }
 
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError> {

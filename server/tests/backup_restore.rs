@@ -356,7 +356,7 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
     // touched by the replay, and remains readable.
     let project = ProjectId::from("default");
     let queued: Vec<String> = analytics
-        .pending_raw_records(usize::MAX)
+        .pending_raw_records(usize::MAX, None)
         .await
         .expect("reconciliation queue")
         .into_iter()

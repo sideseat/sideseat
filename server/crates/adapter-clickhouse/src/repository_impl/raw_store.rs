@@ -146,8 +146,60 @@ impl RawStore for ClickhouseRepository {
         tenant_query!(self, project_id, raw::enqueue, project_id, raw_ids)
     }
 
-    async fn pending_raw_records(&self, limit: usize) -> Result<Vec<RawPending>, DataError> {
-        maintenance_query!(self, raw::pending, limit)
+    async fn pending_raw_records(
+        &self,
+        limit: usize,
+        enqueued_before: Option<DateTime<Utc>>,
+    ) -> Result<Vec<RawPending>, DataError> {
+        maintenance_query!(self, raw::pending, limit, enqueued_before)
+    }
+
+    async fn purge_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        up_to_epoch: i64,
+    ) -> Result<(), DataError> {
+        let table = self.0.delete_table("otel_raw");
+        let on_cluster = self.0.on_cluster_clause();
+        tenant_query!(
+            self,
+            project_id,
+            raw::purge_versions,
+            &table,
+            &on_cluster,
+            project_id,
+            raw_id,
+            up_to_epoch
+        )
+    }
+
+    async fn delete_superseded_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        below_version: i64,
+    ) -> Result<(), DataError> {
+        let table = self.0.delete_table("otel_raw");
+        let on_cluster = self.0.on_cluster_clause();
+        tenant_query!(
+            self,
+            project_id,
+            raw::delete_superseded,
+            &table,
+            &on_cluster,
+            project_id,
+            raw_id,
+            below_version
+        )
+    }
+
+    async fn spans_naming_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<(String, String)>, DataError> {
+        tenant_query!(self, project_id, raw::spans_naming, project_id, raw_id)
     }
 
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError> {

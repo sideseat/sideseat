@@ -119,7 +119,11 @@ async fn drain(pipeline: &TracePipeline) {
     for _ in 0..8 {
         pipeline.reconcile_raw_records(64).await.unwrap();
     }
-    let left = pipeline.analytics.pending_raw_records(64).await.unwrap();
+    let left = pipeline
+        .analytics
+        .pending_raw_records(64, None)
+        .await
+        .unwrap();
     assert!(left.is_empty(), "the queue settles: {left:?}");
 }
 
@@ -236,7 +240,13 @@ async fn a_held_record_is_left_alone() {
         after.record, before.record,
         "nothing rewritten under a hold"
     );
-    assert!(!analytics.pending_raw_records(64).await.unwrap().is_empty());
+    assert!(
+        !analytics
+            .pending_raw_records(64, None)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 /// An ingest whose rows the latest record does not hold appends the union, two versions up, and enqueues it.
@@ -267,7 +277,7 @@ async fn an_ingest_repairs_a_record_that_lost_its_spans() {
         .delete_spans(&project, &[key(1, 2)])
         .await
         .unwrap();
-    for entry in analytics.pending_raw_records(64).await.unwrap() {
+    for entry in analytics.pending_raw_records(64, None).await.unwrap() {
         analytics.clear_raw_pending(&[entry]).await.unwrap();
     }
 
@@ -284,7 +294,11 @@ async fn an_ingest_repairs_a_record_that_lost_its_spans() {
         received.bytes
     );
     assert!(
-        !analytics.pending_raw_records(64).await.unwrap().is_empty(),
+        !analytics
+            .pending_raw_records(64, None)
+            .await
+            .unwrap()
+            .is_empty(),
         "a repair is reconciled like any other change"
     );
     drain(&pipeline).await;
@@ -363,7 +377,7 @@ async fn a_recheck_queues_a_latest_record_that_still_holds_deleted_content() {
         .delete_traces(&project, &[trace(1)])
         .await
         .unwrap();
-    let queued = analytics.pending_raw_records(64).await.unwrap();
+    let queued = analytics.pending_raw_records(64, None).await.unwrap();
     analytics.clear_raw_pending(&queued).await.unwrap();
 
     pipeline
@@ -376,7 +390,11 @@ async fn a_recheck_queues_a_latest_record_that_still_holds_deleted_content() {
         .await
         .unwrap();
     assert!(
-        !analytics.pending_raw_records(64).await.unwrap().is_empty(),
+        !analytics
+            .pending_raw_records(64, None)
+            .await
+            .unwrap()
+            .is_empty(),
         "the record holding deleted content is queued again"
     );
 }

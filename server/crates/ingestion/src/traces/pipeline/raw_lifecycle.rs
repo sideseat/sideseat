@@ -29,6 +29,12 @@ use super::*;
 /// Entries one reconciliation pass reads.
 const RAW_RECONCILE_BATCH: usize = 64;
 
+/// How long a queued entry waits before a pass reads it: the landing horizon. A version whose entry was
+/// enqueued before the horizon has landed by the time its entry is read, so the pass sees it. Efficiency for
+/// the privacy bound, not correctness: a landing later than this is invisible behind its record's cutoff and
+/// reclaimed on the record's next touch or its time-to-live (`RawRecordOwnership.tla`, `FencedLanding`).
+const RAW_LANDING_HORIZON: chrono::Duration = chrono::Duration::seconds(30);
+
 /// How often the reconciler looks at its queue. Deleted content leaves the raw store within about this long
 /// of the deletion, and an idle queue costs one indexed read per interval.
 const RAW_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
@@ -50,9 +56,15 @@ pub(super) struct WrittenRecord<'a> {
 /// A read returns no trace ids - the record holds the answer - and the delete took the record's trace-index rows
 /// with it. Appended as read, the restored record was indexed under no trace, so a later deletion of one of its
 /// traces, which finds records through that index, left the deleted content in it.
-pub(super) fn restored_version(read: &RawRecordRow) -> RawRecordRow {
+pub(super) fn restored_version(read: &RawRecordRow, epoch: i64) -> Result<RawRecordRow, String> {
     let mut restored = read.clone();
-    restored.version = read.version.saturating_add(1);
+    restored.version = sideseat_ports::types::raw_version_above(Some(read.version), epoch, 1)
+        .ok_or_else(|| {
+            format!(
+                "raw record {} has no version key left in its epoch",
+                read.raw_id
+            )
+        })?;
     restored.trace_ids = match raw_record::record_identities(&read.record) {
         Ok(identities) => identities
             .into_iter()
@@ -69,7 +81,7 @@ pub(super) fn restored_version(read: &RawRecordRow) -> RawRecordRow {
             Vec::new()
         }
     };
-    restored
+    Ok(restored)
 }
 
 /// What reconciling one record came to.
@@ -99,6 +111,13 @@ impl TracePipeline {
         }
         for (project, items) in by_project {
             let project_id = ProjectId::from(project);
+            // Read after the rows own the record: the epoch the check's repair is keyed above (`Check`).
+            let epoch = self
+                .file_service
+                .database()
+                .raw_arbiter_epoch(&project_id)
+                .await
+                .map_err(|error| error.to_string())?;
             let mut ids: Vec<String> = items
                 .iter()
                 .map(|item| item.draft.raw_id().to_string())
@@ -126,6 +145,7 @@ impl TracePipeline {
                     &item.kept,
                     item.draft.received_at(),
                     item.hold_until,
+                    epoch,
                 )?;
                 // Appended and queued in one step (`append_raw_records`).
                 self.analytics
@@ -201,7 +221,11 @@ impl TracePipeline {
                 }
                 // Drain what is queued, a batch at a time, without starving shutdown.
                 loop {
-                    match self.reconcile_raw_records(RAW_RECONCILE_BATCH).await {
+                    let due = Utc::now() - RAW_LANDING_HORIZON;
+                    match self
+                        .reconcile_raw_records_before(RAW_RECONCILE_BATCH, Some(due))
+                        .await
+                    {
                         Ok(progress) if progress == RAW_RECONCILE_BATCH => continue,
                         Ok(_) => break,
                         Err(error) => {
@@ -214,10 +238,23 @@ impl TracePipeline {
         })
     }
 
-    /// One pass: read up to `limit` entries, reconcile each record once, and clear the entries of every record
-    /// that settled. Returns how many entries were cleared.
+    /// One pass at a landing horizon of zero: every queued entry is due. Correct at any horizon - a late landing
+    /// is invisible behind its record's cutoff and found again - so tests and drains use this one.
     pub async fn reconcile_raw_records(&self, limit: usize) -> Result<usize, DataError> {
-        let entries = self.analytics.pending_raw_records(limit).await?;
+        self.reconcile_raw_records_before(limit, None).await
+    }
+
+    /// One pass: read up to `limit` entries - those enqueued before `enqueued_before` when given - reconcile
+    /// each record once, and clear the entries of every record that settled. Returns how many were cleared.
+    pub async fn reconcile_raw_records_before(
+        &self,
+        limit: usize,
+        enqueued_before: Option<DateTime<Utc>>,
+    ) -> Result<usize, DataError> {
+        let entries = self
+            .analytics
+            .pending_raw_records(limit, enqueued_before)
+            .await?;
         let mut by_record: BTreeMap<(ProjectId, String), Vec<RawPending>> = BTreeMap::new();
         for entry in entries {
             by_record
@@ -321,7 +358,13 @@ impl TracePipeline {
         if let (Some(read), None, true) = (read, &latest_now, named_now) {
             // Rows appeared after this reconciler's delete: they get back what it read, which holds them.
             // Appended and queued in one step (`append_raw_records`).
-            let restored = restored_version(read);
+            let epoch = self
+                .file_service
+                .database()
+                .raw_arbiter_epoch(project_id)
+                .await
+                .map_err(|error| error.to_string())?;
+            let restored = restored_version(read, epoch)?;
             self.analytics
                 .append_raw_records(std::slice::from_ref(&restored))
                 .await
@@ -347,6 +390,27 @@ impl TracePipeline {
             }
         }
         Ok(())
+    }
+
+    /// The arbiter epoch of each of these projects, one read per project.
+    pub(super) async fn raw_epochs<'a>(
+        &self,
+        projects: impl Iterator<Item = &'a str>,
+    ) -> Result<HashMap<String, i64>, String> {
+        let mut epochs = HashMap::new();
+        for project in projects {
+            if epochs.contains_key(project) {
+                continue;
+            }
+            let epoch = self
+                .file_service
+                .database()
+                .raw_arbiter_epoch(&ProjectId::from(project))
+                .await
+                .map_err(|error| error.to_string())?;
+            epochs.insert(project.to_string(), epoch);
+        }
+        Ok(epochs)
     }
 
     async fn hold_active(&self, project_id: &ProjectId) -> Result<bool, String> {
@@ -414,7 +478,19 @@ impl TracePipeline {
                 missing.join(", ")
             ));
         }
-        let version = read.version.saturating_add(1);
+        let epoch = self
+            .file_service
+            .database()
+            .raw_arbiter_epoch(project_id)
+            .await
+            .map_err(|error| error.to_string())?;
+        let version = sideseat_ports::types::raw_version_above(Some(read.version), epoch, 1)
+            .ok_or_else(|| {
+                format!(
+                    "raw record {} has no version key left in its epoch",
+                    read.raw_id
+                )
+            })?;
         let row = RawRecordRow {
             origin: RawOrigin::Deleted,
             version,

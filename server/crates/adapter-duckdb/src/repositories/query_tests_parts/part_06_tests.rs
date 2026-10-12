@@ -176,7 +176,7 @@ async fn a_trace_deletion_enqueues_its_records_even_without_rows() {
     );
 
     delete_traces(&conn, "project", &["t1".to_string()]).unwrap();
-    let pending = crate::repositories::raw::pending(&conn, 10).unwrap();
+    let pending = crate::repositories::raw::pending(&conn, 10, None).unwrap();
     let mut queued: Vec<&str> = pending.iter().map(|entry| entry.raw_id.as_str()).collect();
     queued.sort_unstable();
     assert_eq!(queued, vec!["rows-expired", "with-rows"]);
@@ -184,7 +184,7 @@ async fn a_trace_deletion_enqueues_its_records_even_without_rows() {
     // An entry enqueued after the read survives the clear of the entries read.
     crate::repositories::raw::enqueue(&conn, &project, &["with-rows".to_string()]).unwrap();
     crate::repositories::raw::clear(&conn, &pending).unwrap();
-    let left = crate::repositories::raw::pending(&conn, 10).unwrap();
+    let left = crate::repositories::raw::pending(&conn, 10, None).unwrap();
     assert_eq!(left.len(), 1);
     assert_eq!(left[0].raw_id, "with-rows");
 
@@ -362,7 +362,7 @@ async fn the_reconciler_s_delete_and_rewrite_decide_in_their_own_step() {
     );
     // And the rewrite stored is queued with it: one prepared before a later deletion is looked at again, whatever
     // becomes of the reconciler that appended it.
-    let queued: Vec<String> = crate::repositories::raw::pending(&service.conn(), 10)
+    let queued: Vec<String> = crate::repositories::raw::pending(&service.conn(), 10, None)
         .unwrap()
         .into_iter()
         .map(|entry| entry.raw_id)

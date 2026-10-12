@@ -607,8 +607,42 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         self.inner.enqueue_raw_records(project_id, raw_ids).await
     }
 
-    async fn pending_raw_records(&self, limit: usize) -> Result<Vec<RawPending>, DataError> {
-        self.inner.pending_raw_records(limit).await
+    async fn pending_raw_records(
+        &self,
+        limit: usize,
+        enqueued_before: Option<DateTime<Utc>>,
+    ) -> Result<Vec<RawPending>, DataError> {
+        self.inner.pending_raw_records(limit, enqueued_before).await
+    }
+
+    async fn purge_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        up_to_epoch: i64,
+    ) -> Result<(), DataError> {
+        self.inner
+            .purge_raw_versions(project_id, raw_id, up_to_epoch)
+            .await
+    }
+
+    async fn delete_superseded_raw_versions(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        below_version: i64,
+    ) -> Result<(), DataError> {
+        self.inner
+            .delete_superseded_raw_versions(project_id, raw_id, below_version)
+            .await
+    }
+
+    async fn spans_naming_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<(String, String)>, DataError> {
+        self.inner.spans_naming_raw_record(project_id, raw_id).await
     }
 
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError> {

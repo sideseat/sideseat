@@ -11,7 +11,9 @@ use duckdb::{Connection, params};
 use crate::DuckdbError;
 use crate::sql_types::SqlTimestamp;
 use sideseat_core::utils::time::micros_to_datetime;
-use sideseat_ports::types::{ProjectId, RawOrigin, RawPending, RawRecordRow, StagedSignal};
+use sideseat_ports::types::{
+    ProjectId, RAW_VERSION_EPOCH_SHIFT, RawOrigin, RawPending, RawRecordRow, StagedSignal,
+};
 use sideseat_query_sql::Backend;
 use sideseat_query_sql::analytics;
 use sideseat_query_sql::dml;
@@ -30,7 +32,7 @@ fn duckdb_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
         .collect()
 }
 
-const COLUMNS: &str = "raw_id, signal, EPOCH_US(received_at), origin, version, EPOCH_US(signal_until), \
+const COLUMNS: &str = "raw_id, signal, EPOCH_US(received_at), origin, version_key, EPOCH_US(signal_until), \
                        EPOCH_US(hold_until), record";
 
 fn append(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbError> {
@@ -201,7 +203,7 @@ pub fn get(
         let keyed = duckdb_keyed("otel_raw", "raw_id", "*", chunk.len());
         let sql = format!(
             "SELECT {COLUMNS} FROM (SELECT * FROM {keyed} WHERE project_id = ? \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY version DESC, keyed_rowid DESC) = 1) \
+             QUALIFY ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY version_key DESC, keyed_rowid DESC) = 1) \
              ORDER BY raw_id"
         );
         let values: Vec<duckdb::types::Value> = chunk
@@ -233,7 +235,7 @@ pub fn page(
         .unwrap_or((i64::MIN, String::new()));
     let sql = format!(
         "SELECT {COLUMNS} FROM (SELECT *, rowid AS position FROM otel_raw WHERE project_id = ? \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY version DESC, rowid DESC) = 1) \
+             QUALIFY ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY version_key DESC, rowid DESC) = 1) \
          WHERE (EPOCH_US(received_at), raw_id) > (?, ?) \
          ORDER BY received_at, raw_id LIMIT ?"
     );
@@ -276,6 +278,120 @@ pub fn delete(
         super::keyed::delete_rows(conn, table, &rowids)?;
     }
     Ok(())
+}
+
+/// Row ids of a record's rows in `table`, found through its `raw_id` index.
+fn record_rowids(
+    conn: &Connection,
+    table: &str,
+    project_id: &ProjectId,
+    raw_id: &str,
+    extra: &str,
+    extra_value: Option<i64>,
+) -> Result<Vec<i64>, DuckdbError> {
+    let keyed = duckdb_keyed(table, "raw_id", "*", 1);
+    let mut statement = conn.prepare(&format!(
+        "SELECT keyed_rowid FROM {keyed} WHERE project_id = ? {extra}"
+    ))?;
+    let mut values = vec![
+        duckdb::types::Value::Text(raw_id.to_string()),
+        duckdb::types::Value::Text(project_id.to_string()),
+    ];
+    if let Some(value) = extra_value {
+        values.push(duckdb::types::Value::BigInt(value));
+    }
+    let rows = statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, i64>(0))?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// The collection purge (`RPurge`): the record's versions keyed at or below `up_to_epoch`, and its trace-index
+/// rows once no version remains - in one transaction.
+pub fn purge_versions(
+    conn: &Connection,
+    project_id: &ProjectId,
+    raw_id: &str,
+    up_to_epoch: i64,
+) -> Result<(), DuckdbError> {
+    crate::in_transaction(conn, |conn| {
+        let doomed = record_rowids(
+            conn,
+            "otel_raw",
+            project_id,
+            raw_id,
+            &format!("AND (version_key >> {RAW_VERSION_EPOCH_SHIFT}) <= ?"),
+            Some(up_to_epoch),
+        )?;
+        super::keyed::delete_rows(conn, "otel_raw", &doomed)?;
+        if record_rowids(conn, "otel_raw", project_id, raw_id, "", None)?.is_empty() {
+            let index = record_rowids(conn, "otel_raw_traces", project_id, raw_id, "", None)?;
+            super::keyed::delete_rows(conn, "otel_raw_traces", &index)?;
+        }
+        Ok(())
+    })
+}
+
+/// The supersede purge: the record's versions strictly below `below_version`.
+pub fn delete_superseded(
+    conn: &Connection,
+    project_id: &ProjectId,
+    raw_id: &str,
+    below_version: i64,
+) -> Result<(), DuckdbError> {
+    let superseded = record_rowids(
+        conn,
+        "otel_raw",
+        project_id,
+        raw_id,
+        "AND version_key < ?",
+        Some(below_version),
+    )?;
+    super::keyed::delete_rows(conn, "otel_raw", &superseded)?;
+    Ok(())
+}
+
+/// The span identities whose rows name this record: the record's traces through the trace index, then those
+/// traces' rows through the span table's trace index, kept where they name the record - two indexed reads,
+/// never a scan of the stored history.
+pub fn spans_naming(
+    conn: &Connection,
+    project_id: &ProjectId,
+    raw_id: &str,
+) -> Result<Vec<(String, String)>, DuckdbError> {
+    let keyed = duckdb_keyed("otel_raw_traces", "raw_id", "project_id, trace_id", 1);
+    let mut statement = conn.prepare(&format!(
+        "SELECT DISTINCT trace_id FROM {keyed} WHERE project_id = ?"
+    ))?;
+    let traces: Vec<String> = statement
+        .query_map(params![raw_id, project_id.as_str()], |r| r.get(0))?
+        .collect::<Result<_, _>>()?;
+    let keys = distinct_keys(traces.iter().map(String::as_str));
+    let mut spans = std::collections::BTreeSet::new();
+    for chunk in keys.chunks(KEYED_CHUNK) {
+        let keyed = duckdb_keyed(
+            "otel_spans",
+            "trace_id",
+            "project_id, trace_id, span_id, raw_id",
+            chunk.len(),
+        );
+        let values: Vec<duckdb::types::Value> = chunk
+            .iter()
+            .map(|key| duckdb::types::Value::Text((*key).to_string()))
+            .chain([
+                duckdb::types::Value::Text(project_id.to_string()),
+                duckdb::types::Value::Text(raw_id.to_string()),
+            ])
+            .collect();
+        let mut statement = conn.prepare(&format!(
+            "SELECT trace_id, span_id FROM {keyed} WHERE project_id = ? AND raw_id = ?"
+        ))?;
+        let rows = statement.query_map(duckdb::params_from_iter(values), |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            spans.insert(row?);
+        }
+    }
+    Ok(spans.into_iter().collect())
 }
 
 /// Delete every version of those of these records no stored span row names, in one transaction on the one
@@ -407,14 +523,20 @@ pub fn enqueue(
     Ok(())
 }
 
-/// Up to `limit` queued entries, oldest first.
-pub fn pending(conn: &Connection, limit: usize) -> Result<Vec<RawPending>, DuckdbError> {
+/// Up to `limit` entries enqueued before the landing horizon, oldest first.
+pub fn pending(
+    conn: &Connection,
+    limit: usize,
+    enqueued_before: Option<DateTime<Utc>>,
+) -> Result<Vec<RawPending>, DuckdbError> {
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
     let mut statement = conn.prepare(
         "SELECT project_id, raw_id, token FROM otel_raw_pending \
+         WHERE ? IS NULL OR enqueued_at < CAST(? AS TIMESTAMP) \
          ORDER BY enqueued_at, project_id, raw_id, token LIMIT ?",
     )?;
-    let rows = statement.query_map(params![limit], |r| {
+    let before = enqueued_before.map(SqlTimestamp);
+    let rows = statement.query_map(params![before, before, limit], |r| {
         Ok(RawPending {
             project_id: ProjectId::from(r.get::<_, String>(0)?.as_str()),
             raw_id: r.get(1)?,

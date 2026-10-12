@@ -447,7 +447,9 @@ CREATE TABLE IF NOT EXISTS otel_raw (
     signal       VARCHAR NOT NULL,
     received_at  TIMESTAMP NOT NULL,
     origin       VARCHAR NOT NULL,
-    version      BIGINT NOT NULL,
+    -- `(epoch << 32) | n`: the arbiter epoch the version was keyed under, then its place within it
+    -- (`sideseat_ports::types::raw_version`). Named for the key, not the receipt instant versions once were.
+    version_key  BIGINT NOT NULL,
     signal_until TIMESTAMP NOT NULL,
     hold_until   TIMESTAMP,
     record       BLOB NOT NULL USING COMPRESSION zstd

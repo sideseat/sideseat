@@ -291,7 +291,7 @@ async fn an_in_doubt_write_keeps_its_records_out_of_collection() {
         )
         .await;
     let queued: Vec<String> = analytics
-        .pending_raw_records(16)
+        .pending_raw_records(16, None)
         .await
         .expect("pending")
         .into_iter()
@@ -307,7 +307,8 @@ fn a_restored_record_is_indexed_under_its_traces() {
     let mut request = export();
     request.resource_spans[0].scope_spans[0].spans[1].trace_id = vec![22; 16];
     let restored =
-        super::raw_lifecycle::restored_version(&record_of("default", "restored", &request));
+        super::raw_lifecycle::restored_version(&record_of("default", "restored", &request), 0)
+            .expect("restored");
     assert_eq!(restored.version, 2);
     assert_eq!(
         restored.trace_ids,

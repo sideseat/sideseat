@@ -464,6 +464,7 @@ impl ClickhouseService {
         // Whichever the decision: on a cluster the version row is the shard's own, so a shard other than the one
         // that created the store finds none and would create - keeping, through `IF NOT EXISTS`, a table it holds.
         self.refuse_partitioned_raw_records().await?;
+        self.refuse_unkeyed_raw_versions().await?;
         self.refuse_receipt_partitioned_logs().await?;
         match decision {
             SchemaCheck::Current => Ok(()),
@@ -490,6 +491,25 @@ impl ClickhouseService {
                 table,
                 partition_key,
             }),
+            None => Ok(()),
+        }
+    }
+
+    /// Refuse a store whose raw records still carry receipt-instant versions in a `version` column, as one
+    /// created before the arbiter keyed them by epoch does (`schema::raw_tables`).
+    async fn refuse_unkeyed_raw_versions(&self) -> Result<(), ClickhouseError> {
+        let unkeyed: Vec<String> = self
+            .client
+            .query(
+                "SELECT table FROM system.columns \
+                 WHERE database = currentDatabase() AND table IN ('otel_raw', 'otel_raw_local') \
+                   AND name = 'version'",
+            )
+            .fetch_all()
+            .await
+            .map_err(ClickhouseError::from)?;
+        match unkeyed.into_iter().next() {
+            Some(table) => Err(ClickhouseError::UnkeyedRawVersions { table }),
             None => Ok(()),
         }
     }

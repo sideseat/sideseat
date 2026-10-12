@@ -437,7 +437,7 @@ async fn a_store_with_month_partitioned_raw_records_is_refused_at_startup() {
     let _created = clickhouse_backend(&url, database).await;
     let client = raw_client(&url, database);
     for statement in [
-        "CREATE TABLE otel_raw_months AS otel_raw ENGINE = ReplacingMergeTree(version) \
+        "CREATE TABLE otel_raw_months AS otel_raw ENGINE = ReplacingMergeTree(version_key) \
          PARTITION BY toYYYYMM(received_at) ORDER BY (project_id, raw_id)",
         "DROP TABLE otel_raw SYNC",
         "RENAME TABLE otel_raw_months TO otel_raw",
@@ -471,7 +471,7 @@ async fn a_two_shard_store_with_month_partitioned_raw_records_is_refused_at_star
         format!(
             "CREATE TABLE otel_raw_local_months ON CLUSTER {REPLICATED_CLUSTER} AS otel_raw_local \
              ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{database}/otel_raw_months', \
-             '{{replica}}', version) PARTITION BY toYYYYMM(received_at) ORDER BY (project_id, raw_id)"
+             '{{replica}}', version_key) PARTITION BY toYYYYMM(received_at) ORDER BY (project_id, raw_id)"
         ),
         format!("DROP TABLE otel_raw_local ON CLUSTER {REPLICATED_CLUSTER} SYNC"),
         format!(

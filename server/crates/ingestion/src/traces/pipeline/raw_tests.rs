@@ -135,7 +135,13 @@ fn a_fenced_span_does_not_survive_in_the_raw_record() {
     let now = DateTime::UNIX_EPOCH;
 
     let whole = draft
-        .row(&mutated, &HashSet::from([key(1, 1), key(2, 2)]), now, None)
+        .row(
+            &mutated,
+            &HashSet::from([key(1, 1), key(2, 2)]),
+            now,
+            None,
+            0,
+        )
         .unwrap();
     assert_eq!(whole.origin, RawOrigin::Received);
     assert_eq!(decoded(&whole, &[]), received.bytes);
@@ -145,7 +151,7 @@ fn a_fenced_span_does_not_survive_in_the_raw_record() {
     );
 
     let part = draft
-        .row(&mutated, &HashSet::from([key(1, 1)]), now, None)
+        .row(&mutated, &HashSet::from([key(1, 1)]), now, None, 0)
         .unwrap();
     assert_eq!(part.origin, RawOrigin::Fenced);
     assert_eq!(part.raw_id, whole.raw_id);
@@ -188,6 +194,7 @@ fn media_the_store_refused_stays_inline() {
             &HashSet::from([key(1, 1), key(1, 2)]),
             DateTime::UNIX_EPOCH,
             None,
+            0,
         )
         .unwrap();
     let stored: Vec<PendingFileWrite> = writes
@@ -203,9 +210,11 @@ fn media_the_store_refused_stays_inline() {
     assert_eq!(referenced, vec![hash_of(&picture(2))]);
 }
 
-/// A repair holds the latest version's spans and the ingest's own, at least two versions above the latest.
+/// A repair holds the latest version's spans and the ingest's own, two keys above the latest within the epoch
+/// the check read - or the epoch's first key when the latest is behind it (`RawRecordOwnership.tla`, `Above`).
 #[test]
 fn a_repair_is_the_union_two_versions_up() {
+    use sideseat_ports::types::raw_version;
     let request = export(vec![span(1, 1, None), span(1, 2, None), span(1, 3, None)]);
     let received = ReceivedPayload::new(
         request.encode_to_vec(),
@@ -215,26 +224,36 @@ fn a_repair_is_the_union_two_versions_up() {
     let draft = RawDraft::new("project", &received, true);
     let at = DateTime::from_timestamp_micros(5).unwrap();
     let mut latest = draft
-        .row(&request, &HashSet::from([key(1, 1)]), at, None)
+        .row(&request, &HashSet::from([key(1, 1)]), at, None, 0)
         .unwrap();
-    latest.version = 1_000;
+    assert_eq!(
+        latest.version,
+        raw_version(0, 1).unwrap(),
+        "the first version of epoch 0"
+    );
+    latest.version = raw_version(0, 1_000).unwrap();
     let written = HashSet::from([key(1, 2)]);
     assert!(!draft.covers(&latest, &written));
 
     // Repaired by an ingest received a month later: still the record received when it was.
     let later = at + chrono::TimeDelta::days(31);
     let repair = draft
-        .repair_row(&request, Some(&latest), &written, later, None)
+        .repair_row(&request, Some(&latest), &written, later, None, 0)
         .unwrap();
-    assert_eq!(repair.version, later.timestamp_micros());
+    assert_eq!(repair.version, raw_version(0, 1_002).unwrap());
     assert_eq!(
         repair.received_at, latest.received_at,
         "a repair keeps the record's receipt, so its versions share one partition and one replay position"
     );
-    let repair = draft
-        .repair_row(&request, Some(&latest), &written, at, None)
+    // A check that read a later epoch keys the repair as that epoch's first version, above every earlier key.
+    let rekeyed = draft
+        .repair_row(&request, Some(&latest), &written, at, None, 3)
         .unwrap();
-    assert_eq!(repair.version, 1_002);
+    assert_eq!(rekeyed.version, raw_version(3, 1).unwrap());
+    let repair = draft
+        .repair_row(&request, Some(&latest), &written, at, None, 0)
+        .unwrap();
+    assert_eq!(repair.version, raw_version(0, 1_002).unwrap());
     assert_eq!(repair.origin, RawOrigin::Fenced);
     assert_eq!(
         record_identities(&repair.record).unwrap(),
@@ -249,6 +268,7 @@ fn a_repair_is_the_union_two_versions_up() {
             &HashSet::from([key(1, 3)]),
             at,
             None,
+            0,
         )
         .unwrap();
     assert_eq!(

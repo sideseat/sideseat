@@ -75,7 +75,7 @@ def verify_raw_embedded(
     connection = duckdb.connect(str(work / "duckdb/sideseat.duckdb"), read_only=True)
     rows = connection.execute(
         "SELECT project_id, record, origin FROM otel_raw QUALIFY ROW_NUMBER() OVER "
-        "(PARTITION BY project_id, raw_id ORDER BY version DESC, rowid DESC) = 1"
+        "(PARTITION BY project_id, raw_id ORDER BY version_key DESC, rowid DESC) = 1"
     ).fetchall()
     connection.close()
     failures, stored = [], collections.defaultdict(set)

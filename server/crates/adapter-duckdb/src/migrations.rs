@@ -175,6 +175,33 @@ mod tests {
         ));
     }
 
+    /// A store whose raw records still carry receipt-instant versions in a `version` column - one created before
+    /// the arbiter keyed them by epoch - is refused: read as keys, those versions would sort as epochs no
+    /// decision reached, out of every collection purge's bound.
+    #[test]
+    fn a_store_with_receipt_keyed_raw_versions_is_refused() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn, &TestClock).unwrap();
+        // DuckDB refuses to rename a column of an indexed table, so the earlier layout is rebuilt instead.
+        conn.execute_batch(
+            "DROP INDEX idx_raw_id;
+             ALTER TABLE otel_raw RENAME COLUMN version_key TO version;
+             CREATE INDEX idx_raw_id ON otel_raw(raw_id);",
+        )
+        .unwrap();
+        let error = ensure_schema(&conn, &TestClock)
+            .expect_err("an earlier layout of this version must be refused");
+        let message = error.to_string();
+        assert!(
+            message.contains("otel_raw.version"),
+            "names the column: {message}"
+        );
+        assert!(
+            message.contains("sideseat system prune"),
+            "names the reset: {message}"
+        );
+    }
+
     #[test]
     fn a_database_at_another_version_is_refused_untouched() {
         let conn = Connection::open_in_memory().unwrap();

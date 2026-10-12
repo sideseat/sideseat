@@ -137,7 +137,7 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
         .await
         .expect("delete a span");
     let mut queued = store
-        .pending_raw_records(usize::MAX)
+        .pending_raw_records(usize::MAX, None)
         .await
         .expect("queue")
         .into_iter()
@@ -148,7 +148,10 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
     say(&mut answers, "queued", queued.join(","));
 
     // Clearing takes exactly the entries read: one enqueued afterwards stays.
-    let entries = store.pending_raw_records(usize::MAX).await.expect("queue");
+    let entries = store
+        .pending_raw_records(usize::MAX, None)
+        .await
+        .expect("queue");
     store
         .enqueue_raw_records(&project, &["raw-a".to_string()])
         .await
@@ -161,7 +164,7 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
         &mut answers,
         "left queued",
         store
-            .pending_raw_records(usize::MAX)
+            .pending_raw_records(usize::MAX, None)
             .await
             .expect("queue")
             .len()
@@ -207,7 +210,12 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
     // A record deleted by the reconciler goes entirely, index included - so a later deletion of the same
     // trace enqueues nothing.
     store
-        .clear_raw_pending(&store.pending_raw_records(usize::MAX).await.expect("queue"))
+        .clear_raw_pending(
+            &store
+                .pending_raw_records(usize::MAX, None)
+                .await
+                .expect("queue"),
+        )
         .await
         .expect("clear");
     store
@@ -225,7 +233,7 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
                 .expect("gone")
                 .len(),
             store
-                .pending_raw_records(usize::MAX)
+                .pending_raw_records(usize::MAX, None)
                 .await
                 .expect("queue")
                 .len()
@@ -286,7 +294,7 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
                 .expect("records")
                 .len(),
             store
-                .pending_raw_records(usize::MAX)
+                .pending_raw_records(usize::MAX, None)
                 .await
                 .expect("queue")
                 .len()

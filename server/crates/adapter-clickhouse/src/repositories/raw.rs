@@ -21,7 +21,7 @@ struct RawRow {
     #[serde(with = "clickhouse::serde::time::datetime64::micros")]
     received_at: time::OffsetDateTime,
     origin: String,
-    version: i64,
+    version_key: i64,
     #[serde(with = "clickhouse::serde::time::datetime64::micros")]
     signal_until: time::OffsetDateTime,
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
@@ -48,7 +48,7 @@ impl RawRow {
             signal: record.signal.as_str().to_string(),
             received_at: to_time(record.received_at),
             origin: record.origin.as_str().to_string(),
-            version: record.version,
+            version_key: record.version,
             signal_until: to_time(record.signal_until),
             hold_until: record.hold_until.map(to_time),
             record: record.record.clone(),
@@ -62,7 +62,7 @@ impl RawRow {
             raw_id: self.raw_id,
             received_at: from_time(self.received_at),
             origin: RawOrigin::from_stored(&self.origin).unwrap_or(RawOrigin::Deleted),
-            version: self.version,
+            version: self.version_key,
             signal_until: from_time(self.signal_until),
             hold_until: self.hold_until.map(from_time),
             trace_ids: Vec::new(),
@@ -109,8 +109,7 @@ mod binary_string {
     }
 }
 
-const COLUMNS: &str =
-    "project_id, raw_id, signal, received_at, origin, version, signal_until, hold_until, record";
+const COLUMNS: &str = "project_id, raw_id, signal, received_at, origin, version_key, signal_until, hold_until, record";
 
 #[derive(Row, Serialize)]
 struct TraceIndexRow<'a> {
@@ -263,6 +262,69 @@ pub async fn delete(
     Ok(())
 }
 
+/// The collection purge: the record's versions keyed at or below `up_to_epoch`. The record's trace-index
+/// rows are left to their time-to-live: deleting them after a read that found no version could race a landing
+/// that wrote fresh ones, and a deletion finds records through them.
+pub async fn purge_versions(
+    client: &Client,
+    table: &str,
+    on_cluster: &str,
+    project_id: &ProjectId,
+    raw_id: &str,
+    up_to_epoch: i64,
+) -> Result<(), ClickhouseError> {
+    let statement = dml::raw::purge_raw_versions(
+        dml::MutationTarget::clickhouse(table, on_cluster),
+        project_id.as_str(),
+        raw_id,
+        up_to_epoch,
+    );
+    execute(client, &statement).await
+}
+
+/// The supersede purge: the record's versions strictly below `below_version`.
+pub async fn delete_superseded(
+    client: &Client,
+    table: &str,
+    on_cluster: &str,
+    project_id: &ProjectId,
+    raw_id: &str,
+    below_version: i64,
+) -> Result<(), ClickhouseError> {
+    let statement = dml::raw::delete_superseded_raw_versions(
+        dml::MutationTarget::clickhouse(table, on_cluster),
+        project_id.as_str(),
+        raw_id,
+        below_version,
+    );
+    execute(client, &statement).await
+}
+
+/// The span identities whose stored rows name this record: the record's traces from the trace index - a narrow
+/// table of `(project, trace, record)` keys, read within the project - then only those traces' rows, which the
+/// span table's `(project_id, trace_id, ...)` sort key narrows to their granules: never a scan of the span
+/// history.
+pub async fn spans_naming(
+    client: &Client,
+    project_id: &ProjectId,
+    raw_id: &str,
+) -> Result<Vec<(String, String)>, ClickhouseError> {
+    let rows: Vec<(String, String)> = client
+        .query(
+            "SELECT DISTINCT trace_id, span_id FROM otel_spans \
+             WHERE project_id = ? AND raw_id = ? AND trace_id GLOBAL IN ( \
+                 SELECT trace_id FROM otel_raw_traces WHERE project_id = ? AND raw_id = ?) \
+             ORDER BY trace_id, span_id",
+        )
+        .bind(project_id.as_str())
+        .bind(raw_id)
+        .bind(project_id.as_str())
+        .bind(raw_id)
+        .fetch_all()
+        .await?;
+    Ok(rows)
+}
+
 /// Which of these records a stored span row still names.
 pub async fn named(
     client: &Client,
@@ -306,12 +368,23 @@ struct PendingRow {
 }
 
 /// Every project's queue: read with the maintenance client, which the tenant row policy lets through.
-pub async fn pending(client: &Client, limit: usize) -> Result<Vec<RawPending>, ClickhouseError> {
+pub async fn pending(
+    client: &Client,
+    limit: usize,
+    enqueued_before: Option<DateTime<Utc>>,
+) -> Result<Vec<RawPending>, ClickhouseError> {
+    let (filtered, before) = match enqueued_before {
+        Some(at) => (1u8, at.timestamp_micros()),
+        None => (0u8, 0),
+    };
     let rows: Vec<PendingRow> = client
         .query(
             "SELECT project_id, raw_id, token FROM otel_raw_pending \
+             WHERE ? = 0 OR enqueued_at < fromUnixTimestamp64Micro(?) \
              ORDER BY enqueued_at, project_id, raw_id, token LIMIT ?",
         )
+        .bind(filtered)
+        .bind(before)
         .bind(limit as u64)
         .fetch_all()
         .await?;

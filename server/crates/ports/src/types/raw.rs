@@ -104,3 +104,89 @@ pub struct RawCollection {
     pub epoch: i64,
     pub decided_at: DateTime<Utc>,
 }
+
+/// The bits of a stored version below its epoch: a version number is `(epoch << 32) | n`, so versions order by
+/// epoch first and by `n` within it - what `RawRecordOwnership.tla`'s `Below` orders keys by, and what DuckDB's
+/// ordering and ClickHouse's `ReplacingMergeTree(version_key)` compare as one integer.
+pub const RAW_VERSION_EPOCH_SHIFT: u32 = 32;
+
+/// The largest epoch a version can carry: the key stays a non-negative `i64`, which both stores order as the
+/// model orders keys. Two billion collection decisions in one project - none is ever expected.
+pub const RAW_VERSION_MAX_EPOCH: i64 = (1 << 31) - 1;
+
+/// The largest `n` within an epoch.
+pub const RAW_VERSION_MAX_N: i64 = (1 << RAW_VERSION_EPOCH_SHIFT) - 1;
+
+/// The stored version for the `n`-th key in `epoch`, or `None` outside the representable domain - an epoch
+/// out of `0..=RAW_VERSION_MAX_EPOCH` or an `n` out of `0..=RAW_VERSION_MAX_N`. Never wrapped: a wrapped key
+/// would sort below a purge's bound it should be above.
+#[must_use]
+pub fn raw_version(epoch: i64, n: i64) -> Option<i64> {
+    ((0..=RAW_VERSION_MAX_EPOCH).contains(&epoch) && (0..=RAW_VERSION_MAX_N).contains(&n))
+        .then_some((epoch << RAW_VERSION_EPOCH_SHIFT) | n)
+}
+
+/// The epoch a stored version was keyed under.
+#[must_use]
+pub fn raw_version_epoch(version: i64) -> i64 {
+    version >> RAW_VERSION_EPOCH_SHIFT
+}
+
+/// The key above `latest`, keyed no earlier than `epoch` (`RawRecordOwnership.tla`, `Above`): `step` further
+/// within the latest's epoch when it is not behind, else the first key of `epoch`. `None` when the latest's
+/// epoch has no room left for `step` more: the key cannot move to another epoch on its own - the epoch is the
+/// arbiter's fencing token - so the write is refused rather than given a key that does not order above.
+#[must_use]
+pub fn raw_version_above(latest: Option<i64>, epoch: i64, step: i64) -> Option<i64> {
+    match latest {
+        Some(latest) if raw_version_epoch(latest) >= epoch => {
+            let n = (latest & RAW_VERSION_MAX_N).checked_add(step)?;
+            raw_version(raw_version_epoch(latest), n)
+        }
+        _ => raw_version(epoch, 1),
+    }
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    fn key(epoch: i64, n: i64) -> i64 {
+        raw_version(epoch, n).expect("in domain")
+    }
+
+    #[test]
+    fn versions_order_by_epoch_first_and_n_within_it() {
+        assert!(key(1, 1) > key(0, RAW_VERSION_MAX_N));
+        assert!(key(2, 3) > key(2, 2));
+        assert_eq!(raw_version_epoch(key(7, 5)), 7);
+        assert_eq!(raw_version_epoch(key(0, 1)), 0);
+        assert!(
+            key(RAW_VERSION_MAX_EPOCH, RAW_VERSION_MAX_N) > 0,
+            "the largest key stays positive"
+        );
+    }
+
+    #[test]
+    fn a_key_outside_the_domain_is_refused_rather_than_wrapped() {
+        assert_eq!(raw_version(RAW_VERSION_MAX_EPOCH + 1, 1), None);
+        assert_eq!(raw_version(-1, 1), None);
+        assert_eq!(raw_version(0, RAW_VERSION_MAX_N + 1), None);
+        assert_eq!(raw_version(0, -1), None);
+    }
+
+    #[test]
+    fn the_key_above_follows_the_model_s_above() {
+        assert_eq!(raw_version_above(None, 3, 2), Some(key(3, 1)));
+        assert_eq!(raw_version_above(Some(key(3, 1)), 3, 2), Some(key(3, 3)));
+        // A latest behind the epoch is superseded by the epoch's first key.
+        assert_eq!(raw_version_above(Some(key(1, 9)), 3, 1), Some(key(3, 1)));
+        // A latest ahead of a stale epoch stays ahead.
+        assert_eq!(raw_version_above(Some(key(5, 1)), 3, 1), Some(key(5, 2)));
+        // An exhausted epoch refuses rather than spilling into the next.
+        assert_eq!(
+            raw_version_above(Some(key(5, RAW_VERSION_MAX_N)), 3, 1),
+            None
+        );
+    }
+}

@@ -25,7 +25,9 @@ use sideseat_core::constants::FILE_HASH_ALGORITHM;
 use sideseat_core::utils::file_uri::parse_file_uri;
 use sideseat_core::utils::mime::detect_mime_type_from_base64;
 use sideseat_domain::raw_payload::{self, EncodedRaw, RawContent};
-use sideseat_ports::types::{ProjectId, RawOrigin, RawRecordRow, StagedSignal};
+use sideseat_ports::types::{
+    ProjectId, RawOrigin, RawRecordRow, StagedSignal, raw_version, raw_version_above,
+};
 
 use super::super::persist::PendingFileWrite;
 use crate::received::ReceivedPayload;
@@ -146,12 +148,16 @@ impl RawDraft {
     /// hold. When any of those removed a span, the version is the received export without it, re-encoded and
     /// marked [`RawOrigin::Fenced`]. Exact redeliveries are *not* removed here - their data is kept, under this
     /// record as well as the one that first carried it - so the caller passes the set from before that check.
+    ///
+    /// Keyed as the first version of `epoch`, the arbiter's epoch the caller read before the write
+    /// (`RawRecordOwnership.tla`, `Insert`).
     pub(in crate::traces) fn row(
         &self,
         request: &ExportTraceServiceRequest,
         keep: &HashSet<SpanKey>,
         at: DateTime<Utc>,
         hold_until: Option<DateTime<Utc>>,
+        epoch: i64,
     ) -> Result<RawRecordRow, String> {
         let everything = spans_of(request);
         let (origin, record) = if everything.iter().all(|key| keep.contains(key)) {
@@ -159,20 +165,16 @@ impl RawDraft {
         } else {
             (RawOrigin::Fenced, self.filtered(keep)?)
         };
-        Ok(self.version(
-            request,
-            keep,
-            origin,
-            record,
-            at.timestamp_micros(),
-            at,
-            hold_until,
-        ))
+        let version = raw_version(epoch, 1).ok_or_else(|| {
+            format!("raw arbiter epoch {epoch} is outside the version key's domain")
+        })?;
+        Ok(self.version(request, keep, origin, record, version, at, hold_until))
     }
 
     /// The version an ingest appends when, after its rows were written, the latest record does not hold them:
-    /// the union of what the latest holds and what this ingest kept, two versions above the latest, so a
-    /// reconciler's rewrite of an older read can never win over it (the `Check` step of the model).
+    /// the union of what the latest holds and what this ingest kept, two keys above the latest at the epoch the
+    /// check read, so a reconciler's rewrite of an older read can never win over it (the `Check` step of the
+    /// model, `Above(latest, epoch, 2)`).
     pub(in crate::traces) fn repair_row(
         &self,
         request: &ExportTraceServiceRequest,
@@ -180,6 +182,7 @@ impl RawDraft {
         keep: &HashSet<SpanKey>,
         at: DateTime<Utc>,
         hold_until: Option<DateTime<Utc>>,
+        epoch: i64,
     ) -> Result<RawRecordRow, String> {
         let mut union = keep.clone();
         if let Some(latest) = latest {
@@ -196,9 +199,14 @@ impl RawDraft {
                 ),
             }
         }
-        let mut row = self.row(request, &union, at, hold_until)?;
-        let floor = latest.map_or(0, |latest| latest.version.saturating_add(2));
-        row.version = row.version.max(floor);
+        let mut row = self.row(request, &union, at, hold_until, epoch)?;
+        row.version =
+            raw_version_above(latest.map(|latest| latest.version), epoch, 2).ok_or_else(|| {
+                format!(
+                    "raw record {} has no version key left in its epoch",
+                    self.raw_id
+                )
+            })?;
         // A version is the record's, received when the record was: the repair is a later write of it, not a
         // later receipt. Stamped with its own receipt, a repair moved the record's replay to the repair's
         // instant, and on ClickHouse, when the records were partitioned by receipt month, it was a second latest

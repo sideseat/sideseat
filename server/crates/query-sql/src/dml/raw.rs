@@ -98,6 +98,49 @@ pub fn delete_raw_records(
     )
 }
 
+/// The collection purge (`RawRecordOwnership.tla`, `RPurge`): the record's versions keyed under an epoch at
+/// or below `up_to_epoch`. The epoch is the version's high 32 bits (`raw_version_epoch`).
+pub fn purge_raw_versions(
+    target: MutationTarget<'_>,
+    project_id: &str,
+    raw_id: &str,
+    up_to_epoch: i64,
+) -> DmlStatement {
+    let epoch = match target.backend {
+        Backend::Duckdb => "(version_key >> 32)",
+        Backend::Clickhouse => "bitShiftRight(version_key, 32)",
+    };
+    render_delete(
+        QueryOperation::RawReconciliation,
+        target,
+        format!("project_id = ? AND raw_id = ? AND {epoch} <= ?"),
+        vec![
+            QueryValue::String(project_id.to_string()),
+            QueryValue::String(raw_id.to_string()),
+            QueryValue::Int64(up_to_epoch),
+        ],
+    )
+}
+
+/// The supersede purge: the record's versions strictly below `below_version`.
+pub fn delete_superseded_raw_versions(
+    target: MutationTarget<'_>,
+    project_id: &str,
+    raw_id: &str,
+    below_version: i64,
+) -> DmlStatement {
+    render_delete(
+        QueryOperation::RawReconciliation,
+        target,
+        "project_id = ? AND raw_id = ? AND version_key < ?".to_string(),
+        vec![
+            QueryValue::String(project_id.to_string()),
+            QueryValue::String(raw_id.to_string()),
+            QueryValue::Int64(below_version),
+        ],
+    )
+}
+
 /// Remove exactly these `(raw_id, token)` entries of one project.
 pub fn clear_raw_pending(
     target: MutationTarget<'_>,

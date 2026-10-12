@@ -1,7 +1,7 @@
 //! The raw-record table, every received export as an SSR1 record, the authority the other tables are derived
 //! from, and the queue of records waiting for reconciliation with their rows.
 //!
-//! `ReplacingMergeTree(version)`: every write of a record - a repair, a rewrite after a deletion, a record
+//! `ReplacingMergeTree(version_key)`: every write of a record - a repair, a rewrite after a deletion, a record
 //! restored by the reconciler - is a version of the same `(project_id, raw_id)`, and the merge keeps the latest,
 //! which is also what `FINAL` reads. Not partitioned: the client resolves `FINAL` one partition at a time
 //! (`do_not_merge_across_partitions_select_final`), so a record's versions must share one, and a partition by
@@ -22,7 +22,7 @@ const COLUMNS: &str = "
     signal       LowCardinality(String),
     received_at  DateTime64(6, 'UTC') CODEC(DoubleDelta, ZSTD(1)),
     origin       LowCardinality(String),
-    version      Int64,
+    version_key  Int64,
     signal_until DateTime64(6, 'UTC'),
     hold_until   Nullable(DateTime64(6, 'UTC')),
     record       String CODEC(ZSTD(3))";
@@ -48,7 +48,7 @@ pub fn raw_tables(config: &ClickhouseConfig) -> Vec<String> {
         return vec![
             format!(
                 "CREATE TABLE IF NOT EXISTS otel_raw ({COLUMNS}) \
-                 ENGINE = ReplacingMergeTree(version) ORDER BY (project_id, raw_id) {TTL}"
+                 ENGINE = ReplacingMergeTree(version_key) ORDER BY (project_id, raw_id) {TTL}"
             ),
             format!(
                 "CREATE TABLE IF NOT EXISTS otel_raw_traces ({TRACE_COLUMNS}) \
@@ -65,7 +65,7 @@ pub fn raw_tables(config: &ClickhouseConfig) -> Vec<String> {
     vec![
         format!(
             "CREATE TABLE IF NOT EXISTS otel_raw_local ON CLUSTER {cluster} ({COLUMNS}) \
-             ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_raw', '{{replica}}', version) \
+             ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_raw', '{{replica}}', version_key) \
              ORDER BY (project_id, raw_id) {TTL}"
         ),
         // Sharded by project like the span table, so a project's records and its spans share a shard.
