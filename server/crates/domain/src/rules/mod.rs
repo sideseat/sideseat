@@ -34,6 +34,7 @@ pub mod message_projection;
 pub mod message_rules;
 pub mod precedence;
 mod reading_directions;
+pub mod redaction_markers;
 pub mod refusal;
 pub mod request_threads;
 #[cfg(any(test, feature = "test-support"))]
@@ -42,6 +43,7 @@ pub mod schema;
 pub mod span_conditions;
 pub mod span_fields;
 pub mod span_marks;
+mod synthetic_call_ids;
 mod tool_repr;
 pub mod tool_shapes;
 pub mod versions;
@@ -177,6 +179,8 @@ pub struct Ruleset {
     pub messages: message_rules::MessagePlan,
     /// Which stored producer bookkeeping rows are omitted from the read-time conversation.
     pub message_projection: message_projection::MessageProjectionPlan,
+    /// Producers' whole-content scrub placeholders, which yield to unscrubbed twins at read time.
+    pub redaction_markers: redaction_markers::RedactionMarkerPlan,
     /// Which events carry messages, and what each event's own raw form is.
     ///
     /// A map from the event name to its declaration, not a `HashSet<String>` of names: the entries answer two
@@ -278,6 +282,10 @@ impl Ruleset {
                 message_projection::MessageProjectionPlan::compile(files, marks),
             )
         });
+        let redaction_markers = found.take(
+            S::RedactionMarkers,
+            redaction_markers::RedactionMarkerPlan::compile(files),
+        );
         // Before the content blocks, whose plan carries the member vocabulary: validating a plan's own
         // literals normalises them, and that must never reach back into the ruleset being assembled.
         let message_members = found.take(S::MessageMembers, members::compile(assets));
@@ -302,7 +310,8 @@ impl Ruleset {
             S::FinishReasons,
             finish_reasons::FinishReasonPlan::compile(files),
         );
-        let synthetic_call_ids = found.take(S::SyntheticCallIds, compile_synthetic_call_ids(files));
+        let synthetic_call_ids =
+            found.take(S::SyntheticCallIds, synthetic_call_ids::compile(files));
         let event_categories = found.take(S::EventCategories, compile_event_categories(files));
         let request_threads = found.take(
             S::RequestThreads,
@@ -316,6 +325,7 @@ impl Ruleset {
             detect,
             messages,
             message_projection,
+            redaction_markers,
             content_blocks,
             message_events,
             log_events,
@@ -338,6 +348,7 @@ impl Ruleset {
                 Some(detect),
                 Some(messages),
                 Some(message_projection),
+                Some(redaction_markers),
                 Some(content_blocks),
                 Some(message_events),
                 Some(log_events),
@@ -359,6 +370,7 @@ impl Ruleset {
                 detect,
                 messages,
                 message_projection,
+                redaction_markers,
                 content_blocks,
                 message_events,
                 log_events,
@@ -870,41 +882,6 @@ pub(super) fn compile_event_categories(
         .into_iter()
         .map(|(_, _, words, category)| (words, category))
         .collect())
-}
-
-/// The separators of the declared synthetic call ids, refusing a template outside the closed form.
-pub(super) fn compile_synthetic_call_ids(
-    files: &[schema::RuleFile],
-) -> Result<Vec<String>, ClauseDefect> {
-    let mut out: Vec<String> = Vec::new();
-    for file in files {
-        for entry in &file.synthetic_call_ids {
-            let separator = entry
-                .template
-                .strip_prefix("{name}")
-                .and_then(|rest| rest.strip_suffix("{index}"))
-                .filter(|separator| !separator.is_empty() && !separator.contains(['{', '}']))
-                .ok_or_else(|| {
-                    ClauseDefect::new(&[&entry.id], Some(&file.id), format!(
-                        "synthetic call id `{}` in `{}` declares `{}`, which is not `{{name}}<separator>{{index}}` \
-                         with a non-empty separator",
-                        entry.id, file.id, entry.template
-                    ))
-                })?;
-            if out.iter().any(|seen| seen == separator) {
-                return Err(ClauseDefect::new(
-                    &[&entry.id],
-                    Some(&file.id),
-                    format!(
-                        "synthetic call id `{}` in `{}` restates a separator another declaration states",
-                        entry.id, file.id
-                    ),
-                ));
-            }
-            out.push(separator.to_string());
-        }
-    }
-    Ok(out)
 }
 
 /// The declared `gen_ai.system` → provider aliases.

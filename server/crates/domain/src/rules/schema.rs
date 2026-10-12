@@ -65,6 +65,12 @@ pub struct RuleFile {
     /// projection, so the raw span and its extracted message payload stay queryable.
     #[serde(default)]
     pub message_projections: Vec<MessageProjectionRule>,
+    /// The whole-content placeholders a producer's scrubber writes in place of a value it redacted.
+    ///
+    /// Read-time only, like `message_projections`: a block whose entire content is a declared marker is a copy
+    /// carrying less than its unscrubbed twin, and yields to it. Nothing is withdrawn from storage or raw.
+    #[serde(default)]
+    pub redaction_markers: Vec<RedactionMarkerRule>,
     /// The events this dialect writes messages on.
     ///
     /// Recognition, not reading: an event named here is read, and one not named by any asset is ignored
@@ -270,6 +276,7 @@ impl RuleFile {
                 detect: _,
                 messages: _,
                 message_projections: _,
+                redaction_markers: _,
                 message_events: _,
                 log_events: _,
                 tool_shapes: _,
@@ -343,6 +350,13 @@ impl RuleFile {
         out.push((
             "message_projections".to_string(),
             self.message_projections
+                .iter()
+                .map(|rule| rule.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "redaction_markers".to_string(),
+            self.redaction_markers
                 .iter()
                 .map(|rule| rule.id.clone())
                 .collect(),

@@ -164,6 +164,7 @@ mod tests {
             is_history: false,
             is_cross_trace_history: false,
             yields: false,
+            marker_report: Default::default(),
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,

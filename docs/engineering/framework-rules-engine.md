@@ -69,7 +69,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **60 assets holding 730 clauses** in three groups:
+The embedded corpus currently contains **60 assets holding 731 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -91,6 +91,7 @@ Each asset has a stable `id`, optional prose documentation, and any subset of th
 | `carriers` | Carrier semantics and ordering-family membership |
 | `messages` | How carriers and events produce canonical readings |
 | `message_projections` | Stored message rows hidden from the read-time SideML projection |
+| `redaction_markers` | A producer's whole-content scrub placeholders, which yield to the unscrubbed copy at read time |
 | `fragments` | One-level reusable message-shape tables |
 | `message_events` | Events that may contain messages |
 | `log_events` | Log-record shapes that carry one of the `message_events`, and where their attributes are |

@@ -626,6 +626,14 @@
       "action": "suppress_messages"
     }
   ],
+  "redaction_markers": [
+    {
+      "id": "logfire.scrubbed",
+      "doc": "Logfire's scrubber writes this in place of a value it redacted, naming the pattern that matched. A span the OpenAI Agents instrumentation exported twice - scrubbed and not - has this as one copy's whole content where the other holds the value.",
+      "where": {"source": "scope.name", "equals": "logfire.openai_agents"},
+      "marker": "[Scrubbed due to '{reason}']"
+    }
+  ],
   "message_members": [
     {
       "id": "logfire.combined_chunk_content",

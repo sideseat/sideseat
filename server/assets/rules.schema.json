@@ -52,6 +52,13 @@
         "$ref": "#/$defs/MessageProjectionRule"
       }
     },
+    "redaction_markers": {
+      "description": "The whole-content placeholders a producer's scrubber writes in place of a value it redacted.\n\nRead-time only, like `message_projections`: a block whose entire content is a declared marker is a copy\ncarrying less than its unscrubbed twin, and yields to it. Nothing is withdrawn from storage or raw.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RedactionMarkerRule"
+      }
+    },
     "message_events": {
       "description": "The events this dialect writes messages on.\n\nRecognition, not reading: an event named here is read, and one not named by any asset is ignored\nentirely. Declared because it is the same kind of fact as a carrier - which key a producer writes -\nand as a Rust list it meant a new `when_event` rule was a valid but *dead* declaration until\nsomebody also edited the list.",
       "type": "array",
@@ -3462,6 +3469,37 @@
       "type": "string",
       "enum": [
         "suppress_messages"
+      ]
+    },
+    "RedactionMarkerRule": {
+      "description": "A producer's redaction placeholder: the text its scrubber writes in place of a value it redacted.\n\nA block counts as the marker only when its *whole* content is the marker - a text block's text, or a tool\nresult whose content is that one string or one text part - with a non-empty reason in the slot and no line\nbreak. Text that quotes a marker inside something longer is never a marker, and neither is another producer's\nidentical string: the `where` must require an instrumentation scope.\n\nBoth copies came from the producer and raw keeps both, so preferring the unscrubbed one shows nothing SideSeat\nwas not sent, and is what the wire said. Partial scrubs inside a longer text, and scrubbed fields outside\nmessage content (a session id), stay as stored.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Stable clause id, reported by diagnostics.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "where": {
+          "description": "The rows whose blocks this marker may be: their span name, `scope.name` and `scope.version`. It must\nrequire one instrumentation scope, as a message projection's must.",
+          "$ref": "#/$defs/Expr_SpanCondition"
+        },
+        "marker": {
+          "description": "The placeholder, with exactly one `{reason}` slot where the scrubber writes why. No other `{` or `}`;\nthe text either side of the slot is matched exactly and must not be empty or whitespace alone.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "where",
+        "marker"
       ]
     },
     "MessageEvent": {

@@ -43,6 +43,29 @@ pub(super) fn adopt_failure(survivor: &mut BlockEntry, other: &BlockEntry) {
     }
 }
 
+/// What a copy reports for the markers it stands for, if anything.
+pub(super) fn reports_of(copy: &BlockEntry) -> Option<MarkerReport> {
+    let report = super::super::redaction::report_of(copy);
+    (report != MarkerReport::default()).then_some(report)
+}
+
+/// A survivor keeps what the redaction markers its identity's copies stood for reported (`feed::redaction`), told
+/// once the survivor is settled, so no copy that won for a while - of another tool, say - decides what reaches
+/// the one that stays. A report reaches it only from markers of its own tool, or of none; where the survivor
+/// names no tool and the reports name several, only those naming none do, so no arrival order picks a tool.
+pub(super) fn settle_marker_reports(survivor: &mut BlockEntry, reports: &[MarkerReport]) {
+    use super::super::redaction::{hear_report, raise_report, tool_digest};
+    let own = survivor.marker_report.tool.or(tool_digest(survivor));
+    let named: std::collections::BTreeSet<u64> = reports.iter().filter_map(|r| r.tool).collect();
+    let tool = own.or_else(|| (named.len() == 1).then(|| named.first().copied()).flatten());
+    for report in reports {
+        if report.tool.is_none() || report.tool == tool {
+            hear_report(survivor, *report);
+        }
+    }
+    raise_report(survivor);
+}
+
 /// Reasoning keeps the signature a copy of it carried.
 ///
 /// An unsigned copy merges with a signed one only where it is unambiguously that block (see

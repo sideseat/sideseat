@@ -60,6 +60,16 @@ impl Readable {
         resource: false,
         marks: false,
     };
+    /// A block being read: its span's name and instrumentation scope, version included - what every block of a
+    /// read carries - and neither attributes nor marks.
+    pub const BLOCK: Self = Self {
+        span_name: true,
+        attributes: false,
+        scope: true,
+        scope_version: true,
+        resource: false,
+        marks: false,
+    };
     /// A stored row being projected: its span name and instrumentation scope, version included, and none of
     /// its attributes - projection reads the row, not the span.
     pub const PROJECTION: Self = Self {

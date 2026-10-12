@@ -51,7 +51,7 @@ use std::hash::{Hash, Hasher};
 use chrono::{DateTime, Utc};
 
 use super::super::provenance::PositionPath;
-use super::types::BlockEntry;
+use super::types::{BlockEntry, MarkerReport};
 use crate::sideml::types::{ChatRole, ContentBlock};
 use sideseat_ports::types::MessageCategory;
 
@@ -63,13 +63,13 @@ mod tie;
 mod timing;
 use adopt::{
     adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finishes, adopt_result_id,
-    adopt_signature,
+    adopt_signature, reports_of, settle_marker_reports,
 };
 use resent::resent_parts;
 use signature::signature_aliases;
 #[cfg(any(test, feature = "test-support"))]
 pub use tie::PREFER_LATER_ON_TIE;
-use tie::prefer_later_on_tie;
+use tie::{ContentText, canonical_order, naming_several_tools, wins_on_equal_quality};
 
 pub(super) use identity::*;
 pub use timing::{SpanTimestamps, effective_timestamp};
@@ -330,12 +330,11 @@ struct BlockSortKey {
     /// Set on a tool result that took its position from the call it answers, so it sorts
     /// immediately after that call rather than tying with it.
     after_call: bool,
-    content_hash: String,
 }
 
 impl BlockSortKey {
-    /// Compare two blocks. Every term is a value carried on the key, which is what makes this a
-    /// total order.
+    /// Compare two blocks by where they stand. Blocks this leaves tied - one span's parts at one position - are
+    /// ordered by their content after it (`tie::ContentText`), which completes it to a total order.
     ///
     /// Two rules have to hold at once: within one response, blocks keep the order the framework
     /// emitted them in (ADK puts a whole multi-turn conversation in one span at one timestamp, in
@@ -370,7 +369,6 @@ impl BlockSortKey {
             .then_with(|| self.entry_index.cmp(&other.entry_index))
             .then_with(|| self.span.cmp(&other.span))
             .then_with(|| self.after_call.cmp(&other.after_call))
-            .then_with(|| self.content_hash.cmp(&other.content_hash))
     }
 }
 
@@ -651,33 +649,34 @@ fn deduplicate_with_lineage(
         signature_aliases(blocks.iter().map(|(_, block, ordinal)| (block, *ordinal)));
 
     // Identity-based dedup: non-history will win due to quality scoring.
-    let mut candidates: HashMap<DedupKey, (BlockEntry, u32)> = HashMap::new();
+    // Each identity's survivor so far, its quality, and what the markers among its copies reported.
+    let mut candidates: HashMap<DedupKey, (BlockEntry, u32, Vec<MarkerReport>)> = HashMap::new();
 
-    for (input_index, block, ordinal) in blocks {
-        let own = (MessageIdentity::from_block(&block), ordinal);
-        let identity = match result_alias.get(&own) {
-            Some(canonical) => (canonical.clone(), ordinal),
-            None => signature_alias.get(&own).cloned().unwrap_or(own),
-        };
+    let keyed: Vec<(usize, BlockEntry, DedupKey)> = blocks
+        .into_iter()
+        .map(|(input_index, block, ordinal)| {
+            let own = (MessageIdentity::from_block(&block), ordinal);
+            let identity = match result_alias.get(&own) {
+                Some(canonical) => (canonical.clone(), ordinal),
+                None => signature_alias.get(&own).cloned().unwrap_or(own),
+            };
+            (input_index, block, identity)
+        })
+        .collect();
+    let several_tools = naming_several_tools(keyed.iter().map(|(_, block, key)| (key, block)));
+
+    for (input_index, block, identity) in keyed {
+        let one_tool = !several_tools.contains(&identity);
         let quality = compute_quality(&block, emitted_below_a_wrapper[input_index]);
         input_keys[input_index] = Some(identity.clone());
 
         candidates
             .entry(identity)
-            .and_modify(|(existing, existing_quality)| {
-                // Equal quality falls to the more original copy, and only then to arrival order:
-                // between spans whose clocks agree only to the millisecond, arrival order is the
-                // order of their span ids.
+            .and_modify(|(existing, existing_quality, reports)| {
                 let wins = match quality.cmp(existing_quality) {
                     std::cmp::Ordering::Greater => true,
                     std::cmp::Ordering::Less => false,
-                    std::cmp::Ordering::Equal => {
-                        match block.origin_rank().cmp(&existing.origin_rank()) {
-                            std::cmp::Ordering::Less => true,
-                            std::cmp::Ordering::Greater => false,
-                            std::cmp::Ordering::Equal => prefer_later_on_tie(),
-                        }
-                    }
+                    std::cmp::Ordering::Equal => wins_on_equal_quality(&block, existing, one_tool),
                 };
                 let other = if wins {
                     let replaced = std::mem::replace(existing, block.clone());
@@ -688,44 +687,26 @@ fn deduplicate_with_lineage(
                 };
                 adopt_attachment_name(existing, &other);
                 adopt_failure(existing, &other);
+                reports.extend(reports_of(&other));
                 adopt_result_id(existing, &other);
                 adopt_call_id(existing, &other);
                 adopt_signature(existing, &other);
             })
-            .or_insert((block, quality));
+            .or_insert_with(|| {
+                let reports = reports_of(&block).into_iter().collect();
+                (block, quality, reports)
+            });
     }
 
     // Survivors keep their key alongside them, so the sort below permutes both together.
-    let mut result: Vec<(BlockEntry, DedupKey)> = candidates
+    let result: Vec<(BlockEntry, DedupKey)> = candidates
         .into_iter()
-        .map(|(key, (block, _))| (block, key))
+        .map(|(key, (mut block, _, reports))| {
+            settle_marker_reports(&mut block, &reports);
+            (block, key)
+        })
         .collect();
-
-    // HashMap iteration order is arbitrary, and the feed sort downstream has ties it
-    // cannot break (same span, same timestamp, same indices). Leaving those ties to hash
-    // order lets two identical requests return the message list in different orders.
-    // Anchor it here so the pipeline is a pure function of its input.
-    result.sort_by(|(a, a_key), (b, b_key)| {
-        a.trace_id
-            .cmp(&b.trace_id)
-            .then_with(|| a.span_id.cmp(&b.span_id))
-            .then_with(|| a.message_index.cmp(&b.message_index))
-            .then_with(|| a.entry_index.cmp(&b.entry_index))
-            .then_with(|| a.entry_type.cmp(&b.entry_type))
-            // Role next: two blocks can share span, indices and entry_type and still be
-            // distinct messages, and without this the tie falls back to hash order.
-            .then_with(|| a.role.as_str().cmp(b.role.as_str()))
-            // Content last, so the comparator is TOTAL. Everything above can be equal for two
-            // blocks that differ only in content - a span that emits several parts under one
-            // message/entry index - and those were left in HashMap order, so two identical
-            // requests returned the same messages in a different order. Observed directly:
-            // repeated runs over one fixture disagreed on 3 then 4 views.
-            .then_with(|| a.content_hash.cmp(&b.content_hash))
-            // A content hash leaves out a call's id, so two calls of one shape a span's two carriers place at
-            // one position tie on all of it, and their rank and id are what tell them apart.
-            .then_with(|| a_key.1.cmp(&b_key.1))
-            .then_with(|| a.tool_use_id.cmp(&b.tool_use_id))
-    });
+    let result = canonical_order(result);
 
     tracing::trace!(
         input = input_count,
@@ -893,7 +874,6 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
                 message_index: block.message_index,
                 entry_index: block.entry_index,
                 after_call: false,
-                content_hash: block.content_hash.clone(),
             };
             (key, birth, block, dedup_index)
         })
@@ -911,7 +891,19 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
         key.0.entry_index = position.entry_index;
         key.0.after_call = position.after_call;
     }
-    keyed.sort_by(|(a, _, _, _), (b, _, _, _)| a.compare(b));
+    // Blocks the key cannot tell apart - one span's parts at one position - fall to their content, compared
+    // itself and not through a hash, so the order says what the blocks say and survives any change to how a hash
+    // is computed.
+    let texts: Vec<ContentText> = keyed.iter().map(|_| ContentText::default()).collect();
+    keyed.sort_by(|(a, _, first, i), (b, _, second, j)| {
+        a.compare(b)
+            .then_with(|| {
+                texts[*i]
+                    .of(&first.content)
+                    .cmp(texts[*j].of(&second.content))
+            })
+            .then_with(|| first.content_hash.cmp(&second.content_hash))
+    });
 
     // The response's time, not each block's own birth time, is what gets materialised - see the
     // note at the end of this function.

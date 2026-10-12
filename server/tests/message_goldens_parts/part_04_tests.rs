@@ -720,8 +720,37 @@ fn which_copy_survives_does_not_change_the_order() {
         }
     }
 
+    // The corpus's one tie that decided content was a span delivered scrubbed and unscrubbed, which a declared
+    // redaction marker now settles by rule. The same capture with the marker made an ordinary string - no
+    // producer declares it - is the tie again, so the hook is shown to reach dedup on real rows.
+    let fixtures: std::collections::BTreeMap<String, Vec<PathBuf>> =
+        discover_fixtures().into_iter().collect();
+    let probe = fixtures
+        .get("openai-agents/legacy/image_gen")
+        .cloned()
+        .unwrap_or_default();
+    let undeclared: Vec<MessageSpanRow> = rows_for(&probe)
+        .into_iter()
+        .map(|(_, mut r)| {
+            r.messages_json = r
+                .messages_json
+                .replace("[Scrubbed due to 'credential']", "Withheld.");
+            r
+        })
+        .filter(passes_content_filter)
+        .collect();
+    let undeclared = sorted_by_timestamp(undeclared);
+    set(false);
+    let early_content = content_of(&process_spans(undeclared.clone(), &FeedOptions::new()));
+    set(true);
+    let late_content = content_of(&process_spans(undeclared, &FeedOptions::new()));
+    set(false);
+    if early_content != late_content {
+        perturbed += 1;
+    }
+    // A run narrowed to producers without the probe capture (`MESSAGE_FIXTURES`) has no tie to reach.
     assert!(
-        perturbed > 0,
+        perturbed > 0 || probe.is_empty(),
         "flipping the dedup tie-break changed nothing anywhere, so this test is vacuous - the hook is \
          not reaching dedup"
     );

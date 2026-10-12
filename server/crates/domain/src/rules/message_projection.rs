@@ -200,7 +200,7 @@ impl MessageProjectionPlan {
 /// conjunction - at any depth - with one among its members, or a disjunction every branch of which does. A
 /// negation does not qualify, nor does a disjunction with a branch that names none: each can hold for a row of
 /// a scope it never names.
-fn requires_a_scope(condition: &SpanExpr) -> bool {
+pub(super) fn requires_a_scope(condition: &SpanExpr) -> bool {
     use super::expr::Expr;
     match condition {
         Expr::Atom(atom) => matches!(atom, SpanAtom::ScopeNameEquals { .. }),

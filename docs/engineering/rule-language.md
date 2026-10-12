@@ -29,6 +29,7 @@ trace can name them; a few table entries (`provider_aliases`, for one) are keyed
 | `event_roles` | which role a carrier's source name implies |
 | `role_authority` | how far a role a producer states is believed |
 | `message_projections` | which stored bookkeeping rows a conversation omits |
+| `redaction_markers` | which whole-content placeholders a producer's scrubber writes, so a scrubbed copy yields to its unscrubbed twin |
 | `message_members` | which member names a producer uses, and what their presence means |
 | `content_blocks` | how a provider's content block becomes a SideML block |
 | `tool_shapes` | how a provider writes a tool definition |
@@ -612,6 +613,37 @@ bookkeeping span carries its request as events - span events, log records read a
 attribute its reading declares to be events - names them in `only_event_sources`. Two empty lists, an empty name
 and a name listed twice are refused.
 
+A producer whose scrubber replaces a redacted value with a placeholder declares the placeholder in
+`redaction_markers`, gated on its instrumentation scope like a projection:
+
+```json example
+{
+  "id": "acme-scrubbing",
+  "redaction_markers": [
+    {
+      "id": "acme.scrubbed",
+      "where": {"source": "scope.name", "equals": "acme"},
+      "marker": "[Redacted: '{reason}']"
+    }
+  ]
+}
+```
+
+`marker` names exactly one `{reason}` slot and no other placeholder; the text either side of it is matched exactly
+and may be neither empty nor whitespace alone, and a `where` that does not require a scope is refused. A block is a
+marker only when its whole content is one - a text block's text, or a tool result holding that one string or one
+text part - with a non-empty reason and no line break. At read time a marker block yields to an unscrubbed block of
+the same statement (one trace, span, carrier, payload position, role and kind, naming the same call and the same
+tool or sender, or none), and where deduplication joins two copies of equal quality naming no different tools, the
+one holding the value survives. What a marker reports besides its content - a failure, its span's failure and a
+provider's own execution - reaches the copy of its tool that finally stands for the statement, whichever copies
+held the place on the way; a finish or status every copy stating one agrees on passes to the unscrubbed twin. A statement whose every copy is a marker, or none is, reads as before. Text quoting a marker inside something longer, another producer's identical string, a partial scrub inside a
+longer text and scrubbed fields outside message content are values, and stay as stored.
+
+This undoes no scrubber. Both copies came from the producer and raw stores both, so showing the unscrubbed one
+reveals nothing SideSeat was not sent - and it is what the wire carried. A span delivered only scrubbed stays
+scrubbed.
+
 ## Precedence and claiming
 
 Order is stated, not inferred from how specific a condition looks, with one exception: carrier clauses, whose
@@ -777,6 +809,7 @@ Every key an asset may write, generated from the schema the engine is compiled f
 | `detect` | list of [`DetectRule`](#detectrule) | Detection signals. Produce a **label** and nothing else: no behaviour reads it. |
 | `messages` | list of [`MessageRule`](#messagerule) | Which carriers an ingestion reads on this dialect's spans, and how each is parsed. |
 | `message_projections` | list of [`MessageProjectionRule`](#messageprojectionrule) | Stored message rows that are producer bookkeeping rather than another conversation. |
+| `redaction_markers` | list of [`RedactionMarkerRule`](#redactionmarkerrule) | The whole-content placeholders a producer's scrubber writes in place of a value it redacted. |
 | `message_events` | list of [`MessageEvent`](#messageevent) | The events this dialect writes messages on. |
 | `log_events` | list of [`LogEvent`](#logevent) | The log-record shapes that carry one of the `message_events`. |
 | `tool_shapes` | list of [`ToolShapeRule`](#toolshaperule) | How a provider writes a tool *definition*, so the canonical shape is reached by declaration. |
@@ -1734,6 +1767,26 @@ events. A row's message from any other carrier keeps the row, and an empty messa
 What a matching read-time projection rule does.
 
 Written as one of `"suppress_messages"`.
+
+### `RedactionMarkerRule`
+
+A producer's redaction placeholder: the text its scrubber writes in place of a value it redacted.
+
+A block counts as the marker only when its *whole* content is the marker - a text block's text, or a tool
+result whose content is that one string or one text part - with a non-empty reason in the slot and no line
+break. Text that quotes a marker inside something longer is never a marker, and neither is another producer's
+identical string: the `where` must require an instrumentation scope.
+
+Both copies came from the producer and raw keeps both, so preferring the unscrubbed one shows nothing SideSeat
+was not sent, and is what the wire said. Partial scrubs inside a longer text, and scrubbed fields outside
+message content (a session id), stay as stored.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `id` (required) | string | Stable clause id, reported by diagnostics. |
+| `doc` | string |  |
+| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The rows whose blocks this marker may be: their span name, `scope.name` and `scope.version`. It must require one instrumentation scope, as a message projection's must. |
+| `marker` (required) | string | The placeholder, with exactly one `{reason}` slot where the scrubber writes why. No other `{` or `}`; the text either side of the slot is matched exactly and must not be empty or whitespace alone. |
 
 ### `MessageEvent`
 

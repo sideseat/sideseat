@@ -372,6 +372,33 @@ pub struct FramesRequests {
     pub request: SourceName,
 }
 
+/// A producer's redaction placeholder: the text its scrubber writes in place of a value it redacted.
+///
+/// A block counts as the marker only when its *whole* content is the marker - a text block's text, or a tool
+/// result whose content is that one string or one text part - with a non-empty reason in the slot and no line
+/// break. Text that quotes a marker inside something longer is never a marker, and neither is another producer's
+/// identical string: the `where` must require an instrumentation scope.
+///
+/// Both copies came from the producer and raw keeps both, so preferring the unscrubbed one shows nothing SideSeat
+/// was not sent, and is what the wire said. Partial scrubs inside a longer text, and scrubbed fields outside
+/// message content (a session id), stay as stored.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct RedactionMarkerRule {
+    /// Stable clause id, reported by diagnostics.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The rows whose blocks this marker may be: their span name, `scope.name` and `scope.version`. It must
+    /// require one instrumentation scope, as a message projection's must.
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
+    /// The placeholder, with exactly one `{reason}` slot where the scrubber writes why. No other `{` or `}`;
+    /// the text either side of the slot is matched exactly and must not be empty or whitespace alone.
+    pub marker: String,
+}
+
 /// A read-time projection decision for one producer-owned span shape.
 ///
 /// The row is recognised by a `where` over what a stored row says of its span - its name and its

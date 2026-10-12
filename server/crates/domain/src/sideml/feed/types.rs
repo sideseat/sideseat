@@ -57,6 +57,16 @@ impl FeedOptions {
 // BLOCK ENTRY
 // ============================================================================
 
+/// What redaction markers reported besides their content: a span failure and a provider's own execution of the
+/// tool. Raised, never lowered, so no merge order loses it - and only ever on a copy of the tool the markers
+/// named, which it keeps (as a digest of the name, so the report stays fixed in size) through every merge.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MarkerReport {
+    pub(crate) span_failed: bool,
+    pub(crate) by_provider: bool,
+    pub(crate) tool: Option<u64>,
+}
+
 /// A single flattened content block with comprehensive metadata.
 ///
 /// This is the output of the feed pipeline. Each block contains exactly ONE
@@ -226,6 +236,11 @@ pub struct BlockEntry {
     /// twin actually surviving the collapsed view, never by its own absence. Match input, not an answer.
     #[serde(skip)]
     pub yields: bool,
+
+    /// What the redaction markers this copy stands for reported besides their content (`feed::redaction`): a
+    /// copy taking a marker's place carries its report, so every later merge of the statement keeps it.
+    #[serde(skip)]
+    pub marker_report: MarkerReport,
 
     /// A turn the producer re-sent as text that another carrier holds losslessly (a reading's `rendering`).
     ///
@@ -668,6 +683,7 @@ mod tests {
             is_history: false,
             is_cross_trace_history: false,
             yields: false,
+            marker_report: Default::default(),
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
             is_rendering: false,

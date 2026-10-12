@@ -650,6 +650,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
                 is_history: false,    // Will be set by classify_blocks()
                 is_cross_trace_history: false, // Will be set by cross-trace replay matching
                 yields: msg.yields,
+                marker_report: Default::default(),
                 tool_use_id_correlated: false, // Will be set by correlate_tool_results()
                 promoted_to_span_output: false, // Will be set by classify_blocks()
                 is_rendering: msg.rendering,
@@ -658,6 +659,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
         }
     }
 
+    super::redaction::yield_marker_copies(&mut blocks);
     blocks
 }
 
