@@ -502,6 +502,7 @@ impl StagingService {
             .map_err(StagingError::Blob)?;
         crate::raw_coverage::held_by_own_record(
             self.analytics.as_ref(),
+            self.database.as_ref(),
             &payload.project_id,
             &received,
             &spans,
@@ -536,10 +537,14 @@ impl StagingService {
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect();
-        let covered =
-            crate::raw_coverage::covered(self.analytics.as_ref(), &payload.project_id, &spans)
-                .await
-                .map_err(|error| StagingError::Registry(error.to_string()))?;
+        let covered = crate::raw_coverage::covered(
+            self.analytics.as_ref(),
+            self.database.as_ref(),
+            &payload.project_id,
+            &spans,
+        )
+        .await
+        .map_err(|error| StagingError::Registry(error.to_string()))?;
         Ok(spans.iter().all(|span| covered.contains(span)))
     }
 

@@ -123,35 +123,39 @@ struct TraceIndexRow<'a> {
 }
 
 /// Write the versions, then their trace-index rows; `ReplacingMergeTree` folds an index row written twice.
+/// The trace index first, then the versions: two inserts with no transaction between them, so a failure after the
+/// first leaves index rows naming a record that may not exist - harmless, a deletion's enqueue of an absent record
+/// settles at once - and never a version its traces cannot find. A redelivery skips a record already stored, so
+/// in the other order an index insert that failed was never written again, and a deletion or a collection could
+/// not reach the record's rows.
 async fn write(client: &Client, records: &[&RawRecordRow]) -> Result<(), ClickhouseError> {
     if records.is_empty() {
         return Ok(());
+    }
+    if records.iter().any(|record| !record.trace_ids.is_empty()) {
+        let mut index = client
+            .insert::<TraceIndexRow<'_>>("otel_raw_traces")
+            .await?;
+        for record in records {
+            for trace_id in &record.trace_ids {
+                index
+                    .write(&TraceIndexRow {
+                        project_id: record.project_id.as_str(),
+                        trace_id,
+                        raw_id: &record.raw_id,
+                        signal_until: to_time(record.signal_until),
+                        hold_until: record.hold_until.map(to_time),
+                    })
+                    .await?;
+            }
+        }
+        index.end().await?;
     }
     let mut insert = client.insert::<RawRow>("otel_raw").await?;
     for record in records {
         insert.write(&RawRow::from_record(record)).await?;
     }
     insert.end().await?;
-    if records.iter().all(|record| record.trace_ids.is_empty()) {
-        return Ok(());
-    }
-    let mut index = client
-        .insert::<TraceIndexRow<'_>>("otel_raw_traces")
-        .await?;
-    for record in records {
-        for trace_id in &record.trace_ids {
-            index
-                .write(&TraceIndexRow {
-                    project_id: record.project_id.as_str(),
-                    trace_id,
-                    raw_id: &record.raw_id,
-                    signal_until: to_time(record.signal_until),
-                    hold_until: record.hold_until.map(to_time),
-                })
-                .await?;
-        }
-    }
-    index.end().await?;
     Ok(())
 }
 
@@ -241,27 +245,6 @@ async fn execute(client: &Client, statement: &dml::DmlStatement) -> Result<(), C
     Ok(())
 }
 
-/// Delete every version of these records and their trace-index rows; `tables` are the record table and the
-/// index, as mutation targets.
-pub async fn delete(
-    client: &Client,
-    tables: &[String; 2],
-    on_cluster: &str,
-    project_id: &ProjectId,
-    raw_ids: &[String],
-) -> Result<(), ClickhouseError> {
-    for table in tables {
-        if let Some(statement) = dml::raw::delete_raw_records(
-            dml::MutationTarget::clickhouse(table, on_cluster),
-            project_id.as_str(),
-            raw_ids,
-        ) {
-            execute(client, &statement).await?;
-        }
-    }
-    Ok(())
-}
-
 /// The collection purge: the record's versions keyed at or below `up_to_epoch`. The record's trace-index
 /// rows are left to their time-to-live: deleting them after a read that found no version could race a landing
 /// that wrote fresh ones, and a deletion finds records through them.
@@ -300,54 +283,58 @@ pub async fn delete_superseded(
     execute(client, &statement).await
 }
 
-/// The span identities whose stored rows name this record: the record's traces from the trace index - a narrow
-/// table of `(project, trace, record)` keys, read within the project - then only those traces' rows, which the
-/// span table's `(project_id, trace_id, ...)` sort key narrows to their granules: never a scan of the span
-/// history.
-pub async fn spans_naming(
+/// The records the trace index holds under these traces, narrowed by its `(project_id, trace_id, ...)` key.
+pub async fn indexed_under_traces(
     client: &Client,
+    traces: &str,
     project_id: &ProjectId,
-    raw_id: &str,
-) -> Result<Vec<(String, String)>, ClickhouseError> {
-    let rows: Vec<(String, String)> = client
-        .query(
-            "SELECT DISTINCT trace_id, span_id FROM otel_spans \
-             WHERE project_id = ? AND raw_id = ? AND trace_id GLOBAL IN ( \
-                 SELECT trace_id FROM otel_raw_traces WHERE project_id = ? AND raw_id = ?) \
-             ORDER BY trace_id, span_id",
-        )
+    trace_ids: &[String],
+) -> Result<Vec<String>, ClickhouseError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(client
+        .query(&format!(
+            "SELECT DISTINCT raw_id FROM {traces} WHERE project_id = ? AND trace_id IN ? \
+             ORDER BY raw_id SETTINGS skip_unavailable_shards = 0"
+        ))
         .bind(project_id.as_str())
-        .bind(raw_id)
-        .bind(project_id.as_str())
-        .bind(raw_id)
+        .bind(trace_ids)
         .fetch_all()
-        .await?;
-    Ok(rows)
+        .await?)
 }
 
-/// Which of these records a stored span row still names.
-pub async fn named(
+/// The `(raw_id, trace_id)` pairs these traces' span rows still carry, narrowed by the span table's sort key.
+pub async fn named_in_traces(
     client: &Client,
+    spans: &str,
     project_id: &ProjectId,
-    raw_ids: &[String],
-) -> Result<HashSet<String>, ClickhouseError> {
-    if raw_ids.is_empty() {
+    trace_ids: &[String],
+) -> Result<HashSet<(String, String)>, ClickhouseError> {
+    if trace_ids.is_empty() {
         return Ok(HashSet::new());
     }
-    // `otel_spans.raw_id` is nullable, so the driver must be told to expect a nullable column even though the
-    // predicate excludes nulls.
-    let rows: Vec<Option<String>> = client
-        .query(
-            "SELECT DISTINCT raw_id FROM otel_spans \
-             WHERE project_id = ? AND raw_id IN ? AND raw_id IS NOT NULL",
-        )
+    // `skip_unavailable_shards = 0` pinned: a replica that cannot be read fails the answer, never shortens it.
+    let rows: Vec<(Option<String>, String)> = client
+        .query(&format!(
+            "SELECT DISTINCT raw_id, trace_id FROM {spans} \
+             WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL \
+             SETTINGS skip_unavailable_shards = 0"
+        ))
         .bind(project_id.as_str())
-        .bind(raw_ids)
+        .bind(trace_ids)
         .fetch_all()
         .await?;
-    Ok(rows.into_iter().flatten().collect())
+    Ok(rows
+        .into_iter()
+        .filter_map(|(raw_id, trace_id)| raw_id.map(|raw_id| (raw_id, trace_id)))
+        .collect())
 }
 
+/// A collection's removal of a record's rows written at or below `up_to_epoch` (`dml::raw::remove_collected_rows`):
+/// the record's traces from the trace index, read on every replica (`traces`) so none a lagging replica misses is
+/// skipped, then a delete narrowed by the span table's `(project_id, trace_id, ...)` sort key. Returns the traces,
+/// whose files the caller reconciles.
 /// Enqueue these records for reconciliation.
 pub async fn enqueue(
     client: &Client,

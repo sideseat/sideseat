@@ -610,12 +610,6 @@ async fn read_paths() {
     measure!(
         rows,
         &profile,
-        "ingest: raw records named",
-        repo.raw_records_named(project, &s.raw_ids)
-    );
-    measure!(
-        rows,
-        &profile,
         "ingest: traces without spans",
         repo.traces_without_spans(project, &traces)
     );

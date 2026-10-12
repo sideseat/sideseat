@@ -75,6 +75,31 @@ pub struct ProjectStorageUsage {
     pub updated_at: DateTime<Utc>,
 }
 
+/// The retention cleanups a project still owes - each the rows of one trace retention removed, whose files,
+/// favourites and raw-record ownership are released only once its cleanup completes. A cleanup that cannot
+/// complete (an unreachable replica, say) is retried, never dropped, so a stalled one shows here as an old
+/// `oldest_pending_at` and a growing `most_attempts`, read from the store and the same on every instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RetentionCleanupBacklog {
+    pub pending: u64,
+    /// When the longest-owed cleanup was recorded, if any is owed.
+    pub oldest_pending_at: Option<DateTime<Utc>>,
+    /// The most passes any one owed cleanup has been claimed by without completing it.
+    pub most_attempts: u64,
+}
+
+impl RetentionCleanupBacklog {
+    /// From the store's `count(*)`, `min(created_at)` (seconds) and `max(attempts)`.
+    #[must_use]
+    pub fn from_counts(pending: i64, oldest_secs: Option<i64>, attempts: Option<i64>) -> Self {
+        Self {
+            pending: u64::try_from(pending).unwrap_or(0),
+            oldest_pending_at: oldest_secs.and_then(|secs| DateTime::from_timestamp(secs, 0)),
+            most_attempts: attempts.and_then(|n| u64::try_from(n).ok()).unwrap_or(0),
+        }
+    }
+}
+
 // ============================================================================
 // Membership types
 // ============================================================================

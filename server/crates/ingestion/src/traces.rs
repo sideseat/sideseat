@@ -8,7 +8,8 @@ pub use extract::SpanData;
 pub use persist::SseSpanEvent;
 pub(crate) use pipeline::raw_id;
 pub use pipeline::{
-    DropReason, IngestOutcome, InlineBatcher, Reconciled, TracePipeline, strip_unstorable_spans,
+    DropReason, IngestOutcome, InlineBatcher, Reconciled, TracePipeline, late_raw_landings,
+    strip_unstorable_spans,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use pipeline::{process_request_for_test_with_files, process_request_for_test_with_mode};

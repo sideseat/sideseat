@@ -1,16 +1,19 @@
-//! Keeping raw records and their rows agreeing: the ingest's repair after its write, and the reconciler that
-//! removes deleted content and collects records no row names.
+//! Keeping raw records and their rows agreeing: the reconciler that removes deleted content and collects
+//! records nothing owns. The ingest's side - its claim and check after its rows commit - is `raw_ownership`.
 //!
 //! The protocol, and the interleavings it survives, is `server/specs/RawRecordOwnership.tla`; each step here
-//! names the action it implements. In short:
+//! names the action it implements. Who owns a record is decided in the transactional store, never from the
+//! analytics rows:
 //!
-//! - every deletion and expiry of span rows enqueues the records holding those traces, before the rows go;
-//! - an ingest whose rows the latest record does not hold appends the union, two versions up, and enqueues;
-//! - the reconciler, unless a legal hold is active, deletes a record no row names - deciding in the delete
-//!   itself, so rows written since it read the record keep it - or rewrites it without the spans the deletion
-//!   fences now refuse, appended only while the record is stored, then looks again and re-enqueues anything
-//!   still unsettled - so whichever reconciler acts last sees its own effect, and one that dies between its
-//!   steps loses nothing.
+//! - every deletion and expiry of span rows enqueues the records holding those traces; a journalled deletion
+//!   takes its traces' ownership in its own transaction, and the retention pass takes it once the rows are gone;
+//! - the reconciler, for each queued record, asks the arbiter for a collection decision - granted only when
+//!   nothing owns or writes the record and no hold is active - and, when it gets one, purges the versions the
+//!   decision's epoch bounds and the rows no trace owns, then drops the decision into the record's high-water
+//!   mark; otherwise it rewrites the record without the spans the deletion fences now refuse, or purges the
+//!   versions below the latest it read; then it looks again and re-enqueues anything still unsettled;
+//! - a decision whose collector died, or is merely slow, is purged again by age - safe either way, because the
+//!   purge can only reach versions keyed at or below the decision's epoch.
 //!
 //! A rewrite removes only spans the *deletion* fences refuse - a deleted trace or session, a journalled span -
 //! never spans that merely lack a row, because a row can be in flight: tombstones only grow, so a rewrite never
@@ -35,6 +38,10 @@ const RAW_RECONCILE_BATCH: usize = 64;
 /// reclaimed on the record's next touch or its time-to-live (`RawRecordOwnership.tla`, `FencedLanding`).
 const RAW_LANDING_HORIZON: chrono::Duration = chrono::Duration::seconds(30);
 
+/// How old a pending collection decision must be before another pass purges it again: long enough that a
+/// collector that is merely busy rarely sees its work repeated - repeating it is safe, only wasted.
+const RAW_COLLECTION_TAKEOVER_AGE: chrono::Duration = chrono::Duration::minutes(5);
+
 /// How often the reconciler looks at its queue. Deleted content leaves the raw store within about this long
 /// of the deletion, and an idle queue costs one indexed read per interval.
 const RAW_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
@@ -42,46 +49,14 @@ const RAW_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
 /// One request's record after its rows were written.
 pub(super) struct WrittenRecord<'a> {
     pub draft: &'a RawDraft,
+    /// The arbiter epoch this ingest read before storing its record and writing its rows: what its claim rests on.
+    pub claim_epoch: i64,
     pub request: &'a ExportTraceServiceRequest,
     /// What the deletion fences kept, the content of this ingest's own version.
     pub kept: HashSet<SpanKey>,
     /// What was written as rows.
     pub written: HashSet<SpanKey>,
     pub hold_until: Option<DateTime<Utc>>,
-}
-
-/// The version a reconciler appends to restore a record it deleted under rows that appeared meanwhile: what it
-/// read, one version up, with its trace index rebuilt.
-///
-/// A read returns no trace ids - the record holds the answer - and the delete took the record's trace-index rows
-/// with it. Appended as read, the restored record was indexed under no trace, so a later deletion of one of its
-/// traces, which finds records through that index, left the deleted content in it.
-pub(super) fn restored_version(read: &RawRecordRow, epoch: i64) -> Result<RawRecordRow, String> {
-    let mut restored = read.clone();
-    restored.version = sideseat_ports::types::raw_version_above(Some(read.version), epoch, 1)
-        .ok_or_else(|| {
-            format!(
-                "raw record {} has no version key left in its epoch",
-                read.raw_id
-            )
-        })?;
-    restored.trace_ids = match raw_record::record_identities(&read.record) {
-        Ok(identities) => identities
-            .into_iter()
-            .map(|(trace_id, _)| trace_id)
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect(),
-        Err(error) => {
-            tracing::error!(
-                raw_id = %read.raw_id,
-                %error,
-                "A restored raw record is unreadable, so it cannot be indexed under its traces"
-            );
-            Vec::new()
-        }
-    };
-    Ok(restored)
 }
 
 /// What reconciling one record came to.
@@ -94,73 +69,6 @@ pub enum Reconciled {
 }
 
 impl TracePipeline {
-    /// The model's `Check`: after the rows are written, the latest record must hold them.
-    ///
-    /// Almost always one indexed read: the record this ingest inserted, or the received body another inserted,
-    /// holds everything. Only a record a deletion rewrote, or one deleted meanwhile, needs the repair.
-    pub(super) async fn repair_raw_records(
-        &self,
-        written: &[WrittenRecord<'_>],
-    ) -> Result<(), String> {
-        let mut by_project: BTreeMap<&str, Vec<&WrittenRecord<'_>>> = BTreeMap::new();
-        for item in written.iter().filter(|item| !item.written.is_empty()) {
-            by_project
-                .entry(item.draft.project_id())
-                .or_default()
-                .push(item);
-        }
-        for (project, items) in by_project {
-            let project_id = ProjectId::from(project);
-            // Read after the rows own the record: the epoch the check's repair is keyed above (`Check`).
-            let epoch = self
-                .file_service
-                .database()
-                .raw_arbiter_epoch(&project_id)
-                .await
-                .map_err(|error| error.to_string())?;
-            let mut ids: Vec<String> = items
-                .iter()
-                .map(|item| item.draft.raw_id().to_string())
-                .collect();
-            ids.sort_unstable();
-            ids.dedup();
-            let latest: HashMap<String, RawRecordRow> = self
-                .analytics
-                .get_raw_records(&project_id, &ids)
-                .await
-                .map_err(|error| error.to_string())?
-                .into_iter()
-                .map(|row| (row.raw_id.clone(), row))
-                .collect();
-            for item in items {
-                let current = latest.get(item.draft.raw_id());
-                if let Some(current) = current
-                    && item.draft.covers(current, &item.written)
-                {
-                    continue;
-                }
-                let repair = item.draft.repair_row(
-                    item.request,
-                    current,
-                    &item.kept,
-                    item.draft.received_at(),
-                    item.hold_until,
-                    epoch,
-                )?;
-                // Appended and queued in one step (`append_raw_records`).
-                self.analytics
-                    .append_raw_records(std::slice::from_ref(&repair))
-                    .await
-                    .map_err(|error| error.to_string())?;
-                tracing::debug!(
-                    raw_id = %repair.raw_id,
-                    "The latest raw record did not hold this ingest's rows; appended the union"
-                );
-            }
-        }
-        Ok(())
-    }
-
     /// Queue for the reconciler the records a failed write stored for projects whose rows did not commit.
     ///
     /// Records are written before their rows, so a write that fails leaves records no row names, and only the
@@ -218,6 +126,10 @@ impl TracePipeline {
                 tokio::select! {
                     _ = interval.tick() => {}
                     _ = shutdown.changed() => break,
+                }
+                // Decisions a collector left unpurged - it died, or is slow - are purged again by age.
+                if let Err(error) = self.resume_stale_raw_collections().await {
+                    tracing::warn!(%error, "Could not resume stale raw collections; retrying next interval");
                 }
                 // Drain what is queued, a batch at a time, without starving shutdown.
                 loop {
@@ -281,7 +193,7 @@ impl TracePipeline {
         Ok(cleared)
     }
 
-    /// Reconcile one record with its rows: the model's `RRead`, `RAct` and `RRecheck`.
+    /// Reconcile one record: the model's `RRead`, `RAct` and `RRecheck`.
     pub async fn reconcile_raw_record(
         &self,
         project_id: &ProjectId,
@@ -296,98 +208,157 @@ impl TracePipeline {
         {
             return Ok(Reconciled::Held);
         }
-        let left = self.reconcile_act(project_id, read.as_ref()).await?;
-        self.reconcile_recheck(project_id, raw_id, read.as_ref(), left)
+        self.reconcile_act(project_id, raw_id, read.as_ref())
             .await?;
+        self.reconcile_recheck(project_id, raw_id).await?;
         Ok(Reconciled::Settled)
     }
 
-    /// The model's `RRead`: the latest version of the record, if one is stored.
+    /// The model's `RRead`: the latest version readers may see, if the record has one.
     pub(super) async fn reconcile_read(
         &self,
         project_id: &ProjectId,
         raw_id: &str,
     ) -> Result<Option<RawRecordRow>, String> {
-        Ok(self
-            .analytics
-            .get_raw_records(project_id, &[raw_id.to_string()])
-            .await
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .next())
+        Ok(
+            super::raw_ownership::live_raw_records(self, project_id, &[raw_id.to_string()])
+                .await?
+                .remove(raw_id),
+        )
     }
 
-    /// The model's `RAct`: delete the record if no row names it, else rewrite it without what the deletion
-    /// fences refuse. Returns the version this reconciler leaves as the latest, for the re-check.
+    /// The model's `RAct`:
     ///
-    /// Who names the record is not read here: the delete decides it, in the same step
-    /// (`delete_unnamed_raw_records`), and the rewrite is appended only while the record is stored
-    /// (`append_raw_rewrites`). Decided from an earlier read, a reconciler that died after acting on it left an
-    /// ingest whose rows and check fell in between without its record, and nothing to restore it from.
+    /// - nothing live: purge what the record's cutoff covers - a late landing's bytes - and decide nothing;
+    /// - a collection decision, asked of the arbiter, which decides it in one transactional statement only when
+    ///   nothing owns the record and no writer is registered for it: purge what it bounds and drop it (`RPurge`,
+    ///   `RDrop`);
+    /// - otherwise the record is owned or written: rewrite it without what the deletion fences refuse, or,
+    ///   holding nothing deleted, purge the versions below the latest read, whose excess is deleted content.
     pub(super) async fn reconcile_act(
-        &self,
-        project_id: &ProjectId,
-        read: Option<&RawRecordRow>,
-    ) -> Result<Option<i64>, String> {
-        let Some(read) = read else {
-            return Ok(None);
-        };
-        let deleted = self
-            .analytics
-            .delete_unnamed_raw_records(project_id, std::slice::from_ref(&read.raw_id))
-            .await
-            .map_err(|error| error.to_string())?;
-        if deleted.contains(&read.raw_id) {
-            return Ok(None);
-        }
-        self.rewrite_without_deleted(project_id, read).await
-    }
-
-    /// The model's `RRecheck`: look again, restore what was read if rows appeared under a delete, and queue the
-    /// record again if anything is unsettled - so whichever reconciler acts last sees its own effect.
-    pub(super) async fn reconcile_recheck(
         &self,
         project_id: &ProjectId,
         raw_id: &str,
         read: Option<&RawRecordRow>,
-        left: Option<i64>,
     ) -> Result<(), String> {
-        let named_now = self.named(project_id, raw_id).await?;
-        let latest_now = self.reconcile_read(project_id, raw_id).await?;
+        let database = self.file_service.database();
+        let Some(read) = read else {
+            // Whatever the record's cutoff covers - a late landing's bytes. No reader sees them and the fence never
+            // grants on them, so this races nothing, pending decision or not. Nothing is decided: there is no
+            // record to collect, and a decision would only leave collection state behind.
+            let cutoffs = database
+                .raw_record_cutoffs(project_id, &[raw_id.to_string()])
+                .await
+                .map_err(|error| error.to_string())?;
+            if let Some(cutoff) = cutoffs.get(raw_id) {
+                self.analytics
+                    .purge_raw_versions(project_id, raw_id, cutoff.epoch())
+                    .await
+                    .map_err(|error| error.to_string())?;
+            }
+            return Ok(());
+        };
+        let decided = database
+            .collect_raw_records(project_id, &[raw_id.to_string()], Utc::now())
+            .await
+            .map_err(|error| error.to_string())?;
+        if let Some(decision) = decided.first() {
+            return self
+                .purge_raw_collection(project_id, raw_id, decision.epoch)
+                .await;
+        }
+        if self.rewrite_without_deleted(project_id, read).await? {
+            return Ok(());
+        }
+        self.analytics
+            .delete_superseded_raw_versions(project_id, raw_id, read.version)
+            .await
+            .map_err(|error| error.to_string())
+    }
 
-        if let (Some(read), None, true) = (read, &latest_now, named_now) {
-            // Rows appeared after this reconciler's delete: they get back what it read, which holds them.
-            // Appended and queued in one step (`append_raw_records`).
-            let epoch = self
-                .file_service
-                .database()
-                .raw_arbiter_epoch(project_id)
-                .await
-                .map_err(|error| error.to_string())?;
-            let restored = restored_version(read, epoch)?;
-            self.analytics
-                .append_raw_records(std::slice::from_ref(&restored))
-                .await
-                .map_err(|error| error.to_string())?;
-        } else {
-            let mut unsettled = (named_now && latest_now.is_none())
-                || (!named_now && latest_now.is_some())
-                || latest_now.as_ref().map(|row| row.version) != left;
-            // By content too, not only by version: a rewrite prepared before a deletion and appended after
-            // another reconciler's newer one can win the version tie still holding the deleted spans, after that
-            // reconciler cleared the entries. Only looked at when the versions say it is settled.
-            if !unsettled
-                && named_now
-                && let Some(latest) = &latest_now
-            {
-                unsettled = !self
-                    .deleted_spans_of(project_id, &latest.record)
-                    .await?
-                    .is_empty();
+    /// A decision's purge and drop (`RPurge`, `RDrop`): the versions keyed at or below its epoch, then the
+    /// decision folded into the record's high-water mark. Safe to repeat, however late: a version above the epoch
+    /// is out of reach, and the confirm fence keeps every owned version above it. No row is removed: rows naming
+    /// a collected record are those of writes never acknowledged - a batch that failed or was abandoned - which
+    /// at-least-once delivery admits; they go with their trace's retention or deletion, on both backends alike.
+    pub(super) async fn purge_raw_collection(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        epoch: i64,
+    ) -> Result<(), String> {
+        self.analytics
+            .purge_raw_versions(project_id, raw_id, epoch)
+            .await
+            .map_err(|error| error.to_string())?;
+        self.file_service
+            .database()
+            .drop_raw_collection(project_id, raw_id, epoch)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    /// Purge again every decision older than the takeover age (`RResume`).
+    pub async fn resume_stale_raw_collections(&self) -> Result<usize, String> {
+        let stale = self
+            .file_service
+            .database()
+            .stale_raw_collections(
+                Utc::now() - RAW_COLLECTION_TAKEOVER_AGE,
+                RAW_RECONCILE_BATCH,
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        for decision in &stale {
+            self.purge_raw_collection(&decision.project_id, &decision.raw_id, decision.epoch)
+                .await?;
+            self.reconcile_recheck(&decision.project_id, &decision.raw_id)
+                .await?;
+        }
+        Ok(stale.len())
+    }
+
+    /// The model's `RRecheck`: look again, and queue the record if anything is unsettled - deleted content in
+    /// the latest, versions below it, nothing owning it, or bytes its cutoff still covers - so whichever pass
+    /// acts last sees its own effect.
+    pub(super) async fn reconcile_recheck(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<(), String> {
+        let database = self.file_service.database();
+        let live = self.reconcile_read(project_id, raw_id).await?;
+        let unsettled = match &live {
+            Some(latest) => {
+                database
+                    .raw_owner_traces(project_id, raw_id)
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .is_empty()
+                    || !self
+                        .deleted_spans_of(project_id, &latest.record)
+                        .await?
+                        .is_empty()
             }
-            if unsettled {
-                self.enqueue(project_id, raw_id).await?;
+            None => {
+                match database
+                    .raw_record_cutoffs(project_id, &[raw_id.to_string()])
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .get(raw_id)
+                {
+                    None => false,
+                    Some(_) => !self
+                        .analytics
+                        .get_raw_records(project_id, &[raw_id.to_string()])
+                        .await
+                        .map_err(|error| error.to_string())?
+                        .is_empty(),
+                }
             }
+        };
+        if unsettled {
+            self.enqueue(project_id, raw_id).await?;
         }
         Ok(())
     }
@@ -424,14 +395,6 @@ impl TracePipeline {
         }
     }
 
-    async fn named(&self, project_id: &ProjectId, raw_id: &str) -> Result<bool, String> {
-        self.analytics
-            .raw_records_named(project_id, &[raw_id.to_string()])
-            .await
-            .map(|named| named.contains(raw_id))
-            .map_err(|error| error.to_string())
-    }
-
     async fn enqueue(&self, project_id: &ProjectId, raw_id: &str) -> Result<(), String> {
         self.analytics
             .enqueue_raw_records(project_id, &[raw_id.to_string()])
@@ -439,16 +402,16 @@ impl TracePipeline {
             .map_err(|error| error.to_string())
     }
 
-    /// The model's rewrite: the record without the spans the deletion fences now refuse, one version above the
-    /// one read. Returns the version left as the latest.
+    /// The model's rewrite: the record without the spans the deletion fences now refuse, one key above the one
+    /// read at the current epoch. Returns whether the read held anything to remove.
     async fn rewrite_without_deleted(
         &self,
         project_id: &ProjectId,
         read: &RawRecordRow,
-    ) -> Result<Option<i64>, String> {
+    ) -> Result<bool, String> {
         let removed = self.deleted_spans_of(project_id, &read.record).await?;
         if removed.is_empty() {
-            return Ok(Some(read.version));
+            return Ok(false);
         }
         let (content, original, available) =
             self.decode_with_media(project_id, &read.record).await?;
@@ -505,7 +468,7 @@ impl TracePipeline {
             .map_err(|error| error.to_string())?;
         if !appended.contains(&row.raw_id) {
             // Another reconciler collected the record since it was read: it stays collected.
-            return Ok(None);
+            return Ok(true);
         }
         // The removed spans' media is no longer referenced by this record; their traces' survivors decide.
         let mut traces: Vec<String> = removed.into_iter().map(|(trace, _)| trace).collect();
@@ -518,7 +481,7 @@ impl TracePipeline {
         {
             tracing::warn!(%error, "Could not reconcile files after a raw rewrite; the file sweep retries");
         }
-        Ok(Some(version))
+        Ok(true)
     }
 
     /// The spans of a record the deletion fences refuse now: the same fences, in the same order, as an ingest

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, Row};
 
 use crate::PostgresError;
-use sideseat_ports::types::{ProjectHold, ProjectId, ProjectStorageUsage};
+use sideseat_ports::types::{ProjectHold, ProjectId, ProjectStorageUsage, RetentionCleanupBacklog};
 
 pub async fn active_hold(
     connection: &mut PgConnection,
@@ -197,12 +197,34 @@ pub async fn held_transactional_bytes(
         "SELECT
              COALESCE((SELECT SUM(byte_len) FROM staged_payloads WHERE project_id = $1), 0)::bigint
            + COALESCE((SELECT SUM(logical_bytes) FROM deletion_journal WHERE project_id = $1), 0)::bigint
-           + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = $1), 0)::bigint",
+           + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = $1), 0)::bigint
+           + COALESCE((SELECT SUM(octet_length(project_id) + 16 + octet_length(trace_key)) FROM raw_owners
+                       WHERE project_id = $1), 0)::bigint
+           + COALESCE((SELECT SUM(octet_length(project_id) + 24 + octet_length(raw_id)) FROM raw_collections
+                       WHERE project_id = $1), 0)::bigint
+           + COALESCE((SELECT SUM(octet_length(project_id) + octet_length(payload_id) + octet_length(raw_id))
+                       FROM raw_writers WHERE project_id = $1), 0)::bigint",
     )
     .bind(project_id.as_str())
     .fetch_one(&mut *connection)
     .await?;
     Ok(u64::try_from(bytes).unwrap_or(0))
+}
+
+pub async fn retention_cleanup_backlog(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+) -> Result<RetentionCleanupBacklog, PostgresError> {
+    let (pending, oldest, attempts): (i64, Option<i64>, Option<i64>) = sqlx::query_as(
+        "SELECT count(*), min(created_at)::bigint, max(attempts)::bigint FROM retention_cleanup \
+         WHERE project_id = $1",
+    )
+    .bind(project_id.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
+    Ok(RetentionCleanupBacklog::from_counts(
+        pending, oldest, attempts,
+    ))
 }
 
 pub async fn project_ids(

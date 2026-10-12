@@ -345,6 +345,30 @@ pub fn retention_delete_expired_clickhouse(
     )
 }
 
+/// The distinct traces a ClickHouse age delete at `cutoff` touches - the same predicate as
+/// `retention_delete_expired_clickhouse` - read from `spans`, which the caller names: every replica's local table
+/// on a cluster, so no replica's rows are missed. An unreachable replica fails the read rather than shortening it.
+pub fn retention_expiring_traces_clickhouse(
+    spans: &str,
+    project_id: &str,
+    cutoff: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> DmlStatement {
+    retention_statement(
+        format!(
+            "SELECT DISTINCT trace_id FROM {spans} \
+             WHERE project_id = ? AND timestamp_start < fromUnixTimestamp64Micro(?) \
+             AND (isNull(hold_until) OR hold_until < fromUnixTimestamp64Micro(?)) \
+             SETTINGS skip_unavailable_shards = 0"
+        ),
+        vec![
+            QueryValue::String(project_id.to_string()),
+            QueryValue::Int64(cutoff.timestamp_micros()),
+            QueryValue::Int64(now.timestamp_micros()),
+        ],
+    )
+}
+
 /// Delete ClickHouse metrics older than the configured boundary.
 pub fn retention_delete_expired_metrics_clickhouse(
     target: MutationTarget<'_>,

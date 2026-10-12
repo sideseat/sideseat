@@ -294,7 +294,9 @@ mod fences_late;
 mod inline;
 mod raw;
 mod raw_lifecycle;
+mod raw_ownership;
 pub(crate) use raw::raw_id;
+pub use raw_ownership::late_raw_landings;
 mod single;
 mod waves;
 
@@ -682,6 +684,8 @@ mod pipeline_tests;
 mod raw_authority_tests;
 #[cfg(test)]
 mod raw_lifecycle_tests;
+#[cfg(test)]
+mod raw_ownership_tests;
 #[cfg(test)]
 mod receipt_precedence_tests;
 #[cfg(test)]

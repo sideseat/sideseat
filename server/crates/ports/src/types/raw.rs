@@ -78,8 +78,8 @@ pub struct RawPending {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawOwnerClaim {
     pub raw_id: String,
-    /// The arbiter epoch under which the version this claim rests on was keyed - the one the writer read before
-    /// its insert, or the latest version it observed (`RawRecordOwnership.tla`, `vep`).
+    /// The arbiter epoch the claim rests on: the one the writer read before storing its record and writing its
+    /// rows (`RawRecordOwnership.tla`, `rowEp`). The fence grants only above every decision of the record.
     pub version_epoch: i64,
     pub trace_ids: Vec<String>,
 }
@@ -87,12 +87,33 @@ pub struct RawOwnerClaim {
 /// The confirm fence's verdict for one claim (`RawRecordOwnership.tla`, `Confirm`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RawConfirmOutcome {
-    /// The claim's version is above every collection decision, pending or completed; its traces own the record
+    /// The claim's epoch is above every collection decision, and none is pending; its traces own the record
     /// durably, except those the deletion journal took meanwhile.
     Granted,
-    /// The claim's version is at or below a decision some purge is entitled to delete: nothing was granted, and
-    /// the writer must re-key its version above `fresh_epoch` and confirm again (`Rekey`).
+    /// The claim's epoch is at or below a decision some purge is entitled to delete: nothing was granted. The
+    /// writer fails its batch, and its redelivery reads the epoch afresh - above `fresh_epoch` - and claims again.
     Refused { fresh_epoch: i64 },
+    /// The record has a collection decision pending its purge: nothing was granted, and the writer fails its
+    /// batch as for a refusal. No grant is made while a purge is pending, so no owner appears under a decision
+    /// whose purge is still to run (`RawRecordOwnership.tla`, `Grantable`).
+    Collecting,
+}
+
+/// A collected record's state as readers and the fence see it: the highest decision ever purged, and the
+/// decision pending its purge, if any.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RawCutoff {
+    pub high_water: i64,
+    pub pending: Option<i64>,
+}
+
+impl RawCutoff {
+    /// The highest epoch any purge of the record - pending or completed - is entitled to delete.
+    #[must_use]
+    pub fn epoch(&self) -> i64 {
+        self.pending
+            .map_or(self.high_water, |pending| pending.max(self.high_water))
+    }
 }
 
 /// A collection decision pending its purge (`RawRecordOwnership.tla`, `acoll`).
@@ -103,6 +124,48 @@ pub struct RawCollection {
     /// The project epoch the decision was recorded at; the purge deletes versions keyed at or below it.
     pub epoch: i64,
     pub decided_at: DateTime<Utc>,
+}
+
+/// The raw arbiter's integer key for a record: the first eight bytes of its id, which is itself a BLAKE3 digest
+/// of the project and the received body - so the key is already project-scoped and uniform. Owner rows carry
+/// integers rather than the 64-character id, which is what keeps them small (`raw_owners`).
+#[must_use]
+pub fn raw_record_key(raw_id: &str) -> i64 {
+    let mut bytes = [0u8; 8];
+    for (slot, pair) in bytes.iter_mut().zip(raw_id.as_bytes().chunks(2)) {
+        let digit = |byte: u8| (byte as char).to_digit(16).unwrap_or(0) as u8;
+        *slot = (digit(pair[0]) << 4) | pair.get(1).map_or(0, |byte| digit(*byte));
+    }
+    i64::from_be_bytes(bytes)
+}
+
+/// The raw arbiter's key for a trace, exact rather than hashed, because a key collision here would let one
+/// trace's deletion release another trace's ownership. An OpenTelemetry trace id as the rows store it - 32
+/// lowercase hex digits - is its 16 bytes. Any other id is `0xFF` and its text, with a second `0xFF` when that
+/// would be 16 bytes long: so every 16-byte key is a decoded trace id, and no other key can equal one; and since
+/// UTF-8 text never contains `0xFF`, the marker cannot be confused with the text after it.
+#[must_use]
+pub fn raw_trace_key(trace_id: &str) -> Vec<u8> {
+    const TRACE_ID_BYTES: usize = 16;
+    let bytes = trace_id.as_bytes();
+    let standard = bytes.len() == 2 * TRACE_ID_BYTES
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte));
+    if standard {
+        let digit = |byte: u8| (byte as char).to_digit(16).unwrap_or(0) as u8;
+        return bytes
+            .chunks(2)
+            .map(|pair| (digit(pair[0]) << 4) | digit(pair[1]))
+            .collect();
+    }
+    let mut key = Vec::with_capacity(bytes.len() + 2);
+    key.push(0xFF);
+    if bytes.len() + 1 == TRACE_ID_BYTES {
+        key.push(0xFF);
+    }
+    key.extend_from_slice(bytes);
+    key
 }
 
 /// The bits of a stored version below its epoch: a version number is `(epoch << 32) | n`, so versions order by
@@ -153,6 +216,42 @@ mod version_tests {
 
     fn key(epoch: i64, n: i64) -> i64 {
         raw_version(epoch, n).expect("in domain")
+    }
+
+    #[test]
+    fn owner_keys_are_stable_and_distinct() {
+        let project = ProjectId::from("p");
+        assert_eq!(raw_record_key("00000000000000ff"), 0xff);
+        assert_eq!(raw_record_key("8000000000000000ffff"), i64::MIN);
+        let _ = project;
+        let standard = "0aff".repeat(8);
+        let decoded: Vec<u8> = [0x0a, 0xff].repeat(8);
+        assert_eq!(raw_trace_key(&standard), decoded);
+        assert_ne!(
+            raw_trace_key(&"0a".repeat(16)),
+            raw_trace_key(&"0b".repeat(16))
+        );
+        assert_eq!(
+            raw_trace_key("zz"),
+            vec![0xFF, b'z', b'z'],
+            "a non-standard id keeps its text behind the marker"
+        );
+        // Ids that once collided: hex that decodes to the marker and a text, and a text that would be 16 bytes.
+        assert_ne!(raw_trace_key("ff7a7a"), raw_trace_key("zz"));
+        let fifteen = "z".repeat(15);
+        let mut lookalike = vec![0xFF];
+        lookalike.extend_from_slice(fifteen.as_bytes());
+        assert_eq!(raw_trace_key(&fifteen).len(), 17);
+        assert_ne!(raw_trace_key(&fifteen), lookalike);
+        assert_ne!(
+            raw_trace_key(&"ff".repeat(16)),
+            raw_trace_key(&"F".repeat(15))
+        );
+        assert_ne!(
+            raw_trace_key(&"AB".repeat(16)),
+            raw_trace_key(&"ab".repeat(16)),
+            "upper-case hex is not the stored spelling, and keeps its text"
+        );
     }
 
     #[test]

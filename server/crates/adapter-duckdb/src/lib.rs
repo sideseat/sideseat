@@ -404,6 +404,35 @@ impl DuckdbService {
             );
         }
 
+        // The rows are gone, so their traces' ownership of the records they named goes too - and the records are
+        // queued after the release, so a reconciliation pass sees them unowned and collects them.
+        match sideseat_ports::traits::release_retained_raw_owners(
+            database.as_ref(),
+            analytics,
+            project_id,
+            trace_ids,
+        )
+        .await
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                clean = false;
+                tracing::debug!(
+                    project_id = %project_id,
+                    "An owner granted after the release's read stays; the cleanup is retried"
+                );
+            }
+            Err(e) => {
+                clean = false;
+                tracing::warn!(
+                    error = %e,
+                    project_id = %project_id,
+                    traces = trace_ids.len(),
+                    "Failed to release retained raw-record ownership; the cleanup stays recorded and is retried"
+                );
+            }
+        }
+
         // Favourites are keyed on the **trace**, so only a trace that is actually gone may lose one. Retention
         // expires span identities, not traces, so "was in the retention batch" is not that: a favourited trace
         // with one expired span and one live span stayed visible and lost its favourite anyway - the same defect

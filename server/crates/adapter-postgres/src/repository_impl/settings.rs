@@ -545,7 +545,7 @@ impl RawArbiter for PostgresRepository {
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<std::collections::HashMap<String, i64>, DataError> {
+    ) -> Result<std::collections::HashMap<String, RawCutoff>, DataError> {
         tenant_transaction!(self, project_id, |connection| {
             raw_arbiter::cutoffs(connection, project_id, raw_ids)
         })
@@ -561,13 +561,50 @@ impl RawArbiter for PostgresRepository {
         })
     }
 
-    async fn release_raw_owner_traces(
+    async fn raw_grant_seq(&self, project_id: &ProjectId) -> Result<i64, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::grant_seq(connection, project_id)
+        })
+    }
+
+    async fn raw_owners_of_traces(
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
+    ) -> Result<Vec<(i64, Vec<u8>)>, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::owners_of_traces(connection, project_id, trace_ids)
+        })
+    }
+
+    async fn raw_owned_pairs(
+        &self,
+        project_id: &ProjectId,
+        pairs: &[(i64, Vec<u8>)],
+    ) -> Result<Vec<(i64, Vec<u8>)>, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::owned_pairs(connection, project_id, pairs)
+        })
+    }
+
+    async fn raw_owner_traces(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<Vec<u8>>, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            raw_arbiter::owner_traces(connection, project_id, raw_id)
+        })
+    }
+
+    async fn release_raw_owners(
+        &self,
+        project_id: &ProjectId,
+        owners: &[(i64, Vec<u8>)],
+        granted_up_to: i64,
     ) -> Result<(), DataError> {
         tenant_transaction!(self, project_id, |connection| {
-            raw_arbiter::release_owner_traces(connection, project_id, trace_ids)
+            raw_arbiter::release_owners(connection, project_id, owners, granted_up_to)
         })
     }
 
@@ -716,6 +753,15 @@ impl StorageGovernance for PostgresRepository {
     async fn held_transactional_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError> {
         tenant_transaction!(self, project_id, |connection| {
             governance::held_transactional_bytes(connection, project_id)
+        })
+    }
+
+    async fn retention_cleanup_backlog(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<sideseat_ports::types::RetentionCleanupBacklog, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            governance::retention_cleanup_backlog(connection, project_id)
         })
     }
 

@@ -84,6 +84,25 @@ pub async fn clear_staging_fault(
     Ok(())
 }
 
+/// Make the raw arbiter's confirm fence fail until [`clear_raw_confirm_fault`]: a trigger raises inside the
+/// confirm's grant-sequence bump, so the failure arrives exactly where a broken arbiter's would.
+pub async fn inject_raw_confirm_fault(service: &SqliteService) -> Result<(), SqliteError> {
+    sqlx::query(
+        "CREATE TRIGGER raw_confirm_fault BEFORE UPDATE OF grant_seq ON raw_arbiter \
+         BEGIN SELECT RAISE(FAIL, 'injected raw confirm fault'); END",
+    )
+    .execute(service.pool())
+    .await?;
+    Ok(())
+}
+
+pub async fn clear_raw_confirm_fault(service: &SqliteService) -> Result<(), SqliteError> {
+    sqlx::query("DROP TRIGGER IF EXISTS raw_confirm_fault")
+        .execute(service.pool())
+        .await?;
+    Ok(())
+}
+
 /// How many payloads the registry holds.
 pub async fn staged_payload_count(service: &SqliteService) -> Result<i64, SqliteError> {
     Ok(sqlx::query_scalar("SELECT COUNT(*) FROM staged_payloads")

@@ -566,16 +566,6 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         self.inner.raw_records_page(project_id, after, limit).await
     }
 
-    async fn delete_unnamed_raw_records(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError> {
-        self.inner
-            .delete_unnamed_raw_records(project_id, raw_ids)
-            .await
-    }
-
     async fn append_raw_rewrites(
         &self,
         records: &[RawRecordRow],
@@ -589,14 +579,6 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         spans: &[(String, String)],
     ) -> Result<HashMap<(String, String), String>, DataError> {
         self.inner.span_raw_ids(project_id, spans).await
-    }
-
-    async fn raw_records_named(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError> {
-        self.inner.raw_records_named(project_id, raw_ids).await
     }
 
     async fn enqueue_raw_records(
@@ -637,12 +619,24 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
             .await
     }
 
-    async fn spans_naming_raw_record(
+    async fn raw_records_named_in_traces(
         &self,
         project_id: &ProjectId,
-        raw_id: &str,
-    ) -> Result<Vec<(String, String)>, DataError> {
-        self.inner.spans_naming_raw_record(project_id, raw_id).await
+        trace_ids: &[String],
+    ) -> Result<std::collections::HashSet<(String, String)>, DataError> {
+        self.inner
+            .raw_records_named_in_traces(project_id, trace_ids)
+            .await
+    }
+
+    async fn raw_records_indexed_under_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .raw_records_indexed_under_traces(project_id, trace_ids)
+            .await
     }
 
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError> {

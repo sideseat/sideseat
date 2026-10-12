@@ -542,7 +542,7 @@ impl RawArbiter for SqliteRepository {
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<std::collections::HashMap<String, i64>, DataError> {
+    ) -> Result<std::collections::HashMap<String, RawCutoff>, DataError> {
         raw_arbiter::cutoffs(self.0.pool(), project_id, raw_ids)
             .await
             .map_err(Into::into)
@@ -558,12 +558,49 @@ impl RawArbiter for SqliteRepository {
             .map_err(Into::into)
     }
 
-    async fn release_raw_owner_traces(
+    async fn raw_grant_seq(&self, project_id: &ProjectId) -> Result<i64, DataError> {
+        raw_arbiter::grant_seq(self.0.pool(), project_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn raw_owners_of_traces(
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
+    ) -> Result<Vec<(i64, Vec<u8>)>, DataError> {
+        raw_arbiter::owners_of_traces(self.0.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn raw_owned_pairs(
+        &self,
+        project_id: &ProjectId,
+        pairs: &[(i64, Vec<u8>)],
+    ) -> Result<Vec<(i64, Vec<u8>)>, DataError> {
+        raw_arbiter::owned_pairs(self.0.pool(), project_id, pairs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn raw_owner_traces(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<Vec<u8>>, DataError> {
+        raw_arbiter::owner_traces(self.0.pool(), project_id, raw_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn release_raw_owners(
+        &self,
+        project_id: &ProjectId,
+        owners: &[(i64, Vec<u8>)],
+        granted_up_to: i64,
     ) -> Result<(), DataError> {
-        raw_arbiter::release_owner_traces(self.0.pool(), project_id, trace_ids)
+        raw_arbiter::release_owners(self.0.pool(), project_id, owners, granted_up_to)
             .await
             .map_err(Into::into)
     }
@@ -712,6 +749,15 @@ impl StorageGovernance for SqliteRepository {
 
     async fn held_transactional_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError> {
         governance::held_transactional_bytes(self.0.pool(), project_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn retention_cleanup_backlog(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<sideseat_ports::types::RetentionCleanupBacklog, DataError> {
+        governance::retention_cleanup_backlog(self.0.pool(), project_id)
             .await
             .map_err(Into::into)
     }

@@ -118,10 +118,11 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
         .await
         .expect("insert spans");
     let mut named = store
-        .raw_records_named(&project, &["raw-a".to_string(), "raw-b".to_string()])
+        .raw_records_named_in_traces(&project, &["trace-a".to_string(), "trace-b".to_string()])
         .await
         .expect("named")
         .into_iter()
+        .map(|(raw_id, trace_id)| format!("{raw_id}@{trace_id}"))
         .collect::<Vec<_>>();
     named.sort();
     say(&mut answers, "named", named.join(","));
@@ -189,55 +190,23 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
             .join(","),
     );
 
-    // The reconciler's delete takes only a record no row names: a span written for raw-a since keeps it.
+    // A collection purge takes every version of raw-b its decision's epoch bounds - all of them, keyed under
+    // epoch 0 - and leaves raw-a alone. What becomes of its trace-index rows differs by store and is not a public
+    // answer: DuckDB takes them with the last version, ClickHouse leaves them to their time-to-live, since a
+    // delete after a read there could race a landing that wrote fresh ones.
     store
-        .insert_spans(vec![span_of("trace-a", "span-a2", "raw-a")])
+        .purge_raw_versions(&project, "raw-b", 0)
         .await
-        .expect("a span naming raw-a again");
-    say(
-        &mut answers,
-        "deleted unnamed",
-        store
-            .delete_unnamed_raw_records(&project, &["raw-a".to_string(), "raw-b".to_string()])
-            .await
-            .expect("delete unnamed records")
-            .into_iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .join(","),
-    );
-    // A record deleted by the reconciler goes entirely, index included - so a later deletion of the same
-    // trace enqueues nothing.
-    store
-        .clear_raw_pending(
-            &store
-                .pending_raw_records(usize::MAX, None)
-                .await
-                .expect("queue"),
-        )
-        .await
-        .expect("clear");
-    store
-        .delete_traces(&project, &["trace-b".to_string()])
-        .await
-        .expect("delete the trace again");
+        .expect("the collection purge");
     say(
         &mut answers,
         "after collection",
-        format!(
-            "{}/{}",
-            store
-                .get_raw_records(&project, &["raw-b".to_string()])
-                .await
-                .expect("gone")
-                .len(),
-            store
-                .pending_raw_records(usize::MAX, None)
-                .await
-                .expect("queue")
-                .len()
-        ),
+        store
+            .get_raw_records(&project, &["raw-b".to_string()])
+            .await
+            .expect("gone")
+            .len()
+            .to_string(),
     );
 
     // A rewrite is stored only while its record is: raw-b was collected.
@@ -315,7 +284,7 @@ async fn raw_record_lifecycle_matches_across_backends() {
         "the latest version must be the rewrite: {embedded:?}"
     );
     for expected in [
-        "deleted unnamed: raw-b",
+        "after collection: 0",
         "rewrites appended: raw-a",
         "after the rewrites: raw-a/5/rewritten-a5",
     ] {

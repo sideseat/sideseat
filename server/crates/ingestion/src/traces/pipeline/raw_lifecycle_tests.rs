@@ -304,10 +304,10 @@ async fn an_ingest_repairs_a_record_that_lost_its_spans() {
     drain(&pipeline).await;
 }
 
-/// A reconciler that read a record no row named, then acted after an ingest's rows and check fell in between,
-/// keeps the record - and dies before it looks again, as a process can. Its delete decides who names the record
-/// in the same step; decided from the read, the record of an acknowledged export was gone for good, its rows
-/// naming nothing and nothing left to restore it from.
+/// A reconciler that read a record whose rows were gone, then acted after an ingest's rows, claim and check fell
+/// in between, keeps the record - and dies before it looks again, as a process can. Who owns the record is the
+/// arbiter's to say, and the ingest's claim made the decision refuse it; decided from the analytics rows at the
+/// read, the record of an acknowledged export was gone for good, its rows naming nothing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_record_named_after_the_reconciler_read_it_survives_the_reconciler() {
     let (_temp, duckdb, analytics, _database, pipeline) =
@@ -332,7 +332,7 @@ async fn a_record_named_after_the_reconciler_read_it_survives_the_reconciler() {
     // The export again: its rows are written, and its check finds the record present and holding them.
     ingest(&pipeline, &body).await;
     pipeline
-        .reconcile_act(&project, read.as_ref())
+        .reconcile_act(&project, &record.raw_id, read.as_ref())
         .await
         .unwrap();
     // No re-check: the reconciler died.
@@ -347,10 +347,15 @@ async fn a_record_named_after_the_reconciler_read_it_survives_the_reconciler() {
         "the record of an acknowledged export is kept"
     );
     assert_eq!(
-        crate::raw_coverage::covered(analytics.as_ref(), &project, &[key(1, 1), key(1, 2)])
-            .await
-            .unwrap()
-            .len(),
+        crate::raw_coverage::covered(
+            analytics.as_ref(),
+            pipeline.file_service.database().as_ref(),
+            &project,
+            &[key(1, 1), key(1, 2)],
+        )
+        .await
+        .unwrap()
+        .len(),
         2,
         "and it holds the rows that name it"
     );
@@ -381,12 +386,7 @@ async fn a_recheck_queues_a_latest_record_that_still_holds_deleted_content() {
     analytics.clear_raw_pending(&queued).await.unwrap();
 
     pipeline
-        .reconcile_recheck(
-            &project,
-            &record.raw_id,
-            Some(&record),
-            Some(record.version),
-        )
+        .reconcile_recheck(&project, &record.raw_id)
         .await
         .unwrap();
     assert!(

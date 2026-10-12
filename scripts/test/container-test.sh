@@ -3,9 +3,9 @@ set -euo pipefail
 
 scenario="${1:-}"
 case "$scenario" in
-  clickhouse | clickhouse-scale | clickhouse-replicated | clickhouse-two-shard | postgres | redis | redpanda) ;;
+  clickhouse | clickhouse-scale | clickhouse-replicated | clickhouse-two-shard | clickhouse-two-replica | postgres | redis | redpanda) ;;
   *)
-    echo "Usage: $0 {clickhouse|clickhouse-scale|clickhouse-replicated|clickhouse-two-shard|postgres|redis|redpanda}" >&2
+    echo "Usage: $0 {clickhouse|clickhouse-scale|clickhouse-replicated|clickhouse-two-shard|clickhouse-two-replica|postgres|redis|redpanda}" >&2
     exit 2
     ;;
 esac
@@ -207,9 +207,57 @@ case "$scenario" in
 
     SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_URL="http://127.0.0.1:$CH_SHARD_PORT_1" \
       SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_SECOND_URL="http://127.0.0.1:$CH_SHARD_PORT_2" \
+      SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_SECOND_CONTAINER="$CH_SHARD_2_CONTAINER" \
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
       cargo test --locked -p sideseat-server --test clickhouse_parity two_shard -- --test-threads=1 --nocapture
+    ;;
+
+  clickhouse-two-replica)
+    for name in CH_NET CH_SHARD_1_CONTAINER CH_SHARD_2_CONTAINER CH_SHARD_PORT_1 CH_SHARD_PORT_2 CH_TEST_IMAGE; do
+      require_env "$name"
+    done
+    prepare_container "$CH_SHARD_1_CONTAINER"
+    prepare_container "$CH_SHARD_2_CONTAINER"
+    prepare_network "$CH_NET"
+
+    echo "[two-replica] starting two $CH_TEST_IMAGE replicas of one shard"
+    docker network create "$CH_NET" >/dev/null
+    for node in 1 2; do
+      if [[ "$node" == 1 ]]; then
+        port="$CH_SHARD_PORT_1"
+        container="$CH_SHARD_1_CONTAINER"
+      else
+        port="$CH_SHARD_PORT_2"
+        container="$CH_SHARD_2_CONTAINER"
+      fi
+
+      docker_args=(run -d --name "$container" --hostname "ch-shard$node" \
+        --network "$CH_NET" --network-alias "ch-shard$node" -p "$port:8123" \
+        -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
+        -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+        -v "$repo_root/scripts/test/clickhouse-replicated/two-replica-common.xml:/etc/clickhouse-server/config.d/cluster.xml:ro")
+      if [[ "$node" == 1 ]]; then
+        docker_args+=(-v "$repo_root/scripts/test/clickhouse-replicated/two-shard-node-1.xml:/etc/clickhouse-server/config.d/node.xml:ro")
+      else
+        docker_args+=(-v "$repo_root/scripts/test/clickhouse-replicated/two-replica-node-2.xml:/etc/clickhouse-server/config.d/node.xml:ro")
+      fi
+      if [[ "$node" == 1 ]]; then
+        docker_args+=(
+          -v "$repo_root/scripts/test/clickhouse-replicated/two-shard-keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro"
+        )
+      fi
+      docker_args+=("$CH_TEST_IMAGE")
+      docker "${docker_args[@]}" >/dev/null
+    done
+    wait_for_http "http://127.0.0.1:$CH_SHARD_PORT_1/ping" 90 "$CH_SHARD_1_CONTAINER" 30
+    wait_for_http "http://127.0.0.1:$CH_SHARD_PORT_2/ping" 90 "$CH_SHARD_2_CONTAINER" 30
+
+    SIDESEAT_TEST_CLICKHOUSE_TWO_REPLICA_URL="http://127.0.0.1:$CH_SHARD_PORT_1" \
+      SIDESEAT_TEST_CLICKHOUSE_TWO_REPLICA_SECOND_URL="http://127.0.0.1:$CH_SHARD_PORT_2" \
+      SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
+      SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
+      cargo test --locked -p sideseat-server --test clickhouse_parity two_replica -- --test-threads=1 --nocapture
     ;;
 
   postgres)

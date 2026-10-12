@@ -13,7 +13,10 @@ use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 
 use crate::SqliteError;
-use sideseat_ports::types::{ProjectId, RawCollection, RawConfirmOutcome, RawOwnerClaim};
+use sideseat_ports::types::{
+    ProjectId, RawCollection, RawConfirmOutcome, RawCutoff, RawOwnerClaim, raw_record_key,
+    raw_trace_key,
+};
 
 /// Take the write lock for this transaction and make sure the project's epoch row exists.
 async fn lock_arbiter(
@@ -32,11 +35,6 @@ async fn lock_arbiter(
     )
 }
 
-/// The record's cutoff: the greater of its high-water mark and its pending decision, or `None` if it was
-/// never collected.
-const CUTOFF: &str = "SELECT MAX(high_water, COALESCE(pending_epoch, -1)) FROM raw_collections \
-                      WHERE project_id = ? AND raw_id = ?";
-
 /// The project epoch new versions are keyed under. A project with no row has decided nothing: epoch 0.
 pub async fn epoch(pool: &SqlitePool, project_id: &ProjectId) -> Result<i64, SqliteError> {
     let epoch: Option<i64> =
@@ -52,12 +50,12 @@ pub async fn cutoffs(
     pool: &SqlitePool,
     project_id: &ProjectId,
     raw_ids: &[String],
-) -> Result<HashMap<String, i64>, SqliteError> {
+) -> Result<HashMap<String, RawCutoff>, SqliteError> {
     let mut cutoffs = HashMap::new();
     for chunk in raw_ids.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(", ");
         let sql = format!(
-            "SELECT raw_id, MAX(high_water, COALESCE(pending_epoch, -1)) FROM raw_collections \
+            "SELECT raw_id, high_water, pending_epoch FROM raw_collections \
              WHERE project_id = ? AND raw_id IN ({placeholders})"
         );
         let mut query = sqlx::query(&sql).bind(project_id.as_str());
@@ -65,7 +63,13 @@ pub async fn cutoffs(
             query = query.bind(raw_id);
         }
         for row in query.fetch_all(pool).await? {
-            cutoffs.insert(row.try_get::<String, _>(0)?, row.try_get::<i64, _>(1)?);
+            cutoffs.insert(
+                row.try_get::<String, _>(0)?,
+                RawCutoff {
+                    high_water: row.try_get(1)?,
+                    pending: row.try_get(2)?,
+                },
+            );
         }
     }
     Ok(cutoffs)
@@ -84,28 +88,45 @@ pub async fn confirm_owners(
     }
     let mut tx = pool.begin().await?;
     let epoch = lock_arbiter(&mut tx, project_id).await?;
+    let grant_seq: i64 = sqlx::query_scalar(
+        "UPDATE raw_arbiter SET grant_seq = grant_seq + 1 WHERE project_id = ? RETURNING grant_seq",
+    )
+    .bind(project_id.as_str())
+    .fetch_one(&mut *tx)
+    .await?;
     let mut outcomes = Vec::with_capacity(claims.len());
     for claim in claims {
-        let cutoff: Option<i64> = sqlx::query_scalar(CUTOFF)
-            .bind(project_id.as_str())
-            .bind(&claim.raw_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-        if cutoff.is_some_and(|cutoff| claim.version_epoch <= cutoff) {
-            outcomes.push(RawConfirmOutcome::Refused { fresh_epoch: epoch });
-            continue;
+        let cutoff: Option<(i64, Option<i64>)> = sqlx::query_as(
+            "SELECT high_water, pending_epoch FROM raw_collections WHERE project_id = ? AND raw_id = ?",
+        )
+        .bind(project_id.as_str())
+        .bind(&claim.raw_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if let Some((high_water, pending)) = cutoff {
+            if pending.is_some() {
+                outcomes.push(RawConfirmOutcome::Collecting);
+                continue;
+            }
+            if claim.version_epoch <= high_water {
+                outcomes.push(RawConfirmOutcome::Refused { fresh_epoch: epoch });
+                continue;
+            }
         }
+        let record_key = raw_record_key(&claim.raw_id);
         for trace_id in &claim.trace_ids {
             sqlx::query(
-                "INSERT INTO raw_owners (project_id, raw_id, trace_id)
-                 SELECT ?1, ?2, ?3
+                "INSERT INTO raw_owners (project_id, record_key, trace_key, grant_seq)
+                 SELECT ?1, ?2, ?3, ?4
                  WHERE NOT EXISTS (
-                     SELECT 1 FROM deleted_traces WHERE project_id = ?1 AND trace_id = ?3
+                     SELECT 1 FROM deleted_traces WHERE project_id = ?1 AND trace_id = ?5
                  )
-                 ON CONFLICT (project_id, raw_id, trace_id) DO NOTHING",
+                 ON CONFLICT (project_id, record_key, trace_key) DO UPDATE SET grant_seq = excluded.grant_seq",
             )
             .bind(project_id.as_str())
-            .bind(&claim.raw_id)
+            .bind(record_key)
+            .bind(raw_trace_key(trace_id))
+            .bind(grant_seq)
             .bind(trace_id)
             .execute(&mut *tx)
             .await?;
@@ -116,23 +137,99 @@ pub async fn confirm_owners(
     Ok(outcomes)
 }
 
-/// Take ownership away from these traces (`ExpireSweep`): the retention pass calls this in the step that
-/// removed the rows. The journalled deletion transactions release ownership themselves (`Delete`).
-pub async fn release_owner_traces(
+/// The project's grant sequence; 0 before any confirm.
+pub async fn grant_seq(pool: &SqlitePool, project_id: &ProjectId) -> Result<i64, SqliteError> {
+    let seq: Option<i64> =
+        sqlx::query_scalar("SELECT grant_seq FROM raw_arbiter WHERE project_id = ?")
+            .bind(project_id.as_str())
+            .fetch_optional(pool)
+            .await?;
+    Ok(seq.unwrap_or(0))
+}
+
+/// The `(record_key, trace_key)` owners of these traces' records.
+pub async fn owners_of_traces(
     pool: &SqlitePool,
     project_id: &ProjectId,
     trace_ids: &[String],
-) -> Result<(), SqliteError> {
+) -> Result<Vec<(i64, Vec<u8>)>, SqliteError> {
+    let mut owners = Vec::new();
     for chunk in trace_ids.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(", ");
-        let sql =
-            format!("DELETE FROM raw_owners WHERE project_id = ? AND trace_id IN ({placeholders})");
-        let mut query = sqlx::query(&sql).bind(project_id.as_str());
+        let sql = format!(
+            "SELECT record_key, trace_key FROM raw_owners WHERE project_id = ? AND trace_key IN ({placeholders}) \
+             ORDER BY record_key, trace_key"
+        );
+        let mut query = sqlx::query_as::<_, (i64, Vec<u8>)>(&sql).bind(project_id.as_str());
         for trace_id in chunk {
-            query = query.bind(trace_id);
+            query = query.bind(raw_trace_key(trace_id));
         }
-        query.execute(pool).await?;
+        owners.extend(query.fetch_all(pool).await?);
     }
+    Ok(owners)
+}
+
+/// Which of these pairs are owners, by primary key.
+pub async fn owned_pairs(
+    pool: &SqlitePool,
+    project_id: &ProjectId,
+    pairs: &[(i64, Vec<u8>)],
+) -> Result<Vec<(i64, Vec<u8>)>, SqliteError> {
+    let mut owned = Vec::new();
+    for chunk in pairs.chunks(250) {
+        let placeholders = vec!["(?, ?)"; chunk.len()].join(", ");
+        let sql = format!(
+            "SELECT record_key, trace_key FROM raw_owners WHERE project_id = ? \
+             AND (record_key, trace_key) IN (VALUES {placeholders}) ORDER BY record_key, trace_key"
+        );
+        let mut query = sqlx::query_as::<_, (i64, Vec<u8>)>(&sql).bind(project_id.as_str());
+        for (record_key, trace_key) in chunk {
+            query = query.bind(*record_key).bind(trace_key.as_slice());
+        }
+        owned.extend(query.fetch_all(pool).await?);
+    }
+    Ok(owned)
+}
+
+/// The trace keys owning this record.
+pub async fn owner_traces(
+    pool: &SqlitePool,
+    project_id: &ProjectId,
+    raw_id: &str,
+) -> Result<Vec<Vec<u8>>, SqliteError> {
+    Ok(sqlx::query_scalar(
+        "SELECT trace_key FROM raw_owners WHERE project_id = ? AND record_key = ? ORDER BY trace_key",
+    )
+    .bind(project_id.as_str())
+    .bind(raw_record_key(raw_id))
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Release these owners (`ExpireSweep`), only those granted at or below `granted_up_to`.
+pub async fn release_owners(
+    pool: &SqlitePool,
+    project_id: &ProjectId,
+    owners: &[(i64, Vec<u8>)],
+    granted_up_to: i64,
+) -> Result<(), SqliteError> {
+    if owners.is_empty() {
+        return Ok(());
+    }
+    let mut tx = pool.begin().await?;
+    for (record_key, trace_key) in owners {
+        sqlx::query(
+            "DELETE FROM raw_owners \
+             WHERE project_id = ? AND record_key = ? AND trace_key = ? AND grant_seq <= ?",
+        )
+        .bind(project_id.as_str())
+        .bind(record_key)
+        .bind(trace_key)
+        .bind(granted_up_to)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -155,7 +252,7 @@ pub async fn collect_records(
         let epoch: Option<i64> = sqlx::query_scalar(
             "INSERT INTO raw_collections (project_id, raw_id, pending_epoch, decided_at)
              SELECT ?1, ?2, (SELECT epoch FROM raw_arbiter WHERE project_id = ?1), ?3
-             WHERE NOT EXISTS (SELECT 1 FROM raw_owners  WHERE project_id = ?1 AND raw_id = ?2)
+             WHERE NOT EXISTS (SELECT 1 FROM raw_owners  WHERE project_id = ?1 AND record_key = ?4)
                AND NOT EXISTS (SELECT 1 FROM raw_writers WHERE project_id = ?1 AND raw_id = ?2)
                AND NOT EXISTS (SELECT 1 FROM project_holds WHERE project_id = ?1 AND hold_until >= ?3)
              ON CONFLICT (project_id, raw_id) DO UPDATE
@@ -166,6 +263,7 @@ pub async fn collect_records(
         .bind(project_id.as_str())
         .bind(raw_id)
         .bind(now.timestamp_micros())
+        .bind(raw_record_key(raw_id))
         .fetch_optional(&mut *tx)
         .await?;
         if let Some(epoch) = epoch {

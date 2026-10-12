@@ -21,7 +21,7 @@ use sideseat_ports::types::ApiKeyScope;
 
 use types::{
     CreateProjectRequest, ListProjectsQuery, ProjectDto, ProjectHoldDto, ProjectStorageUsageDto,
-    SetProjectHoldRequest, UpdateProjectRequest,
+    RetentionCleanupDto, SetProjectHoldRequest, UpdateProjectRequest,
 };
 
 /// Shared state for Projects API endpoints
@@ -191,11 +191,17 @@ pub async fn get_project_storage(
         .reconcile_project(&project.project_id)
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?;
+    let backlog = state
+        .storage_governance
+        .retention_cleanup_backlog(&project.project_id)
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
     Ok(Json(ProjectStorageUsageDto::new(
         usage,
         state.storage_governance.quota_bytes(),
         state.storage_governance.maintenance_reserve_bytes(),
         state.storage_governance.ordinary_limit_bytes(),
+        RetentionCleanupDto::new(backlog, chrono::Utc::now()),
     )))
 }
 

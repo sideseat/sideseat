@@ -35,9 +35,9 @@ async fn insert_trace_tombstones(
         .bind(now)
         .execute(&mut **tx)
         .await?;
-        sqlx::query("DELETE FROM raw_owners WHERE project_id = ? AND trace_id = ?")
+        sqlx::query("DELETE FROM raw_owners WHERE project_id = ? AND trace_key = ?")
             .bind(project_id)
-            .bind(trace_id)
+            .bind(sideseat_ports::types::raw_trace_key(trace_id))
             .execute(&mut **tx)
             .await?;
     }

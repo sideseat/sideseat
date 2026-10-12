@@ -112,6 +112,34 @@ impl ClickhouseService {
             _ => clean = false,
         }
 
+        // The rows are gone, so their traces' ownership of the records they named goes too - and the records are
+        // queued after the release, so a reconciliation pass sees them unowned and collects them.
+        match sideseat_ports::traits::release_retained_raw_owners(
+            database.as_ref(),
+            analytics,
+            project_id,
+            trace_ids,
+        )
+        .await
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                clean = false;
+                tracing::debug!(
+                    project_id = %project_id,
+                    "An owner granted after the release's read stays; the cleanup is retried"
+                );
+            }
+            Err(error) => {
+                clean = false;
+                tracing::warn!(
+                    project_id = %project_id,
+                    %error,
+                    "Failed to release ClickHouse retained raw-record ownership"
+                );
+            }
+        }
+
         match EntityQuery::traces_without_spans(analytics, project_id, trace_ids).await {
             Ok(emptied) if !emptied.is_empty() => {
                 if let Err(error) = database
@@ -420,6 +448,39 @@ impl ClickhouseService {
         schema::get_on_cluster_clause(&self.config)
     }
 
+    /// The span rows a read that releases raw ownership must see: on one node the table itself; on a cluster
+    /// every replica of every shard, so a row an acknowledged insert committed on any one replica is seen
+    /// whatever the replication lag, with or without quorum inserts. An unreachable replica fails the read
+    /// rather than being skipped, so the release waits instead of deciding on a partial answer.
+    pub fn every_replica_spans(&self) -> String {
+        self.every_replica_table("otel_spans")
+    }
+
+    /// `base_name` read on every replica, as [`Self::every_replica_spans`] reads the span rows.
+    pub fn every_replica_table(&self, base_name: &str) -> String {
+        schema::every_replica_table(&self.config, base_name)
+    }
+
+    /// Record a retention cleanup for every trace an age delete at `cutoff` would touch: the intent the age pass
+    /// writes before it deletes, so the cleanup loop later releases those traces' files and raw-record ownership.
+    pub async fn record_age_expiry(
+        &self,
+        project_id: &ProjectId,
+        cutoff: chrono::DateTime<chrono::Utc>,
+        now: chrono::DateTime<chrono::Utc>,
+        database: &(dyn TransactionalRepository + Send + Sync),
+    ) -> Result<usize, String> {
+        retention::record_expiring_traces(
+            &self.tenant_client(project_id),
+            &self.every_replica_spans(),
+            project_id,
+            cutoff,
+            now,
+            database,
+        )
+        .await
+    }
+
     /// Check if running in distributed mode
     pub fn is_distributed(&self) -> bool {
         self.config.distributed
@@ -516,7 +577,7 @@ impl ClickhouseService {
 
     /// Refuse a store whose log records are partitioned by `timestamp`, as one created before they stopped being
     /// is: `timestamp` falls back to the receipt, so a record delivered again in another month reads twice
-    /// (`schema::OTEL_LOGS_PARTITION`).
+    /// (`OTEL_LOGS_PARTITION` in `schema/logs.rs`).
     async fn refuse_receipt_partitioned_logs(&self) -> Result<(), ClickhouseError> {
         let partitioned: Vec<(String, String)> = self
             .client
@@ -608,6 +669,10 @@ impl ClickhouseService {
         })
     }
 
+    /// The age the explicit pass expires at when none shorter is configured: a day inside the schema's 90-day
+    /// TTL, so the pass, running hourly, records a trace's cleanup before the TTL can reap its rows unrecorded.
+    const AGE_AHEAD_OF_TTL_MINUTES: u64 = 89 * 24 * 60;
+
     /// Start retention cleanup task
     pub fn start_retention_task(
         self: &Arc<Self>,
@@ -618,11 +683,9 @@ impl ClickhouseService {
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         governance: Arc<dyn StorageGovernance + Send + Sync>,
     ) -> Option<JoinHandle<()>> {
-        if config.max_spans.is_none() && config.max_age_minutes.is_none() {
-            tracing::debug!("Retention disabled (no limits configured)");
-            return None;
-        }
-
+        // Always started, limits or not: the schema's own 90-day TTL removes rows too, and the age pass below
+        // runs ahead of it so that what the TTL reaps has its cleanup recorded first - the files and raw-record
+        // ownership of those traces are otherwise never released.
         let service = Arc::clone(self);
         tracing::debug!(
             max_spans = ?config.max_spans,
@@ -780,16 +843,34 @@ impl ClickhouseService {
                                 }
                             };
                             if !held {
-                                if let Some(max_age_minutes) = config.max_age_minutes {
+                                {
                                     // ClickHouse has native TTL, but this explicit pass is project-scoped
-                                    // so it participates in the same legal-hold fence as hold patching.
+                                    // so it participates in the same legal-hold fence as hold patching, and
+                                    // it runs a day ahead of that TTL when no shorter age is configured.
+                                    let max_age_minutes = config
+                                        .max_age_minutes
+                                        .map_or(Self::AGE_AHEAD_OF_TTL_MINUTES, |minutes| {
+                                            minutes.min(Self::AGE_AHEAD_OF_TTL_MINUTES)
+                                        });
                                     let now = service.clock.now();
                                     let cutoff = now
                                         - chrono::Duration::minutes(
                                             i64::try_from(max_age_minutes).unwrap_or(i64::MAX),
                                         );
                                     let client = service.tenant_client(&project_id);
-                                    if let Err(error) = retention::run_retention(
+                                    // The intent first: a delete with no cleanup recorded would leave its
+                                    // traces' files and raw-record ownership with nothing to release them.
+                                    if let Err(error) = service
+                                        .record_age_expiry(&project_id, cutoff, now, database.as_ref())
+                                        .await
+                                    {
+                                        tracing::warn!(
+                                            project_id = %project_id,
+                                            %error,
+                                            "Could not record the traces ClickHouse age retention expires; \
+                                             the delete waits for the next pass"
+                                        );
+                                    } else if let Err(error) = retention::run_retention(
                                         &client,
                                         &delete_table,
                                         &metrics_table,

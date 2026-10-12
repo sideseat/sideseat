@@ -6,7 +6,9 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::types::{default_limit, default_page, validate_limit, validate_page};
-use sideseat_ports::types::{ProjectHold, ProjectRow, ProjectStorageUsage};
+use sideseat_ports::types::{
+    ProjectHold, ProjectRow, ProjectStorageUsage, RetentionCleanupBacklog,
+};
 
 /// Project DTO for API responses
 #[derive(Debug, Serialize, ToSchema)]
@@ -81,6 +83,31 @@ pub struct ProjectStorageUsageDto {
     pub maintenance_reserve_bytes: u64,
     pub ordinary_write_limit_bytes: u64,
     pub updated_at: DateTime<Utc>,
+    pub retention_cleanup: RetentionCleanupDto,
+}
+
+/// Retention cleanups still owed: each releases the files, favourites and raw-record ownership of one trace
+/// retention removed, and is retried until it completes. An old `oldest_pending_at` with a growing
+/// `most_attempts` is retention stalled - a ClickHouse replica unreachable, say - rather than storage growing.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RetentionCleanupDto {
+    pub pending: u64,
+    pub oldest_pending_at: Option<DateTime<Utc>>,
+    pub oldest_pending_secs: Option<i64>,
+    pub most_attempts: u64,
+}
+
+impl RetentionCleanupDto {
+    pub fn new(backlog: RetentionCleanupBacklog, now: DateTime<Utc>) -> Self {
+        Self {
+            pending: backlog.pending,
+            oldest_pending_at: backlog.oldest_pending_at,
+            oldest_pending_secs: backlog
+                .oldest_pending_at
+                .map(|at| (now - at).num_seconds().max(0)),
+            most_attempts: backlog.most_attempts,
+        }
+    }
 }
 
 impl ProjectStorageUsageDto {
@@ -89,6 +116,7 @@ impl ProjectStorageUsageDto {
         quota_bytes: u64,
         maintenance_reserve_bytes: u64,
         ordinary_write_limit_bytes: u64,
+        retention_cleanup: RetentionCleanupDto,
     ) -> Self {
         Self {
             logical_bytes: usage.logical_bytes,
@@ -96,6 +124,7 @@ impl ProjectStorageUsageDto {
             maintenance_reserve_bytes,
             ordinary_write_limit_bytes,
             updated_at: usage.updated_at,
+            retention_cleanup,
         }
     }
 }

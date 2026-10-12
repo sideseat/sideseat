@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 
 use crate::SqliteError;
-use sideseat_ports::types::{ProjectHold, ProjectId, ProjectStorageUsage};
+use sideseat_ports::types::{ProjectHold, ProjectId, ProjectStorageUsage, RetentionCleanupBacklog};
 
 pub async fn active_hold(
     pool: &SqlitePool,
@@ -196,14 +196,38 @@ pub async fn held_transactional_bytes(
         "SELECT
              COALESCE((SELECT SUM(byte_len) FROM staged_payloads WHERE project_id = ?), 0)
            + COALESCE((SELECT SUM(logical_bytes) FROM deletion_journal WHERE project_id = ?), 0)
-           + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = ?), 0)",
+           + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = ?), 0)
+           + COALESCE((SELECT SUM(length(project_id) + 16 + length(trace_key)) FROM raw_owners
+                       WHERE project_id = ?), 0)
+           + COALESCE((SELECT SUM(length(project_id) + 24 + length(raw_id)) FROM raw_collections
+                       WHERE project_id = ?), 0)
+           + COALESCE((SELECT SUM(length(project_id) + length(payload_id) + length(raw_id)) FROM raw_writers
+                       WHERE project_id = ?), 0)",
     )
+    .bind(project_id.as_str())
+    .bind(project_id.as_str())
+    .bind(project_id.as_str())
     .bind(project_id.as_str())
     .bind(project_id.as_str())
     .bind(project_id.as_str())
     .fetch_one(pool)
     .await?;
     Ok(u64::try_from(bytes).unwrap_or(0))
+}
+
+pub async fn retention_cleanup_backlog(
+    pool: &SqlitePool,
+    project_id: &ProjectId,
+) -> Result<RetentionCleanupBacklog, SqliteError> {
+    let (pending, oldest, attempts): (i64, Option<i64>, Option<i64>) = sqlx::query_as(
+        "SELECT count(*), min(created_at), max(attempts) FROM retention_cleanup WHERE project_id = ?",
+    )
+    .bind(project_id.as_str())
+    .fetch_one(pool)
+    .await?;
+    Ok(RetentionCleanupBacklog::from_counts(
+        pending, oldest, attempts,
+    ))
 }
 
 pub async fn project_ids(pool: &SqlitePool, limit: usize) -> Result<Vec<ProjectId>, SqliteError> {

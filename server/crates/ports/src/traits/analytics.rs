@@ -549,25 +549,11 @@ pub trait RawStore: Send + Sync {
         limit: usize,
     ) -> Result<Vec<RawRecordRow>, DataError>;
 
-    /// Delete every version of those of these records no stored row names, deciding and deleting as one step:
-    /// a row written up to the delete keeps its record. Returns the records deleted.
-    ///
-    /// One step, not "read who names it, then delete": a reconciler that dies between the two leaves the
-    /// record of an ingest whose rows and check fell in between deleted for good, with nothing left to restore
-    /// it (`RawRecordOwnership.tla`, `Recoverable` with `WithCrash`). DuckDB decides and deletes in one
-    /// transaction on its one connection. ClickHouse cannot yet: it still reads and then deletes, the open
-    /// defect `docs/engineering/compact-storage.md` names, until the transactional store arbitrates.
-    async fn delete_unnamed_raw_records(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError>;
-
     /// Append these rewritten versions of the records still stored, and queue those appended, deciding, appending
     /// and queueing as one step: a record another reconciler collected since the caller read it stays collected,
     /// and a rewrite prepared before a later deletion - which can win the version tie over a newer one - is looked
-    /// at again whether or not the caller lives to. Returns the records appended. One step for the reason
-    /// [`Self::delete_unnamed_raw_records`] gives, with the same ClickHouse exception.
+    /// at again whether or not the caller lives to. Returns the records appended. DuckDB decides, appends and
+    /// queues in one transaction; ClickHouse reads and then appends.
     async fn append_raw_rewrites(
         &self,
         records: &[RawRecordRow],
@@ -579,13 +565,6 @@ pub trait RawStore: Send + Sync {
         project_id: &ProjectId,
         spans: &[(String, String)],
     ) -> Result<std::collections::HashMap<(String, String), String>, DataError>;
-
-    /// Which of these records a stored row still names.
-    async fn raw_records_named(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError>;
 
     /// Enqueue records for reconciliation.
     async fn enqueue_raw_records(
@@ -629,13 +608,24 @@ pub trait RawStore: Send + Sync {
         below_version: i64,
     ) -> Result<(), DataError>;
 
-    /// The span identities whose stored rows name this record, for the collection's removal of rows no trace
-    /// owns. Bounded by one export's spans.
-    async fn spans_naming_raw_record(
+    /// The `(raw_id, trace_id)` pairs of these traces that a stored span row still carries: what a retention
+    /// pass leaves owned. Read through the span table's trace index.
+    ///
+    /// The answer releases ownership, so a pair missing from it must be absent from the store, not merely from
+    /// the replica asked: a replicated store reads every replica, and fails rather than answer without one.
+    async fn raw_records_named_in_traces(
         &self,
         project_id: &ProjectId,
-        raw_id: &str,
-    ) -> Result<Vec<(String, String)>, DataError>;
+        trace_ids: &[String],
+    ) -> Result<std::collections::HashSet<(String, String)>, DataError>;
+
+    /// The records the trace index holds under these traces - every record with spans of them, whatever rows
+    /// remain - as a deletion finds them.
+    async fn raw_records_indexed_under_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
 
     /// Remove exactly these entries; one enqueued since they were read stays.
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError>;

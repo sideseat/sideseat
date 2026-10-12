@@ -23,8 +23,8 @@ pub use order::{OrderBy, OrderDirection};
 pub use project_id::ProjectId;
 pub use raw::{
     RAW_VERSION_EPOCH_SHIFT, RAW_VERSION_MAX_EPOCH, RAW_VERSION_MAX_N, RawCollection,
-    RawConfirmOutcome, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow, raw_version,
-    raw_version_above, raw_version_epoch,
+    RawConfirmOutcome, RawCutoff, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow,
+    raw_record_key, raw_trace_key, raw_version, raw_version_above, raw_version_epoch,
 };
 
 // Re-export enum types
@@ -75,5 +75,6 @@ pub use stats::{
 pub use transactional::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
     CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
-    OrganizationRow, ProjectHold, ProjectRow, ProjectStorageUsage, UserRow,
+    OrganizationRow, ProjectHold, ProjectRow, ProjectStorageUsage, RetentionCleanupBacklog,
+    UserRow,
 };

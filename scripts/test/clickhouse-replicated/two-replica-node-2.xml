@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!--
+  The second replica of the one shard: the same shard as node 1 (`two-shard-node-1.xml`), its own replica name,
+  so the Replicated engines' Keeper paths make the two nodes replicas of each other.
+-->
+<clickhouse>
+    <interserver_http_host>ch-shard2</interserver_http_host>
+    <macros>
+        <shard>01</shard>
+        <replica>02</replica>
+    </macros>
+</clickhouse>

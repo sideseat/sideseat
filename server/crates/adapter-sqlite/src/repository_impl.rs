@@ -17,7 +17,7 @@ use sideseat_ports::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
     CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
     OrganizationRow, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawCollection,
-    RawConfirmOutcome, RawOwnerClaim, StagedPayload, UserRow,
+    RawConfirmOutcome, RawCutoff, RawOwnerClaim, StagedPayload, UserRow,
 };
 
 use super::SqliteService;

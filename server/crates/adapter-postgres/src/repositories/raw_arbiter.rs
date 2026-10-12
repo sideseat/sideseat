@@ -18,7 +18,10 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, Row};
 
 use crate::PostgresError;
-use sideseat_ports::types::{ProjectId, RawCollection, RawConfirmOutcome, RawOwnerClaim};
+use sideseat_ports::types::{
+    ProjectId, RawCollection, RawConfirmOutcome, RawCutoff, RawOwnerClaim, raw_record_key,
+    raw_trace_key,
+};
 
 /// Ensure the project's epoch row exists and lock it for this transaction; returns the epoch.
 async fn lock_arbiter(
@@ -83,12 +86,12 @@ pub async fn cutoffs(
     connection: &mut PgConnection,
     project_id: &ProjectId,
     raw_ids: &[String],
-) -> Result<HashMap<String, i64>, PostgresError> {
+) -> Result<HashMap<String, RawCutoff>, PostgresError> {
     if raw_ids.is_empty() {
         return Ok(HashMap::new());
     }
     let rows = sqlx::query(
-        "SELECT raw_id, GREATEST(high_water, COALESCE(pending_epoch, -1)) FROM raw_collections
+        "SELECT raw_id, high_water, pending_epoch FROM raw_collections
          WHERE project_id = $1 AND raw_id = ANY($2)",
     )
     .bind(project_id.as_str())
@@ -96,7 +99,15 @@ pub async fn cutoffs(
     .fetch_all(&mut *connection)
     .await?;
     rows.into_iter()
-        .map(|row| Ok((row.try_get::<String, _>(0)?, row.try_get::<i64, _>(1)?)))
+        .map(|row| {
+            Ok((
+                row.try_get::<String, _>(0)?,
+                RawCutoff {
+                    high_water: row.try_get(1)?,
+                    pending: row.try_get(2)?,
+                },
+            ))
+        })
         .collect()
 }
 
@@ -111,6 +122,12 @@ pub async fn confirm_owners(
         return Ok(Vec::new());
     }
     let epoch = lock_arbiter(connection, project_id).await?;
+    let grant_seq: i64 = sqlx::query_scalar(
+        "UPDATE raw_arbiter SET grant_seq = grant_seq + 1 WHERE project_id = $1 RETURNING grant_seq",
+    )
+    .bind(project_id.as_str())
+    .fetch_one(&mut *connection)
+    .await?;
     let traces: Vec<String> = claims
         .iter()
         .flat_map(|claim| claim.trace_ids.iter().cloned())
@@ -118,29 +135,41 @@ pub async fn confirm_owners(
     lock_traces(connection, project_id.as_str(), &traces).await?;
     let mut outcomes = Vec::with_capacity(claims.len());
     for claim in claims {
-        let cutoff: Option<i64> = sqlx::query_scalar(
-            "SELECT GREATEST(high_water, COALESCE(pending_epoch, -1)) FROM raw_collections
-             WHERE project_id = $1 AND raw_id = $2",
+        let cutoff: Option<(i64, Option<i64>)> = sqlx::query_as(
+            "SELECT high_water, pending_epoch FROM raw_collections WHERE project_id = $1 AND raw_id = $2",
         )
         .bind(project_id.as_str())
         .bind(&claim.raw_id)
         .fetch_optional(&mut *connection)
         .await?;
-        if cutoff.is_some_and(|cutoff| claim.version_epoch <= cutoff) {
-            outcomes.push(RawConfirmOutcome::Refused { fresh_epoch: epoch });
-            continue;
+        if let Some((high_water, pending)) = cutoff {
+            if pending.is_some() {
+                outcomes.push(RawConfirmOutcome::Collecting);
+                continue;
+            }
+            if claim.version_epoch <= high_water {
+                outcomes.push(RawConfirmOutcome::Refused { fresh_epoch: epoch });
+                continue;
+            }
         }
+        let trace_keys: Vec<Vec<u8>> = claim
+            .trace_ids
+            .iter()
+            .map(|trace_id| raw_trace_key(trace_id))
+            .collect();
         sqlx::query(
-            "INSERT INTO raw_owners (project_id, raw_id, trace_id)
-             SELECT $1, $2, t FROM UNNEST($3::text[]) AS t
+            "INSERT INTO raw_owners (project_id, record_key, trace_key, grant_seq)
+             SELECT $1, $2, u.trace_key, $5 FROM UNNEST($3::text[], $4::bytea[]) AS u(trace_id, trace_key)
              WHERE NOT EXISTS (
-                 SELECT 1 FROM deleted_traces WHERE project_id = $1 AND trace_id = t
+                 SELECT 1 FROM deleted_traces WHERE project_id = $1 AND trace_id = u.trace_id
              )
-             ON CONFLICT (project_id, raw_id, trace_id) DO NOTHING",
+             ON CONFLICT (project_id, record_key, trace_key) DO UPDATE SET grant_seq = excluded.grant_seq",
         )
         .bind(project_id.as_str())
-        .bind(&claim.raw_id)
+        .bind(raw_record_key(&claim.raw_id))
         .bind(&claim.trace_ids)
+        .bind(&trace_keys)
+        .bind(grant_seq)
         .execute(&mut *connection)
         .await?;
         outcomes.push(RawConfirmOutcome::Granted);
@@ -148,20 +177,105 @@ pub async fn confirm_owners(
     Ok(outcomes)
 }
 
-/// Take ownership away from these traces (`ExpireSweep`).
-pub async fn release_owner_traces(
+pub async fn grant_seq(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+) -> Result<i64, PostgresError> {
+    let seq: Option<i64> =
+        sqlx::query_scalar("SELECT grant_seq FROM raw_arbiter WHERE project_id = $1")
+            .bind(project_id.as_str())
+            .fetch_optional(&mut *connection)
+            .await?;
+    Ok(seq.unwrap_or(0))
+}
+
+pub async fn owners_of_traces(
     connection: &mut PgConnection,
     project_id: &ProjectId,
     trace_ids: &[String],
-) -> Result<(), PostgresError> {
+) -> Result<Vec<(i64, Vec<u8>)>, PostgresError> {
     if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let trace_keys: Vec<Vec<u8>> = trace_ids
+        .iter()
+        .map(|trace_id| raw_trace_key(trace_id))
+        .collect();
+    Ok(sqlx::query_as(
+        "SELECT record_key, trace_key FROM raw_owners WHERE project_id = $1 AND trace_key = ANY($2)
+         ORDER BY record_key, trace_key",
+    )
+    .bind(project_id.as_str())
+    .bind(&trace_keys)
+    .fetch_all(&mut *connection)
+    .await?)
+}
+
+/// Which of these pairs are owners, by primary key.
+pub async fn owned_pairs(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+    pairs: &[(i64, Vec<u8>)],
+) -> Result<Vec<(i64, Vec<u8>)>, PostgresError> {
+    if pairs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let records: Vec<i64> = pairs.iter().map(|(record_key, _)| *record_key).collect();
+    let traces: Vec<Vec<u8>> = pairs
+        .iter()
+        .map(|(_, trace_key)| trace_key.clone())
+        .collect();
+    Ok(sqlx::query_as(
+        "SELECT o.record_key, o.trace_key FROM raw_owners o \
+         JOIN UNNEST($2::bigint[], $3::bytea[]) AS p(record_key, trace_key) \
+           ON o.record_key = p.record_key AND o.trace_key = p.trace_key \
+         WHERE o.project_id = $1 ORDER BY o.record_key, o.trace_key",
+    )
+    .bind(project_id.as_str())
+    .bind(&records)
+    .bind(&traces)
+    .fetch_all(&mut *connection)
+    .await?)
+}
+
+pub async fn owner_traces(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+    raw_id: &str,
+) -> Result<Vec<Vec<u8>>, PostgresError> {
+    Ok(sqlx::query_scalar(
+        "SELECT trace_key FROM raw_owners WHERE project_id = $1 AND record_key = $2 ORDER BY trace_key",
+    )
+    .bind(project_id.as_str())
+    .bind(raw_record_key(raw_id))
+    .fetch_all(&mut *connection)
+    .await?)
+}
+
+/// Release these owners (`ExpireSweep`), only those granted at or below `granted_up_to`. A concurrent confirm
+/// either stamps a grant above the bound before this statement reads the row - and it stays - or waits on the
+/// row this statement deletes and inserts it afresh, above the bound.
+pub async fn release_owners(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+    owners: &[(i64, Vec<u8>)],
+    granted_up_to: i64,
+) -> Result<(), PostgresError> {
+    if owners.is_empty() {
         return Ok(());
     }
-    sqlx::query("DELETE FROM raw_owners WHERE project_id = $1 AND trace_id = ANY($2)")
-        .bind(project_id.as_str())
-        .bind(trace_ids)
-        .execute(&mut *connection)
-        .await?;
+    let (records, traces): (Vec<i64>, Vec<Vec<u8>>) = owners.iter().cloned().unzip();
+    sqlx::query(
+        "DELETE FROM raw_owners o USING UNNEST($2::bigint[], $3::bytea[]) AS u(record_key, trace_key)
+         WHERE o.project_id = $1 AND o.record_key = u.record_key AND o.trace_key = u.trace_key
+           AND o.grant_seq <= $4",
+    )
+    .bind(project_id.as_str())
+    .bind(&records)
+    .bind(&traces)
+    .bind(granted_up_to)
+    .execute(&mut *connection)
+    .await?;
     Ok(())
 }
 
@@ -181,7 +295,7 @@ pub async fn collect_records(
         let epoch: Option<i64> = sqlx::query_scalar(
             "INSERT INTO raw_collections (project_id, raw_id, pending_epoch, decided_at)
              SELECT $1, $2, (SELECT epoch FROM raw_arbiter WHERE project_id = $1), $3
-             WHERE NOT EXISTS (SELECT 1 FROM raw_owners  WHERE project_id = $1 AND raw_id = $2)
+             WHERE NOT EXISTS (SELECT 1 FROM raw_owners  WHERE project_id = $1 AND record_key = $4)
                AND NOT EXISTS (SELECT 1 FROM raw_writers WHERE project_id = $1 AND raw_id = $2)
                AND NOT EXISTS (SELECT 1 FROM project_holds WHERE project_id = $1 AND hold_until >= $3)
              ON CONFLICT (project_id, raw_id) DO UPDATE
@@ -192,6 +306,7 @@ pub async fn collect_records(
         .bind(project_id.as_str())
         .bind(raw_id)
         .bind(now.timestamp_micros())
+        .bind(raw_record_key(raw_id))
         .fetch_optional(&mut *connection)
         .await?;
         if let Some(epoch) = epoch {

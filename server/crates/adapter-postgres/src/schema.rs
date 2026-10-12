@@ -521,16 +521,22 @@ CREATE TABLE IF NOT EXISTS staged_payload_anomalies (
 -- =============================================================================
 
 -- Durable owners: the traces whose committed rows name the record. Granted by the confirm fence after the
--- rows commit; taken away by the journalled deletion transactions and by the retention sweep that removes
--- the rows. Small on purpose: one row per record and trace.
+-- rows commit; taken away by the journalled deletion transactions and by the retention release once the rows
+-- are gone. Small on purpose: one row per record and trace, the record keyed by `raw_record_key` (the leading
+-- eight bytes of its BLAKE3 id - a collision only merges two records' ownership, which keeps both) and the trace
+-- by its id's own bytes (`raw_trace_key`) - exact, because a trace collision would let one trace's deletion
+-- release another's ownership.
 CREATE TABLE IF NOT EXISTS raw_owners (
     project_id TEXT NOT NULL,
-    raw_id     TEXT NOT NULL,
-    trace_id   TEXT NOT NULL,
-    PRIMARY KEY (project_id, raw_id, trace_id)
+    record_key BIGINT NOT NULL,
+    trace_key  BYTEA NOT NULL,
+    -- The project grant sequence of the latest confirm that granted this owner: a retention release decided on
+    -- an analytics read only takes grants stamped at or below the sequence it read first.
+    grant_seq  BIGINT NOT NULL,
+    PRIMARY KEY (project_id, record_key, trace_key)
 );
 -- The deletion and retention release paths select by trace.
-CREATE INDEX IF NOT EXISTS idx_raw_owners_trace ON raw_owners(project_id, trace_id);
+CREATE INDEX IF NOT EXISTS idx_raw_owners_trace ON raw_owners(project_id, trace_key);
 
 -- Pending writers by record: created with the staged payload's registration, released when it settles, by
 -- whichever execution settles it. The collection decision refuses a record any row here names.
@@ -547,7 +553,9 @@ CREATE INDEX IF NOT EXISTS idx_raw_writers_record ON raw_writers(project_id, raw
 -- serializes a grant against a decision under PostgreSQL's concurrent writers.
 CREATE TABLE IF NOT EXISTS raw_arbiter (
     project_id TEXT PRIMARY KEY,
-    epoch      BIGINT NOT NULL DEFAULT 0 CHECK(epoch >= 0)
+    epoch      BIGINT NOT NULL DEFAULT 0 CHECK(epoch >= 0),
+    -- Bumped by every confirm, which stamps the owners it grants with the new value.
+    grant_seq  BIGINT NOT NULL DEFAULT 0 CHECK(grant_seq >= 0)
 );
 
 -- Each collected record's collection state; a record never collected has no row. `pending_epoch` is a decision

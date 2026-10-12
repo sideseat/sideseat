@@ -72,14 +72,16 @@ fn identities(request: &ExportTraceServiceRequest) -> Vec<(String, String)> {
         .collect()
 }
 
-async fn covered(
-    analytics: &(dyn AnalyticsRepository + Send + Sync),
-    request: &ExportTraceServiceRequest,
-) -> usize {
-    crate::raw_coverage::covered(analytics, &ProjectId::from("default"), &identities(request))
-        .await
-        .expect("coverage")
-        .len()
+async fn covered(pipeline: &TracePipeline, request: &ExportTraceServiceRequest) -> usize {
+    crate::raw_coverage::covered(
+        pipeline.analytics.as_ref(),
+        pipeline.file_service.database().as_ref(),
+        &ProjectId::from("default"),
+        &identities(request),
+    )
+    .await
+    .expect("coverage")
+    .len()
 }
 
 /// Lose every record under the rows that name it: what no port does - the reconciler deletes only a record no
@@ -108,7 +110,7 @@ async fn a_reencoded_exact_redelivery_is_covered_by_the_record_it_matches() {
         IngestOutcome::Stored
     );
 
-    assert_eq!(covered(analytics.as_ref(), &request).await, 3);
+    assert_eq!(covered(&pipeline, &request).await, 3);
     let records = analytics
         .raw_records_page(&ProjectId::from("default"), None, 64)
         .await
@@ -146,8 +148,8 @@ async fn a_batched_reencoded_exact_redelivery_keeps_no_second_copy() {
         2,
         "the first export's record and the fresh one's, and nothing for the redelivery"
     );
-    assert_eq!(covered(analytics.as_ref(), &stored).await, 3);
-    assert_eq!(covered(analytics.as_ref(), &fresh).await, 3);
+    assert_eq!(covered(&pipeline, &stored).await, 3);
+    assert_eq!(covered(&pipeline, &fresh).await, 3);
 }
 
 /// A record that no longer decodes is superseded by the next delivery of the same body, instead of standing
@@ -171,14 +173,14 @@ async fn an_unreadable_record_is_superseded_by_a_redelivery() {
         .append_raw_records(std::slice::from_ref(&corrupt))
         .await
         .expect("corrupt the latest version");
-    assert_eq!(covered(analytics.as_ref(), &request).await, 0);
+    assert_eq!(covered(&pipeline, &request).await, 0);
 
     assert_eq!(
         pipeline.ingest_now(&request, &received).await,
         IngestOutcome::Stored
     );
     assert_eq!(
-        covered(analytics.as_ref(), &request).await,
+        covered(&pipeline, &request).await,
         3,
         "a readable version holds the export again"
     );
@@ -188,21 +190,17 @@ async fn an_unreadable_record_is_superseded_by_a_redelivery() {
 /// is not skipped as a redelivery while its authority is missing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rows_without_their_record_are_written_again() {
-    let (_temp, duckdb, analytics, _database, pipeline) = pipeline_over_a_temp_duckdb(false).await;
+    let (_temp, duckdb, _analytics, _database, pipeline) = pipeline_over_a_temp_duckdb(false).await;
     let request = export();
     pipeline.ingest_now(&request, &protobuf(&request)).await;
     lose_records(&duckdb);
-    assert_eq!(covered(analytics.as_ref(), &request).await, 0);
+    assert_eq!(covered(&pipeline, &request).await, 0);
 
     assert_eq!(
         pipeline.ingest_now(&request, &protobuf(&request)).await,
         IngestOutcome::Stored
     );
-    assert_eq!(
-        covered(analytics.as_ref(), &request).await,
-        3,
-        "the record is back"
-    );
+    assert_eq!(covered(&pipeline, &request).await, 3, "the record is back");
 }
 
 /// A staged export whose rows are in place but whose record is not is pending, not confirmed.
@@ -298,22 +296,6 @@ async fn an_in_doubt_write_keeps_its_records_out_of_collection() {
         .map(|entry| entry.raw_id)
         .collect();
     assert_eq!(queued, vec!["settled-record".to_string()]);
-}
-
-/// A record the reconciler restores is indexed under the traces it holds again: reads return no trace ids, and
-/// appended as read it was indexed under none, so a later deletion of one of its traces could not find it.
-#[test]
-fn a_restored_record_is_indexed_under_its_traces() {
-    let mut request = export();
-    request.resource_spans[0].scope_spans[0].spans[1].trace_id = vec![22; 16];
-    let restored =
-        super::raw_lifecycle::restored_version(&record_of("default", "restored", &request), 0)
-            .expect("restored");
-    assert_eq!(restored.version, 2);
-    assert_eq!(
-        restored.trace_ids,
-        vec![hex::encode([21u8; 16]), hex::encode([22u8; 16])]
-    );
 }
 
 /// Two revisions of the same spans in one batch, the earlier first: each is settled after its own wave, so the

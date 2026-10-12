@@ -55,7 +55,7 @@
   "projects": 12288,
   "raw_arbiter": 8192,
   "raw_collections": 12288,
-  "raw_owners": 8192,
+  "raw_owners": 442368,
   "raw_writers": 12288,
   "retention_cleanup": 12288,
   "schema_version": 4096,

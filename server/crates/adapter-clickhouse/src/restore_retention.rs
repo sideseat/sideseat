@@ -67,6 +67,11 @@ impl ClickhouseService {
                         - chrono::Duration::minutes(
                             i64::try_from(max_age_minutes).unwrap_or(i64::MAX),
                         );
+                    // The intent first, as the periodic pass records it: the files and raw-record ownership of
+                    // the traces this delete takes are released by the cleanup that follows.
+                    self.record_age_expiry(&project_id, cutoff, now, database.as_ref())
+                        .await
+                        .map_err(ClickhouseError::Connection)?;
                     retention::run_retention(
                         &self.tenant_client(&project_id),
                         &spans_table,

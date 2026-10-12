@@ -51,18 +51,6 @@ impl RawStore for DuckdbRepository {
         .await
     }
 
-    async fn delete_unnamed_raw_records(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError> {
-        let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
-        run(&self.0, move |conn| {
-            raw::delete_unnamed(conn, &project_id, &raw_ids)
-        })
-        .await
-    }
-
     async fn append_raw_rewrites(
         &self,
         records: &[RawRecordRow],
@@ -81,15 +69,6 @@ impl RawStore for DuckdbRepository {
             raw::span_raw_ids(conn, &project_id, &spans)
         })
         .await
-    }
-
-    async fn raw_records_named(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError> {
-        let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
-        run(&self.0, move |conn| raw::named(conn, &project_id, &raw_ids)).await
     }
 
     async fn enqueue_raw_records(
@@ -141,14 +120,26 @@ impl RawStore for DuckdbRepository {
         .await
     }
 
-    async fn spans_naming_raw_record(
+    async fn raw_records_named_in_traces(
         &self,
         project_id: &ProjectId,
-        raw_id: &str,
-    ) -> Result<Vec<(String, String)>, DataError> {
-        let (project_id, raw_id) = (project_id.clone(), raw_id.to_string());
+        trace_ids: &[String],
+    ) -> Result<std::collections::HashSet<(String, String)>, DataError> {
+        let (project_id, trace_ids) = (project_id.clone(), trace_ids.to_vec());
         run(&self.0, move |conn| {
-            raw::spans_naming(conn, &project_id, &raw_id)
+            raw::named_in_traces(conn, &project_id, &trace_ids)
+        })
+        .await
+    }
+
+    async fn raw_records_indexed_under_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        let (project_id, trace_ids) = (project_id.clone(), trace_ids.to_vec());
+        run(&self.0, move |conn| {
+            raw::indexed_under_traces(conn, &project_id, &trace_ids)
         })
         .await
     }

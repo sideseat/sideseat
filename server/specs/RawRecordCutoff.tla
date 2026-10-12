@@ -10,10 +10,12 @@
 (* Only what the mapping turns on is kept: a staged payload per record,    *)
 (* registered as its pending writer until it settles, and an execution of  *)
 (* it that reads the epoch, lands a version keyed under it and confirms     *)
-(* through the fence (re-keying above the epoch when refused) - an          *)
-(* execution that can outlive its payload's settlement, as a redriven       *)
-(* duplicate does; ownership released; the collection decision; purges that *)
-(* may run late, as takeovers do; and the drop into the high-water mark.     *)
+(* through the fence - granted only above the record's cutoff and while no  *)
+(* decision on it is pending; refused, the batch fails and a redelivery     *)
+(* reads the epoch afresh - an execution that can outlive its payload's     *)
+(* settlement, as a redriven duplicate does; ownership released; the        *)
+(* collection decision; purges that may run late, as takeovers do; and the  *)
+(* drop into the high-water mark.                                           *)
 (* `PerRecord` FALSE gives every record the project-wide cutoff - the       *)
 (* greatest decision on any record - and breaks `OwnedVisible`: collecting  *)
 (* one record hides the other's owned version. Removing the fence from      *)
@@ -90,17 +92,16 @@ Land(r) ==
     /\ wpc' = [wpc EXCEPT ![r] = "confirm"]
     /\ UNCHANGED <<epoch, owned, reg, wep, pending, hw, purges>>
 
-\* The fence: granted only above the cutoff; refused, the writer re-keys a version at the current epoch.
+\* The fence: granted only above the cutoff and with no decision pending; refused, the batch fails and the
+\* payload is delivered again - the execution starts over from reading the epoch, writing its rows anew.
 Confirm(r) ==
     /\ wpc[r] = "confirm"
-    /\ IF wep[r] > Cutoff(r)
+    /\ IF wep[r] > Cutoff(r) /\ pending[r] = None
          THEN /\ owned' = [owned EXCEPT ![r] = TRUE]
               /\ wpc' = [wpc EXCEPT ![r] = "done"]
-              /\ UNCHANGED <<store, wep>>
-         ELSE /\ store' = [store EXCEPT ![r] = @ \cup {epoch}]
-              /\ wep' = [wep EXCEPT ![r] = epoch]
-              /\ UNCHANGED <<owned, wpc>>
-    /\ UNCHANGED <<epoch, reg, pending, hw, purges>>
+         ELSE /\ wpc' = [wpc EXCEPT ![r] = "idle"]
+              /\ UNCHANGED owned
+    /\ UNCHANGED <<epoch, store, reg, wep, pending, hw, purges>>
 
 Release(r) ==
     /\ owned[r]

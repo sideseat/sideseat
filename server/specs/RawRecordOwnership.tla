@@ -4,12 +4,10 @@
 (* derived from - under redelivery, deletion, retention, legal hold, backup *)
 (* and restore, with its ownership arbitrated in the transactional store.   *)
 (*                                                                         *)
-(* This is the contract the implementation is being brought to. Today's     *)
-(* reconciliation still decides who names a record from the analytics       *)
-(* store's own rows, which on ClickHouse is the read-then-delete race this  *)
-(* protocol replaces; the ownership registry, the epoch, and the collection *)
-(* decisions below are the design for that replacement, not a description   *)
-(* of code that already exists.                                             *)
+(* The contract the implementation follows: the ownership registry, the    *)
+(* epoch, the collection decisions and the row epochs below are the raw     *)
+(* arbiter's tables and the fences on them (`docs/engineering/              *)
+(* compact-storage.md`).                                                    *)
 (*                                                                         *)
 (* The model has one record. Across many, the epoch is one per-project     *)
 (* sequence - bumped by every decision on any record, so no stale writer    *)
@@ -29,22 +27,28 @@
 (*   - an ingest registers its staged payload as a pending writer; the      *)
 (*     registration is the staged row, created once, and settlement retires *)
 (*     it forever, by whichever execution settles it;                       *)
-(*   - once its rows commit, their spans own the record durably - but the   *)
-(*     confirm statement grants ownership only when the version it would    *)
-(*     rest on is numbered above every collection decision, pending or      *)
-(*     completed. The decisions and their high-water mark live in the same  *)
+(*   - every row records the epoch its writer read before storing the       *)
+(*     record (`rowEp`). Once its rows commit, their spans own the record   *)
+(*     durably - but the confirm statement grants ownership only when that  *)
+(*     epoch is above every collection decision, completed, and no decision *)
+(*     is pending. The decisions and their high-water mark live in the same *)
 (*     store as the grant, so the fence is one transaction: a granted       *)
-(*     owner's version is above every decided epoch, and no purge - which   *)
-(*     is always bounded by a decided epoch - can ever reach it. An         *)
-(*     execution refused by the fence re-keys its version above the         *)
-(*     high-water mark and confirms again;                                  *)
+(*     owner's rows are above every decided epoch, and no purge - bounded   *)
+(*     by a decided epoch - can ever reach the version they rest on. An     *)
+(*     execution refused by the fence fails its batch and is delivered      *)
+(*     again, reading the epoch and writing its rows anew;                  *)
 (*   - a deletion takes ownership away in the transaction that journals it, *)
 (*     the retention sweep in the one that removes the rows;                *)
 (*   - a collection is one transactional decision: no owner, no pending     *)
 (*     writer, no staged rewrite, no hold. It records the collection at the *)
 (*     project's epoch and bumps the epoch; the purge then deletes the      *)
 (*     versions numbered at or below it, and readers ignore them until the  *)
-(*     decision is dropped.                                                 *)
+(*     decision is dropped. It never looks at who owns what: the epoch is   *)
+(*     the fencing token, so a purge that runs late - after a takeover      *)
+(*     purged, dropped, and a redelivery claimed the record again - cannot  *)
+(*     touch what the new owner rests on. No collection removes a row: rows *)
+(*     naming a collected record are those of writes never acknowledged,    *)
+(*     and they go with their span's retention or deletion.                *)
 (*                                                                         *)
 (* Deleted content is removed in two steps. A rewrite - the latest record   *)
 (* without the deleted spans - is staged and written as a redelivery is,    *)
@@ -82,26 +86,27 @@
 (* it, so the stale-epoch landing exists there too and the same fence       *)
 (* covers it.                                                               *)
 (*                                                                         *)
-(* Checked instances (distinct states; wall time on a loaded 10-core        *)
-(* M-series laptop, two checks sharing it):                                  *)
-(*   RawRecordOwnership.cfg     1,417,568    37s                             *)
-(*   RawRecordTakeover.cfg     10,631,599  4m19s                             *)
-(*   RawRecordReconcilers.cfg  15,589,306  8m03s                             *)
-(*   RawRecordRestore.cfg       2,622,898    16s                             *)
+(* Checked instances (distinct states; wall time with 8 workers on a        *)
+(* 10-core M-series laptop):                                                *)
+(*   RawRecordOwnership.cfg     1,417,220    32s                             *)
+(*   RawRecordTakeover.cfg      6,198,250  2m18s                             *)
+(*   RawRecordReconcilers.cfg  23,249,414 23m16s                             *)
+(*   RawRecordRestore.cfg       2,672,937    24s                             *)
 (* Mutations, on RawRecordTakeover.cfg's constants: Epochs = FALSE breaks    *)
 (* NoLatestLost; the fence removed from Confirm (grant always) breaks       *)
-(* Covered; NeverResurrected added to INVARIANTS is violated in seconds, so  *)
-(* the stale landing the reclaim machinery is about is reachable.           *)
+(* OwnedRowsAboveDecisions in seconds - the other invariants then hold, as  *)
+(* the check repairs above every decision before the payload settles and    *)
+(* no collection removes a row; NeverResurrected added to INVARIANTS is     *)
+(* violated in seconds, so the stale landing the reclaim machinery is about *)
+(* is reachable.                                                            *)
 (*                                                                         *)
 (* The landing horizon is a privacy-time bound, not a correctness           *)
 (* dependency: with FencedLanding = FALSE - landings allowed after the      *)
-(* clear, as when the backend's clock-skew margin is exceeded - Covered,    *)
-(* NoLatestLost, HeldIntact and NoResurrectedRead still hold (checked on    *)
-(* the Takeover constants, 10,690,285 states, and on a one-span hold        *)
-(* variant of them, 3,315,907 states), because readers are gated by         *)
-(* ownership and the high-water mark, never by the queue. What degrades is  *)
-(* Private and OwnersCoverRows: a landing that beats the horizon can leave  *)
-(* reader-invisible bytes, or an unowned row, that persist until the        *)
+(* clear, as when the backend's clock-skew margin is exceeded - every other *)
+(* invariant of RawRecordTakeover.cfg still holds (6,254,690 states),       *)
+(* because readers are gated by ownership and the high-water mark, never by *)
+(* the queue. What degrades is Private and Collected: a landing that beats  *)
+(* the horizon can leave reader-invisible bytes that persist until the      *)
 (* record is next touched or its retention expires, instead of one pass.    *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, TLC
@@ -123,6 +128,7 @@ ASSUME FencedLanding \in BOOLEAN
 
 VARIABLES
     rows,      \* spans that currently have a row naming the record
+    rowEp,     \* rowEp[s]: the greatest epoch a row of s naming the record was written under
     store,     \* every stored version: [ep, ver, seq, content]
     seq,       \* insertion order, the tie-break between equal versions
     tomb,      \* spans removed by a deletion: journalled, shrinks only when a restore rolls the journal back
@@ -147,12 +153,13 @@ VARIABLES
     aepoch,    \* the project epoch: one transactional sequence, bumped by every collection decision
     acoll,     \* collections decided and not yet dropped: the epochs they were decided at
     everColl,  \* every epoch a collection was decided at; its maximum is the stored high-water mark
-    latestLost \* ghost: a purge deleted the latest version of a record its rows own
+    latestLost, \* ghost: a purge deleted the latest version of a record its rows own
+    acked      \* ghost: spans whose rows a settled - acknowledged - ingest wrote, while those rows remain
 
-vars == <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
+vars == <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
           ipc, ikept, iwritten, isnap, wpc, wsnap, rpc, rrec, rhad, rclaim, rdec,
           backup, later, overtaken, aown, apend, aret, rwpend, rwcontent, rwid, aepoch, acoll, everColl,
-          latestLost>>
+          latestLost, acked>>
 
 Version == [ep : Nat, ver : 0..MaxVer + 2, seq : Nat, content : SUBSET Spans]
 
@@ -181,7 +188,7 @@ LatestOr == IF Present THEN Latest ELSE NoVersion
 
 \* A finished or dead process keeps no snapshot: every field below is freshly written before it is next read,
 \* and resetting it collapses states that differ only in a dead process's memory.
-ZeroSnap == [present |-> FALSE, latest |-> NoVersion, ep |-> 0, vep |-> 0]
+ZeroSnap == [present |-> FALSE, latest |-> NoVersion, ep |-> 0]
 
 \* A key above `v`, in an epoch no earlier than `e`: the next version of the same epoch, or the first of a later one.
 Above(v, e, step) == IF v.ep >= e THEN [ep |-> v.ep, ver |-> v.ver + step] ELSE [ep |-> e, ver |-> 1]
@@ -206,7 +213,8 @@ TypeOK ==
     /\ hold \in BOOLEAN
     /\ queued \in BOOLEAN
     /\ rclaim \in [Reconcilers -> BOOLEAN]
-    /\ ipc \in [Ingests -> {"fence", "register", "insert", "look", "land", "write", "confirm", "rekey",
+    /\ rowEp \in [Spans -> Nat]
+    /\ ipc \in [Ingests -> {"fence", "register", "insert", "look", "land", "write", "confirm",
                             "check", "repair", "settle", "done"}]
     /\ wpc \in [Rewriters -> {"idle", "append", "settle"}]
     /\ rpc \in [Reconcilers -> {"idle", "act", "purge", "drop", "recheck", "clear"}]
@@ -214,6 +222,7 @@ TypeOK ==
 
 Init ==
     /\ rows = {}
+    /\ rowEp = [s \in Spans |-> 0]
     /\ store = {}
     /\ seq = 0
     /\ tomb = {}
@@ -247,6 +256,7 @@ Init ==
     /\ acoll = {}
     /\ everColl = {}
     /\ latestLost = FALSE
+    /\ acked = {}
 
 ivars == <<ipc, ikept, iwritten, isnap>>
 wvars == <<wpc, wsnap>>
@@ -272,9 +282,9 @@ Fence(i) ==
               /\ ipc' = [ipc EXCEPT ![i] = "done"]
          ELSE /\ ipc' = [ipc EXCEPT ![i] = "register"]
               /\ UNCHANGED <<apend, aret>>
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
                    wvars, rvars, backup, later, overtaken, aown, rwpend, rwcontent, rwid, aepoch, acoll,
-                   everColl, latestLost>>
+                   everColl, latestLost, acked>>
 
 \* Never refused: a collection decided before it stays decided, and the confirm fence keeps this payload's
 \* versions above it. Registering a token another execution of the payload already holds changes nothing - the
@@ -284,9 +294,9 @@ Register(i) ==
     /\ ipc[i] = "register"
     /\ apend' = apend \cup ({Token(i)} \ aret)
     /\ ipc' = [ipc EXCEPT ![i] = "insert"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ikept,
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ikept,
                    iwritten, isnap, wvars, rvars, backup, later, overtaken, aown, aret, rwpend, rwcontent, rwid,
-                   aepoch, acoll, everColl, latestLost>>
+                   aepoch, acoll, everColl, latestLost, acked>>
 
 \* The epoch is read from the transactional store before any analytics write, on either backend, so the number
 \* a version lands under can be stale by the time it lands. The confirm fence is what makes that safe.
@@ -294,36 +304,36 @@ Insert(i) ==
     /\ ipc[i] = "insert"
     /\ isnap' = [isnap EXCEPT ![i].ep = aepoch]
     /\ ipc' = [ipc EXCEPT ![i] = "look"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ikept,
-                   iwritten, wvars, rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ikept,
+                   iwritten, wvars, rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 \* Insert-if-absent. With AtomicWrites the look and the write are one analytics transaction; without it the
-\* look is taken first and the write lands later on its strength (Land). `vep` is the epoch of the version this
-\* execution's ownership would rest on: the one it wrote, or the latest it observed.
+\* look is taken first and the write lands later on its strength (Land). Ownership rests on the rows' epoch,
+\* not on which version the look found: a version it skipped as present may be collected meanwhile, which the
+\* check after the grant repairs above every decision.
 \*
 \* Every version lands with a queue entry: in one transaction with it where the backend has one (DuckDB), and
 \* written before it where it does not (ClickHouse: the look enqueues, the delayed write carries nothing). An
 \* entry whose write never lands settles trivially; an entry consumed before the delayed write lands leaves the
 \* landing coverable only by the maintenance scan, which finds it through its version key. A pass that collects
-\* a record out from under a writer still confirming is safe: the confirm fence refuses the doomed version and
-\* the writer re-keys above the decision.
+\* a record out from under a writer still confirming is safe: the confirm fence refuses rows written under the
+\* decision, and the writer is delivered again.
 Look(i) ==
     /\ ipc[i] = "look"
     /\ IF AtomicWrites
          THEN /\ IF Present
-                   THEN /\ isnap' = [isnap EXCEPT ![i].vep = Latest.ep]
-                        /\ UNCHANGED <<store, seq, queued>>
+                   THEN UNCHANGED <<store, seq, queued>>
                    ELSE /\ \E v \in {1, MaxVer} :
                              Append([ep |-> IF Epochs THEN isnap[i].ep ELSE 0, ver |-> v], ikept[i])
-                        /\ isnap' = [isnap EXCEPT ![i].vep = IF Epochs THEN isnap[i].ep ELSE 0]
                         /\ Enqueue
+              /\ UNCHANGED isnap
               /\ ipc' = [ipc EXCEPT ![i] = "write"]
          ELSE /\ isnap' = [isnap EXCEPT ![i].present = Present, ![i].latest = LatestOr]
               /\ IF Present THEN UNCHANGED queued ELSE Enqueue
               /\ UNCHANGED <<store, seq>>
               /\ ipc' = [ipc EXCEPT ![i] = "land"]
-    /\ UNCHANGED <<rows, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
-                   wvars, rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
+                   wvars, rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 \* The entry for this delayed write was enqueued at the look, before it - a version can never land without an
 \* entry having existed first - and the write itself carries none: on this backend the two tables share no
@@ -336,29 +346,44 @@ Look(i) ==
 Land(i) ==
     /\ ipc[i] = "land"
     /\ IF isnap[i].present
-         THEN /\ isnap' = [isnap EXCEPT ![i].vep = isnap[i].latest.ep]
-              /\ UNCHANGED <<store, seq>>
-         ELSE /\ \E v \in {1, MaxVer} :
-                   Append([ep |-> IF Epochs THEN isnap[i].ep ELSE 0, ver |-> v], ikept[i])
-              /\ isnap' = [isnap EXCEPT ![i].vep = IF Epochs THEN isnap[i].ep ELSE 0]
-    /\ UNCHANGED queued
+         THEN UNCHANGED <<store, seq>>
+         ELSE \E v \in {1, MaxVer} :
+                  Append([ep |-> IF Epochs THEN isnap[i].ep ELSE 0, ver |-> v], ikept[i])
+    /\ UNCHANGED <<queued, isnap>>
     /\ ipc' = [ipc EXCEPT ![i] = "write"]
-    /\ UNCHANGED <<rows, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
-                   wvars, rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
+                   wvars, rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 Overtakes(spans) == ~ReceiptPrecedence /\ spans \cap later # {}
+
+\* The epoch an execution's rows carry - the one it read before storing the record - and what its claim rests on.
+RowEpoch(i) == IF Epochs THEN isnap[i].ep ELSE 0
+
+\* Rows of `spans` written under epoch `e`: a span keeps the greatest epoch any of its rows naming the record was
+\* written under - a removal bounded by an epoch takes a revision at or below it and leaves one above.
+WithRows(spans, e) == [s \in Spans |-> IF s \in spans
+                                         THEN IF s \in rows /\ rowEp[s] > e THEN rowEp[s] ELSE e
+                                         ELSE rowEp[s]]
+
+\* The row epochs of the spans `kept` still has rows for; a span without a row keeps none, so states that differ
+\* only in the epoch of a row that is gone are one state.
+KeepEp(kept) == [s \in Spans |-> IF s \in kept THEN rowEp[s] ELSE 0]
+
+\* No decision is pending and the epoch is above every completed one: the confirm fence's grant condition.
+Grantable(e) == acoll = {} /\ ~Doomed(e)
 
 \* The rows land, and the batch's commit carries a queue entry for the record - rows, like versions, can never
 \* exist unqueued, so what a writer that dies right here left behind is found by the pass.
 Write(i) ==
     /\ ipc[i] = "write"
     /\ rows' = rows \cup ikept[i]
+    /\ rowEp' = WithRows(ikept[i], RowEpoch(i))
     /\ overtaken' = (overtaken \/ Overtakes(ikept[i]))
     /\ iwritten' = [iwritten EXCEPT ![i] = ikept[i]]
     /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "confirm"]
     /\ UNCHANGED <<store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, isnap,
-                   wvars, rvars, backup, later, avars, latestLost>>
+                   wvars, rvars, backup, later, avars, latestLost, acked>>
 
 \* The span write fails, whether or not its rows landed - the caller cannot tell. What landed owns the record,
 \* through the same fence a confirm passes; the payload keeps its registration and is delivered again from the
@@ -367,13 +392,14 @@ Fail(i) ==
     /\ ipc[i] = "write"
     /\ \E landed \in {{}, ikept[i]} :
         /\ rows' = rows \cup landed
+        /\ rowEp' = WithRows(landed, RowEpoch(i))
         /\ overtaken' = (overtaken \/ Overtakes(landed))
-        /\ aown' = aown \cup (IF Doomed(isnap[i].vep) THEN {} ELSE landed \ tomb)
+        /\ aown' = aown \cup (IF Grantable(RowEpoch(i)) THEN landed \ tomb ELSE {})
     /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "fence"]
     /\ UNCHANGED <<store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten, isnap,
                    wvars, rvars, backup, later, apend, aret, rwpend, rwcontent, rwid, aepoch, acoll, everColl,
-                   latestLost>>
+                   latestLost, acked>>
 
 \* The rows committed: their spans own the record, durably - except those a deletion took meanwhile, which the
 \* statement leaves out against the deletion journal it shares a store with. An expired span is owned all the
@@ -381,33 +407,21 @@ Fail(i) ==
 \* span owned again after its rows were swept and retention grew is the raw record outliving a cache eviction:
 \* the row is re-derivable from the record, and the span re-expires when its age passes the deadline again.)
 \*
-\* The fence: no grant on a doomed version. The decisions and the high-water mark are rows beside the owners,
-\* so the test and the grant are one transaction, and a granted owner's version is above every epoch any purge
-\* is bounded by. A refused execution re-keys first.
+\* The fence: no grant on rows written under a decided epoch, and none while a decision is pending. The
+\* decisions and the high-water mark are rows beside the owners, so the test and the grant are one transaction,
+\* and a granted owner's rows are above every epoch any purge or removal is bounded by. A refused execution was
+\* overtaken by a collection whose removal may have taken its rows: it fails its batch and starts again from the
+\* fences - a redelivery, which reads the epoch afresh and writes its rows under it.
 Confirm(i) ==
     /\ ipc[i] = "confirm"
-    /\ IF Doomed(isnap[i].vep)
-         THEN /\ ipc' = [ipc EXCEPT ![i] = "rekey"]
-              /\ UNCHANGED aown
-         ELSE /\ aown' = aown \cup (iwritten[i] \ tomb)
+    /\ IF Grantable(RowEpoch(i))
+         THEN /\ aown' = aown \cup (iwritten[i] \ tomb)
               /\ ipc' = [ipc EXCEPT ![i] = "check"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ikept,
+         ELSE /\ ipc' = [ipc EXCEPT ![i] = "fence"]
+              /\ UNCHANGED aown
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ikept,
                    iwritten, isnap, wvars, rvars, backup, later, overtaken, apend, aret, rwpend, rwcontent,
-                   rwid, aepoch, acoll, everColl, latestLost>>
-
-\* The refused execution writes its content again above the high-water mark it was refused against, queues the
-\* record, and confirms anew. The look inside this write is as stale as any (the epoch safety never rests on
-\* it); the fresh epoch comes from the refusing transaction, which a later decision can only exceed.
-Rekey(i) ==
-    /\ ipc[i] = "rekey"
-    /\ LET key == Above(LatestOr, IF Epochs THEN aepoch ELSE 0, 2) IN
-         /\ key.ver <= MaxVer + 2
-         /\ Append(key, LatestContent \cup ikept[i])
-         /\ isnap' = [isnap EXCEPT ![i].vep = key.ep]
-    /\ Enqueue
-    /\ ipc' = [ipc EXCEPT ![i] = "confirm"]
-    /\ UNCHANGED <<rows, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
-                   wvars, rvars, backup, later, overtaken, avars, latestLost>>
+                   rwid, aepoch, acoll, everColl, latestLost, acked>>
 
 \* The check, after the rows own the record: no collection can be decided from here on - the spans are owned -
 \* so a repair it writes stays. The look is taken first; with AtomicWrites the repair is written in the same
@@ -430,8 +444,8 @@ Check(i) ==
                      /\ ipc' = [ipc EXCEPT ![i] = "settle"]
                 ELSE /\ ipc' = [ipc EXCEPT ![i] = "repair"]
                      /\ UNCHANGED <<store, seq, queued>>
-    /\ UNCHANGED <<rows, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
-                   wvars, rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten,
+                   wvars, rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 \* Without AtomicWrites, the repair lands on the strength of the look: above the latest it saw, in the epoch it
 \* read, whatever was written since. Its epoch safety comes from ownership - the spans are owned, so no new
@@ -444,8 +458,8 @@ Repair(i) ==
          /\ Append(key, isnap[i].latest.content \cup ikept[i])
     /\ Enqueue
     /\ ipc' = [ipc EXCEPT ![i] = "settle"]
-    /\ UNCHANGED <<rows, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten, isnap,
-                   wvars, rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, tomb, expired, hold, heldOnce, unexOnce, frozen, ikept, iwritten, isnap,
+                   wvars, rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 \* The payload settles; its registration is retired and never recreated - which deletes the staged copy, so an
 \* execution that dies after this point has nothing left to re-run it.
@@ -457,7 +471,9 @@ Settle(i) ==
     /\ ikept' = [ikept EXCEPT ![i] = {}]
     /\ iwritten' = [iwritten EXCEPT ![i] = {}]
     /\ isnap' = [isnap EXCEPT ![i] = ZeroSnap]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
+    \* Acknowledged: the rows it wrote that are still there and owned - a sweep that took them first left nothing.
+    /\ acked' = acked \cup (iwritten[i] \cap rows \cap aown)
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
                    wvars, rvars, backup, later, overtaken, aown, rwpend, rwcontent, rwid,
                    aepoch, acoll, everColl, latestLost>>
 
@@ -474,8 +490,8 @@ IDie(i) ==
     /\ ikept' = [ikept EXCEPT ![i] = {}]
     /\ iwritten' = [iwritten EXCEPT ![i] = {}]
     /\ isnap' = [isnap EXCEPT ![i] = ZeroSnap]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
-                   wvars, rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued,
+                   wvars, rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 ----------------------------------------------------------------------------
 (* The rewrite: the latest record without the deleted spans, staged by a    *)
@@ -488,8 +504,8 @@ RewriteLook(w) ==
     /\ wsnap' = [wsnap EXCEPT ![w] = [key |-> Above(LatestOr, IF Epochs THEN aepoch ELSE 0, 1),
                                       content |-> rwcontent, id |-> rwid]]
     /\ wpc' = [wpc EXCEPT ![w] = "append"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars, rvars,
-                   backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars, rvars,
+                   backup, later, overtaken, avars, latestLost, acked>>
 
 \* Lands on the strength of the look - with AtomicWrites in the same step as a fresh one. Queued.
 RewriteAppend(w) ==
@@ -499,8 +515,8 @@ RewriteAppend(w) ==
          /\ Append(key, wsnap[w].content)
     /\ Enqueue
     /\ wpc' = [wpc EXCEPT ![w] = "settle"]
-    /\ UNCHANGED <<rows, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wsnap, rvars,
-                   backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wsnap, rvars,
+                   backup, later, overtaken, avars, latestLost, acked>>
 
 \* Settles the staging it read - a later staging of another rewrite stays pending.
 RewriteSettle(w) ==
@@ -508,9 +524,9 @@ RewriteSettle(w) ==
     /\ rwpend' = (rwpend /\ rwid # wsnap[w].id)
     /\ wpc' = [wpc EXCEPT ![w] = "idle"]
     /\ wsnap' = [wsnap EXCEPT ![w] = [key |-> [ep |-> 0, ver |-> 0], content |-> {}, id |-> 0]]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
                    rvars, backup, later, overtaken, aown, apend, aret, rwcontent, rwid, aepoch, acoll,
-                   everColl, latestLost>>
+                   everColl, latestLost, acked>>
 
 ----------------------------------------------------------------------------
 (* Deletion, the tombstone sweep, retention and holds.                     *)
@@ -523,7 +539,9 @@ Delete(s) ==
     /\ rows' = rows \ {s}
     /\ later' = later \ {s}
     /\ aown' = aown \ {s}
+    /\ rowEp' = KeepEp(rows')
     /\ Enqueue
+    /\ acked' = acked \ {s}
     /\ UNCHANGED <<store, seq, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars, rvars, backup,
                    overtaken, apend, aret, rwpend, rwcontent, rwid, aepoch, acoll, everColl, latestLost>>
 
@@ -531,7 +549,9 @@ Delete(s) ==
 Sweep ==
     /\ rows \cap tomb # {}
     /\ rows' = rows \ tomb
+    /\ rowEp' = KeepEp(rows')
     /\ Enqueue
+    /\ acked' = acked \ tomb
     /\ UNCHANGED <<store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars, rvars,
                    backup, later, overtaken, avars, latestLost>>
 
@@ -540,8 +560,8 @@ Sweep ==
 ExpireMark(s) ==
     /\ s \notin expired
     /\ expired' = expired \cup {s}
-    /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, unexOnce, frozen, queued, ivars, wvars, rvars,
-                   backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, hold, heldOnce, unexOnce, frozen, queued, ivars, wvars, rvars,
+                   backup, later, overtaken, avars, latestLost, acked>>
 
 \* The project's retention is lengthened: some spans are within it again. Rows the sweep already removed stay
 \* removed; rows it had not reached are simply retained, and their spans still - or again - own the record.
@@ -549,8 +569,8 @@ Unexpire ==
     /\ ~unexOnce
     /\ unexOnce' = TRUE
     /\ \E back \in (SUBSET expired) \ {{}} : expired' = expired \ back
-    /\ UNCHANGED <<rows, store, seq, tomb, hold, heldOnce, frozen, queued, ivars, wvars, rvars, backup,
-                   later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, hold, heldOnce, frozen, queued, ivars, wvars, rvars, backup,
+                   later, overtaken, avars, latestLost, acked>>
 
 \* The retention pass: physically delete an expired span's rows and take its ownership, in the pass's own
 \* transaction, and enqueue the record. It re-fires for rows a late execution wrote again while expired.
@@ -560,6 +580,8 @@ ExpireSweep ==
         /\ rows' = rows \ {s}
         /\ later' = later \ {s}
         /\ aown' = aown \ {s}
+        /\ acked' = acked \ {s}
+    /\ rowEp' = KeepEp(rows')
     /\ Enqueue
     /\ UNCHANGED <<store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars, rvars,
                    backup, overtaken, apend, aret, rwpend, rwcontent, rwid, aepoch, acoll, everColl, latestLost>>
@@ -571,8 +593,8 @@ ExpireSweep ==
 MaintSweep ==
     /\ \E v \in store : Doomed(v.ep)
     /\ Enqueue
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
-                   rvars, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
+                   rvars, backup, later, overtaken, avars, latestLost, acked>>
 
 SetHold ==
     /\ WithHold
@@ -581,15 +603,15 @@ SetHold ==
     /\ hold' = TRUE
     /\ heldOnce' = TRUE
     /\ frozen' = [content |-> LatestContent, tomb |-> tomb \cup expired]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, unexOnce, queued, ivars, wvars, rvars, backup, later,
-                   overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, unexOnce, queued, ivars, wvars, rvars, backup, later,
+                   overtaken, avars, latestLost, acked>>
 
 ReleaseHold ==
     /\ hold
     /\ hold' = FALSE
     /\ frozen' = [content |-> {}, tomb |-> {}]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, heldOnce, unexOnce, queued, ivars, wvars, rvars,
-                   backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, heldOnce, unexOnce, queued, ivars, wvars, rvars,
+                   backup, later, overtaken, avars, latestLost, acked>>
 
 \* Another export, received after this one, writes its revision of a span: the span's winner is no longer ours.
 \* With ReceiptPrecedence the revision's instant is its receipt whatever this export writes, so `later` cannot
@@ -599,8 +621,8 @@ Supersede(s) ==
     /\ s \notin tomb
     /\ s \notin later
     /\ later' = later \cup {s}
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
-                   wvars, rvars, backup, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
+                   wvars, rvars, backup, overtaken, avars, latestLost, acked>>
 
 ----------------------------------------------------------------------------
 (* Backup and restore of the embedded stores, taken with the server stopped *)
@@ -621,9 +643,9 @@ Backup ==
     /\ backup' = [taken |-> TRUE,
                   state |-> <<rows, store, aown, apend, rwpend, rwcontent, aepoch, acoll,
                               {i \in Ingests : ipc[i] = "fence" /\ ikept[i] # {}}, rwid, aret, tomb,
-                              everColl>>]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
-                   wvars, rvars, later, overtaken, avars, latestLost>>
+                              everColl, rowEp, acked>>]
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
+                   wvars, rvars, later, overtaken, avars, latestLost, acked>>
 
 \* Both stores roll back to the one snapshot - including the deletion journal, so a deletion made after the
 \* backup is undone with everything else: the documented residual of `backup-restore.mdx`, which the operator
@@ -646,6 +668,7 @@ Restore ==
     /\ aret' = backup.state[11]
     /\ tomb' = backup.state[12]
     /\ everColl' = backup.state[13]
+    /\ rowEp' = backup.state[14]
     /\ Enqueue
     /\ rclaim' = [r \in Reconcilers |-> FALSE]
     /\ backup' = [taken |-> FALSE, state |-> <<>>]
@@ -657,6 +680,7 @@ Restore ==
                           [content |-> IF live # {} THEN LatestOf(live).content ELSE {},
                            tomb |-> backup.state[12] \cup expired]
                    ELSE frozen
+    /\ acked' = backup.state[15]
     /\ UNCHANGED <<seq, expired, hold, heldOnce, unexOnce, ikept, iwritten, isnap, wvars,
                    rpc, rrec, rhad, rdec, later, overtaken, latestLost>>
 
@@ -673,28 +697,33 @@ RRead(r) ==
     /\ rhad' = [rhad EXCEPT ![r] = Present]
     /\ rrec' = [rrec EXCEPT ![r] = LatestOr]
     /\ rpc' = [rpc EXCEPT ![r] = "act"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars,
-                   wvars, rdec, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars,
+                   wvars, rdec, backup, later, overtaken, avars, latestLost, acked>>
 
-\* - Collect: the decision is one transactional statement that finds no owner, no pending writer, no staged
-\*   rewrite and no hold.
+\* - Collect: of a record the read found, asked before anything else. The decision is one transactional statement
+\*   that finds no owner, no pending writer, no staged rewrite, no hold and no decision already pending.
 \* - Rewrite: the latest the read saw holds deleted spans; a rewrite of it is staged, unless one is.
 \* - Supersede: delete every version below the latest the read saw. On the strength of the read - a version
 \*   this purge deletes was below a version that existed - and bounded by it, so it never reaches the latest
 \*   the readers see now unless that latest is itself below the read, which only a collection's purge produces
 \*   and the ghost records.
-\* - No record: the entry's record is not stored; rows naming it that no span owns are a dead writer's
-\*   leftovers after a purge, and go. A row of a grant racing this delete is cache a re-derivation rebuilds.
+\* - No record: purge the versions the record's cutoff covers - a late landing's bytes - and decide nothing, as
+\*   there is nothing to collect.
+\*   No reader sees them and the fence never grants on them, so this races nothing, pending decision or not.
+\* No branch removes a row: rows naming a record no one owns are an unacknowledged write's, and stay until their
+\* span's retention or deletion (`UnownedRowsUnacked`).
+CanDecide == aown = {} /\ apend = {} /\ ~rwpend /\ ~hold /\ acoll = {}
+
 RAct(r) ==
     /\ rpc[r] = "act"
-    /\ \/ /\ rhad[r] /\ aown = {} /\ apend = {} /\ ~rwpend /\ ~hold
+    /\ \/ /\ rhad[r] /\ CanDecide
           /\ acoll' = acoll \cup {aepoch}
           /\ everColl' = everColl \cup {aepoch}
           /\ rdec' = [rdec EXCEPT ![r] = aepoch]
           /\ aepoch' = IF Epochs THEN aepoch + 1 ELSE aepoch
           /\ rpc' = [rpc EXCEPT ![r] = "purge"]
-          /\ UNCHANGED <<rows, store, seq, aown, apend, aret, rwpend, rwcontent, rwid, latestLost>>
-       \/ /\ rhad[r] /\ (aown # {} \/ apend # {} \/ rwpend \/ hold)
+          /\ UNCHANGED <<store, seq, aown, apend, aret, rwpend, rwcontent, rwid, latestLost>>
+       \/ /\ rhad[r] /\ ~CanDecide
           /\ rrec[r].content \cap tomb # {}
           /\ IF rwpend
                THEN UNCHANGED <<rwpend, rwcontent, rwid>>
@@ -702,38 +731,33 @@ RAct(r) ==
                     /\ rwcontent' = rrec[r].content \ tomb
                     /\ rwid' = rwid + 1
           /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
-          /\ UNCHANGED <<rows, store, seq, aown, apend, aret, aepoch, acoll, everColl, rdec, latestLost>>
-       \/ /\ rhad[r] /\ (aown # {} \/ apend # {} \/ rwpend \/ hold)
+          /\ UNCHANGED <<store, seq, aown, apend, aret, aepoch, acoll, everColl, rdec, latestLost>>
+       \/ /\ rhad[r] /\ ~CanDecide
           /\ rrec[r].content \cap tomb = {}
           /\ store' = {v \in store : ~Below(v, rrec[r])}
           /\ latestLost' = (latestLost \/ (aown # {} /\ Present /\ Latest \notin store'))
           /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
-          /\ UNCHANGED <<rows, seq, aown, apend, aret, rwpend, rwcontent, rwid, aepoch, acoll, everColl, rdec>>
+          /\ UNCHANGED <<seq, aown, apend, aret, rwpend, rwcontent, rwid, aepoch, acoll, everColl, rdec>>
        \/ /\ ~rhad[r]
-          /\ rows' = rows \cap aown
           /\ store' = {v \in store : ~Doomed(v.ep)}
           /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
           /\ UNCHANGED <<seq, avars, rdec, latestLost>>
     /\ rrec' = [rrec EXCEPT ![r] = NoVersion]
     /\ rhad' = [rhad EXCEPT ![r] = FALSE]
-    /\ UNCHANGED <<tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars, wvars,
-                   rclaim, backup, later, overtaken>>
+    /\ UNCHANGED <<rows, rowEp, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars, wvars,
+                   rclaim, backup, later, overtaken, acked>>
 
-\* The physical delete of a decided collection: every version numbered at or below its epoch, and every row of
-\* the record whose span is not currently owned - the collected record is wanted by nothing, and a dead
-\* writer's rows must not outlive it. The owner set is read in the purge's transactional read, so a grant that
-\* races the row delete can lose rows; rows are a cache a re-derivation rebuilds from the record the grant
-\* keeps alive. The confirm fence keeps every owned version above every decided epoch, so the version delete
-\* can never reach one, however late it runs or however many collectors run it - which the ghost records.
-\* Without epochs there is nothing to bound it by, and it takes every version.
+\* The physical delete of a decided collection: every version numbered at or below its epoch. The confirm fence
+\* keeps every owned version above every decided epoch, so it can never reach one, however late it runs or
+\* however many collectors run it - which the ghost records. Without epochs there is nothing to bound it by, and
+\* it takes every version. It removes no row (`RAct`).
 RPurge(r) ==
     /\ rpc[r] = "purge"
     /\ store' = IF Epochs THEN {v \in store : v.ep > rdec[r]} ELSE {}
-    /\ rows' = rows \cap aown
     /\ latestLost' = (latestLost \/ (aown # {} /\ Present /\ Latest \notin store'))
     /\ rpc' = [rpc EXCEPT ![r] = "drop"]
-    /\ UNCHANGED <<seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars, wvars,
-                   rrec, rhad, rclaim, rdec, backup, later, overtaken, avars>>
+    /\ UNCHANGED <<rows, rowEp, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars, wvars,
+                   rrec, rhad, rclaim, rdec, backup, later, overtaken, avars, acked>>
 
 \* The purge done, the decision is dropped: readers need not ignore its versions any more. The epoch stays in
 \* the high-water mark, so a version a straggling purge of this decision could still delete remains findable.
@@ -741,9 +765,9 @@ RDrop(r) ==
     /\ rpc[r] = "drop"
     /\ acoll' = acoll \ {rdec[r]}
     /\ rpc' = [rpc EXCEPT ![r] = "recheck"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
                    wvars, rrec, rhad, rclaim, rdec, backup, later, overtaken,
-                   aown, apend, aret, rwpend, rwcontent, rwid, aepoch, everColl, latestLost>>
+                   aown, apend, aret, rwpend, rwcontent, rwid, aepoch, everColl, latestLost, acked>>
 
 \* A collection whose collector died - or is merely slow: the takeover is decided by the decision's age, so it
 \* must be safe while its first collector lives - is purged again by another.
@@ -752,8 +776,8 @@ RResume(r) ==
     /\ \E e \in acoll :
         /\ rdec' = [rdec EXCEPT ![r] = e]
         /\ rpc' = [rpc EXCEPT ![r] = "purge"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
-                   wvars, rrec, rhad, rclaim, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
+                   wvars, rrec, rhad, rclaim, backup, later, overtaken, avars, latestLost, acked>>
 
 \* Anything a pass must not leave behind: deleted content in the latest, versions below it, a record nothing
 \* owns, a version some purge is still entitled to.
@@ -766,8 +790,8 @@ RRecheck(r) ==
     /\ rpc[r] = "recheck"
     /\ IF Unsettled THEN Enqueue ELSE UNCHANGED queued
     /\ rpc' = [rpc EXCEPT ![r] = "clear"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
-                   rrec, rhad, rclaim, rdec, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
+                   rrec, rhad, rclaim, rdec, backup, later, overtaken, avars, latestLost, acked>>
 
 \* Deletes exactly the entry this pass claimed - but only after the landing horizon, with one more look. The
 \* horizon is enforced at the landing itself, by the backend: every delayed write carries a start deadline the
@@ -778,15 +802,15 @@ RRecheck(r) ==
 RClear(r) ==
     /\ rpc[r] = "clear"
     /\ FencedLanding =>
-          /\ \A i \in Ingests : ipc[i] \notin {"write", "rekey", "repair"}
+          /\ \A i \in Ingests : ipc[i] \notin {"write", "repair"}
                                 /\ (ipc[i] = "land" => isnap[i].present)
           /\ \A w \in Rewriters : wpc[w] # "append"
     /\ IF Unsettled THEN Enqueue ELSE UNCHANGED queued
     /\ rclaim' = [rclaim EXCEPT ![r] = FALSE]
     /\ rdec' = [rdec EXCEPT ![r] = 0]
     /\ rpc' = [rpc EXCEPT ![r] = "idle"]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
-                   rrec, rhad, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
+                   rrec, rhad, backup, later, overtaken, avars, latestLost, acked>>
 
 \* The reconciler's process dies between steps. What it read goes with it; its queue entries stay, uncleared,
 \* and a collection it decided stays recorded for another to purge.
@@ -797,8 +821,8 @@ RCrash(r) ==
     /\ rrec' = [rrec EXCEPT ![r] = NoVersion]
     /\ rhad' = [rhad EXCEPT ![r] = FALSE]
     /\ rdec' = [rdec EXCEPT ![r] = 0]
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
-                   wvars, rclaim, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, queued, ivars,
+                   wvars, rclaim, backup, later, overtaken, avars, latestLost, acked>>
 
 \* An entry claimed by a reconciler that died is re-queued by age - the claiming protocol's takeover.
 RequeueOrphan(r) ==
@@ -806,12 +830,12 @@ RequeueOrphan(r) ==
     /\ rclaim[r]
     /\ rclaim' = [rclaim EXCEPT ![r] = FALSE]
     /\ Enqueue
-    /\ UNCHANGED <<rows, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
-                   rrec, rhad, rdec, rpc, backup, later, overtaken, avars, latestLost>>
+    /\ UNCHANGED <<rows, rowEp, store, seq, tomb, expired, hold, heldOnce, unexOnce, frozen, ivars, wvars,
+                   rrec, rhad, rdec, rpc, backup, later, overtaken, avars, latestLost, acked>>
 
 Next ==
     \/ \E i \in Ingests : \/ Fence(i) \/ Register(i) \/ Insert(i) \/ Look(i) \/ Land(i) \/ Write(i) \/ Fail(i)
-                          \/ Confirm(i) \/ Rekey(i) \/ Check(i) \/ Repair(i) \/ Settle(i) \/ IDie(i)
+                          \/ Confirm(i) \/ Check(i) \/ Repair(i) \/ Settle(i) \/ IDie(i)
     \/ \E w \in Rewriters : RewriteLook(w) \/ RewriteAppend(w) \/ RewriteSettle(w)
     \/ \E s \in Spans : Delete(s) \/ ExpireMark(s) \/ Supersede(s)
     \/ Unexpire
@@ -840,7 +864,10 @@ Settled ==
 
 LiveRows == rows \ (tomb \cup expired)
 
-Covered == Settled => (LiveRows # {} => Present /\ LiveRows \subseteq Latest.content)
+\* What an acknowledged ingest wrote and still has a live row for: the rows the record must hold.
+AckedRows == LiveRows \cap acked
+
+Covered == Settled => (AckedRows # {} => Present /\ AckedRows \subseteq Latest.content)
 
 \* Deleted content is in no stored version - not only the latest - once settled.
 Private == Settled => \A v \in store : v.content \cap tomb = {}
@@ -863,24 +890,26 @@ LaterReceiptWins == ~overtaken
 \* the rows' fate (a dead writer's orphan rows go with the purge), and both leave a trace until the pass that
 \* resolves them clears it.
 Recoverable ==
-    (Drained /\ acoll = {} /\ LiveRows # {} /\ ~(LiveRows \subseteq LatestContent)) =>
+    (Drained /\ acoll = {} /\ AckedRows # {} /\ ~(AckedRows \subseteq LatestContent)) =>
         \/ \E i \in Ingests : \/ ipc[i] \in {"register", "insert", "look", "land", "write", "confirm",
-                                             "rekey", "check", "repair"}
+                                             "check", "repair"}
                               \/ ipc[i] = "fence" /\ ikept[i] # {}
-        \/ (rwpend /\ LiveRows \subseteq rwcontent)
+        \/ (rwpend /\ AckedRows \subseteq rwcontent)
 
-\* Once the queue is drained, every live row is owned - durably, or by an execution still on its way to
-\* confirming it. An unowned live row can exist only while its record is queued: every append and every
-\* ownership removal queues the record, so what a dead writer left is processed - and the collection that
-\* takes an unowned record takes its unowned rows with it.
-OwnersCoverRows ==
-    Drained /\ acoll = {} =>
-        LiveRows \subseteq aown \cup UNION {ikept[i] : i \in {j \in Ingests :
-            Token(j) \in apend \/ ipc[j] \in {"confirm", "rekey"}}}
+\* A row nothing owns is never one a client was told was stored: every live row an acknowledged ingest wrote is
+\* owned. What a collection leaves behind - rows naming a record no one owns - is therefore only the rows of
+\* writes never acknowledged, a failed or abandoned batch, which at-least-once delivery admits; their span's
+\* retention or deletion removes them.
+UnownedRowsUnacked == (LiveRows \cap acked) \subseteq aown
+
+\* Every owned row was written under an epoch above every collection decided since: the confirm fence grants
+\* only above every decision with none pending, and no decision is made while anything owns the record.
+OwnedRowsAboveDecisions == \A s \in aown \cap rows : ~Doomed(rowEp[s])
 
 \* No purge - a collection's, however late or taken over, or a supersede on a stale read - deletes the latest
 \* version of a record its rows own. The confirm fence is what makes this an invariant rather than a race.
 NoLatestLost == ~latestLost
+
 
 \* What a reader that reaches a user sees: the latest content, gated by live ownership in the transactional
 \* store, behind the retention predicate every reader applies. A deleted span - whose record a stale write may

@@ -173,19 +173,6 @@ fn row(project_id: &ProjectId, row: &duckdb::Row<'_>) -> duckdb::Result<RawRecor
     })
 }
 
-fn text_values(project_id: &ProjectId, ids: &[String]) -> Vec<duckdb::types::Value> {
-    std::iter::once(project_id.to_string())
-        .chain(ids.iter().cloned())
-        .map(duckdb::types::Value::Text)
-        .collect()
-}
-
-fn placeholders(count: usize) -> String {
-    std::iter::repeat_n("?", count)
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
 /// The latest version of each requested record that exists.
 pub fn get(
     conn: &Connection,
@@ -247,39 +234,6 @@ pub fn page(
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-/// Delete every version of these records, and their trace-index rows.
-pub fn delete(
-    conn: &Connection,
-    project_id: &ProjectId,
-    raw_ids: &[String],
-) -> Result<(), DuckdbError> {
-    // Found by id through each table's index and deleted by row id (`keyed`).
-    let keys = distinct_keys(raw_ids.iter().map(String::as_str));
-    for table in ["otel_raw", "otel_raw_traces"] {
-        let mut rowids = Vec::new();
-        for chunk in keys.chunks(KEYED_CHUNK) {
-            let keyed = duckdb_keyed(table, "raw_id", "project_id", chunk.len());
-            let values: Vec<duckdb::types::Value> = chunk
-                .iter()
-                .map(|key| duckdb::types::Value::Text((*key).to_string()))
-                .chain(std::iter::once(duckdb::types::Value::Text(
-                    project_id.to_string(),
-                )))
-                .collect();
-            let mut statement = conn.prepare(&format!(
-                "SELECT keyed_rowid FROM {keyed} WHERE project_id = ?"
-            ))?;
-            let rows =
-                statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, i64>(0))?;
-            for row in rows {
-                rowids.push(row?);
-            }
-        }
-        super::keyed::delete_rows(conn, table, &rowids)?;
-    }
-    Ok(())
-}
-
 /// Row ids of a record's rows in `table`, found through its `raw_id` index.
 fn record_rowids(
     conn: &Connection,
@@ -305,7 +259,9 @@ fn record_rowids(
 }
 
 /// The collection purge (`RPurge`): the record's versions keyed at or below `up_to_epoch`, and its trace-index
-/// rows once no version remains - in one transaction.
+/// rows once no version remains - in one transaction. DuckDB has no time-to-live to take the index rows later,
+/// and every statement runs on the one connection, so a version landing after the purge commits after it and
+/// indexes its traces afresh: nothing it needs can be taken with the purged ones.
 pub fn purge_versions(
     conn: &Connection,
     project_id: &ProjectId,
@@ -337,80 +293,90 @@ pub fn delete_superseded(
     raw_id: &str,
     below_version: i64,
 ) -> Result<(), DuckdbError> {
-    let superseded = record_rowids(
-        conn,
-        "otel_raw",
-        project_id,
-        raw_id,
-        "AND version_key < ?",
-        Some(below_version),
-    )?;
+    // Below the key read, and at that key every version but the last stored: two rewrites can key their versions
+    // alike, and readers take the last of equal keys (`get`), so the earlier one is superseded too - left in place,
+    // it kept whatever deleted content the later rewrite removed, with no key below the latest to find it by.
+    let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, version_key", 1);
+    let mut statement = conn.prepare(&format!(
+        "SELECT keyed_rowid, version_key FROM {keyed} WHERE project_id = ? AND version_key <= ?"
+    ))?;
+    let versions: Vec<(i64, i64)> = statement
+        .query_map(params![raw_id, project_id.as_str(), below_version], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?
+        .collect::<Result<_, _>>()?;
+    let last_at_key = versions
+        .iter()
+        .filter(|(_, key)| *key == below_version)
+        .map(|(rowid, _)| *rowid)
+        .max();
+    let superseded: Vec<i64> = versions
+        .into_iter()
+        .filter(|(rowid, key)| *key < below_version || Some(*rowid) != last_at_key)
+        .map(|(rowid, _)| rowid)
+        .collect();
     super::keyed::delete_rows(conn, "otel_raw", &superseded)?;
     Ok(())
 }
 
-/// The span identities whose rows name this record: the record's traces through the trace index, then those
-/// traces' rows through the span table's trace index, kept where they name the record - two indexed reads,
-/// never a scan of the stored history.
-pub fn spans_naming(
+/// The records the trace index holds under these traces.
+pub fn indexed_under_traces(
     conn: &Connection,
     project_id: &ProjectId,
-    raw_id: &str,
-) -> Result<Vec<(String, String)>, DuckdbError> {
-    let keyed = duckdb_keyed("otel_raw_traces", "raw_id", "project_id, trace_id", 1);
-    let mut statement = conn.prepare(&format!(
-        "SELECT DISTINCT trace_id FROM {keyed} WHERE project_id = ?"
-    ))?;
-    let traces: Vec<String> = statement
-        .query_map(params![raw_id, project_id.as_str()], |r| r.get(0))?
-        .collect::<Result<_, _>>()?;
-    let keys = distinct_keys(traces.iter().map(String::as_str));
-    let mut spans = std::collections::BTreeSet::new();
+    trace_ids: &[String],
+) -> Result<Vec<String>, DuckdbError> {
+    let mut records = std::collections::BTreeSet::new();
+    for chunk in trace_ids.chunks(KEYED_CHUNK) {
+        let placeholders = vec!["?"; chunk.len()].join(", ");
+        let mut statement = conn.prepare(&format!(
+            "SELECT DISTINCT raw_id FROM otel_raw_traces WHERE project_id = ? AND trace_id IN ({placeholders})"
+        ))?;
+        let values: Vec<duckdb::types::Value> = std::iter::once(project_id.to_string())
+            .chain(chunk.iter().cloned())
+            .map(duckdb::types::Value::Text)
+            .collect();
+        let rows =
+            statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, String>(0))?;
+        for row in rows {
+            records.insert(row?);
+        }
+    }
+    Ok(records.into_iter().collect())
+}
+
+/// The `(raw_id, trace_id)` pairs these traces' span rows still carry, through the span trace index.
+pub fn named_in_traces(
+    conn: &Connection,
+    project_id: &ProjectId,
+    trace_ids: &[String],
+) -> Result<HashSet<(String, String)>, DuckdbError> {
+    let keys = distinct_keys(trace_ids.iter().map(String::as_str));
+    let mut named = HashSet::new();
     for chunk in keys.chunks(KEYED_CHUNK) {
         let keyed = duckdb_keyed(
             "otel_spans",
             "trace_id",
-            "project_id, trace_id, span_id, raw_id",
+            "project_id, trace_id, raw_id",
             chunk.len(),
         );
         let values: Vec<duckdb::types::Value> = chunk
             .iter()
             .map(|key| duckdb::types::Value::Text((*key).to_string()))
-            .chain([
-                duckdb::types::Value::Text(project_id.to_string()),
-                duckdb::types::Value::Text(raw_id.to_string()),
-            ])
+            .chain(std::iter::once(duckdb::types::Value::Text(
+                project_id.to_string(),
+            )))
             .collect();
         let mut statement = conn.prepare(&format!(
-            "SELECT trace_id, span_id FROM {keyed} WHERE project_id = ? AND raw_id = ?"
+            "SELECT DISTINCT raw_id, trace_id FROM {keyed} WHERE project_id = ? AND raw_id IS NOT NULL"
         ))?;
         let rows = statement.query_map(duckdb::params_from_iter(values), |r| {
             Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
         })?;
         for row in rows {
-            spans.insert(row?);
+            named.insert(row?);
         }
     }
-    Ok(spans.into_iter().collect())
-}
-
-/// Delete every version of those of these records no stored span row names, in one transaction on the one
-/// connection, so no row is written between the look and the delete. Returns the records deleted.
-pub fn delete_unnamed(
-    conn: &Connection,
-    project_id: &ProjectId,
-    raw_ids: &[String],
-) -> Result<HashSet<String>, DuckdbError> {
-    crate::in_transaction(conn, |conn| {
-        let named = named(conn, project_id, raw_ids)?;
-        let unnamed: Vec<String> = distinct_keys(raw_ids.iter().map(String::as_str))
-            .into_iter()
-            .filter(|raw_id| !named.contains(*raw_id))
-            .map(str::to_string)
-            .collect();
-        delete(conn, project_id, &unnamed)?;
-        Ok(unnamed.into_iter().collect())
-    })
+    Ok(named)
 }
 
 /// Append these rewritten versions of the records still stored, and queue those appended, in one transaction: a
@@ -482,27 +448,6 @@ fn stored_ids(
         }
     }
     Ok(stored)
-}
-
-/// Which of these records a stored span row still names.
-pub fn named(
-    conn: &Connection,
-    project_id: &ProjectId,
-    raw_ids: &[String],
-) -> Result<HashSet<String>, DuckdbError> {
-    if raw_ids.is_empty() {
-        return Ok(HashSet::new());
-    }
-    let sql = format!(
-        "SELECT DISTINCT raw_id FROM otel_spans WHERE project_id = ? AND raw_id IN ({})",
-        placeholders(raw_ids.len())
-    );
-    let mut statement = conn.prepare(&sql)?;
-    let rows = statement.query_map(
-        duckdb::params_from_iter(text_values(project_id, raw_ids)),
-        |r| r.get::<_, String>(0),
-    )?;
-    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 /// Enqueue these records for reconciliation.

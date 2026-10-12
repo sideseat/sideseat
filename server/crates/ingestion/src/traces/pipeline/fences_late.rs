@@ -499,8 +499,13 @@ impl TracePipeline {
             // Matching rows make a redelivery skippable only if the raw authority holds them too: rows a failed
             // repair left uncovered are written again, which repairs the record, instead of being skipped for
             // ever while the export can never settle.
-            match crate::raw_coverage::covered(self.analytics.as_ref(), &project_id, &candidates)
-                .await
+            match crate::raw_coverage::covered(
+                self.analytics.as_ref(),
+                self.file_service.database().as_ref(),
+                &project_id,
+                &candidates,
+            )
+            .await
             {
                 Ok(covered) => exact.extend(
                     records

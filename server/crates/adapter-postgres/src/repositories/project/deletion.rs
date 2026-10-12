@@ -291,9 +291,13 @@ async fn insert_trace_tombstones(
     // The same transaction takes the traces' raw-record ownership away: a deleted trace never owns a record
     // again, because the confirm fence excludes tombstoned traces from every later grant
     // (`RawRecordOwnership.tla`, `Delete`).
-    sqlx::query("DELETE FROM raw_owners WHERE project_id = $1 AND trace_id = ANY($2)")
+    let trace_keys: Vec<Vec<u8>> = trace_ids
+        .iter()
+        .map(|trace_id| sideseat_ports::types::raw_trace_key(trace_id))
+        .collect();
+    sqlx::query("DELETE FROM raw_owners WHERE project_id = $1 AND trace_key = ANY($2)")
         .bind(project_id)
-        .bind(trace_ids)
+        .bind(&trace_keys)
         .execute(&mut *connection)
         .await?;
     Ok(())

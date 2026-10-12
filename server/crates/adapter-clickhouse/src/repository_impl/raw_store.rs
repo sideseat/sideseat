@@ -58,40 +58,6 @@ impl RawStore for ClickhouseRepository {
     /// Not one step: ClickHouse reads who names the records and then deletes, so a row written in between
     /// loses its record if the caller dies before it looks again - the open defect the port names, until the
     /// transactional store arbitrates.
-    async fn delete_unnamed_raw_records(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError> {
-        let named = self.raw_records_named(project_id, raw_ids).await?;
-        let mut unnamed: Vec<String> = raw_ids
-            .iter()
-            .filter(|raw_id| !named.contains(*raw_id))
-            .cloned()
-            .collect();
-        unnamed.sort_unstable();
-        unnamed.dedup();
-        if unnamed.is_empty() {
-            return Ok(std::collections::HashSet::new());
-        }
-        let tables = [
-            self.0.delete_table("otel_raw"),
-            self.0.delete_table("otel_raw_traces"),
-        ];
-        let on_cluster = self.0.on_cluster_clause();
-        let deleted: Result<(), DataError> = tenant_query!(
-            self,
-            project_id,
-            raw::delete,
-            &tables,
-            &on_cluster,
-            project_id,
-            &unnamed
-        );
-        deleted?;
-        Ok(unnamed.into_iter().collect())
-    }
-
     /// Not one step either, for the same reason as the delete.
     async fn append_raw_rewrites(
         &self,
@@ -128,14 +94,6 @@ impl RawStore for ClickhouseRepository {
         spans: &[(String, String)],
     ) -> Result<std::collections::HashMap<(String, String), String>, DataError> {
         tenant_query!(self, project_id, raw::span_raw_ids, project_id, spans)
-    }
-
-    async fn raw_records_named(
-        &self,
-        project_id: &ProjectId,
-        raw_ids: &[String],
-    ) -> Result<std::collections::HashSet<String>, DataError> {
-        tenant_query!(self, project_id, raw::named, project_id, raw_ids)
     }
 
     async fn enqueue_raw_records(
@@ -194,12 +152,34 @@ impl RawStore for ClickhouseRepository {
         )
     }
 
-    async fn spans_naming_raw_record(
+    async fn raw_records_named_in_traces(
         &self,
         project_id: &ProjectId,
-        raw_id: &str,
-    ) -> Result<Vec<(String, String)>, DataError> {
-        tenant_query!(self, project_id, raw::spans_naming, project_id, raw_id)
+        trace_ids: &[String],
+    ) -> Result<std::collections::HashSet<(String, String)>, DataError> {
+        let client = self.0.tenant_client(project_id);
+        let spans = self.0.every_replica_spans();
+        raw::named_in_traces(&client, &spans, project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn raw_records_indexed_under_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        // On every replica: a retention release enqueues through this, and a record a lagging replica's index
+        // misses would go unqueued once its owners are released.
+        let traces = self.0.every_replica_table("otel_raw_traces");
+        tenant_query!(
+            self,
+            project_id,
+            raw::indexed_under_traces,
+            &traces,
+            project_id,
+            trace_ids
+        )
     }
 
     async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError> {

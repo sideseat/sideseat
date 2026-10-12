@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!--
+  One shard held by **two replicas**, the topology that can lag: an insert acknowledged by one replica reaches
+  the other only when replication carries it, so a read through the lagging replica's own tables does not see
+  it. The retention release decides who still owns a raw record from such a read, so this is the fixture that
+  can falsify reading every replica (`clusterAllReplicas`): stop the second replica's fetches, write through the
+  first, and release through the second.
+
+  The same two containers and Keeper as the two-shard fixture (`two-shard-keeper.xml` on the first node); only
+  the cluster layout and the second node's macros differ.
+-->
+<clickhouse>
+    <zookeeper>
+        <node>
+            <host>ch-shard1</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <remote_servers>
+        <test_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-shard1</host>
+                    <port>9000</port>
+                    <user>sideseat</user>
+                    <password>sideseat</password>
+                </replica>
+                <replica>
+                    <host>ch-shard2</host>
+                    <port>9000</port>
+                    <user>sideseat</user>
+                    <password>sideseat</password>
+                </replica>
+            </shard>
+        </test_cluster>
+    </remote_servers>
+</clickhouse>

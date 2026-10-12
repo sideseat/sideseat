@@ -166,13 +166,13 @@ async fn a_trace_deletion_enqueues_its_records_even_without_rows() {
     };
     crate::repositories::span::insert_batch(&conn, &[span]).unwrap();
     assert_eq!(
-        crate::repositories::raw::named(
+        crate::repositories::raw::named_in_traces(
             &conn,
             &project,
-            &["with-rows".to_string(), "rows-expired".to_string()]
+            &["t1".to_string(), "t2".to_string()]
         )
         .unwrap(),
-        std::collections::HashSet::from(["with-rows".to_string()])
+        std::collections::HashSet::from([("with-rows".to_string(), "t1".to_string())])
     );
 
     delete_traces(&conn, "project", &["t1".to_string()]).unwrap();
@@ -187,16 +187,6 @@ async fn a_trace_deletion_enqueues_its_records_even_without_rows() {
     let left = crate::repositories::raw::pending(&conn, 10, None).unwrap();
     assert_eq!(left.len(), 1);
     assert_eq!(left[0].raw_id, "with-rows");
-
-    crate::repositories::raw::delete(&conn, &project, &["rows-expired".to_string()]).unwrap();
-    let indexed: i64 = conn
-        .query_row(
-            "SELECT count(*) FROM otel_raw_traces WHERE raw_id = 'rows-expired'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(indexed, 0, "a deleted record leaves no trace-index rows");
 }
 
 /// A project hold reaches the raw records and their index, and a project deletion removes every raw table's
@@ -299,11 +289,10 @@ async fn a_session_no_trace_belongs_to_is_not_found() {
     );
 }
 
-/// The reconciler's delete takes only a record no row names, and its rewrite is stored only while the record is,
-/// each deciding in its own transaction: a row written up to the delete keeps its record, and a record collected
-/// since a rewrite was read stays collected.
+/// A rewrite is stored only while its record is, deciding in its own transaction - a record collected since the
+/// rewrite was read stays collected - and the rewrite stored is queued with it.
 #[tokio::test]
-async fn the_reconciler_s_delete_and_rewrite_decide_in_their_own_step() {
+async fn a_rewrite_is_stored_only_while_its_record_is() {
     let (_dir, service) = create_test_service().await;
     let project = sideseat_ports::types::ProjectId::from("project");
     let named_span = sideseat_ports::types::NormalizedSpan {
@@ -330,10 +319,10 @@ async fn the_reconciler_s_delete_and_rewrite_decide_in_their_own_step() {
         .unwrap();
     let ids = ["raw-a".to_string(), "raw-b".to_string()];
 
-    let deleted = service
-        .write(|conn| crate::repositories::raw::delete_unnamed(conn, &project, &ids))
+    // raw-b is collected: its purge takes every version its decision's epoch bounds.
+    service
+        .write(|conn| crate::repositories::raw::purge_versions(conn, &project, "raw-b", 0))
         .unwrap();
-    assert_eq!(deleted, ["raw-b".to_string()].into_iter().collect());
     let stored = |service: &crate::DuckdbService| -> Vec<String> {
         crate::repositories::raw::get(&service.conn(), &project, &ids)
             .unwrap()
@@ -341,7 +330,7 @@ async fn the_reconciler_s_delete_and_rewrite_decide_in_their_own_step() {
             .map(|row| format!("{}/{}", row.raw_id, row.version))
             .collect()
     };
-    assert_eq!(stored(&service), ["raw-a/1"], "the named record is kept");
+    assert_eq!(stored(&service), ["raw-a/1"], "the other record is kept");
 
     let appended = service
         .write(|conn| {

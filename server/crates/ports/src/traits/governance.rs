@@ -390,8 +390,16 @@ pub trait StorageGovernance: Send + Sync {
         now: DateTime<Utc>,
     ) -> Result<ProjectStorageUsage, DataError>;
 
-    /// Held transactional bytes: staged payloads plus the permanent deletion journal.
+    /// Held transactional bytes: staged payloads, the permanent deletion journal, owed retention cleanups, and the
+    /// raw arbiter's rows - owners, pending writers and per-record collection state, which grows with every
+    /// collected export until the retention slice prunes it.
     async fn held_transactional_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError>;
+
+    /// The retention cleanups this project still owes, and how long the oldest has waited.
+    async fn retention_cleanup_backlog(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<RetentionCleanupBacklog, DataError>;
 
     /// Projects participating in accounting, including projects whose measured usage is still zero.
     async fn storage_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError>;
@@ -422,7 +430,7 @@ pub trait RawArbiter: Send + Sync {
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
-    ) -> Result<HashMap<String, i64>, DataError>;
+    ) -> Result<HashMap<String, RawCutoff>, DataError>;
 
     /// The confirm fence, one transaction per batch (`Confirm`): each claim is granted - its traces inserted
     /// as owners, except traces the deletion journal tombstoned meanwhile - only when its version epoch is
@@ -434,13 +442,43 @@ pub trait RawArbiter: Send + Sync {
         claims: &[RawOwnerClaim],
     ) -> Result<Vec<RawConfirmOutcome>, DataError>;
 
-    /// Take ownership away from these traces, in the caller's own step: the retention sweep that removed their
-    /// rows (`ExpireSweep`). Deletions need no call here - the journalled tombstone transactions release
-    /// ownership themselves (`Delete`).
-    async fn release_raw_owner_traces(
+    /// The project's grant sequence: every confirm takes the next value and stamps the owners it grants with
+    /// it. Read before the analytics read a release is decided on, it is the fence that keeps a grant made
+    /// after that read - by an ingest whose rows the read could not see - from being released by it.
+    async fn raw_grant_seq(&self, project_id: &ProjectId) -> Result<i64, DataError>;
+
+    /// The owners of these traces' records, as `(raw_record_key, raw_trace_key)` pairs.
+    async fn raw_owners_of_traces(
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
+    ) -> Result<Vec<(i64, Vec<u8>)>, DataError>;
+
+    /// Which of these `(raw_record_key, raw_trace_key)` pairs are owners: primary-key lookups, so the work is the
+    /// pairs asked about, never a trace's whole ownership history.
+    async fn raw_owned_pairs(
+        &self,
+        project_id: &ProjectId,
+        pairs: &[(i64, Vec<u8>)],
+    ) -> Result<Vec<(i64, Vec<u8>)>, DataError>;
+
+    /// The `raw_trace_key`s of the traces owning this record.
+    async fn raw_owner_traces(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<Vec<u8>>, DataError>;
+
+    /// Take ownership away from these `(raw_record_key, raw_trace_key)` pairs - the ones whose rows the retention pass
+    /// removed (`ExpireSweep`) - but only grants stamped at or below `granted_up_to`, the grant sequence read
+    /// before the analytics read that found the rows gone. A later grant is an ingest's whose rows that read
+    /// could not see, and it stays. Deletions need no call here: the journalled tombstone transactions release
+    /// ownership themselves (`Delete`).
+    async fn release_raw_owners(
+        &self,
+        project_id: &ProjectId,
+        owners: &[(i64, Vec<u8>)],
+        granted_up_to: i64,
     ) -> Result<(), DataError>;
 
     /// The collection decision, one transactional statement per record (`RAct`): decided only when the record
@@ -479,6 +517,69 @@ pub trait RawArbiter: Send + Sync {
         project_id: &ProjectId,
         raw_id: &str,
     ) -> Result<bool, DataError>;
+}
+
+/// Traces whose ownership one retention release reads and releases at once: what it holds is these traces'
+/// owners and named records, whatever the pass expired in total.
+const RAW_RELEASE_TRACES: usize = 64;
+
+/// The retention pass's ownership release (`RawRecordOwnership.tla`, `ExpireSweep`), run after the pass removed
+/// the rows of `trace_ids`: each owner of those traces' records whose trace no longer has a row naming the record
+/// is released, and the traces' records are queued so a reconciliation pass looks at them after the release.
+///
+/// The grant sequence is read first, before the analytics read: an ingest whose rows that read cannot see
+/// confirms after it, stamps its grant above the sequence, and keeps its owner (`release_raw_owners`). Every
+/// record the trace index holds under the traces is queued after the release - not only those released now - so
+/// a retry after a failure between the two, which finds the owners already gone, still queues them; queued
+/// only after, because a pass that read an earlier entry would find the owners still there and clear it with
+/// nothing left to look again. The look at the rows reads every replica (`raw_records_named_in_traces`); one it
+/// cannot reach fails the release, which stays owed and is retried.
+///
+/// `Ok(false)` when an owner the rows no longer justify was granted after the sequence was read, and so kept: an
+/// ingest that wrote expired rows the retention delete took, and confirmed after it. The cleanup stays owed - the
+/// next attempt reads a later sequence and releases it - because once it is completed nothing finds the trace
+/// again: its rows are gone.
+pub async fn release_retained_raw_owners(
+    database: &(dyn RawArbiter + Sync),
+    analytics: &(dyn RawStore + Sync),
+    project_id: &ProjectId,
+    trace_ids: &[String],
+) -> Result<bool, DataError> {
+    let mut complete = true;
+    for traces in trace_ids.chunks(RAW_RELEASE_TRACES) {
+        let granted_up_to = database.raw_grant_seq(project_id).await?;
+        let owners = database.raw_owners_of_traces(project_id, traces).await?;
+        if !owners.is_empty() {
+            let named = analytics
+                .raw_records_named_in_traces(project_id, traces)
+                .await?;
+            let still_named: std::collections::HashSet<(i64, Vec<u8>)> = named
+                .iter()
+                .map(|(raw_id, trace_id)| (raw_record_key(raw_id), raw_trace_key(trace_id)))
+                .collect();
+            let gone: Vec<(i64, Vec<u8>)> = owners
+                .into_iter()
+                .filter(|owner| !still_named.contains(owner))
+                .collect();
+            if !gone.is_empty() {
+                database
+                    .release_raw_owners(project_id, &gone, granted_up_to)
+                    .await?;
+                if !database
+                    .raw_owned_pairs(project_id, &gone)
+                    .await?
+                    .is_empty()
+                {
+                    complete = false;
+                }
+            }
+        }
+        let records = analytics
+            .raw_records_indexed_under_traces(project_id, traces)
+            .await?;
+        analytics.enqueue_raw_records(project_id, &records).await?;
+    }
+    Ok(complete)
 }
 
 #[cfg(test)]

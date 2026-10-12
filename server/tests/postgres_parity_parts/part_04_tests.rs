@@ -2,7 +2,7 @@
 // tables must be refused at startup. The protocol is `server/specs/RawRecordOwnership.tla`.
 
 use chrono::Utc;
-use sideseat_ports::types::{RawConfirmOutcome, RawOwnerClaim};
+use sideseat_ports::types::{RawConfirmOutcome, RawOwnerClaim, raw_record_key, raw_trace_key};
 
 fn arbiter_claim(raw_id: &str, version_epoch: i64, traces: &[&str]) -> RawOwnerClaim {
     RawOwnerClaim {
@@ -31,6 +31,17 @@ async fn the_raw_arbiter_arbitrates_identically_on_both_backends() {
             .await
             .expect("confirm");
         lines.push(format!("confirm fresh: {outcomes:?}"));
+        let owned = repository
+            .raw_owned_pairs(
+                &project,
+                &[
+                    (raw_record_key("r"), raw_trace_key("t1")),
+                    (raw_record_key("r"), raw_trace_key("t9")),
+                ],
+            )
+            .await
+            .expect("owned pairs");
+        lines.push(format!("owned pairs: {}", owned.len()));
 
         let refused = repository
             .collect_raw_records(&project, &["r".to_string()], now)
@@ -56,6 +67,11 @@ async fn the_raw_arbiter_arbitrates_identically_on_both_backends() {
             .await
             .expect("late confirm");
         lines.push(format!("late claim under the decision: {late:?}"));
+        assert_eq!(
+            late,
+            vec![RawConfirmOutcome::Collecting],
+            "no grant while a decision is pending"
+        );
 
         let stale = repository
             .stale_raw_collections(now + chrono::Duration::seconds(1), 10)
@@ -83,6 +99,16 @@ async fn the_raw_arbiter_arbitrates_identically_on_both_backends() {
             sorted.sort();
             sorted
         }));
+
+        let stale_claim = repository
+            .confirm_raw_owners(&project, &[arbiter_claim("r", 0, &["t3"])])
+            .await
+            .expect("stale confirm");
+        lines.push(format!("stale claim at the cutoff: {stale_claim:?}"));
+        assert!(matches!(
+            stale_claim.as_slice(),
+            [RawConfirmOutcome::Refused { .. }]
+        ));
 
         let rekeyed = repository
             .confirm_raw_owners(&project, &[arbiter_claim("r", epoch, &["t3"])])
@@ -236,12 +262,97 @@ async fn a_deleted_trace_never_owns_a_record_whatever_races_its_deletion() {
         confirm.await.expect("join").expect("confirm");
         delete.await.expect("join").expect("delete");
     }
+    // Owner rows carry trace keys, so the tombstoned traces are keyed the same way before they are compared.
+    let deleted: Vec<String> =
+        sqlx::query_scalar("SELECT trace_id FROM deleted_traces WHERE project_id = 'default'")
+            .fetch_all(repository.pool())
+            .await
+            .expect("tombstones");
+    let keys: Vec<Vec<u8>> = deleted
+        .iter()
+        .map(|trace| sideseat_ports::types::raw_trace_key(trace))
+        .collect();
     let owned: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM raw_owners o JOIN deleted_traces d
-         ON d.project_id = o.project_id AND d.trace_id = o.trace_id",
+        "SELECT COUNT(*) FROM raw_owners WHERE project_id = 'default' AND trace_key = ANY($1)",
     )
+    .bind(&keys)
     .fetch_one(repository.pool())
     .await
     .expect("count");
+    assert_eq!(deleted.len(), 100, "every round tombstoned its trace");
     assert_eq!(owned, 0, "a tombstoned trace owns a record");
+}
+
+/// The retention-cleanup backlog an operator reads to tell retention stalled from storage growing reads alike on
+/// both backends: what is owed, since when, and how many passes claimed it without completing it.
+#[tokio::test]
+async fn the_retention_cleanup_backlog_reads_identically_on_both_backends() {
+    let Some((sqlite, postgres)) = pair().await else {
+        return;
+    };
+    let project = ProjectId::from("default");
+    let services = [
+        TransactionalService::Sqlite(sqlite),
+        TransactionalService::Postgres(postgres.0),
+    ];
+    let mut answers = Vec::new();
+    for service in &services {
+        let repository = service.repository();
+        let governance = service.governance_repository();
+        let empty = governance
+            .retention_cleanup_backlog(&project)
+            .await
+            .expect("backlog");
+        let recorded = repository
+            .record_retention_cleanup(&project, &["t1".to_string(), "t2".to_string()])
+            .await
+            .expect("record");
+        for _ in 0..2 {
+            repository
+                .claim_retention_cleanup(16, 0)
+                .await
+                .expect("claim");
+        }
+        let owed = governance
+            .retention_cleanup_backlog(&project)
+            .await
+            .expect("backlog");
+        repository
+            .complete_retention_cleanup(&project, &recorded)
+            .await
+            .expect("complete");
+        let done = governance
+            .retention_cleanup_backlog(&project)
+            .await
+            .expect("backlog");
+        repository
+            .confirm_raw_owners(&project, &[arbiter_claim("0a", 0, &["t1", "t2"])])
+            .await
+            .expect("confirm");
+        repository
+            .collect_raw_records(&project, &["0b".to_string()], Utc::now())
+            .await
+            .expect("collect");
+        let held = governance
+            .held_transactional_bytes(&project)
+            .await
+            .expect("held bytes");
+        answers.push(format!("arbiter rows held: {held}"));
+        answers.push(format!(
+            "empty {}/{}/{} owed {}/{}/{} done {}",
+            empty.pending,
+            empty.oldest_pending_at.is_some(),
+            empty.most_attempts,
+            owed.pending,
+            owed.oldest_pending_at.is_some(),
+            owed.most_attempts,
+            done.pending
+        ));
+    }
+    assert_eq!(answers[1], "empty 0/false/0 owed 2/true/2 done 0");
+    assert_eq!(
+        answers[..2],
+        answers[2..],
+        "SQLite (reference) and PostgreSQL account and report alike"
+    );
 }

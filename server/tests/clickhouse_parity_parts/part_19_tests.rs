@@ -116,28 +116,6 @@ async fn raw_arbiter_store_answers(
         physical("purged", i64::MAX).await
     ));
 
-    store
-        .append_raw_records(&[
-            raw_row("named", key(0, 1), &["trace-n1", "trace-n2"], b"named"),
-            raw_row("other", key(0, 1), &["trace-o", "trace-n1"], b"other"),
-        ])
-        .await
-        .expect("records naming the spans' traces");
-    store
-        .insert_spans(vec![
-            span_of("trace-n1", "span-9", "other"),
-            span_of("trace-n1", "span-1", "named"),
-            span_of("trace-n2", "span-2", "named"),
-            span_of("trace-o", "span-3", "other"),
-        ])
-        .await
-        .expect("spans");
-    let naming = store
-        .spans_naming_raw_record(&project, "named")
-        .await
-        .expect("naming");
-    answers.push(format!("spans naming the record: {naming:?}"));
-
     let earlier = store
         .pending_raw_records(
             usize::MAX,
@@ -195,7 +173,7 @@ async fn the_raw_arbiter_s_store_operations_match_across_backends() {
         format!("latest after purging epoch 0: superseded/{since}:written-since"),
         "stored after purging the last epoch: []".to_string(),
         "stored of a record superseded entirely: []".to_string(),
-        "entries enqueued an hour ago: 0; due at horizon 0: [\"lonely\", \"named\", \"other\", \"purged\", \"superseded\"]"
+        "entries enqueued an hour ago: 0; due at horizon 0: [\"lonely\", \"purged\", \"superseded\"]"
             .to_string(),
     ] {
         assert!(

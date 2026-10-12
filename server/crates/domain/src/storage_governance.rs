@@ -18,6 +18,7 @@ use sideseat_ports::traits::{
 };
 use sideseat_ports::types::{
     NormalizedLog, NormalizedMetric, NormalizedSpan, ProjectHold, ProjectId, ProjectStorageUsage,
+    RetentionCleanupBacklog,
 };
 
 const MAINTENANCE_LEASE_SECS: i64 = 2 * 60 * 60;
@@ -437,6 +438,18 @@ impl StorageGovernanceService {
 
     pub async fn release_maintenance(&self, project_id: &ProjectId, owner: &str) {
         self.release(project_id, owner).await;
+    }
+
+    /// The retention cleanups the project still owes - what an operator reads to tell retention stalled (an
+    /// unreachable replica, say) from storage merely growing.
+    pub async fn retention_cleanup_backlog(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<RetentionCleanupBacklog, GovernanceError> {
+        self.governance
+            .retention_cleanup_backlog(project_id)
+            .await
+            .map_err(unavailable)
     }
 
     pub async fn reconcile_project(

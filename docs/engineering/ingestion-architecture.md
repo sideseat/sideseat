@@ -149,18 +149,17 @@ an error, and acknowledges only once that record is durable. Any other missing r
 lost sequence reused by a payload that is itself retired before the old reference is read, which SQLite's
 `AUTOINCREMENT` permits and PostgreSQL's sequences do not.
 
-An acknowledged export's raw record is kept while a row names it. The ingest writes its rows, then checks that
-the latest record holds them - writing it again from its own bytes if not - and only then reports the export
-written, which is what settles its staged payload and, without a durable queue, what the response waits for; the
-reconciler
-deletes a record only in a step that itself finds no row naming it, so a record it took before the rows were
-written is written again by that check, and one the rows already name is not taken. On DuckDB that step is one
-transaction on the one connection. **On ClickHouse it is still two calls - who names the record, then the delete -
-and that is a known open defect:** a reconciler that dies between them, after an ingest's rows and check fell in
-between, loses the record of an acknowledged export, with nothing left to restore it from
-(`RawRecordOwnership.tla`, `Recoverable` with `WithCrash`). The fix is to arbitrate ownership in the transactional
-store, as media files are (`pending_writers`, `durable`, `deleting_at`), with ClickHouse deleting only what that
-store says no one owns.
+An acknowledged export's raw record is kept while its traces own it. The ingest writes its rows, claims the
+records they name through the raw arbiter's confirm fence in the transactional store, checks that each record holds
+the rows, writing it again from its own bytes if not, and only then reports the export written, which is what
+settles its staged payload and, without a durable queue, what the response waits for. A claim the fence refuses was
+overtaken by a collection, whose purge may have removed the ingest's rows, so the batch fails and is delivered
+again. A record is collected only by a transactional decision that finds no owner, no registered writer and no
+hold; its purge takes only versions keyed at or below its epoch, while a grant rests only on an epoch above every
+decision, and no collection removes a row - so no reconciler, dying, slow, or taken over, can take the record or
+the rows of an acknowledged export. Rows naming a collected record are an unacknowledged write's, and go with their
+trace's retention. The retention release reads which rows remain with a read that follows every acknowledged
+insert, or releases nothing (`docs/engineering/compact-storage.md`, `RawRecordOwnership.tla`).
 
 Metrics and logs use `PersistBeforeAck`. Traces can use `DurableQueue` because their processing path is
 larger and supports asynchronous batching.

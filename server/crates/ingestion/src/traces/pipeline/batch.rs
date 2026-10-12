@@ -675,15 +675,15 @@ impl TracePipeline {
             // The rows are in, so the store can answer authoritatively - which the batch cannot.
             self.stamp_stored_sessions(&mut sse_events).await;
             publish_sse_events(&sse_events, &self.topics).await;
-            // The rows are written: each latest record must hold them. A failure fails the batch, and the
-            // redelivery - idempotent for rows and records alike - repeats the check.
+            // The rows are written: their traces claim the records they name through the arbiter's confirm
+            // fence, and each claimed record must then hold them. A failure fails the batch, the payload does not
+            // settle, and the redelivery - idempotent for rows, records and claims alike - repeats both.
             //
-            // The order is load-bearing, and only this order makes the reconciler's delete safe: rows, then this
-            // check, then the answer. The delete decides who names a record in the same step
-            // (`delete_unnamed_raw_records`), so a record it took before these rows were written is absent here
-            // and written again from this request's own bytes, and one it found these rows naming it kept. A
-            // check before the rows, or an answer before the check, would let a record go under rows it already
-            // acknowledged (`RawRecordOwnership.tla`, `Check`).
+            // The order is load-bearing: rows, then the claim, then the check, then the answer. A record is
+            // collectable only unowned and unwritten, so once claimed it cannot be collected under these rows;
+            // a claim the fence refuses rests on an epoch a collection bounds, so the batch fails and its
+            // redelivery claims above the decision. A claim before the rows, or an answer before the claim, would
+            // let a record go under rows it already acknowledged (`RawRecordOwnership.tla`, `Confirm`, `Check`).
             let mut written_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
             for ((project, trace, span), slot) in written.iter().zip(&written_slots) {
                 if surviving.contains(&(project.as_str(), trace.as_str(), span.as_str())) {
@@ -698,6 +698,7 @@ impl TracePipeline {
                 .filter_map(|(index, draft)| {
                     Some(WrittenRecord {
                         draft,
+                        claim_epoch: epochs.get(draft.project_id()).copied().unwrap_or(0),
                         request: &requests[*index],
                         kept: kept_by_draft.get(index)?.clone(),
                         written: written_by_draft.remove(index)?,
@@ -705,8 +706,8 @@ impl TracePipeline {
                     })
                 })
                 .collect();
-            if let Err(error) = self.repair_raw_records(&repairs).await {
-                tracing::error!(%error, "Could not check the raw records against the rows written");
+            if let Err(error) = self.own_raw_records(&repairs).await {
+                tracing::error!(%error, "Could not claim and check the raw records the rows name");
                 return failed();
             }
         } else {

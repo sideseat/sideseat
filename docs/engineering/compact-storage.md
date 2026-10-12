@@ -344,66 +344,119 @@ it wrote, then its place within that epoch (`sideseat_ports::types::raw_version`
 and a collection decision is recorded at an epoch and bumps it, so its purge - bounded to the versions keyed at or
 below that epoch - can never reach a version keyed above it, however late or often it runs. A version keyed at or
 below it is not protected by the key alone: a writer that read the epoch before the decision lands within the
-purge's bound, and the protocol's confirm fence must refuse that version ownership and have it re-keyed above the
-decision (`server/specs/RawRecordOwnership.tla`, `Confirm` and `Rekey`; `server/specs/RawRecordCutoff.tla`). A store whose
+purge's bound, and the protocol's confirm fence must refuse that version ownership and have it keyed again above
+the decision (`server/specs/RawRecordOwnership.tla`, `Confirm` and `Rekey`; `server/specs/RawRecordCutoff.tla`). A store whose
 versions are the receipt instants of earlier builds - a `version` column - is refused at startup with the reset
 named.
 
-**Being built.** The arbiter's tables (`raw_owners`, `raw_writers`, `raw_collections` in the transactional store),
-the epoch-keyed versions, the epoch-bounded purge, the supersede purge and the horizon-filtered queue read exist;
-the pipeline's use of them does not yet. Until it lands, the reconciler below still decides who names a record from
-the analytics rows, readers apply no cutoff or ownership, and ClickHouse appends a repair before it queues it. What
-the wiring will hold: a reconciler reads a queue entry only once the **landing horizon** (30 s) has passed since it
-was enqueued, so the version its writer was landing has landed by the read - on DuckDB the version and its entry
-commit in one transaction; on ClickHouse the entry is written before the insert, and the **landing fence is
-pending**, so nothing will stop a submitted insert committing after the horizon, past a client timeout or its
-process's death. Without the fence, what the model proves for `FencedLanding = FALSE` is what will hold: a late
-landing is never read (readers apply each record's cutoff and live ownership) and never costs an acknowledged
-export its record, but its bytes - or a derived row no trace owns - persist until the record is next touched or
-its time-to-live expires, not within one pass. The fence (an `INSERT ... SELECT FROM input()` gated by a deadline
-on the server's clock, under its execution-time cap) is its own slice after the wiring, and the late-landing count
-and log that make an exceeded horizon visible land with the wiring.
+Who owns a record is decided in the transactional store - `raw_owners` (record x trace), `raw_writers` (a staged
+payload's pending-writer twin, created and settled with its registration), `raw_arbiter` (the project epoch and
+grant sequence) and `raw_collections` (each collected record's pending decision and high-water mark) - never from
+the analytics rows:
 
-Keeping the record and its rows agreeing is a protocol, not an invariant one statement can hold, because nothing is
-atomic across the record, the rows and the tombstones:
+- an ingest, once its rows commit, claims each record its rows name through the **confirm fence**: the claim rests
+  on the epoch the ingest read before storing its record and writing its rows, and is granted - its traces become
+  owners, except traces a journalled deletion took - only when that epoch is above every decision of its record
+  and no decision is pending. A record with no live version is keyed afresh before the claim; a claim refused, or
+  answered with a pending decision, fails the batch, its records are queued, and its redelivery claims above the
+  decision. Only after the grant is the record checked against the rows (repaired if it does not hold them), and only
+  then may the payload settle: an ingest whose claim fails is refused and delivered again. Settlement - and the
+  check whether a redelivery's rows are already stored - counts a span stored only when its record is live and
+  owned through the span's trace;
+- every deletion and expiry of span rows enqueues the records holding those traces, finding them through the trace
+  index rather than the rows. A journalled deletion takes its traces' ownership in its own transaction; the
+  retention pass takes it once the rows are gone, releasing only grants stamped at or below the grant sequence it
+  read before it looked at the rows - so an ingest whose rows that look missed keeps its owner - and then queues
+  every record the trace index holds under those traces, so a retry after a failure between the two still queues
+  what the first attempt released. The look at the rows must see every acknowledged insert, so on a cluster it
+  reads every replica of every shard (`clusterAllReplicas`, with `skip_unavailable_shards = 0`): an acknowledged
+  insert is committed on at least one replica of its shard, with or without `insert_quorum`, so a replica lagging
+  behind cannot hide a row. A replica that cannot be reached fails the read; nothing is released, the cleanup stays
+  owed and is retried by the next pass. A replica that stays down therefore stalls retention, and the stall is
+  visible rather than looking like growth: `GET /api/v1/projects/{id}/storage` reports `retention_cleanup` - the
+  cleanups owed, the age of the oldest, and the most passes any one has been claimed by without completing - read
+  from the transactional store, so every instance answers alike. ClickHouse's age pass records a cleanup for every
+  trace it expires, read across every replica, before its delete, as DuckDB's does; a row inserted with an expired
+  timestamp between that read and the delete is deleted without one, and its record waits for its time-to-live;
+- the reconciler asks the arbiter, for each queued record it finds stored, for a **collection decision**: one guarded statement that
+  grants it only when nothing owns or writes the record and no legal hold is active, recording the project epoch and
+  bumping it. Granted, it purges the versions keyed at or below that epoch and folds the decision into the record's
+  high-water mark; it never reads who owns what, and a purge that runs arbitrarily late - after a takeover purged
+  and dropped the decision and a redelivery claimed the record again - cannot reach a version an owner rests on.
+  **No collection removes a row**, on either backend: rows naming a collected record are those of writes the
+  client was never told succeeded - a batch that failed or was abandoned - which at-least-once delivery admits;
+  they go with their trace's retention or deletion, alike on both backends, and nothing reads them as stored,
+  since nothing owns them. (Removing them was the first design; a removal bounded by row epochs is sound on DuckDB,
+  but ClickHouse merges keep one revision of a span by receipt order, and receipts are not monotonic across a
+  record's incarnations, so a late removal could take the only row an owner rested on.) On DuckDB the record's
+  trace-index rows go with its last version, in the purge's transaction; ClickHouse writes them before the
+  version, so a stored version always has its index, and leaves them to their time-to-live. A record with no live
+  version is not decided on: the pass purges what its cutoff covers. Refused, it rewrites the record without the
+  spans the deletion fences refuse, or - holding nothing deleted - purges the versions below the latest it read,
+  and, at the latest's own key, every version but the last stored: two rewrites can key their versions alike, and
+  the one readers do not take may hold deleted content the other removed. ClickHouse cannot tell equal-keyed
+  versions apart in a delete; its merge keeps the last stored, so there that version goes at the next merge.
+  It then looks again and re-queues anything unsettled. A decision a collector left unpurged - it died, or is slow -
+  is purged again after five minutes; repeating a purge is safe, since it reaches only versions at or below its
+  epoch;
+- readers that decide ownership questions - the ingest's claim and check, settlement, the reconciler - see a record
+  only if its latest version is keyed above the record's cutoff (the greater of its high-water mark and a pending
+  decision). A version under a pending decision is simply doomed; one at or below the high-water mark landed
+  after its purge completed - a landing that beat the landing horizon - and each distinct one found is counted
+  (`late_raw_landings`) and logged once with how many epochs late it is, so an operator learns the analytics
+  store's clocks or execution bounds were exceeded;
+- an ingest whose span write fails enqueues the records it stored before the rows, which nothing then owns.
 
-- every deletion and expiry of span rows enqueues the records holding those traces, in the same transaction as the
-  delete, and finds them through the trace index rather than through the rows - a record whose rows already expired,
-  or whose only naming row was a superseded revision a ClickHouse merge removed, is named by nothing and must still
-  be reached;
-- the reconciler then rewrites each queued record without the spans the deletion fences refuse, or deletes it when no
-  row names it, and looks again afterwards - at the latest record's content, not only its version, since a rewrite
-  prepared before a deletion can win the version tie over a newer one - re-enqueueing anything still unsettled, so
-  whichever reconciler acts last sees its own effect. The delete decides who names the record in the same step, and a
-  rewrite is stored only while the record is and is queued as it is stored, so a reconciler that dies between its
-  steps loses nothing: decided from its earlier read, the delete took the record of an ingest whose rows and check
-  fell in between, and the look that would have restored it never came. DuckDB takes each step in one transaction
-  on its one connection; ClickHouse still reads and then deletes, and appends and then queues - the open defect
-  `ingestion-architecture.md` names under the acknowledgement contract;
-- an ingest whose rows the latest record does not hold appends the union of the two, at least two versions above what
-  it read, so a concurrent reconciler's rewrite of an older version cannot win over it whatever the writers' clocks
-  say, and supersedes a latest version that no longer decodes as if it held nothing;
-- an ingest whose span write fails enqueues the records it stored before the rows: no row may name them, and one
-  fenced before a deletion that landed meanwhile holds content the deletion removed, which only the reconciler
-  takes out;
-- a legal hold stops both: the records and the index carry `hold_until` exactly as the span rows do, retention and
-  deletion skip a held row, and the reconciler leaves a held record queued. **A known open defect:** the reconciler
-  looks for a hold before it acts, in separate calls, so a hold placed in between does not stop a delete or rewrite
-  it has already decided on; the model assumes a hold cannot begin mid-act.
+A reconciler reads a queue entry only once the **landing horizon** (30 s) has passed since it was enqueued, so the
+version its writer was landing has landed by the read. On DuckDB the version and its entry commit in one
+transaction. On ClickHouse a repair is appended and then queued, and the **landing fence is pending**: nothing stops
+a submitted insert committing after the horizon, past a client timeout or its process's death. What the model
+proves for `FencedLanding = FALSE` is what holds without it: a late landing is never claimed or counted as stored,
+and never costs an acknowledged export its record, but its bytes - or a derived row no trace owns - persist until the
+record is next touched or its time-to-live expires, not within one pass. The fence (an `INSERT ... SELECT FROM
+input()` gated by a deadline on the server's clock, under its execution-time cap) is its own slice. A second
+merge-bounded residue sits beside it: on ClickHouse, a version two rewrites keyed alike and readers do not take
+lingers - holding deleted content the other removed - until the next merge keeps the last stored; a delete cannot
+tell equal-keyed versions apart, and no reader takes it meanwhile.
+
+**Still being built:** the user-facing raw readers (download, export, re-derivation, restore) do not yet apply the
+cutoff or live ownership, so until they do a late landing's bytes, or deleted content awaiting its rewrite, can be
+read through them; and a rewrite is appended directly rather than staged as a payload of its own. **A known open
+defect:** the reconciler looks for a legal hold before a rewrite or supersede purge, in separate calls, so a hold
+placed in between does not stop one it has already decided on; the collection decision checks the hold in its own
+transaction and is not affected.
 
 Media follows the same ownership as an extracted file (`trace_files`, `pending_writers`, `durable`), owned by every
 trace whose span text carries it; survivor reconciliation therefore keeps what a surviving record references, not
 only what its derived columns do. Media the file store refused - a project over its quota - stays inline, so a record
 is decodable whatever happened to the files.
 
-`server/specs/RawRecordOwnership.tla` models the protocol and `RawRecordReconcilers.cfg` the races between two
-reconcilers, with reconcilers that can die between steps and DuckDB's single-step delete, rewrite and append, each
-with its queue entry; checked over every interleaving within the models' bounds: once settled, every row's content
-is in the latest record, the latest version holds nothing deleted, and a record no row names is collected; in every
-state, content a live row needs is missing only while a process that holds it has yet to act, and - on the
-assumption the open hold defect above breaks - a hold loses nothing. With the delete decided from an earlier read
-instead, TLC breaks `Recoverable`, the check on missing content: the reconciler reads, the ingest writes its rows
-and checks, the reconciler deletes and dies.
+`server/specs/RawRecordOwnership.tla` models the protocol, with four checked instances - one delivery redelivered
+against a crashing reconciler, duplicate executions against two crashing reconcilers (the takeover corridor), three
+collectors, and backup and restore under a hold - and `server/specs/RawRecordCutoff.tla` the mapping from its one
+record to many. Checked over every interleaving within the models' bounds: no acknowledged export loses its record,
+no purge removes the latest version owned rows rest on, every live row an acknowledged ingest wrote stays owned (so
+what a collection leaves is only unacknowledged writes' rows), a hold keeps its live content, deleted content
+leaves every version once settled, and no reader gated by live ownership sees deleted content. Without the epoch
+bounding purges, without the confirm fence, or with one project-wide cutoff, TLC breaks them.
+
+**Deferred to the retention slice:** `raw_collections` keeps a row for every record ever collected, and nothing
+prunes it yet - bounded live telemetry leaves unbounded collection state behind, counted in the project's held
+transactional bytes. And owner rows are released only by deletion and SideSeat's own retention passes: ClickHouse's
+90-day time-to-live can reap rows while SideSeat is not running (the age pass runs a day ahead of it, hourly, but
+not while stopped), leaving their owners unreleased. Both are arbiter-state retention and are pruned there. The
+project's held transactional bytes are also computed there, as a sum over the arbiter's rows beside the deletion
+journal, on every storage read and quota admission - work in proportion to what is stored; that slice replaces the
+sum with a per-project counter kept in the transactions that touch those rows, if admission runs it per batch.
+
+**Deferred to the trace-index slice, right after it:** the retention release is bounded per call by traces (64 at
+a time), not within a trace. It reads every owner of those traces and every record their rows still name, so one
+long-lived trace costs memory and work in proportion to its own rows. On DuckDB the presence of a trace's rows is
+read through the span table's `trace_id` index - which the production connection keeps whatever a key finds
+(`index_scan_max_count = 2^40`, `adapter-duckdb/src/session.rs`), so it never falls back to a table scan - but the
+keyed read materialises the trace's rows; and the release's lookup of the records indexed under the traces filters
+`otel_raw_traces` by a `trace_id` it has no index on, which scans that table. Paging owners alone would not bound
+it; an index answering (trace, record) presence does, and that slice measures it.
 
 ### Deferred: content-defined chunking of re-sent history
 

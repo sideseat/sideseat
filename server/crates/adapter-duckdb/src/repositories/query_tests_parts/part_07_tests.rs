@@ -91,6 +91,34 @@ async fn a_supersede_purge_keeps_the_latest_it_read_and_everything_after() {
     assert_eq!(stored_versions(&conn, "r"), vec![key(0, 2), key(1, 1)]);
 }
 
+/// Two rewrites keyed alike: readers take the last stored, and the supersede purge takes the other with the
+/// versions below - otherwise the one the purge left kept the deleted content the later rewrite removed, under a
+/// key no purge below the latest reaches.
+#[tokio::test]
+async fn a_supersede_purge_takes_an_earlier_version_of_the_latest_s_own_key() {
+    let (_dir, service) = create_test_service().await;
+    let conn = service.conn();
+    let project = sideseat_ports::types::ProjectId::from("project");
+    crate::repositories::raw::append_versions(
+        &conn,
+        &[
+            versioned("r", key(0, 1), b"with-two-deleted-spans"),
+            versioned("r", key(0, 2), b"rewrite-without-one"),
+            versioned("r", key(0, 2), b"rewrite-without-both"),
+        ],
+    )
+    .unwrap();
+    crate::repositories::raw::delete_superseded(&conn, &project, "r", key(0, 2)).unwrap();
+    let bodies: Vec<Vec<u8>> = conn
+        .prepare("SELECT record FROM otel_raw WHERE raw_id = 'r'")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(bodies, vec![b"rewrite-without-both".to_vec()]);
+}
+
 /// A pass reads only entries enqueued before the landing horizon; at a horizon of zero, every entry is due.
 #[tokio::test]
 async fn the_pending_read_waits_out_the_landing_horizon() {
@@ -109,44 +137,5 @@ async fn the_pending_read_waits_out_the_landing_horizon() {
             .unwrap()
             .len(),
         1
-    );
-}
-
-/// The span identities naming a record, for the collection's removal of rows no trace owns.
-#[tokio::test]
-async fn the_spans_naming_a_record_are_found_by_its_id() {
-    let (_dir, service) = create_test_service().await;
-    let conn = service.conn();
-    let project = sideseat_ports::types::ProjectId::from("project");
-    let span = |trace: &str, span: &str, raw: &str| NormalizedSpan {
-        project_id: Some("project".to_string()),
-        trace_id: trace.to_string(),
-        span_id: span.to_string(),
-        timestamp_start: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
-        raw_id: Some(raw.to_string()),
-        ..Default::default()
-    };
-    let mut record = versioned("r", key(0, 1), b"r");
-    record.trace_ids = vec!["t1".to_string(), "t2".to_string()];
-    let mut other = versioned("other", key(0, 1), b"other");
-    other.trace_ids = vec!["t3".to_string(), "t1".to_string()];
-    crate::repositories::raw::append_versions(&conn, &[record, other]).unwrap();
-    crate::repositories::span::insert_batch(
-        &conn,
-        &[
-            span("t1", "s1", "r"),
-            span("t2", "s2", "r"),
-            span("t3", "s3", "other"),
-            // Another record's row in a trace this record also holds is not this record's.
-            span("t1", "s9", "other"),
-        ],
-    )
-    .unwrap();
-    assert_eq!(
-        crate::repositories::raw::spans_naming(&conn, &project, "r").unwrap(),
-        vec![
-            ("t1".to_string(), "s1".to_string()),
-            ("t2".to_string(), "s2".to_string())
-        ]
     );
 }

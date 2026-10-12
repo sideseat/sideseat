@@ -71,6 +71,7 @@ pub(super) async fn pipeline_over_a_temp_duckdb(
 pub(super) struct TempPipeline {
     pub temp: tempfile::TempDir,
     pub duckdb: Arc<sideseat_adapter_duckdb::DuckdbService>,
+    pub sqlite: Arc<sideseat_adapter_sqlite::SqliteService>,
     pub analytics: Arc<dyn AnalyticsRepository + Send + Sync>,
     pub database: Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
     pub pipeline: TracePipeline,
@@ -168,6 +169,7 @@ pub(super) async fn temp_pipeline(files_enabled: bool) -> TempPipeline {
     TempPipeline {
         temp,
         duckdb,
+        sqlite,
         analytics,
         database,
         pipeline,

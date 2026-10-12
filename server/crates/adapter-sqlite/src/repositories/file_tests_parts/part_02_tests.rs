@@ -99,3 +99,45 @@ async fn ref_count_matches_the_number_of_trace_associations() {
         "with no trace referencing it the file is collectable"
     );
 }
+
+/// A retention cleanup that keeps failing stays owed and shows it: the backlog counts it, dates it from its
+/// recording, and its attempts grow with every pass that claims it without completing it.
+#[tokio::test]
+async fn an_owed_retention_cleanup_shows_its_age_and_failed_passes() {
+    let pool = setup_test_pool().await;
+    let project = sideseat_ports::types::ProjectId::from("default");
+    let empty = crate::repositories::governance::retention_cleanup_backlog(&pool, &project)
+        .await
+        .unwrap();
+    assert_eq!(
+        empty,
+        sideseat_ports::types::RetentionCleanupBacklog::default()
+    );
+
+    let tokens = record_retention_cleanup(&pool, "default", &["t1".to_string()], 1_000)
+        .await
+        .unwrap();
+    for pass in 0..3 {
+        let claimed = claim_retention_cleanup(&pool, 16, 0, 2_000 + pass)
+            .await
+            .unwrap();
+        assert_eq!(claimed.len(), 1, "the failed cleanup is claimed again");
+    }
+    let stalled = crate::repositories::governance::retention_cleanup_backlog(&pool, &project)
+        .await
+        .unwrap();
+    assert_eq!(stalled.pending, 1);
+    assert_eq!(
+        stalled.oldest_pending_at,
+        chrono::DateTime::from_timestamp(1_000, 0)
+    );
+    assert_eq!(stalled.most_attempts, 3);
+
+    complete_retention_cleanup(&pool, "default", &tokens)
+        .await
+        .unwrap();
+    let done = crate::repositories::governance::retention_cleanup_backlog(&pool, &project)
+        .await
+        .unwrap();
+    assert_eq!(done.pending, 0);
+}
