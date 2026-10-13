@@ -362,3 +362,61 @@ async fn a_rewrite_is_stored_only_while_its_record_is() {
         "the rewrite is queued, the refused one is not"
     );
 }
+
+/// The trace index holds a record's traces once, however its versions come and go: written fresh, again as a
+/// further version, purged with its last version, and written fresh once more. A record the insert finds with no
+/// version is indexed without reading the index, which is sound only because the purge takes a record's trace rows
+/// with its last version (`raw::index_traces`).
+#[tokio::test]
+async fn a_record_purged_and_written_again_is_indexed_once() {
+    let (_dir, service) = create_test_service().await;
+    let project = sideseat_ports::types::ProjectId::from("project");
+    let record = raw_version("raw", 1, &["t1", "t2"], b"SSR1\0\0body");
+    let trace_rows = || -> i64 {
+        service
+            .conn()
+            .query_row("SELECT count(*) FROM otel_raw_traces", [], |row| row.get(0))
+            .unwrap()
+    };
+    crate::repositories::raw::insert(&service.conn(), std::slice::from_ref(&record)).unwrap();
+    assert_eq!(trace_rows(), 2);
+    crate::repositories::raw::append_versions(
+        &service.conn(),
+        &[raw_version("raw", 2, &["t1", "t2"], b"SSR1\0\0body")],
+    )
+    .unwrap();
+    assert_eq!(
+        trace_rows(),
+        2,
+        "a further version adds no trace row it has"
+    );
+    crate::repositories::raw::purge_versions(&service.conn(), &project, "raw", i64::MAX).unwrap();
+    assert_eq!(
+        trace_rows(),
+        0,
+        "the last version takes its trace rows with it"
+    );
+    crate::repositories::raw::insert(&service.conn(), std::slice::from_ref(&record)).unwrap();
+    assert_eq!(trace_rows(), 2, "written again, it is indexed afresh, once");
+}
+
+/// The supersede purge can take a record's last version - the version at the key it read collected since, and an
+/// older one written after - and takes its trace rows with it, so the record written again is indexed once.
+#[tokio::test]
+async fn a_supersede_that_takes_the_last_version_takes_its_trace_rows() {
+    let (_dir, service) = create_test_service().await;
+    let project = sideseat_ports::types::ProjectId::from("project");
+    let trace_rows = || -> i64 {
+        service
+            .conn()
+            .query_row("SELECT count(*) FROM otel_raw_traces", [], |row| row.get(0))
+            .unwrap()
+    };
+    let older = raw_version("raw", 1, &["t1", "t2"], b"SSR1\0\0older");
+    crate::repositories::raw::insert(&service.conn(), std::slice::from_ref(&older)).unwrap();
+    // A reconciler read version 2, since collected: below it, the older version goes, and it was the last.
+    crate::repositories::raw::delete_superseded(&service.conn(), &project, "raw", 2).unwrap();
+    assert_eq!(trace_rows(), 0, "no version left, no trace row left");
+    crate::repositories::raw::insert(&service.conn(), std::slice::from_ref(&older)).unwrap();
+    assert_eq!(trace_rows(), 2, "written again, indexed once");
+}

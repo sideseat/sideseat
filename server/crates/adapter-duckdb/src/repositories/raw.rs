@@ -35,7 +35,16 @@ fn duckdb_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
 const COLUMNS: &str = "raw_id, signal, EPOCH_US(received_at), origin, version_key, EPOCH_US(signal_until), \
                        EPOCH_US(hold_until), record";
 
-fn append(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbError> {
+/// Whether the records being appended were found to have no version stored in their project.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stored {
+    /// None of them has a version: by the trace index's invariant (`index_traces`) none has a trace row either.
+    Absent,
+    /// Some may: a repair or a rewrite appends a further version of a record that is there.
+    Unknown,
+}
+
+fn append(conn: &Connection, records: &[&RawRecordRow], stored: Stored) -> Result<(), DuckdbError> {
     let mut appender = conn.appender("otel_raw")?;
     for record in records {
         appender.append_row(params![
@@ -52,14 +61,31 @@ fn append(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbErro
     }
     appender.flush()?;
     drop(appender);
-    index_traces(conn, records)
+    index_traces(conn, records, stored)
 }
 
 /// Add the trace-index rows these versions need and the index does not have.
-fn index_traces(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbError> {
+///
+/// **The invariant the write rests on: a trace row of a record exists only while some version of that record does,
+/// in its project.** Every writer adds trace rows only beside a version - here, after appending it -
+/// and every remover of versions removes the rows with the last of them, in its transaction: the collection purge
+/// (`purge_versions`) and the supersede purge (`delete_superseded`) once no version remains, and a project's
+/// deletion with all of both. So records the insert
+/// found with no version (`Stored::Absent`) have no trace rows, and theirs are appended without reading the index;
+/// only a further version of a stored record reads which rows it already has.
+fn index_traces(
+    conn: &Connection,
+    records: &[&RawRecordRow],
+    stored: Stored,
+) -> Result<(), DuckdbError> {
     let raw_ids = distinct_keys(records.iter().map(|record| record.raw_id.as_str()));
     let mut present: HashSet<(String, String, String)> = HashSet::new();
-    for chunk in raw_ids.chunks(KEYED_CHUNK) {
+    let reads = if stored == Stored::Absent {
+        &[][..]
+    } else {
+        &raw_ids[..]
+    };
+    for chunk in reads.chunks(KEYED_CHUNK) {
         let keyed = duckdb_keyed(
             "otel_raw_traces",
             "raw_id",
@@ -105,36 +131,41 @@ fn index_traces(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), Duck
 
 /// Store the records not already stored: a redelivered body, a redrive and a re-derivation all present a
 /// `raw_id` the table has, and a second row for it would be a second copy of raw content.
+///
+/// In one transaction: a version is never stored without its trace rows, which a crash between the two appends
+/// left behind - and which a redelivery, finding the record stored, never wrote - and the write commits once.
 pub fn insert(conn: &Connection, records: &[RawRecordRow]) -> Result<(), DuckdbError> {
     if records.is_empty() {
         return Ok(());
     }
-    let mut present = HashSet::new();
-    let raw_ids = distinct_keys(records.iter().map(|record| record.raw_id.as_str()));
-    for chunk in raw_ids.chunks(KEYED_CHUNK) {
-        let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, raw_id", chunk.len());
-        let mut statement =
-            conn.prepare(&format!("SELECT DISTINCT project_id, raw_id FROM {keyed}"))?;
-        let rows = statement.query_map(duckdb::params_from_iter(chunk.iter()), |row| {
-            Ok((
-                ProjectId::from(row.get::<_, String>(0)?.as_str()),
-                row.get::<_, String>(1)?,
-            ))
-        })?;
-        for row in rows {
-            present.insert(row?);
+    crate::in_transaction(conn, |conn| {
+        let mut present = HashSet::new();
+        let raw_ids = distinct_keys(records.iter().map(|record| record.raw_id.as_str()));
+        for chunk in raw_ids.chunks(KEYED_CHUNK) {
+            let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, raw_id", chunk.len());
+            let mut statement =
+                conn.prepare(&format!("SELECT DISTINCT project_id, raw_id FROM {keyed}"))?;
+            let rows = statement.query_map(duckdb::params_from_iter(chunk.iter()), |row| {
+                Ok((
+                    ProjectId::from(row.get::<_, String>(0)?.as_str()),
+                    row.get::<_, String>(1)?,
+                ))
+            })?;
+            for row in rows {
+                present.insert(row?);
+            }
         }
-    }
-    let fresh: Vec<&RawRecordRow> = records
-        .iter()
-        .filter(|record| present.insert((record.project_id.clone(), record.raw_id.clone())))
-        .collect();
-    append(conn, &fresh)
+        let fresh: Vec<&RawRecordRow> = records
+            .iter()
+            .filter(|record| present.insert((record.project_id.clone(), record.raw_id.clone())))
+            .collect();
+        append(conn, &fresh, Stored::Absent)
+    })
 }
 
 /// Store these versions whatever is already there.
 pub fn append_versions(conn: &Connection, records: &[RawRecordRow]) -> Result<(), DuckdbError> {
-    append(conn, &records.iter().collect::<Vec<_>>())
+    append(conn, &records.iter().collect::<Vec<_>>(), Stored::Unknown)
 }
 
 /// Store these versions and queue their records for the reconciler, in one transaction.
@@ -259,7 +290,7 @@ fn record_rowids(
 }
 
 /// The collection purge (`RPurge`): the record's versions keyed at or below `up_to_epoch`, and its trace-index
-/// rows once no version remains - in one transaction. DuckDB has no time-to-live to take the index rows later,
+/// rows once no version remains - in one transaction, which the trace index's invariant needs (`index_traces`). DuckDB has no time-to-live to take the index rows later,
 /// and every statement runs on the one connection, so a version landing after the purge commits after it and
 /// indexes its traces afresh: nothing it needs can be taken with the purged ones.
 pub fn purge_versions(
@@ -293,30 +324,41 @@ pub fn delete_superseded(
     raw_id: &str,
     below_version: i64,
 ) -> Result<(), DuckdbError> {
-    // Below the key read, and at that key every version but the last stored: two rewrites can key their versions
-    // alike, and readers take the last of equal keys (`get`), so the earlier one is superseded too - left in place,
-    // it kept whatever deleted content the later rewrite removed, with no key below the latest to find it by.
-    let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, version_key", 1);
-    let mut statement = conn.prepare(&format!(
-        "SELECT keyed_rowid, version_key FROM {keyed} WHERE project_id = ? AND version_key <= ?"
-    ))?;
-    let versions: Vec<(i64, i64)> = statement
-        .query_map(params![raw_id, project_id.as_str(), below_version], |r| {
-            Ok((r.get(0)?, r.get(1)?))
-        })?
-        .collect::<Result<_, _>>()?;
-    let last_at_key = versions
-        .iter()
-        .filter(|(_, key)| *key == below_version)
-        .map(|(rowid, _)| *rowid)
-        .max();
-    let superseded: Vec<i64> = versions
-        .into_iter()
-        .filter(|(rowid, key)| *key < below_version || Some(*rowid) != last_at_key)
-        .map(|(rowid, _)| rowid)
-        .collect();
-    super::keyed::delete_rows(conn, "otel_raw", &superseded)?;
-    Ok(())
+    crate::in_transaction(conn, |conn| {
+        // Below the key read, and at that key every version but the last stored: two rewrites can key their
+        // versions alike, and readers take the last of equal keys (`get`), so the earlier one is superseded too -
+        // left in place, it kept whatever deleted content the later rewrite removed, with no key below the latest
+        // to find it by.
+        let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, version_key", 1);
+        let mut statement = conn.prepare(&format!(
+            "SELECT keyed_rowid, version_key FROM {keyed} WHERE project_id = ? AND version_key <= ?"
+        ))?;
+        let versions: Vec<(i64, i64)> = statement
+            .query_map(params![raw_id, project_id.as_str(), below_version], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        let last_at_key = versions
+            .iter()
+            .filter(|(_, key)| *key == below_version)
+            .map(|(rowid, _)| *rowid)
+            .max();
+        let superseded: Vec<i64> = versions
+            .into_iter()
+            .filter(|(rowid, key)| *key < below_version || Some(*rowid) != last_at_key)
+            .map(|(rowid, _)| rowid)
+            .collect();
+        super::keyed::delete_rows(conn, "otel_raw", &superseded)?;
+        // The version at the key read can be gone - collected since it was read - so this can take the last
+        // version, and its trace rows go with it, as the purge takes them (`index_traces`).
+        if !superseded.is_empty()
+            && record_rowids(conn, "otel_raw", project_id, raw_id, "", None)?.is_empty()
+        {
+            let index = record_rowids(conn, "otel_raw_traces", project_id, raw_id, "", None)?;
+            super::keyed::delete_rows(conn, "otel_raw_traces", &index)?;
+        }
+        Ok(())
+    })
 }
 
 /// The records the trace index holds under these traces.
@@ -405,7 +447,7 @@ pub fn append_rewrites(
             .filter(|record| stored.contains(&(record.project_id.clone(), record.raw_id.clone())))
             .collect();
         if !kept.is_empty() {
-            append(conn, &kept)?;
+            append(conn, &kept, Stored::Unknown)?;
         }
         let mut queued: BTreeMap<&ProjectId, Vec<String>> = BTreeMap::new();
         for record in &kept {
