@@ -438,12 +438,12 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     search_severity           VARCHAR,
     search_attributes         VARCHAR
 );
--- The identity's uniqueness, which no scan reads: a write replaces an identity's row, and this makes a second
--- row for it an error rather than a duplicate. The lookups a write and its confirmation make are bounded by the
--- records' own `timestamp` - part of the digest - which the zone maps answer; an index on `log_digest` measured
--- 68 bytes per record. See the span indexes for why no other compound index is kept.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_identity
-    ON otel_logs(project_id, log_digest, ordinal);
+-- No index on the identity. One row per identity is the write's: it replaces the identity's stored row with the
+-- batch's winner, the highest `ingested_at` as ClickHouse's ReplacingMergeTree keeps, inside one transaction under
+-- the store's single writer (`log::insert_batch`) - as a metric point's is. A unique index enforcing it again cost
+-- about 98 bytes a record. The lookups a write and its confirmation make are bounded by the records' own
+-- `timestamp` - part of the digest - which the zone maps answer. See the span indexes for why no other compound
+-- index is kept.
 -- The frames read, keyed by the one column it asks about: a trace's frames sit in whatever row groups their records
 -- landed in, which statistics cannot skip once frames are spread over most of them. A record that frames nothing
 -- stores NULL, which the index holds no entry for, so a store without frames pays nothing for it.

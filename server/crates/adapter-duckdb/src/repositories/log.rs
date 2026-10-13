@@ -19,6 +19,11 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
     }
     let target = dml::log_write_target(Backend::Duckdb, None);
     in_transaction(conn, |conn| {
+        // One row per identity, which no index enforces (`schema`): of the batch's records of one identity and the
+        // stored row, the highest `ingested_at` wins - a tie to the batch's latest - as ClickHouse's
+        // ReplacingMergeTree keeps; the stored row goes when a batch record wins, and the batch's other copies of
+        // the identity are not written at all.
+        let logs = &batch_winners(logs);
         // A redelivery replaces the identity's stored row. Found within the records' own instants and deleted by
         // row id, so a write reads the row groups of what it replaces rather than the whole table (`keyed`).
         // A record with a time of its own is stored under it - part of its digest - so its row is found at that
@@ -40,12 +45,31 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
             .collect();
         let stored_rows = super::keyed::log_rows(conn, &identities)?;
         let mut stored: HashSet<super::keyed::LogIdentity> = HashSet::new();
+        let mut kept: HashSet<super::keyed::LogIdentity> = HashSet::new();
         let mut rowids = Vec::with_capacity(stored_rows.len());
-        for (rowid, identity, _) in stored_rows {
+        let ingested: HashMap<super::keyed::LogIdentity, i64> = logs
+            .iter()
+            .map(|log| (identity_of(log), ingested_us(log)))
+            .collect();
+        for (rowid, identity, stored_us) in stored_rows {
+            if ingested
+                .get(&identity)
+                .is_some_and(|batch_us| stored_us > *batch_us)
+            {
+                // A later revision is stored: it stays, and the batch's copy is not written.
+                kept.insert(identity);
+                continue;
+            }
             rowids.push(rowid);
             stored.insert(identity);
         }
         super::keyed::delete_rows(conn, target.table(), &rowids)?;
+        let written: Vec<NormalizedLog> = logs
+            .iter()
+            .filter(|log| !kept.contains(&identity_of(log)))
+            .cloned()
+            .collect();
+        let logs = &written;
         // A replaced identity's reference rows for the references this delivery writes again go, so they are
         // not doubled.
         let rewritten: Vec<(String, String, u32, String)> = logs
@@ -131,6 +155,39 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
         write_media_refs(conn, logs)?;
         Ok(())
     })
+}
+
+fn identity_of(log: &NormalizedLog) -> super::keyed::LogIdentity {
+    (
+        log.project_id.clone().unwrap_or_default(),
+        log.log_digest.clone(),
+        log.ordinal,
+    )
+}
+
+/// The instant a record's revision was written at, as it is stored.
+fn ingested_us(log: &NormalizedLog) -> i64 {
+    log.ingested_at.unwrap_or(log.timestamp).timestamp_micros()
+}
+
+/// One record per identity of `logs`, in their order: the highest `ingested_at`, the latest of a tie.
+fn batch_winners(logs: &[NormalizedLog]) -> Vec<NormalizedLog> {
+    let mut winner: HashMap<super::keyed::LogIdentity, usize> = HashMap::new();
+    for (index, log) in logs.iter().enumerate() {
+        let identity = identity_of(log);
+        match winner.get(&identity) {
+            Some(&best) if ingested_us(&logs[best]) > ingested_us(log) => {}
+            _ => {
+                winner.insert(identity, index);
+            }
+        }
+    }
+    let chosen: HashSet<usize> = winner.into_values().collect();
+    logs.iter()
+        .enumerate()
+        .filter(|(index, _)| chosen.contains(index))
+        .map(|(_, log)| log.clone())
+        .collect()
 }
 
 /// One reference row per media-bearing log and reference (`log_media_refs`). A log without a trace holds its media
@@ -414,5 +471,73 @@ mod tests {
             }
         }
         assert_eq!(rows, vec![(kept, 1), (dropped, 1)]);
+    }
+
+    /// The instants the rows of one identity were written at, read the way a write finds them.
+    fn rows_of(conn: &Connection, digest: &str) -> Vec<i64> {
+        let identity = ("logs-project".to_string(), digest.to_string(), 0);
+        let mut written: Vec<i64> = crate::repositories::keyed::log_rows(conn, &[(identity, None)])
+            .unwrap()
+            .into_iter()
+            .map(|(_, _, ingested_us)| ingested_us)
+            .collect();
+        written.sort_unstable();
+        written
+    }
+
+    fn at(second: i64) -> chrono::DateTime<chrono::Utc> {
+        DateTime::from_timestamp(1_700_000_100 + second, 0).unwrap()
+    }
+
+    /// No index makes an identity's second row an error, so the write keeps one: of a batch's copies of one
+    /// identity and the stored row, the latest written wins, and an older redelivery replaces nothing.
+    #[tokio::test]
+    async fn one_row_per_identity_holds_without_an_index() {
+        let (_directory, service) = service().await;
+        let conn = service.conn();
+        let copy = |second: i64| NormalizedLog {
+            ingested_at: Some(at(second)),
+            ..fixture("digest-a", 0, 0)
+        };
+        insert_batch(&conn, &[copy(5), copy(9), copy(7)]).unwrap();
+        assert_eq!(rows_of(&conn, "digest-a"), [at(9).timestamp_micros()]);
+        insert_batch(&conn, &[copy(3)]).unwrap();
+        assert_eq!(
+            rows_of(&conn, "digest-a"),
+            [at(9).timestamp_micros()],
+            "an older redelivery leaves the later revision"
+        );
+        insert_batch(&conn, &[copy(9)]).unwrap();
+        insert_batch(&conn, &[copy(12)]).unwrap();
+        assert_eq!(rows_of(&conn, "digest-a"), [at(12).timestamp_micros()]);
+    }
+
+    /// Writers racing to write one identity leave one row, the latest written: the writes run one at a time under
+    /// the store's writer, each replacing what the one before stored.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_writes_of_one_identity_leave_one_row() {
+        use sideseat_ports::traits::LogStore;
+        let (_directory, service) = service().await;
+        let repository = std::sync::Arc::new(crate::DuckdbRepository(std::sync::Arc::new(service)));
+        let writes: Vec<_> = (0..16)
+            .map(|n| {
+                let repository = std::sync::Arc::clone(&repository);
+                tokio::spawn(async move {
+                    repository
+                        .insert_logs(&[NormalizedLog {
+                            ingested_at: Some(at(n)),
+                            ..fixture("digest-race", 0, 0)
+                        }])
+                        .await
+                })
+            })
+            .collect();
+        for write in writes {
+            write.await.unwrap().unwrap();
+        }
+        assert_eq!(
+            rows_of(&repository.0.conn(), "digest-race"),
+            [at(15).timestamp_micros()]
+        );
     }
 }

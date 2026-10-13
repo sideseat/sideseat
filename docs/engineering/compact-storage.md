@@ -191,8 +191,10 @@ index, and a second predicate in the same scan reads the whole table. The compou
 metrics and raw records were therefore never read - on a million spans every per-identity read scanned every row
 with them and without - while they held a quarter of the file and every insert maintained them. They are gone;
 what remains is one single-column index per key a read looks rows up by (`otel_spans.span_id` and `trace_id`,
-`otel_raw.raw_id`, `otel_raw_traces.raw_id`), plus the unique index that makes a second row for a log identity an
-error. Every read keyed on one of them is written so the key is its scan's only filter
+`otel_raw.raw_id`, `otel_raw_traces.raw_id`). A log identity's one row is the write's, as a metric point's is: it
+replaces the stored row with the batch's winner, the latest `ingested_at` as ClickHouse keeps, under the store's
+single writer; the unique index that once refused a second row cost 131 B a record on the corpus (556.14 to 425.28 B
+per log record). Every read keyed on one of them is written so the key is its scan's only filter
 (`sideseat_query_sql::keyed`), binds at most 512 keys, and stays on the index however many rows its keys find
 (DuckDB's `index_scan_max_count`, raised on the connection), so a long trace or a span id a client reuses costs the
 rows it asks for rather than the table; deletes go by the row ids a keyed read found. The keys are bound one
