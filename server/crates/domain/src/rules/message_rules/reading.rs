@@ -664,8 +664,8 @@ pub(super) fn indexed_entries(
                 object.insert(member.to_string(), member_value(member, value, numeric));
             }
         }
-        // The entry's own serialised member, read once the entry is whole. Never beside an overlay (compilation
-        // refuses it), so which of the two rewrites a member first is not a question.
+        // The entry's own serialised member, read once the entry is whole and **before** the overlay, which then
+        // sees the entry as decoded: the entry's own statement first, the richer copy's improvement on it second.
         if let Some(decode) = &read.decode {
             let mut entry = JsonValue::Object(std::mem::take(&mut object));
             decode_member_in_place(&mut entry, decode);

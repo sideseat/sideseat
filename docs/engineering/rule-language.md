@@ -1202,7 +1202,7 @@ than a field to un-refuse.
 | `numeric_members` | list of string | Entry members to read as a number where the text is one. |
 | `entry_value` | string | Read one *value* out of each indexed entry, rather than the entry's assembled members. |
 | `entry_value_parse` | [`ParseMode`](#parsemode) or null | How the projected value is read. `json` **drops** an entry whose payload does not parse, which is what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a malformed schema would be emitted as the string it is, reported as a tool definition. |
-| `decode` | [`MemberDecode`](#memberdecode) or null | One member of each entry that is itself serialised, decoded in place once the entry is assembled and before `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the `role` that stays as it is. |
+| `decode` | [`MemberDecode`](#memberdecode) or null | One member of each entry that is itself serialised, decoded in place once the entry is assembled, before an `overlay` improves it and before `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the `role` that stays as it is. |
 | `overlay` | [`OverlaySpec`](#overlayspec) or null | A richer copy of these same messages, held by another carrier and matched by position. |
 
 ### `FirstPresent_string`
@@ -1250,6 +1250,7 @@ truncated object is never read as a partial one.
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `select` (required) | string | The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole value is decoded by the carrier's own `parse`. |
 | `parse` (required) | [`ParseMode`](#parsemode) | How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a selection then finds nothing in. |
+| `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What the value must be, **with the member decoded in it**, for the decode to stand: the class a framework prints its own message as, and what its siblings say (an entry's `role`). Asked of the whole value, so its paths run through the member (`$.content.__java_class`). A value that does not hold it keeps the member as the text it was, so prose that happens to read as some printed object is not taken for one. Empty holds. |
 
 ### `OverlaySpec`
 

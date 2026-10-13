@@ -300,3 +300,82 @@ fn openai_agents_logfire_function_span_keeps_input_and_output() {
         "retrieve_user_preference"
     );
 }
+
+/// A user message a JVM framework printed with `toString` is decoded only on that framework's spans, only in a user
+/// entry, and only where it is exactly an unnamed `UserMessage` with no attributes holding some part that is not
+/// text, printing back byte for byte; any other text - cut short, named, carrying attributes, text alone (which
+/// the framework exports as the text), prose that reads as some other printed object, the same text in a system
+/// or assistant entry, or on another producer's span - stays the content it was.
+#[test]
+fn a_printed_user_message_is_decoded_only_when_it_is_one_whole() {
+    let read_as = |scope: &'static str, role: &str, content: &str| {
+        let attrs = make_attrs(&[
+            ("openinference.span.kind", "LLM"),
+            ("llm.input_messages.0.message.role", role),
+            ("llm.input_messages.0.message.content", content),
+        ]);
+        let span = SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
+            name: "LLM",
+            attrs: &attrs,
+            scope_name: Some(scope),
+            is_tool_span: false,
+        };
+        let mut messages = Vec::new();
+        let mut unused = Vec::new();
+        try_declared_rules_for_span(
+            &mut messages,
+            &mut unused,
+            span,
+            Utc::now(),
+            &mut std::collections::HashSet::new(),
+        );
+        assert_eq!(messages.len(), 1, "one entry");
+        messages[0].content["content"].clone()
+    };
+    let read_from = |scope: &'static str, content: &str| read_as(scope, "user", content);
+    let read = |content: &str| read_from("com.arize.langchain4j", content);
+    let whole = r#"UserMessage { name = null, contents = [TextContent { text = "Describe it." }, ImageContent { image = Image { url = null, base64Data = "AAAA", mimeType = "image/png", revisedPrompt = null } detailLevel = LOW }, PdfFileContent { pdfFile = PdfFile { url = null, base64Data = "JVBE", mimeType = "application/pdf" } }], attributes = {} }"#;
+    let decoded = read(whole);
+    assert_eq!(decoded["__java_class"], "UserMessage", "{decoded}");
+    let classes: Vec<&str> = decoded["contents"]
+        .as_array()
+        .expect("its contents")
+        .iter()
+        .filter_map(|block| block["__java_class"].as_str())
+        .collect();
+    assert_eq!(classes, ["TextContent", "ImageContent", "PdfFileContent"]);
+    let image = r#"ImageContent { image = Image { url = null, base64Data = "AAAA", mimeType = "image/png", revisedPrompt = null } detailLevel = LOW }"#;
+    for kept in [
+        format!(r#"UserMessage {{ name = null, contents = [{image}, TextContent {{ text = "This is the c..."#),
+        format!(r#"UserMessage {{ name = "ada", contents = [{image}], attributes = {{}} }}"#),
+        format!(r#"UserMessage {{ name = null, contents = [{image}], attributes = {{k=v}} }}"#),
+        r#"UserMessage { name = null, contents = [TextContent { text = "hi" }], attributes = {} }"#.to_string(),
+        r#"UserMessage { name = null, contents = [TextContent { text = "a" }, TextContent { text = "b" }], attributes = {} }"#.to_string(),
+        r#"TextContent { text = "Prose that reads as a printed object." }"#.to_string(),
+    ] {
+        assert_eq!(read(&kept), serde_json::json!(kept), "stays the text it was");
+    }
+    // The decoded form is the user's: the same print in any other entry is what that entry says.
+    let control =
+        format!(r#"UserMessage {{ name = null, contents = [{image}], attributes = {{}} }}"#);
+    assert_eq!(
+        read(&control)["__java_class"],
+        "UserMessage",
+        "the control decodes"
+    );
+    for role in ["system", "assistant"] {
+        assert_eq!(
+            read_as("com.arize.langchain4j", role, &control),
+            serde_json::json!(control),
+            "{role}"
+        );
+    }
+    // The same text from any other producer is what that producer sent, never a printed object.
+    for scope in [
+        "openinference.instrumentation.openai",
+        "openinference.instrumentation.llama_index",
+    ] {
+        assert_eq!(read_from(scope, whole), serde_json::json!(whole), "{scope}");
+    }
+}

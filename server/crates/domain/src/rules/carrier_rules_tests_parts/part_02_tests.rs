@@ -188,6 +188,7 @@ fn every_predicate_set_in_the_schema_is_validated() {
         ),
         ("OverlaySpec::witness", "predicate_sets"),
         ("OverlaySpec::require", "predicate_sets"),
+        ("MemberDecode::require", "predicate_sets"),
         (
             "AttachSpec::require",
             "predicate_sets, via every envelope's attachments",

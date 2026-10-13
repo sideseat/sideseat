@@ -39,11 +39,6 @@ const UNUSED: &[(&str, &str)] = &[
          printed object in one member of a JSON carrier, and its asset follows the step",
     ),
     (
-        "ReadSpec.decode",
-        "the decode step on each entry of an indexed family, the same step an overlay ships: the captures it is \
-         for hold a printed object as an entry's content, and their assets follow the step",
-    ),
-    (
         "TerminalContent=aggregate",
         "half of the closed set of what a stream's terminal reading holds: a producer whose final reading is \
          always the whole response declares it; the one shipped stream's terminal depends on its model adapter, \
@@ -67,11 +62,6 @@ const UNUSED: &[(&str, &str)] = &[
         "half of the closed pair an unmapped repr argument type becomes: the one shipped `tool_repr` rule \
          maps its unknowns to a primitive, and the rule that left them unconstrained now reads its carrier \
          as the JSON it is",
-    ),
-    (
-        "ParseMode=java_tostring",
-        "the JVM counterpart of `python_constructor_repr`, for a producer that records its message objects with \
-         `toString`; no shipped rule reads one yet",
     ),
     (
         "ParseMode=python_fields",

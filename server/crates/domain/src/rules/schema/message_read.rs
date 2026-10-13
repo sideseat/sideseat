@@ -285,9 +285,9 @@ pub struct ReadSpec {
     /// malformed schema would be emitted as the string it is, reported as a tool definition.
     #[serde(default)]
     pub entry_value_parse: Option<ParseMode>,
-    /// One member of each entry that is itself serialised, decoded in place once the entry is assembled and
-    /// before `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the
-    /// `role` that stays as it is.
+    /// One member of each entry that is itself serialised, decoded in place once the entry is assembled, before
+    /// an `overlay` improves it and before `entry_value` projects it: an entry whose `content` is a framework's
+    /// printed object, beside the `role` that stays as it is.
     #[serde(default)]
     pub decode: Option<MemberDecode>,
     /// A richer copy of these same messages, held by another carrier and matched by position.
@@ -498,6 +498,12 @@ pub struct MemberDecode {
     /// How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a
     /// selection then finds nothing in.
     pub parse: ParseMode,
+    /// What the value must be, **with the member decoded in it**, for the decode to stand: the class a framework
+    /// prints its own message as, and what its siblings say (an entry's `role`). Asked of the whole value, so its
+    /// paths run through the member (`$.content.__java_class`). A value that does not hold it keeps the member as
+    /// the text it was, so prose that happens to read as some printed object is not taken for one. Empty holds.
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
 }
 
 impl ReadSpec {

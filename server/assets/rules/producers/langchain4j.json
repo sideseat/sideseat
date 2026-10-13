@@ -1,0 +1,187 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "langchain4j",
+  "doc": "LangChain4j, through its OpenInference instrumentation. Detected, and its messages read, by the OpenInference dialect; what is LangChain4j's own is the Java `toString` it prints a multimodal user message as, which `openinference.input_messages_langchain4j` decodes, and whose parts these cases read.",
+  "carriers": [],
+  "content_blocks": [
+    {
+      "id": "langchain4j.printed_user_message_contents",
+      "doc": "A user message LangChain4j printed with Java's `toString`, decoded by `openinference.input_messages_langchain4j`: its `contents` take its place, each block read on its own. Only an unnamed one with no attributes and nothing else, as the decode admits, so a message carrying more - however it arrived - is no case of this and stays the block it is.",
+      "at": "message_envelope",
+      "priority": 40,
+      "where": {
+        "all": [
+          {
+            "path": "$.__java_class",
+            "equals": "UserMessage"
+          },
+          {
+            "path": "$",
+            "only_members": [
+              "__java_class",
+              "name",
+              "contents",
+              "attributes"
+            ]
+          },
+          {
+            "path": "$.name",
+            "kind": "null"
+          },
+          {
+            "path": "$.attributes",
+            "equals": {}
+          },
+          {
+            "path": "$.contents",
+            "kind": "array"
+          }
+        ]
+      },
+      "splice": {
+        "from": "$.contents"
+      }
+    },
+    {
+      "id": "langchain4j.printed_text_content",
+      "doc": "A printed `TextContent`: its text, and nothing else.",
+      "at": "before_provider_formats",
+      "priority": 115,
+      "where": {
+        "all": [
+          {
+            "path": "$.__java_class",
+            "equals": "TextContent"
+          },
+          {
+            "path": "$",
+            "only_members": [
+              "__java_class",
+              "text"
+            ]
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "text": {
+        "text": "$.text"
+      }
+    },
+    {
+      "id": "langchain4j.printed_image_content",
+      "doc": "A printed `ImageContent` holding its bytes: an image of the stated media type, at the detail it was asked for. One holding a url, a revised prompt, or a detail that is not a string, is no case of this, and stays the block it is.",
+      "at": "before_provider_formats",
+      "priority": 116,
+      "where": {
+        "all": [
+          {
+            "path": "$.__java_class",
+            "equals": "ImageContent"
+          },
+          {
+            "path": "$",
+            "only_members": [
+              "__java_class",
+              "image",
+              "detailLevel"
+            ]
+          },
+          {
+            "path": "$.image.__java_class",
+            "equals": "Image"
+          },
+          {
+            "path": "$.image",
+            "only_members": [
+              "__java_class",
+              "url",
+              "base64Data",
+              "mimeType",
+              "revisedPrompt"
+            ]
+          },
+          {
+            "path": "$.image.url",
+            "kind": "null"
+          },
+          {
+            "path": "$.image.revisedPrompt",
+            "kind": "null"
+          },
+          {
+            "path": "$.image.base64Data",
+            "kind": "string"
+          },
+          {
+            "path": "$.image.mimeType",
+            "kind": "string"
+          },
+          {
+            "path": "$.detailLevel",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "media_type": "$.image.mimeType",
+        "data": "$.image.base64Data",
+        "detail": "$.detailLevel"
+      }
+    },
+    {
+      "id": "langchain4j.printed_pdf_content",
+      "doc": "A printed `PdfFileContent` holding its bytes: a document of the stated media type. One holding a url is no case of this.",
+      "at": "before_provider_formats",
+      "priority": 117,
+      "where": {
+        "all": [
+          {
+            "path": "$.__java_class",
+            "equals": "PdfFileContent"
+          },
+          {
+            "path": "$",
+            "only_members": [
+              "__java_class",
+              "pdfFile"
+            ]
+          },
+          {
+            "path": "$.pdfFile.__java_class",
+            "equals": "PdfFile"
+          },
+          {
+            "path": "$.pdfFile",
+            "only_members": [
+              "__java_class",
+              "url",
+              "base64Data",
+              "mimeType"
+            ]
+          },
+          {
+            "path": "$.pdfFile.url",
+            "kind": "null"
+          },
+          {
+            "path": "$.pdfFile.base64Data",
+            "kind": "string"
+          },
+          {
+            "path": "$.pdfFile.mimeType",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "kind": "document",
+        "media_type": "$.pdfFile.mimeType",
+        "data": "$.pdfFile.base64Data"
+      }
+    }
+  ]
+}

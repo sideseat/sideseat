@@ -9,9 +9,10 @@ use super::*;
 /// Decode the member `decode.select` names, in place: its text becomes the value it decodes to and its siblings
 /// stay. Answers whether it decoded.
 ///
-/// **Fail closed**: a member absent, not text, or text the mode refuses stays exactly what it was, never a
-/// partial structure. The Python and Java readers refuse a text that does not print back byte for byte, so a
-/// truncated object (`content="This is the c...`) is left as text. What an undecoded member means is the
+/// **Fail closed**: a member absent, not text, text the mode refuses, or text whose decoding leaves a value the
+/// decode's `where` does not hold stays exactly what it was, never a partial structure. The Python and Java readers refuse
+/// a text that does not print back byte for byte, so a truncated object (`content="This is the c...`) is left as
+/// text. What an undecoded member means is the
 /// caller's one decision: a rule's value or an overlay's copy declared to hold it is not that shape and reads
 /// nothing, while an entry keeps the members it has - its role, and its content as the text it is - because the
 /// family's other entries and that entry's own members are observations of their own.
@@ -28,8 +29,16 @@ pub(super) fn decode_member_in_place(value: &mut JsonValue, decode: &MemberDecod
     else {
         return false;
     };
-    *member = decoded;
-    true
+    // The condition is asked of the whole value with the member decoded, so it can name the member's siblings
+    // (the entry's `role`) as well as what the member decoded to. Refused, the member is put back as it was.
+    let text = std::mem::replace(member, decoded);
+    if predicates_hold(value, &decode.require) {
+        return true;
+    }
+    if let Some(member) = value.pointer_mut(&pointer) {
+        *member = text;
+    }
+    false
 }
 
 /// What makes a declared decode mean nothing, wherever it is declared.
@@ -47,8 +56,7 @@ pub(super) fn decode_defect(decode: &MemberDecode) -> Option<&'static str> {
 ///
 /// The rule's own `decode` rewrites the one value a single carrier parses to, so it means nothing on a rule that
 /// assembles its value (a compose, a family, a branch set's parent) or splits the text another way (sections,
-/// elements, a tool `repr`). An entry decode needs entries, and is refused beside an overlay, which rewrites the
-/// same entry: which of the two reads a member first would be a question the declaration does not answer.
+/// elements, a tool `repr`). An entry decode needs entries.
 pub(super) fn decode_placement_defect(rule: &MessageRule) -> Option<&'static str> {
     let read = &rule.read;
     if let Some(decode) = &rule.decode {
@@ -77,11 +85,8 @@ pub(super) fn decode_placement_defect(rule: &MessageRule) -> Option<&'static str
         }
     }
     if let Some(decode) = &read.decode {
-        if read.indexed_family.is_none() || read.overlay.is_some() {
-            return Some(
-                "`read.decode` rewrites each entry of an indexed family, so it needs one, and not beside an \
-                 overlay rewriting the same entry",
-            );
+        if read.indexed_family.is_none() {
+            return Some("`read.decode` rewrites each entry of an indexed family, so it needs one");
         }
         if let Some(defect) = decode_defect(decode) {
             return Some(defect);

@@ -688,6 +688,28 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the engine's own tree for a parsed constructor, which assets select from",
         ),
         (
+            "server/crates/domain/src/sideml/content/java_tostring.rs",
+            "__java_class",
+            "the engine's own tree for a parsed Java `toString`, the class beside the members, which assets select \
+             from",
+        ),
+        (
+            "server/crates/domain/src/log_record.rs",
+            "attributes",
+            "OTLP's own JSON member for a `LogRecord`'s attributes, which the record decoder reads - no producer's",
+        ),
+        (
+            "server/crates/ingestion/src/metrics/extract.rs",
+            "attributes",
+            "the member SideSeat's stored exemplar keeps OTLP's `Exemplar.filtered_attributes` under - OTLP's data, \
+             no producer's",
+        ),
+        (
+            "server/crates/ingestion/src/traces/persist/flattening.rs",
+            "attributes",
+            "OTLP's own `Span.attributes`, under the member the raw span record keeps them - no producer's",
+        ),
+        (
             "server/crates/domain/src/sideml/content/python_object.rs",
             "__python_value",
             "the engine's own tree for a parsed enum repr, the value beside the member, which assets select from",

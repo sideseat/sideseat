@@ -595,8 +595,8 @@ fn a_version_range_is_not_asked_beside_a_member_test() {
 /// **A family's entries may decode one serialised member in place, and fail closed.** An entry whose `content` is
 /// a framework's printed object keeps its `role` beside the decoded content. Text the reader refuses - a printed
 /// object cut short, `"This is the c..."` - stays exactly the text it was, never a partial structure, and the
-/// entry keeps its other members. A decode with nothing to rewrite, or beside an overlay rewriting the same entry,
-/// is refused.
+/// entry keeps its other members, as it does where the decoded entry fails the decode's `where`. A decode with
+/// nothing to rewrite is refused.
 #[test]
 fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
     use crate::rules::message_rules::{MessageCompileError, MessageContext};
@@ -606,9 +606,10 @@ fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
                 "require_members":{{"all_of":[{{"name":"role"}}]}}}}]}}"#
         )
     };
-    let entry = |parse: &str, content: &str| {
+    let entry_where = |condition: &str, parse: &str, content: &str| {
         let plan = probe_compile(&rule(&format!(
-            r#""indexed_family":"fam","entry_member":"message","decode":{{"select":"$.content","parse":"{parse}"}}"#
+            r#""indexed_family":"fam","entry_member":"message",
+               "decode":{{"select":"$.content","parse":"{parse}"{condition}}}"#
         )))
         .expect("the probe compiles");
         let attrs = probe_attrs(&[
@@ -625,6 +626,7 @@ fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
         assert_eq!(values[0]["role"], "user", "the sibling stays: {values:?}");
         values[0]["content"].clone()
     };
+    let entry = |parse: &str, content: &str| entry_where("", parse, content);
     assert_eq!(
         entry(
             "python_repr",
@@ -650,6 +652,35 @@ fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
             "{parse}: a printed object cut short stays the text it was"
         );
     }
+    // A decoded value its `where` does not hold is not decoded: the text stays.
+    let only_messages = r#","where":{"all":[{"path":"$.content.__java_class","equals":"UserMessage"},
+        {"path":"$.role","equals":"user"}]}"#;
+    let printed = r#"TextContent { text = "Prose that reads as a printed object." }"#;
+    assert_eq!(
+        entry_where(only_messages, "java_tostring", printed),
+        serde_json::json!(printed)
+    );
+    let message = r#"UserMessage { contents = [TextContent { text = "hi" }] }"#;
+    assert_eq!(
+        entry_where(only_messages, "java_tostring", message)["__java_class"],
+        "UserMessage"
+    );
+    // The condition sees the decoded member's siblings: the same text in a system entry stays text.
+    let plan = probe_compile(&rule(&format!(
+        r#""indexed_family":"fam","entry_member":"message",
+           "decode":{{"select":"$.content","parse":"java_tostring"{only_messages}}}"#
+    )))
+    .expect("the probe compiles");
+    let attrs = probe_attrs(&[
+        ("fam.0.message.role", "system"),
+        ("fam.0.message.content", message),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let system: Vec<_> = plan.run(&ctx).into_iter().map(|e| e.value).collect();
+    assert_eq!(
+        system,
+        [serde_json::json!({"role": "system", "content": message})]
+    );
     // Each beside a control: the same rule without the decode compiles, so the refusal is the decode's.
     for (read, decode) in [
         (
@@ -663,13 +694,6 @@ fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
         (
             r#""indexed_family":"fam""#,
             r#""select":"$.content","parse":"text""#,
-        ),
-        (
-            r#""indexed_family":"fam","entry_member":"message",
-               "overlay":{"from":"rich","parse":"json","select":"$.choices",
-                 "witness":{"path":"$[*].message","exists":true},"when_member_prefix":"contents.",
-                 "content_from":"$.message.content","where":{"kind":"array"},"as_member":"content"}"#,
-            r#""select":"$.content","parse":"python_repr""#,
         ),
     ] {
         // A raw attribute states its parse; a family has none to state.
@@ -690,7 +714,7 @@ fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
                 probe_compile(&rule(&format!(r#"{read},"decode":{{{decode}}}"#))),
                 Err(MessageCompileError::Inexpressible { .. })
             ),
-            "an entry decode that rewrites nothing, or races an overlay, is refused: {read} {decode}"
+            "an entry decode that rewrites nothing is refused: {read} {decode}"
         );
     }
 }
@@ -858,4 +882,42 @@ fn an_entry_decode_comes_before_its_projection() {
     };
     assert_eq!(read("Text(text='whole')"), [serde_json::json!("whole")]);
     assert!(read("Text(text='This is the c...").is_empty());
+}
+
+/// **An entry is decoded before an overlay improves it.** The entry's own statement is read first and the richer
+/// copy, where it applies, replaces the content as it does for any entry - as the copy states it, never decoded
+/// in turn; where the copy does not apply, the decoded member stands.
+#[test]
+fn an_entry_decode_comes_before_its_overlay() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "decode":{"select":"$.content","parse":"python_repr"},
+              "overlay":{"from":"rich","parse":"json","select":"$.choices",
+                "witness":{"path":"$[*].message","exists":true},"when_member_prefix":"content",
+                "content_from":"$.message.content","where":{"kind":"string"},"as_member":"content"}},
+            "require_members":{"all_of":[{"name":"role"}]}}]}"#,
+    )
+    .expect("a decode beside an overlay compiles");
+    let read = |rich: Option<&str>| {
+        let mut attrs = vec![
+            ("fam.0.message.role", "assistant"),
+            ("fam.0.message.content", "Who(name='flat')"),
+        ];
+        attrs.extend(rich.map(|rich| ("rich", rich)));
+        let attrs = probe_attrs(&attrs);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| e.value["content"].clone())
+            .collect::<Vec<_>>()
+    };
+    let rich =
+        serde_json::json!({"choices": [{"message": {"content": "Who(name='rich')"}}]}).to_string();
+    assert_eq!(read(Some(&rich)), [serde_json::json!("Who(name='rich')")]);
+    assert_eq!(
+        read(None),
+        [serde_json::json!({"__python_constructor": "Who", "name": "flat"})]
+    );
 }

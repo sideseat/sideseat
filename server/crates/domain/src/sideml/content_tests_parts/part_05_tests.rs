@@ -352,3 +352,53 @@ fn the_parts_of_a_printed_python_message_read_as_blocks() {
         assert!(!block.to_string().contains("sig-abc123"), "{block}");
     }
 }
+
+/// The parts of a user message a JVM framework printed with `toString` read as the blocks they are: its text, its
+/// image at the detail it was asked for, and its document. A part or a message that holds more than the case
+/// reads - an image by url, a revised prompt, a named message, one with attributes, however it arrived - is no case
+/// of the printed form and is kept whole.
+#[test]
+fn the_parts_of_a_printed_java_message_read_as_blocks() {
+    let printed = r#"UserMessage { name = null, contents = [TextContent { text = "Describe it." }, ImageContent { image = Image { url = null, base64Data = "AAAA", mimeType = "image/png", revisedPrompt = null } detailLevel = LOW }, PdfFileContent { pdfFile = PdfFile { url = null, base64Data = "JVBE", mimeType = "application/pdf" } }], attributes = {} }"#;
+    let message = super::try_parse_java_tostring(printed).expect("the message reads");
+    let blocks = normalize_content(Some(&message));
+    let blocks = blocks
+        .as_array()
+        .expect("the contents take the message's place");
+    assert_eq!(blocks.len(), 3, "{blocks:?}");
+    assert_eq!(blocks[0], json!({"type": "text", "text": "Describe it."}));
+    assert_eq!(blocks[1]["type"], "image", "{blocks:?}");
+    assert_eq!(blocks[1]["media_type"], "image/png");
+    assert_eq!(blocks[1]["data"], "AAAA");
+    assert_eq!(blocks[1]["detail"], "LOW");
+    assert_eq!(blocks[2]["type"], "document", "{blocks:?}");
+    assert_eq!(blocks[2]["media_type"], "application/pdf");
+    assert_eq!(blocks[2]["data"], "JVBE");
+    for richer in [
+        r#"ImageContent { image = Image { url = "https://x/y.png", base64Data = null, mimeType = "image/png", revisedPrompt = null } detailLevel = LOW }"#,
+        r#"ImageContent { image = Image { url = null, base64Data = "AAAA", mimeType = "image/png", revisedPrompt = "a cat" } detailLevel = LOW }"#,
+        r#"PdfFileContent { pdfFile = PdfFile { url = "https://x/y.pdf", base64Data = null, mimeType = "application/pdf" } }"#,
+        r#"ImageContent { image = Image { url = null, base64Data = "AAAA", mimeType = "image/png", revisedPrompt = null } detailLevel = Detail { level = LOW } }"#,
+        r#"TextContent { text = "hi", extra = 1 }"#,
+    ] {
+        let part = super::try_parse_java_tostring(richer).expect("the part reads");
+        // Kept whole, as the chain keeps any shape no case reads: an unknown block or a JSON one holding it.
+        let block = normalize_content_block(&part).expect("a block");
+        assert!(
+            matches!(block["type"].as_str(), Some("unknown" | "json"))
+                && (block["raw"] == part || block["data"] == part),
+            "{richer}: {block}"
+        );
+    }
+    for richer in [
+        json!({"__java_class": "UserMessage", "name": "ada", "contents": [], "attributes": {}}),
+        json!({"__java_class": "UserMessage", "name": null, "contents": [], "attributes": {"k": "v"}}),
+        json!({"__java_class": "UserMessage", "name": null, "contents": [], "attributes": {}, "extra": 1}),
+    ] {
+        assert_eq!(
+            normalize_content(Some(&richer)),
+            json!([{"type": "json", "data": richer}]),
+            "a message holding more than its contents is kept whole"
+        );
+    }
+}

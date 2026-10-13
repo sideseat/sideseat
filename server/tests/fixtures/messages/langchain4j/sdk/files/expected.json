@@ -24,9 +24,11 @@
       ]
     },
     "trace-1/LLM/span-3": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "user",
         "user",
         "assistant"
       ],
@@ -45,12 +47,28 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
-          "content_digest": "ff285778321994d4",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
           "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218709 chars]",
+          "content_digest": "1e1ef0df2a701f79",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
@@ -69,9 +87,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "user",
         "user",
         "assistant"
       ],
@@ -90,12 +110,28 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
-          "content_digest": "ff285778321994d4",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
           "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218709 chars]",
+          "content_digest": "1e1ef0df2a701f79",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
@@ -107,9 +143,11 @@
   },
   "session_views": {
     "langchain4j-files": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "user",
         "user",
         "assistant"
       ],
@@ -128,12 +166,28 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
-          "content_digest": "ff285778321994d4",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
           "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218709 chars]",
+          "content_digest": "1e1ef0df2a701f79",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
@@ -144,9 +198,11 @@
     }
   },
   "feed_view": {
-    "message_count": 3,
+    "message_count": 5,
     "role_sequence": [
       "system",
+      "user",
+      "user",
       "user",
       "assistant"
     ],
@@ -165,12 +221,28 @@
         "index": 1,
         "role": "user",
         "entry_type": "text",
-        "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
-        "content_digest": "ff285778321994d4",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
         "observation_type": "generation"
       },
       {
         "index": 2,
+        "role": "user",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218709 chars]",
+        "content_digest": "1e1ef0df2a701f79",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+        "content_digest": "e69c476dd545eb4b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",

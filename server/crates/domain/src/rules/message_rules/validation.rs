@@ -34,6 +34,15 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&ValueCondition>
         out.push(&overlay.witness);
         out.push(&overlay.require);
     }
+    let decodes = [
+        rule.decode.as_ref(),
+        rule.read.decode.as_ref(),
+        rule.read
+            .overlay
+            .as_ref()
+            .and_then(|overlay| overlay.decode.as_ref()),
+    ];
+    out.extend(decodes.into_iter().flatten().map(|decode| &decode.require));
     out.extend(rule.read.rendering.as_ref());
     for reading in rule
         .alternatives
