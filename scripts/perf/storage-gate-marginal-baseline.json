@@ -9,7 +9,7 @@
    "items": 95599,
    "stored_excluding_media": 44375648,
    "per_item": 464.19,
-   "fixed_blocks": 14.7
+   "fixed_blocks": 15.7
   },
   "logs": {
    "items": 18697,
@@ -43,10 +43,10 @@
   },
   "otel_raw_traces": {
    "columns": 1.14,
-   "indexes": 1.43
+   "indexes": 1.86
   },
   "otel_spans": {
-   "columns": 5.0,
+   "columns": 5.57,
    "indexes": 5.43
   },
   "schema_version": {
