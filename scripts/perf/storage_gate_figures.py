@@ -149,7 +149,13 @@ def shown(path: Path, root: Path) -> str:
     return str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
 
 
-def ratchet(figures: dict, baseline: Path, update: bool, root: Path) -> int:
+def ratchet(
+    figures: dict,
+    baseline: Path,
+    update: bool,
+    root: Path,
+    target: str = "storage-gate",
+) -> int:
     """Hold the figures to the committed baseline exactly: an increase fails, and so does a decrease the baseline
     has not taken in, so the baseline only ever moves in a commit that says why."""
     if update:
@@ -169,7 +175,7 @@ def ratchet(figures: dict, baseline: Path, update: bool, root: Path) -> int:
     if moved:
         log(
             "FAIL: the stored bytes moved from the baseline. A rise is a regression unless the commit explains it; "
-            "either way the commit that moves them updates the baseline (`make storage-gate ARGS=--update`) and "
+            f"either way the commit that moves them updates the baseline (`make {target} ARGS=--update`) and "
             "says why in its body."
         )
         return 1
@@ -236,6 +242,63 @@ def store_figures(
     return {"passes": passes, **figures, "signals": per_signal}
 
 
+def block_size(store: Path) -> int:
+    """The DuckDB store's block size, the unit its file is charged in."""
+    import duckdb
+
+    connection = duckdb.connect(str(store / "duckdb/sideseat.duckdb"), read_only=True)
+    size = connection.execute(
+        "SELECT block_size FROM pragma_database_size()"
+    ).fetchone()[0]
+    connection.close()
+    return size
+
+
+def marginal_figures(fewer: dict, more: dict, block: int) -> dict:
+    """What one more item costs, from the gate's figures at two pass counts: each signal's bytes per item between
+    them, and what is left at no items - each table's, and the residual's, fixed blocks.
+
+    The product targets are per item, and a store of a few passes charges each table's partly filled blocks to
+    its few items: the figure at three passes is that, the marginal one is the rate. A table's fixed part is its
+    bytes at the fewer passes less the rate times those passes, in blocks; it may be fractional or negative, since
+    the bytes grow by whole blocks."""
+    passes = more["passes"] - fewer["passes"]
+
+    def fixed(at_fewer: int, at_more: int) -> float:
+        rate = (at_more - at_fewer) / passes
+        return round((at_fewer - rate * fewer["passes"]) / block, 2)
+
+    signals = {}
+    for name, signal in more["signals"].items():
+        then = fewer["signals"][name]
+        items = signal["items"] - then["items"]
+        stored = signal["stored_excluding_media"] - then["stored_excluding_media"]
+        rate = stored / items if items else None
+        signals[name] = {
+            "items": items,
+            "stored_excluding_media": stored,
+            "per_item": round(rate, 2) if rate is not None else None,
+            "fixed_blocks": round(
+                (then["stored_excluding_media"] - rate * then["items"]) / block, 2
+            )
+            if rate is not None
+            else None,
+        }
+    return {
+        "passes": [fewer["passes"], more["passes"]],
+        "block_size": block,
+        "signals": signals,
+        "fixed_blocks": {
+            table: {
+                part: fixed(fewer["tables"].get(table, {}).get(part, 0), size)
+                for part, size in parts.items()
+            }
+            for table, parts in more["tables"].items()
+        },
+        "residual_fixed_blocks": fixed(fewer["residual"], more["residual"]),
+    }
+
+
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     """The storage gate's options: pinning its corpus, and measuring the stores its replay leaves."""
     parser.add_argument(
@@ -253,6 +316,16 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=1,
         help="how many passes of the corpus the --store replay made",
+    )
+    parser.add_argument(
+        "--marginal-store",
+        type=Path,
+        help="with --store: the stores of a replay of more passes, to measure what one more item costs",
+    )
+    parser.add_argument(
+        "--marginal-passes",
+        type=int,
+        help="how many passes the --marginal-store replay made",
     )
     parser.add_argument(
         "--baseline",
@@ -300,6 +373,8 @@ def run(args: argparse.Namespace, script) -> int:
             layout_too=bool(args.same_layout),
         )
     owners = (script.SIGNALS, script.ANALYTICS_OWNER, script.TRANSACTIONAL_OWNER)
+    if args.marginal_store:
+        return run_marginal(args, script, store, owners)
     figures = store_figures(
         stored_figures(store, script.measure_embedded),
         script.corpus(),
@@ -319,5 +394,53 @@ def run(args: argparse.Namespace, script) -> int:
     if args.baseline:
         return ratchet(
             figures, args.baseline.resolve(), args.update_baseline, script.ROOT
+        )
+    return 0
+
+
+def run_marginal(args: argparse.Namespace, script, store: Path, owners: tuple) -> int:
+    """`--marginal-store`: each signal's bytes per item between the two replays, and each table's fixed blocks,
+    held to `--baseline` exactly."""
+    more = args.marginal_store.resolve()
+    if not args.marginal_passes or args.marginal_passes <= args.passes:
+        raise SystemExit("[storage] --marginal-passes must be more than --passes")
+    figures = marginal_figures(
+        store_figures(
+            stored_figures(store, script.measure_embedded),
+            script.corpus(),
+            args.passes,
+            *owners,
+        ),
+        store_figures(
+            stored_figures(more, script.measure_embedded),
+            script.corpus(),
+            args.marginal_passes,
+            *owners,
+        ),
+        block_size(store),
+    )
+    fewer, many = figures["passes"]
+    for s, signal in figures["signals"].items():
+        log(
+            f"{s}: {signal['per_item']} B/item marginal excluding media, {signal['stored_excluding_media']:,} B over "
+            f"the {signal['items']:,} items between {fewer} and {many} passes; {signal['fixed_blocks']} blocks fixed"
+        )
+    log(
+        "fixed blocks: "
+        + ", ".join(
+            f"{table} {parts['columns']}+{parts['indexes']}"
+            for table, parts in figures["fixed_blocks"].items()
+        )
+        + f", residual {figures['residual_fixed_blocks']}"
+    )
+    if args.json:
+        args.json.write_text(json.dumps(figures, indent=1))
+    if args.baseline:
+        return ratchet(
+            figures,
+            args.baseline.resolve(),
+            args.update_baseline,
+            script.ROOT,
+            "storage-gate-marginal",
         )
     return 0

@@ -4,6 +4,10 @@
 #
 #   scripts/check/storage-gate.sh                measure and compare
 #   scripts/check/storage-gate.sh --update       measure and write the baseline (in the commit that moves it)
+#   scripts/check/storage-gate.sh --marginal     what one more item costs: the three passes and MARGINAL_PASSES,
+#                                                each signal's bytes per item between them and each table's fixed
+#                                                blocks, held to storage-gate-marginal-baseline.json exactly
+#                                                (opt-in, before a release; with --update, writes it)
 #   scripts/check/storage-gate.sh --equivalence  prove the figures do not depend on where or how it runs: the
 #                                                RAM-disk replay, one on the ordinary disk and one of the
 #                                                release build must leave one segment layout, and one on four
@@ -16,22 +20,36 @@
 set -euo pipefail
 
 PASSES=3
+# The second replay of --marginal. Five passes measured each signal's marginal bytes within a block of thirty's
+# (docs/engineering/compact-storage.md); fixed for the same reason PASSES is.
+MARGINAL_PASSES=5
 # The stores of three passes take about 80 MB; the volume leaves room for the copy the index measurement makes.
 VOLUME_MB=512
-# Free memory the RAM disk needs before it is made: the volume, and a margin for the build and the replay.
-NEEDED_MB=$((VOLUME_MB * 3))
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 update=""
 equivalence=""
-case "${1:-}" in
-  --update) update="--update-baseline" ;;
-  --equivalence) equivalence=1 ;;
-  "") ;;
-  *) echo "usage: $0 [--update | --equivalence]" >&2; exit 2 ;;
-esac
+marginal=""
+usage() { echo "usage: $0 [--update | --equivalence | --marginal [--update]]" >&2; exit 2; }
+for arg in "$@"; do
+  case "$arg" in
+    --update) update="--update-baseline" ;;
+    --equivalence) equivalence=1 ;;
+    --marginal) marginal=1 ;;
+    *) usage ;;
+  esac
+done
+if [ -n "$equivalence" ] && { [ -n "$update" ] || [ -n "$marginal" ]; }; then
+  usage
+fi
+if [ -n "$marginal" ]; then
+  # Both stores, three passes and five, and the copy of the larger the index measurement makes.
+  VOLUME_MB=1024
+fi
+# Free memory the RAM disk needs before it is made: the volume, and a margin for the build and the replay.
+NEEDED_MB=$((VOLUME_MB * 3))
 
 name="sideseat-gate-$$"
 volume=""
@@ -127,7 +145,7 @@ gate_test() {
   cargo test --locked -q --workspace ${1:+"$1"} --test storage_gate "${@:2}"
 }
 
-# replay DIR [cargo profile flag] [DuckDB threads]: the corpus, PASSES times, into DIR.
+# replay DIR [cargo profile flag] [DuckDB threads] [passes]: the corpus, PASSES times unless told, into DIR.
 replay() {
   local log
   log="$(mktemp "${TMPDIR:-/tmp}/$name-log.XXXXXX")"
@@ -138,7 +156,7 @@ replay() {
     exit 1
   fi
   built=$SECONDS
-  if ! (cd server && SIDESEAT_STORAGE_GATE_DIR="$1" SIDESEAT_STORAGE_GATE_PASSES="$PASSES" \
+  if ! (cd server && SIDESEAT_STORAGE_GATE_DIR="$1" SIDESEAT_STORAGE_GATE_PASSES="${4:-$PASSES}" \
     SIDESEAT_STORAGE_GATE_THREADS="${3:-1}" \
     gate_test "${2:-}" -- --ignored --exact the_pinned_corpus_replays_into_the_same_stores --nocapture) \
     >"$log" 2>&1; then
@@ -170,6 +188,14 @@ if [ -n "$equivalence" ]; then
   uv run --locked --script scripts/perf/storage-footprint.py embedded --store "$work/store" --same-answers "$disk/store"
   echo "[storage-gate] the RAM disk, the ordinary disk and the release build leave one layout, and four engine" \
     "threads the same figures and answers ($((SECONDS - started))s)"
+  exit 0
+fi
+if [ -n "$marginal" ]; then
+  replay "$work/store-more" "" 1 "$MARGINAL_PASSES"
+  uv run --locked --script scripts/perf/storage-footprint.py embedded --store "$work/store" --passes "$PASSES" \
+    --marginal-store "$work/store-more" --marginal-passes "$MARGINAL_PASSES" \
+    --baseline scripts/perf/storage-gate-marginal-baseline.json $update
+  echo "[storage-gate] marginal: $((SECONDS - started))s"
   exit 0
 fi
 uv run --locked --script scripts/perf/storage-footprint.py embedded --store "$work/store" --passes "$PASSES" \

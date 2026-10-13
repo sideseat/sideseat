@@ -3,7 +3,7 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-clickhouse-two-replica test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-equivalence footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-clickhouse-two-replica test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-marginal storage-gate-equivalence footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
 test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
 
@@ -132,6 +132,12 @@ footprint-storage: ## Measure and gate stored bytes per signal (embedded)
 # to scripts/perf/storage-gate-baseline.json exactly. ARGS=--update writes the baseline in the commit that moves it.
 storage-gate: ## Hold the deterministic per-table stored bytes to their baseline
 	@./scripts/check/storage-gate.sh $(ARGS)
+
+# What one more item costs: the gate's three passes and five, each signal's bytes per item between them and each
+# table's fixed blocks, held to scripts/perf/storage-gate-marginal-baseline.json exactly. The product targets are
+# judged on this figure. Opt-in, before a release; ARGS=--update writes the baseline.
+storage-gate-marginal: ## Hold the marginal stored bytes per item and the fixed blocks to their baseline
+	@./scripts/check/storage-gate.sh --marginal $(ARGS)
 
 storage-gate-equivalence: ## Prove the storage gate's figures do not depend on the disk or the build profile
 	@./scripts/check/storage-gate.sh --equivalence

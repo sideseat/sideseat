@@ -143,6 +143,33 @@ The span indexes - on `span_id`, `trace_id` and the thread key - are the cheapes
 the 281 above the target. The log figure is mostly its terms and its body; the span re-send, index and log-encoding
 work is measured against this table.
 
+### What one more item costs
+
+At three passes a table's partly filled blocks are charged to few items: 256 KB is 6 B a span there but 182 B a
+metric point, so the figure above is part rate and part fixed overhead. **The product targets are judged on the
+marginal figure** - the bytes one more item adds - and not on the three-pass one. `make storage-gate-marginal`
+replays the corpus three times and five, each into its own store, and reports each signal's bytes per item
+between them and, on their own line, each table's fixed blocks: its bytes at three passes less the rate times
+three, in blocks, which can be fractional or negative because a table grows by whole blocks. Both are held to
+`scripts/perf/storage-gate-marginal-baseline.json` exactly, as the three-pass figures are; `ARGS=--update` writes
+it in the commit that moves it. It takes two replays, six minutes on a RAM disk, so it is opt-in and run before a
+release; `make check` runs the three-pass gate alone.
+
+The rate is linear in the passes. Measured on 2026-10-13 from three passes to five, ten and thirty, excluding media:
+
+| Signal | 3 to 5 | 3 to 10 | 3 to 30 | 5's distance from 30's |
+| --- | ---: | ---: | ---: | ---: |
+| Traces | 677.7 B/span | 661.6 | 671.2 | 0.67 blocks |
+| Logs | 245.4 B/record | 210.3 | 199.9 | 0.93 blocks |
+| Metrics | 273.1 B/point | 234.1 | 202.3 | 0.26 blocks |
+
+Five passes is the second count because its rate is within one block of thirty's for every signal over the items
+between the two counts - one block being the grain a store grows in. The resolution follows from that: one block
+over the 960 metric points and 5,342 log records two passes add is 273 and 49 B an item, so a small signal's rate at
+five passes reads high by up to a block, as metrics and logs do here; the traces' 27,314 spans resolve it to 10 B.
+From three passes to thirty, where a block is 0.7 B a span, 3.6 B a record and 20 B a point, the traces stand at
+671 B/span against 480, logs at 200 B/record against 300 and metrics at 202 B/point against 150.
+
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
 `used_blocks`: the per-column attribution from the segment map plus the residue (indexes, headers, the unused tail

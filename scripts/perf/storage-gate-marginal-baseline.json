@@ -1,0 +1,62 @@
+{
+ "passes": [
+  3,
+  5
+ ],
+ "block_size": 262144,
+ "signals": {
+  "traces": {
+   "items": 27314,
+   "stored_excluding_media": 18509520,
+   "per_item": 677.66,
+   "fixed_blocks": 11.34
+  },
+  "logs": {
+   "items": 5342,
+   "stored_excluding_media": 1310696,
+   "per_item": 245.36,
+   "fixed_blocks": 3.5
+  },
+  "metrics": {
+   "items": 960,
+   "stored_excluding_media": 262136,
+   "per_item": 273.06,
+   "fixed_blocks": 0.5
+  }
+ },
+ "fixed_blocks": {
+  "log_media_refs": {
+   "columns": 1.0,
+   "indexes": 1.0
+  },
+  "otel_logs": {
+   "columns": 0.5,
+   "indexes": 1.0
+  },
+  "otel_metrics": {
+   "columns": 0.5,
+   "indexes": 0.0
+  },
+  "otel_raw": {
+   "columns": -0.5,
+   "indexes": 1.5
+  },
+  "otel_raw_traces": {
+   "columns": 0.5,
+   "indexes": 2.5
+  },
+  "otel_spans": {
+   "columns": -1.5,
+   "indexes": 6.5
+  },
+  "schema_version": {
+   "columns": 1.0,
+   "indexes": 0.0
+  },
+  "span_terms": {
+   "columns": 2.0,
+   "indexes": 0.0
+  }
+ },
+ "residual_fixed_blocks": 2.0
+}
