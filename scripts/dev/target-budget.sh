@@ -37,7 +37,13 @@ busy() {
   local target="$1" worktree
   worktree="${target%/target}"
   worktree="${worktree%-target}"
-  [ -d "$worktree.lock" ] && return 0
+  # A lock whose recorded holder has died is stale: verify-head takes it over on its next run, and it must not keep
+  # a target out of the budget meanwhile.
+  if [ -d "$worktree.lock" ]; then
+    local holder
+    holder="$(cat "$worktree.lock/pid" 2>/dev/null || true)"
+    if [ -z "$holder" ] || kill -0 "$holder" 2>/dev/null; then return 0; fi
+  fi
   # A deliberate, time-boxed hold: `touch <target>/.budget-hold` keeps a target for HOLD_HOURS from the touch.
   [ -n "$(find "$target/.budget-hold" -mmin "-$(( ${HOLD_HOURS:-2} * 60 ))" -print 2>/dev/null)" ] && return 0
   lsof -t "$target"/*/.cargo-lock >/dev/null 2>&1 && return 0
