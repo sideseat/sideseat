@@ -20,9 +20,9 @@
 set -euo pipefail
 
 PASSES=3
-# The second replay of --marginal. Five passes measured each signal's marginal bytes within a block of thirty's
-# (docs/engineering/compact-storage.md); fixed for the same reason PASSES is.
-MARGINAL_PASSES=5
+# The second replay of --marginal: ten passes, where one block is 2.7 B of a span's rate - five's 9.6 hid a real
+# 16.6 B saving (docs/engineering/compact-storage.md); fixed for the same reason PASSES is.
+MARGINAL_PASSES=10
 # The stores of three passes take about 80 MB; the volume leaves room for the copy the index measurement makes.
 VOLUME_MB=512
 
@@ -45,7 +45,7 @@ if [ -n "$equivalence" ] && { [ -n "$update" ] || [ -n "$marginal" ]; }; then
   usage
 fi
 if [ -n "$marginal" ]; then
-  # Both stores, three passes and five, and the copy of the larger the index measurement makes.
+  # Both stores, three passes and ten, and the copy of the larger the index measurement makes.
   VOLUME_MB=1024
 fi
 # Free memory the RAM disk needs before it is made: the volume, and a margin for the build and the replay.

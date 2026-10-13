@@ -149,12 +149,13 @@ thirty passes the `span_id` index alone is 51 B a span.
 At three passes a table's partly filled blocks are charged to few items: 256 KB is 6 B a span there but 182 B a
 metric point, so the figure above is part rate and part fixed overhead. **The product targets are judged on the
 marginal figure** - the bytes one more item adds - and not on the three-pass one. `make storage-gate-marginal`
-replays the corpus three times and five, each into its own store, and reports each signal's bytes per item
-between them and, on their own line, each table's fixed blocks: its bytes at three passes less the rate times
-three, in blocks, which can be fractional or negative because a table grows by whole blocks. Both are held to
-`scripts/perf/storage-gate-marginal-baseline.json` exactly, as the three-pass figures are; `ARGS=--update` writes
-it in the commit that moves it. It takes two replays, six minutes on a RAM disk, so it is opt-in and run before a
-release; `make check` runs the three-pass gate alone.
+replays the corpus three times and ten, each into its own store, and reports each signal's bytes per item between
+them and, on their own line, each table's fixed blocks: its bytes at three passes less the rate times three, in
+blocks, which can be fractional or negative because a table grows by whole blocks. Both are held to
+`scripts/perf/storage-gate-marginal-baseline.json` exactly, as the three-pass figures are; `ARGS=--update` writes it
+in the commit that moves it. It takes two replays, about thirteen minutes on a RAM disk, so it is opt-in and run
+before a release; `make check` runs the three-pass gate alone. It is the regression gate, not the verdict: a target
+is called met only on a thirty-pass measurement, recorded here with its date.
 
 The rate is linear in the passes. Measured on 2026-10-13, before span search terms moved onto the row, from three
 passes to five, ten and thirty, excluding media:
@@ -165,13 +166,15 @@ passes to five, ten and thirty, excluding media:
 | Logs | 245.4 B/record | 210.3 | 199.9 | 0.93 blocks |
 | Metrics | 273.1 B/point | 234.1 | 202.3 | 0.26 blocks |
 
-Five passes is the second count because its rate is within one block of thirty's for every signal over the items
-between the two counts - one block being the grain a store grows in. The resolution follows from that: one block
-over the 960 metric points and 5,342 log records two passes add is 273 and 49 B an item, so a small signal's rate at
-five passes reads high by up to a block, as metrics and logs do here; the traces' 27,314 spans resolve it to 10 B.
-From three passes to thirty, where a block is 0.7 B a span, 3.6 B a record and 20 B a point, the traces stood at 671
+Ten passes is the second count. Five was chosen first, its rate within one block of thirty's for every signal over
+the items between the two counts, but one block over the 27,314 spans two passes add is 9.6 B a span, and the first
+change judged on it - a span content digest cut from 34.6 to 17.9 B a span, measured column by column - read as a
+rise from 476.12 to 485.72, the blocks other tables' indexes happened to fill outweighing it. Over the 95,599 spans
+seven passes add, a block is 2.7 B a span, 14 B a log record and 78 B a metric point; the rate sits within a few
+blocks of thirty's, traces 3.5 blocks low on this measurement, which is why thirty passes give the verdict. From
+three passes to thirty, where a block is 0.7 B a span, 3.6 B a record and 20 B a point, the traces stood at 671
 B/span against 480, logs at 200 B/record against 300 and metrics at 202 B/point against 150. With the span terms on
-the row the gate's marginal trace figure is 476.12 B/span (`storage-gate-marginal-baseline.json`).
+the row the ten-pass marginal trace figure is 464.19 B/span (`storage-gate-marginal-baseline.json`), 2026-10-13.
 
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
@@ -551,11 +554,11 @@ terms and every search path reads winners only, so a correction writes no delete
 revision's terms to delete is gone - and a deletion of any kind takes the terms with the row;
 `a_span_s_search_terms_go_with_its_row_on_both_backends` holds both backends to that through a correction, a reused
 identity and the five deletions. On the storage gate the trace signal went from 750.19 to 558.24 B a span at three
-passes, and from 677.66 to 476.12 B a span marginal. A search pays for it in reading: every candidate's prompt
-column is decompressed for its `contains`, so at a million spans DuckDB's span search went from 134.0 to 170.2 ms
-through the API and from 116.5 to 156.1 ms in the distributed bench, scanning 2.0 million rows where it scanned 34.6
-million, against ClickHouse's 333.5 and 325.5 ms; log search did not move. Ingest appends about 32 fewer rows a
-span, which the throughput profile has yet to measure.
+passes, and from 677.66 to 476.12 B a span marginal from three passes to five; 464.19 from three to ten. A search
+pays for it in reading: every candidate's prompt column is decompressed for its `contains`, so at a million spans
+DuckDB's span search went from 134.0 to 170.2 ms through the API and from 116.5 to 156.1 ms in the distributed
+bench, scanning 2.0 million rows where it scanned 34.6 million, against ClickHouse's 333.5 and 325.5 ms; log search
+did not move. Ingest appends about 32 fewer rows a span, which the throughput profile has yet to measure.
 
 ### Deferred: log records into the raw store
 

@@ -1,27 +1,27 @@
 {
  "passes": [
   3,
-  5
+  10
  ],
  "block_size": 262144,
  "signals": {
   "traces": {
-   "items": 27314,
-   "stored_excluding_media": 13004688,
-   "per_item": 476.12,
-   "fixed_blocks": 12.84
+   "items": 95599,
+   "stored_excluding_media": 44375648,
+   "per_item": 464.19,
+   "fixed_blocks": 14.7
   },
   "logs": {
-   "items": 5342,
-   "stored_excluding_media": 1310696,
-   "per_item": 245.36,
-   "fixed_blocks": 3.5
+   "items": 18697,
+   "stored_excluding_media": 3932088,
+   "per_item": 210.31,
+   "fixed_blocks": 4.57
   },
   "metrics": {
-   "items": 960,
-   "stored_excluding_media": 262136,
-   "per_item": 273.06,
-   "fixed_blocks": 0.5
+   "items": 3360,
+   "stored_excluding_media": 1048544,
+   "per_item": 312.07,
+   "fixed_blocks": 0.29
   }
  },
  "fixed_blocks": {
@@ -30,24 +30,24 @@
    "indexes": 1.0
   },
   "otel_logs": {
-   "columns": 0.5,
+   "columns": 1.57,
    "indexes": 1.0
   },
   "otel_metrics": {
-   "columns": 0.5,
+   "columns": 0.29,
    "indexes": 0.0
   },
   "otel_raw": {
-   "columns": -0.5,
-   "indexes": 1.5
+   "columns": 0.57,
+   "indexes": 0.86
   },
   "otel_raw_traces": {
-   "columns": 0.5,
-   "indexes": 2.5
+   "columns": 1.14,
+   "indexes": 1.43
   },
   "otel_spans": {
-   "columns": 3.5,
-   "indexes": 5.0
+   "columns": 5.0,
+   "indexes": 5.43
   },
   "schema_version": {
    "columns": 1.0,

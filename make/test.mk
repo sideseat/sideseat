@@ -133,7 +133,7 @@ footprint-storage: ## Measure and gate stored bytes per signal (embedded)
 storage-gate: ## Hold the deterministic per-table stored bytes to their baseline
 	@./scripts/check/storage-gate.sh $(ARGS)
 
-# What one more item costs: the gate's three passes and five, each signal's bytes per item between them and each
+# What one more item costs: the gate's three passes and ten, each signal's bytes per item between them and each
 # table's fixed blocks, held to scripts/perf/storage-gate-marginal-baseline.json exactly. The product targets are
 # judged on this figure. Opt-in, before a release; ARGS=--update writes the baseline.
 storage-gate-marginal: ## Hold the marginal stored bytes per item and the fixed blocks to their baseline
