@@ -136,3 +136,144 @@ pub(super) fn invented_model_under_a_gap(truth: &mut Truth, recon: &mut Recon) -
         },
     )
 }
+
+/// A usage gap on the first call whose wire states an input count.
+fn gap_the_input_count(truth: &mut Truth) -> bool {
+    let Some(call) = truth
+        .calls
+        .iter()
+        .find(|c| c.succeeded() && c.usage.as_ref().is_some_and(|u| u.input.is_some()))
+        .map(|c| c.id.clone())
+    else {
+        return false;
+    };
+    truth.gaps.push(Gap {
+        fact: "usage.input".to_string(),
+        reason: "metadata_not_exported".to_string(),
+        detail: "declared by a test".to_string(),
+        subject: Some(call),
+        modes: Vec::new(),
+    });
+    true
+}
+
+/// A gap saying the span misstates a count it states rightly is needed for nothing.
+pub(super) fn usage_gap_over_a_right_count(truth: &mut Truth, _recon: &mut Recon) -> bool {
+    gap_the_input_count(truth)
+}
+
+/// A usage gap waives only the count the producer stated: a reconstruction stating one its span's payload never
+/// carried is still wrong.
+pub(super) fn invented_usage_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    gap_the_input_count(truth)
+        && super::mutate::edit_generation(
+            truth,
+            recon,
+            |c| c.usage.as_ref().is_some_and(|u| u.input.is_some()),
+            |g| g.input = 987_654_321,
+        )
+}
+
+/// A usage gap waives a count only under the member the producer stated it in: swapping two counters the span
+/// states is still wrong, though each value is in its payload.
+pub(super) fn swapped_usage_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    if !gap_the_input_count(truth) {
+        return false;
+    }
+    // Both counts gapped, so each swapped value is a count the payload holds - only under the other's name.
+    let mut output = truth.gaps[truth.gaps.len() - 1].clone();
+    output.fact = "usage.output".to_string();
+    truth.gaps.push(output);
+    super::mutate::edit_generation(
+        truth,
+        recon,
+        |c| c.usage.as_ref().is_some_and(|u| u.input.is_some()),
+        |g| std::mem::swap(&mut g.input, &mut g.output),
+    )
+}
+
+/// The span's output count reconstructed as a value planted in its raw payload under `key`.
+fn plant_output(g: &mut super::recon::Generation, key: &str, value: serde_json::Value) {
+    const PLANTED: i64 = 6_000_123;
+    let mut raw: serde_json::Value = g
+        .raw
+        .as_deref()
+        .and_then(|r| serde_json::from_str(r).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    // Planted among the span's attributes, where a producer states its counts.
+    if let Some(attributes) = raw
+        .as_object_mut()
+        .map(|map| {
+            map.entry("attributes")
+                .or_insert_with(|| serde_json::json!({}))
+        })
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        attributes.insert(key.to_string(), value);
+    }
+    g.raw = Some(raw.to_string());
+    g.output = PLANTED;
+}
+
+/// Only the output count gapped, so nothing but the value taken for it can speak.
+fn gap_the_output_count(truth: &mut Truth) -> bool {
+    if !gap_the_input_count(truth) {
+        return false;
+    }
+    if let Some(gap) = truth.gaps.last_mut() {
+        gap.fact = "usage.output".to_string();
+    }
+    true
+}
+
+fn output_picked(c: &super::truth::Call) -> bool {
+    c.usage.as_ref().is_some_and(|u| u.input.is_some())
+}
+
+/// A request's limit is no usage count: a gapped count reconstructed as the span's `max_output_tokens`, or as an
+/// `output_tokens` under its request, is still wrong, though that value is in the span's payload.
+pub(super) fn limit_for_usage_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    gap_the_output_count(truth)
+        && super::mutate::edit_generation(truth, recon, output_picked, |g| {
+            plant_output(g, "max_output_tokens", serde_json::json!(6_000_123));
+        })
+}
+
+pub(super) fn nested_limit_for_usage_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    gap_the_output_count(truth)
+        && super::mutate::edit_generation(truth, recon, output_picked, |g| {
+            plant_output(
+                g,
+                "request",
+                serde_json::json!({"output_tokens": 6_000_123}),
+            );
+        })
+}
+
+/// A prompt's text is no usage count: a message body quoting `output_tokens` is not the span stating one.
+pub(super) fn prompt_for_usage_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    gap_the_output_count(truth)
+        && super::mutate::edit_generation(truth, recon, output_picked, |g| {
+            plant_output(
+                g,
+                "gen_ai.input.messages",
+                serde_json::json!(
+                    serde_json::json!([{"role": "user", "content": "{\"output_tokens\": 6000123}"}])
+                        .to_string()
+                ),
+            );
+        })
+}
+
+/// Another counter is no output count, however its name is spelt: reasoning tokens under a dotted name are still
+/// reasoning tokens.
+pub(super) fn reasoning_for_output_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    gap_the_output_count(truth)
+        && super::mutate::edit_generation(truth, recon, output_picked, |g| {
+            plant_output(
+                g,
+                "gen_ai.usage.reasoning.output_tokens",
+                serde_json::json!(6_000_123),
+            );
+        })
+}

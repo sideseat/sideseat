@@ -142,6 +142,15 @@ pub(super) fn prove_request_span_silent(
                 generation.label
             ));
         }
+        // A figure too large to be read surely may be that count: silence cannot be shown either.
+        if produced.is_some()
+            && let Some(at) = own.carriers.iter().find_map(|c| c.inexact.first())
+        {
+            return Proof::Unprovable(format!(
+                "{} carries {at}, a figure too large to read surely, which may be the call's output tokens",
+                generation.label
+            ));
+        }
         if let Some((at, _)) = own
             .carriers
             .iter()
@@ -849,6 +858,76 @@ mod tests {
                 Proof::Unprovable(_)
             ),
             "an unrecognised model-call span must refuse the proof"
+        );
+    }
+
+    /// A count written as a float too large to be read surely refuses the proof as the exact count does: it may
+    /// be the call's output tokens.
+    #[test]
+    fn a_count_too_large_to_read_surely_refuses_the_proof() {
+        use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
+        use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+        use opentelemetry_proto::tonic::logs::v1::{LogRecord, ResourceLogs, ScopeLogs};
+        const LARGE: i64 = 2_251_799_813_685_248; // 2^51
+        let (mut truth, recon, _) = baseline(FIXTURE);
+        let fixtures: std::collections::BTreeMap<String, Vec<std::path::PathBuf>> =
+            crate::discover_fixtures().into_iter().collect();
+        let paths = &fixtures[FIXTURE];
+        let generation = recon
+            .generations
+            .iter()
+            .find(|g| g.typed)
+            .expect("a recognised request span")
+            .clone();
+        let unhex = |text: &str| -> Vec<u8> {
+            (0..text.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&text[i..i + 2], 16).expect("hex"))
+                .collect()
+        };
+        let traces: Vec<(String, _)> = paths
+            .iter()
+            .map(|p| (p.display().to_string(), crate::decode_request(p)))
+            .collect();
+        let call = silent_calls(&truth)
+            .into_iter()
+            .next()
+            .expect("a silent call");
+        if let Some(usage) = truth
+            .calls
+            .iter_mut()
+            .find(|c| c.id == call)
+            .and_then(|c| c.usage.as_mut())
+        {
+            usage.output = Some(LARGE);
+        }
+        let record = LogRecord {
+            trace_id: unhex(&generation.trace),
+            span_id: unhex(&generation.span),
+            attributes: vec![KeyValue {
+                key: "tokens".to_string(),
+                value: Some(AnyValue {
+                    value: Some(any_value::Value::DoubleValue(LARGE as f64)),
+                }),
+            }],
+            ..LogRecord::default()
+        };
+        let logs = vec![(
+            "logs-planted.pb".to_string(),
+            ExportLogsServiceRequest {
+                resource_logs: vec![ResourceLogs {
+                    scope_logs: vec![ScopeLogs {
+                        log_records: vec![record],
+                        ..ScopeLogs::default()
+                    }],
+                    ..ResourceLogs::default()
+                }],
+            },
+        )];
+        let planted = Haystack::from_requests(&traces, &logs);
+        assert_ne!(
+            prove_request_span_silent(&truth, &call, &recon, &planted),
+            Proof::Absent
         );
     }
 }

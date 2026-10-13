@@ -792,3 +792,4 @@ fn why_a_response_ended_does_not_mark_its_text_as_reasoning() {
 }
 
 include!("tests_pieces.rs");
+include!("tests_metadata.rs");

@@ -25,6 +25,16 @@ default-model = "claude"
 reason = "the signature of reasoning the model withheld the text of: Agent Framework's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds"
 scenarios = ["error", "multi_turn", "session", "structured_output"]
 
+[tool.sideseat-example.truth.unexported.usage_input]
+reason = "the call's input tokens: Agent Framework 1.0.1 to 1.9.0, streaming through Bedrock Anthropic, adds the stream's first usage report to its last, so it overstates input and output tokens and the cost shown for those releases is high; no payload carries the call's real count"
+scenarios = ["streaming"]
+modes = { streaming = ["native@1.0.1", "native@1.8.1", "native@1.9.0"] }
+
+[tool.sideseat-example.truth.unexported.usage_output]
+reason = "the call's output tokens: Agent Framework 1.0.1 to 1.9.0, streaming through Bedrock Anthropic, adds the stream's first usage report to its last, so it overstates input and output tokens and the cost shown for those releases is high; no payload carries the call's real count"
+scenarios = ["streaming"]
+modes = { streaming = ["native@1.0.1", "native@1.8.1", "native@1.9.0"] }
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

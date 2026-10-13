@@ -21,6 +21,7 @@ mod call_order;
 mod call_span;
 mod carrying;
 pub(super) mod haystack;
+mod metadata;
 mod pieces;
 mod reasoning;
 mod request_input;
@@ -38,6 +39,7 @@ use super::truth::{self, Fact, Truth};
 use attachment::{prove_attachment, prove_reference};
 pub(super) use carrying::carrying_spans;
 use haystack::{Carrier, Haystack, MAX_DEPTH, collapse_whitespace};
+use metadata::{prove_metadata, usage_counts};
 use reasoning::{is_withheld, prove_kind, prove_reasoning_part, prove_signature};
 
 /// Shorter texts occur by coincidence, so their absence proves nothing.
@@ -398,6 +400,11 @@ impl Claim<'_> {
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
+                "usage.input" => "input token count",
+                "usage.output" => "output token count",
+                "usage.cache_read" => "cache-read token count",
+                "usage.cache_write" => "cache-write token count",
+                "usage.reasoning" => "reasoning token count",
                 _ => "model name",
             },
         }
@@ -445,7 +452,8 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                         "model" => vec![call.model.clone()],
                         "response_model" => vec![call.response_model.clone()],
                         "response_id" => vec![call.response_id.clone()],
-                        _ => vec![call.finish.clone(), call.stop_reason.clone()],
+                        "finish" => vec![call.finish.clone(), call.stop_reason.clone()],
+                        usage => usage_counts(call, usage),
                     };
                     Claim::Metadata(field, values.into_iter().flatten().collect())
                 }
@@ -537,37 +545,6 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
             Proof::Absent
         }
     }
-}
-
-/// A model name or response id is absent when no payload contains it; a finish when no member naming a
-/// finish (`finish_reason`, `stopReason`) holds the category or the provider's word, in any case - a
-/// finish word elsewhere, a block's `type: tool_use` or a sentence, is not a finish stated.
-fn prove_metadata(field: &str, values: &[String], haystack: &Haystack) -> Proof {
-    if let Some(at) = haystack.undecoded.first() {
-        return Proof::Unprovable(format!(
-            "{at} is encoded deeper than the search decodes ({MAX_DEPTH} layers)"
-        ));
-    }
-    if values.iter().all(|v| v.trim().is_empty()) {
-        return Proof::Unprovable(format!("the truth states no {field}"));
-    }
-    for carrier in &haystack.carriers {
-        for (at, text) in &carrier.strings {
-            let found = values.iter().filter(|v| !v.is_empty()).any(|value| {
-                if field == "finish" {
-                    let key = at.to_ascii_lowercase();
-                    (key.contains("finish") || key.contains("stop"))
-                        && text.eq_ignore_ascii_case(value)
-                } else {
-                    text.contains(value.as_str())
-                }
-            });
-            if found {
-                return Proof::Present(at.clone());
-            }
-        }
-    }
-    Proof::Absent
 }
 
 /// A response part on the span that produced it: the fact searched for in that span's carriers alone - its

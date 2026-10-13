@@ -316,7 +316,10 @@ class Framework:
     #: ``tool_call_ids`` - the model's tool-call ids (``id_not_exported``); ``tool_calling_rounds`` - the
     #: responses that only call tools, whose parts are recorded one execution at a time
     #: (``call_not_exported``); ``model``, ``response_model``, ``response_id``, ``finish`` - a call's
-    #: metadata the producer states wrongly with the right value in no payload; ``reasoning_kind`` -
+    #: metadata the producer states wrongly with the right value in no payload; ``usage_input``,
+    #: ``usage_output``, ``usage_cache_read``, ``usage_cache_write``, ``usage_reasoning`` - a usage count the
+    #: producer states wrongly with the right count in no payload (``metadata_not_exported`` on
+    #: ``usage.<count>``); ``reasoning_kind`` -
     #: visible reasoning the producer records as plain text (``kind_not_exported``);
     #: ``withheld_reasoning`` - signed reasoning with no text the producer exports no part for
     #: (``not_exported``); ``reasoning_signature`` - that reasoning's signature, the step itself exported

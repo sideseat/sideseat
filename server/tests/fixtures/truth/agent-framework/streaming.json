@@ -235,6 +235,50 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "usage.input",
+   "reason": "metadata_not_exported",
+   "detail": "the call's input tokens: Agent Framework 1.0.1 to 1.9.0, streaming through Bedrock Anthropic, adds the stream's first usage report to its last, so it overstates input and output tokens and the cost shown for those releases is high; no payload carries the call's real count",
+   "subject": "call-001",
+   "modes": [
+    "native@1.0.1",
+    "native@1.8.1",
+    "native@1.9.0"
+   ]
+  },
+  {
+   "fact": "usage.input",
+   "reason": "metadata_not_exported",
+   "detail": "the call's input tokens: Agent Framework 1.0.1 to 1.9.0, streaming through Bedrock Anthropic, adds the stream's first usage report to its last, so it overstates input and output tokens and the cost shown for those releases is high; no payload carries the call's real count",
+   "subject": "call-002",
+   "modes": [
+    "native@1.0.1",
+    "native@1.8.1",
+    "native@1.9.0"
+   ]
+  },
+  {
+   "fact": "usage.output",
+   "reason": "metadata_not_exported",
+   "detail": "the call's output tokens: Agent Framework 1.0.1 to 1.9.0, streaming through Bedrock Anthropic, adds the stream's first usage report to its last, so it overstates input and output tokens and the cost shown for those releases is high; no payload carries the call's real count",
+   "subject": "call-001",
+   "modes": [
+    "native@1.0.1",
+    "native@1.8.1",
+    "native@1.9.0"
+   ]
+  },
+  {
+   "fact": "usage.output",
+   "reason": "metadata_not_exported",
+   "detail": "the call's output tokens: Agent Framework 1.0.1 to 1.9.0, streaming through Bedrock Anthropic, adds the stream's first usage report to its last, so it overstates input and output tokens and the cost shown for those releases is high; no payload carries the call's real count",
+   "subject": "call-002",
+   "modes": [
+    "native@1.0.1",
+    "native@1.8.1",
+    "native@1.9.0"
+   ]
   }
  ],
  "requests": {

@@ -420,6 +420,48 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         invented_model_under_a_gap,
     ),
     (
+        "declare a misstated usage count the span states rightly",
+        Expect::Only(&["gap.unused"]),
+        usage_gap_over_a_right_count,
+    ),
+    (
+        "invent a usage count a usage gap does not excuse",
+        Expect::Only(&["call.usage.input", "gap.unused"]),
+        invented_usage_under_a_gap,
+    ),
+    (
+        "swap two usage counts a usage gap does not excuse",
+        // A span matched by its usage can lose its match when two of its counts swap.
+        Expect::Only(&[
+            "call.usage.input",
+            "call.usage.output",
+            "gap.unused",
+            "call.unmatched",
+        ]),
+        swapped_usage_under_a_gap,
+    ),
+    (
+        "take a request's limit for a usage count a usage gap does not excuse",
+        // A span matched by its usage can lose its match when its output count changes.
+        Expect::Only(&["call.usage.output", "gap.unused", "call.unmatched"]),
+        limit_for_usage_under_a_gap,
+    ),
+    (
+        "take a nested request count for a usage count a usage gap does not excuse",
+        Expect::Only(&["call.usage.output", "gap.unused", "call.unmatched"]),
+        nested_limit_for_usage_under_a_gap,
+    ),
+    (
+        "take a dotted reasoning counter for an output count a usage gap does not excuse",
+        Expect::Only(&["call.usage.output", "gap.unused", "call.unmatched"]),
+        reasoning_for_output_under_a_gap,
+    ),
+    (
+        "take a prompt's quoted count for a usage count a usage gap does not excuse",
+        Expect::Only(&["call.usage.output", "gap.unused", "call.unmatched"]),
+        prompt_for_usage_under_a_gap,
+    ),
+    (
         "show a call below its span and corrupt the span's usage",
         Expect::Caught,
         relist_below_and_corrupt_usage,

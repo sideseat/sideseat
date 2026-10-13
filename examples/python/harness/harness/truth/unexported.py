@@ -20,6 +20,15 @@ def withheld(part: dict[str, Any]) -> bool:
 
 #: Call metadata a producer may state wrongly with the right value in no payload.
 METADATA = ("model", "response_model", "response_id", "finish")
+#: Usage counts a producer may state wrongly with the right count in no payload: each declaration key and the
+#: count it names, as the call's usage and the gap's fact (``usage.<count>``) spell it.
+USAGE = {
+    "usage_input": "input",
+    "usage_output": "output",
+    "usage_cache_read": "cache_read",
+    "usage_cache_write": "cache_write",
+    "usage_reasoning": "reasoning",
+}
 UNEXPORTED = frozenset(
     {
         "tool_call_ids",
@@ -38,6 +47,7 @@ UNEXPORTED = frozenset(
         "tool_round_traces",
         "media",
         *METADATA,
+        *USAGE,
     }
 )
 
@@ -86,6 +96,15 @@ def apply(builder: Builder, framework: Framework) -> None:
                 continue
             if limited is None or value in limited:
                 gap(field_name, "metadata_not_exported", detail, record["id"])
+    for key, count in USAGE.items():
+        if not (detail := declared(key)):
+            continue
+        for record in builder.calls:
+            if (
+                record["outcome"] == "success"
+                and (record.get("usage") or {}).get(count) is not None
+            ):
+                gap(f"usage.{count}", "metadata_not_exported", detail, record["id"])
     if detail := declared("reasoning_kind"):
         for fact in builder.facts:
             if (

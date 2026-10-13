@@ -4,6 +4,9 @@
 //! ambiguous, and that is a violation, because a nearest-match rule would let a duplicated or misplaced
 //! response pass as the original.
 
+mod carried;
+mod usage_locations;
+use carried::Carried;
 use std::collections::{BTreeMap, BTreeSet};
 
 use sideseat_domain::sideml::FinishReason;
@@ -780,6 +783,30 @@ pub(super) fn check_metadata(
                 .sum()
         };
         let cache = usage.cache_read.unwrap_or(0) + usage.cache_write.unwrap_or(0);
+        // A count a gap proves the producer states wrongly is waived only as the producer stated it: the span's
+        // count is in its own payload. A gap over a count the span states rightly, or not at all, is needed for
+        // nothing, and says so.
+        let mut unused: Vec<Violation> = Vec::new();
+        let gapped =
+            |assertion: &str| not_exported.contains(&(call.id.as_str(), assertion.to_string()));
+        let waived_count = |assertion: &str,
+                            expected: i64,
+                            actual: i64,
+                            out: &mut Vec<Violation>| {
+            if !gapped(assertion) {
+                return false;
+            }
+            if actual == expected || !carried.count(assertion, actual) {
+                out.push(Violation::new(
+                    ViolationView::Call,
+                    "gap.unused",
+                    &format!("{}:{assertion}", call.id),
+                    format!("the gap says the span states this count wrongly; it states {actual}, the wire {expected}"),
+                ));
+                return false;
+            }
+            true
+        };
         if let Some(input) = usage.input {
             // Providers disagree on whether input counts cached tokens; either convention is a
             // faithful report of the same call.
@@ -789,7 +816,9 @@ pub(super) fn check_metadata(
                 input + cache
             };
             let reported = generation.input != 0 || carried.number(input) || carried.number(other);
-            if generation.input != input
+            let waived = waived_count("call.usage.input", input, generation.input, &mut unused);
+            if !waived
+                && generation.input != input
                 && generation.input != other
                 && !(run_total(|u| u.input) == Some(generation.input)
                     && carried.number(generation.input))
@@ -827,6 +856,7 @@ pub(super) fn check_metadata(
         ];
         for (assertion, expected, actual, count) in fields {
             if let Some(e) = expected
+                && !waived_count(assertion, e, actual, &mut unused)
                 && actual != e
                 && !(run_total(count) == Some(actual) && carried.number(actual))
                 && (actual != 0 || carried.number(e))
@@ -834,97 +864,7 @@ pub(super) fn check_metadata(
                 differ(assertion, &e.to_string(), actual.to_string());
             }
         }
-    }
-}
-
-/// Every scalar a raw span holds, JSON payloads inside its strings included.
-#[derive(Default)]
-struct Carried {
-    strings: BTreeSet<String>,
-    numbers: BTreeSet<i64>,
-    /// The strings under a member that names a finish (`finish_reason`, `stopReason`): a finish word
-    /// elsewhere - an output item's own `status`, a sentence - is not the span stating the call's.
-    finish_words: BTreeSet<String>,
-    skip_requests: bool,
-}
-
-/// A member whose name puts it in a request namespace (`gen_ai.request.model`, `request_model`).
-fn states_a_request(key: &str) -> bool {
-    key.split(['.', '_'])
-        .any(|segment| segment.eq_ignore_ascii_case("request"))
-}
-
-impl Carried {
-    fn of(raw: Option<&str>) -> Self {
-        Self::walked(raw, false)
-    }
-
-    /// The scalars outside every member that states a request: `gen_ai.request.model` names the model
-    /// asked for, so its value is not evidence that the span states the model that answered.
-    fn of_answer(raw: Option<&str>) -> Self {
-        Self::walked(raw, true)
-    }
-
-    fn walked(raw: Option<&str>, skip_requests: bool) -> Self {
-        let mut carried = Carried {
-            skip_requests,
-            ..Carried::default()
-        };
-        if let Some(value) = raw.and_then(|r| serde_json::from_str::<serde_json::Value>(r).ok()) {
-            carried.walk(&value, 0, false);
-        }
-        carried
-    }
-
-    fn walk(&mut self, value: &serde_json::Value, depth: usize, finish: bool) {
-        use serde_json::Value;
-        match value {
-            Value::String(text) => {
-                if let Ok(n) = text.trim().parse::<i64>() {
-                    self.numbers.insert(n);
-                }
-                if depth < 8
-                    && matches!(text.trim_start().chars().next(), Some('{' | '['))
-                    && let Ok(inner) = serde_json::from_str::<Value>(text)
-                {
-                    self.walk(&inner, depth + 1, finish);
-                }
-                if finish {
-                    self.finish_words.insert(text.to_ascii_lowercase());
-                }
-                self.strings.insert(text.clone());
-            }
-            Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    self.numbers.insert(i);
-                } else if let Some(f) = n.as_f64().filter(|f| f.fract() == 0.0) {
-                    self.numbers.insert(f as i64);
-                }
-            }
-            Value::Array(items) => items.iter().for_each(|v| self.walk(v, depth, finish)),
-            Value::Object(map) => {
-                for (key, member) in map {
-                    if !(self.skip_requests && states_a_request(key)) {
-                        let lower = key.to_ascii_lowercase();
-                        let names_finish = lower.contains("finish") || lower.contains("stop");
-                        self.walk(member, depth, finish || names_finish);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn string(&self, value: &str) -> bool {
-        self.strings.contains(value)
-    }
-
-    fn finish_word(&self, value: &str) -> bool {
-        self.finish_words.contains(&value.to_ascii_lowercase())
-    }
-
-    fn number(&self, value: i64) -> bool {
-        value != 0 && self.numbers.contains(&value)
+        out.extend(unused);
     }
 }
 

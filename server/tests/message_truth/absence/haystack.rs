@@ -39,6 +39,9 @@ pub(in super::super) struct Carrier {
     /// Every boolean attribute it holds, with its location: a flattened family's flag - a part's `thought` - is
     /// what says what its sibling text is.
     pub flags: Vec<(String, bool)>,
+    /// Where a number stands that is integral but too large for a float to state surely (2^51 and up): what
+    /// count it means is unknown, so no count can be proven absent from a payload holding one.
+    pub inexact: Vec<String>,
     /// Decoded bytes of a piece (`pieces`) that are no text alone - one byte of a character cut across pieces -
     /// with their location: joined with their neighbours they may be.
     pub byte_pieces: Vec<(String, Vec<u8>)>,
@@ -219,11 +222,7 @@ impl Expander<'_> {
                 }
             }
             Some(any_value::Value::IntValue(n)) => self.carrier.numbers.push((at.to_string(), *n)),
-            Some(any_value::Value::DoubleValue(d)) => {
-                if let Some(n) = whole(Some(*d)) {
-                    self.carrier.numbers.push((at.to_string(), n));
-                }
-            }
+            Some(any_value::Value::DoubleValue(d)) => self.float(at, *d),
             Some(any_value::Value::BoolValue(flag)) => {
                 self.carrier.flags.push((at.to_string(), *flag))
             }
@@ -240,8 +239,11 @@ impl Expander<'_> {
             .push((at.to_string(), collapse_whitespace(text)));
         let trimmed = text.trim();
         // An integer written as text is a count too: producers write counters both ways.
-        if let Some(n) = whole(trimmed.parse::<f64>().ok()) {
+        // An integer written as text is read exactly first; only a float's text goes through the float.
+        if let Ok(n) = trimmed.parse::<i64>() {
             self.carrier.numbers.push((at.to_string(), n));
+        } else if let Ok(f) = trimmed.parse::<f64>() {
+            self.float(at, f);
         }
         if depth >= MAX_DEPTH {
             if looks_encoded(trimmed)
@@ -290,6 +292,24 @@ impl Expander<'_> {
         }
     }
 
+    /// A number written as a float. The decoder may read a float's text one unit in the last place off, so only
+    /// below 2^51 - where that unit is at most a quarter - is the nearest integer surely the count it states; from
+    /// 2^51 on a float may state either of two counts, a figure whose integer is unknown.
+    fn float(&mut self, at: &str, value: f64) {
+        const SURE: f64 = 2_251_799_813_685_248.0; // 2^51
+        if !value.is_finite() {
+            return;
+        }
+        if value.abs() >= SURE {
+            self.carrier.inexact.push(at.to_string());
+            return;
+        }
+        let nearest = value.round();
+        if (value - nearest).abs() <= value.abs() * f64::EPSILON {
+            self.carrier.numbers.push((at.to_string(), nearest as i64));
+        }
+    }
+
     fn bytes(&mut self, at: &str, bytes: &[u8], depth: usize) {
         self.carrier.digests.push((
             at.to_string(),
@@ -329,8 +349,10 @@ impl Expander<'_> {
             }
             // A count inside a decoded body is as much a count as an integer attribute.
             Value::Number(n) => {
-                if let Some(n) = whole(n.as_f64()) {
+                if let Some(n) = n.as_i64() {
                     self.carrier.numbers.push((at.to_string(), n));
+                } else if let Some(f) = n.as_f64() {
+                    self.float(at, f);
                 }
             }
             // A flag inside a decoded body - a part's `thought` - says what its sibling text is, as an attribute's does.
@@ -478,11 +500,4 @@ fn unescape(text: &str) -> String {
 /// Lowercase hex, as a span id is written everywhere else.
 pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-
-/// A number with no fractional part, as an integer: a count written `45`, `45.0` or `4.5e1` is one count.
-fn whole(value: Option<f64>) -> Option<i64> {
-    value
-        .filter(|v| v.is_finite() && v.fract() == 0.0 && v.abs() < 9.0e15)
-        .map(|v| v as i64)
 }

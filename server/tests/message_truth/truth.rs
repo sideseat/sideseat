@@ -456,8 +456,20 @@ pub(super) struct GapEffects {
 /// (`span_signature_not_exported`): that span's view owes it unsigned.
 pub(super) const UNSIGNED_ON_SPAN: &str = "unsigned_on_span";
 
-/// The call metadata a `metadata_not_exported` gap may name, as `call.<field>` assertions spell it.
-pub(super) const METADATA_FIELDS: &[&str] = &["model", "response_model", "response_id", "finish"];
+/// The call metadata a `metadata_not_exported` gap may name, as `call.<field>` assertions spell it: the call's
+/// identity and finish, and each usage count - a count the producer states wrongly while no payload carries
+/// the right one.
+pub(super) const METADATA_FIELDS: &[&str] = &[
+    "model",
+    "response_model",
+    "response_id",
+    "finish",
+    "usage.input",
+    "usage.output",
+    "usage.cache_read",
+    "usage.cache_write",
+    "usage.reasoning",
+];
 
 /// The closed vocabulary of gap reasons and their effects; an unknown reason is a document defect.
 pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {

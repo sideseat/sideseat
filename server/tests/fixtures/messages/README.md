@@ -140,8 +140,10 @@ where each is recorded on its own), but its calls need not all precede its resul
 recording the run may report the run's usage where its payload states that total. A gap may hold
 for some capture modes only (`modes`, `native@1.0b1`), when one release exports what another omits;
 it is proven against exactly those fixtures. `metadata_not_exported` covers a call's model, response
-model, response id or finish that the producer states wrongly while the right value is in no payload
-(a finish counts as stated only under a member naming a finish). A span's finish also agrees when it
+model, response id, finish or usage count that the producer states wrongly while the right value is in no
+payload (a finish counts as stated only under a member naming a finish; a usage count is refused by any
+payload holding the wire's count as a number, and the gap is itself a violation, `gap.unused`, where the span
+states the count rightly or not at all). A span's finish also agrees when it
 is the provider's own word for it (Gemini's `STOP` for a function call), and a finish word anywhere
 else in the span is not the span stating one. Each gap reason has declared effects (`truth::gap_effects`): an
 absence withdraws its fact but never explains an extra block. The proven gaps are listed, per

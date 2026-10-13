@@ -584,6 +584,35 @@ def test_unexported_visible_reasoning_is_withdrawn_and_a_scoped_one_stays_owed()
     ]
 
 
+def test_a_misreported_usage_count_is_a_metadata_gap_on_each_call_stating_one() -> None:
+    """`usage_input` and its siblings declare a usage count the producer states wrongly with the right count in
+    no payload: a `metadata_not_exported` gap on `usage.<count>` for each successful call whose usage has that
+    count, scoped to the modes declared, which the rubric proves per capture."""
+    framework = derive.Framework.of(
+        {
+            "unexported": {
+                "usage_input": {
+                    "reason": "sums the stream's usage events",
+                    "modes": {"chat": ["native@1.0"]},
+                },
+                "usage_output": "sums the stream's usage events",
+            }
+        }
+    )
+    counted = model_call(wire.text_part("Hi."))
+    counted.usage = wire.Usage(input=515, output=71)
+    uncounted = model_call(wire.text_part("Hi."))
+    builder = derive.assemble(
+        "p", "chat", [counted, uncounted], options=derive.Options(framework=framework)
+    )
+    gaps = [g for g in builder.gaps if g["reason"] == "metadata_not_exported"]
+    first = builder.calls[0]["id"]
+    assert [(g["fact"], g["subject"], g.get("modes")) for g in gaps] == [
+        ("usage.input", first, ["native@1.0"]),
+        ("usage.output", first, None),
+    ]
+
+
 def test_an_unexported_reasoning_signature_keeps_the_step_asserted() -> None:
     """`reasoning_signature` asserts withheld reasoning without its signature, with a
     `signature_not_exported` gap the rubric proves; the step itself stays owed."""
