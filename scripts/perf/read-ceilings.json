@@ -23,6 +23,7 @@
   "api: search spans": 1000,
   "api: list logs": 40,
   "api: get log": 50,
+  "api: search logs": 400,
   "ingest: logs match content": 25,
   "api: list metrics": 30,
   "api: aggregate metrics": 25,

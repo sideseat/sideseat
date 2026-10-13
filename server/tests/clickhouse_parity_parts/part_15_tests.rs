@@ -1,8 +1,11 @@
 /// The trace corpus as exports, each scenario's re-timed into one day ending 80 days back: within ClickHouse's
 /// 90-day TTL, and with room after it for a replica a day for 74 days. A scenario keeps its own timing, so a
-/// trace whose spans arrive in several exports stays whole.
-fn scale_corpus() -> Vec<opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest>
-{
+/// trace whose spans arrive in several exports stays whole, and its logs keep their place beside its spans.
+fn scale_corpus() -> (
+    Vec<opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest>,
+    Vec<opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest>,
+) {
+    use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
     use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
     use prost::Message;
 
@@ -19,7 +22,7 @@ fn scale_corpus() -> Vec<opentelemetry_proto::tonic::collector::trace::v1::Expor
                 && path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with("req-"))
+                    .is_some_and(|name| name.starts_with("req-") || name.starts_with("logs-"))
             {
                 found.push(path);
             }
@@ -30,16 +33,30 @@ fn scale_corpus() -> Vec<opentelemetry_proto::tonic::collector::trace::v1::Expor
         &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/messages"),
         &mut paths,
     );
-    let mut scenarios: std::collections::BTreeMap<
-        std::path::PathBuf,
+    type Scenario = (
         Vec<ExportTraceServiceRequest>,
-    > = Default::default();
+        Vec<ExportLogsServiceRequest>,
+    );
+    let mut scenarios: std::collections::BTreeMap<std::path::PathBuf, Scenario> =
+        Default::default();
     for path in paths {
         let bytes = std::fs::read(&path).expect("fixture");
-        scenarios
+        let scenario = scenarios
             .entry(path.parent().expect("scenario").to_path_buf())
-            .or_default()
-            .push(ExportTraceServiceRequest::decode(bytes.as_slice()).expect("an OTLP export"));
+            .or_default();
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("logs-"))
+        {
+            scenario
+                .1
+                .push(ExportLogsServiceRequest::decode(bytes.as_slice()).expect("an OTLP export"));
+        } else {
+            scenario
+                .0
+                .push(ExportTraceServiceRequest::decode(bytes.as_slice()).expect("an OTLP export"));
+        }
     }
     const DAY_NS: u64 = 86_400_000_000_000;
     let base = u64::try_from(
@@ -50,19 +67,21 @@ fn scale_corpus() -> Vec<opentelemetry_proto::tonic::collector::trace::v1::Expor
     .expect("a time after 1970");
     let count = scenarios.len() as u64;
     let mut exports = Vec::new();
-    for (index, (_, mut requests)) in scenarios.into_iter().enumerate() {
-        let spans = || {
-            requests
-                .iter()
-                .flat_map(|request| &request.resource_spans)
-                .flat_map(|resource| &resource.scope_spans)
-                .flat_map(|scope| &scope.spans)
-        };
-        let Some(earliest) = spans()
-            .map(|span| span.start_time_unix_nano)
-            .filter(|&t| t > 0)
-            .min()
-        else {
+    let mut log_exports = Vec::new();
+    for (index, (_, (mut requests, mut logs))) in scenarios.into_iter().enumerate() {
+        let span_times = requests
+            .iter()
+            .flat_map(|request| &request.resource_spans)
+            .flat_map(|resource| &resource.scope_spans)
+            .flat_map(|scope| &scope.spans)
+            .map(|span| span.start_time_unix_nano);
+        let log_times = logs
+            .iter()
+            .flat_map(|request| &request.resource_logs)
+            .flat_map(|resource| &resource.scope_logs)
+            .flat_map(|scope| &scope.log_records)
+            .flat_map(|record| [record.time_unix_nano, record.observed_time_unix_nano]);
+        let Some(earliest) = span_times.chain(log_times).filter(|&t| t > 0).min() else {
             continue;
         };
         let place = base + index as u64 * (DAY_NS / count);
@@ -85,9 +104,21 @@ fn scale_corpus() -> Vec<opentelemetry_proto::tonic::collector::trace::v1::Expor
                 }
             }
         }
+        for request in &mut logs {
+            for record in request
+                .resource_logs
+                .iter_mut()
+                .flat_map(|resource| &mut resource.scope_logs)
+                .flat_map(|scope| &mut scope.log_records)
+            {
+                retime(&mut record.time_unix_nano);
+                retime(&mut record.observed_time_unix_nano);
+            }
+        }
         exports.extend(requests);
+        log_exports.extend(logs);
     }
-    exports
+    (exports, log_exports)
 }
 
 /// `column` remapped for replica `r.k` in either dialect, the same string in both: the first `width` hex digits
@@ -162,6 +193,34 @@ fn scale_statements(
                 ("raw_id", identity("raw_id", 64)),
             ],
         ),
+        (
+            "otel_logs",
+            vec![
+                ("log_digest", identity("log_digest", 64)),
+                ("trace_id", identity("trace_id", 32)),
+                ("span_id", identity("span_id", 16)),
+                ("session_id", session("session_id")),
+                ("timestamp", shifted("timestamp")),
+                ("time", shifted("time")),
+                ("observed_time", shifted("observed_time")),
+                ("ingested_at", shifted("ingested_at")),
+            ],
+        ),
+        (
+            "log_terms",
+            vec![
+                ("log_digest", identity("log_digest", 64)),
+                ("ingested_at", shifted("ingested_at")),
+            ],
+        ),
+        (
+            "log_media_refs",
+            vec![
+                ("log_digest", identity("log_digest", 64)),
+                ("trace_id", identity("trace_id", 32)),
+                ("span_id", identity("span_id", 16)),
+            ],
+        ),
     ];
     tables
         .into_iter()
@@ -186,6 +245,47 @@ fn scale_statements(
             }
         })
         .collect()
+}
+
+/// Every field of a log row but its receipt time, which is each server's clock at the write; JSON-valued ones
+/// canonical, since the dialects may order an object's members differently.
+fn describe_log(row: &sideseat_ports::types::LogRow) -> String {
+    let json = |value: &Option<String>| value.as_deref().map(canonical_json);
+    format!(
+        "{}/{} at={} time={:?} observed={:?} severity={}/{:?} body={:?} text={:?} attributes={:?} \
+         dropped={} flags={} trace={:?} span={:?} event={:?} session={:?} user={:?} env={:?} \
+         service={:?}/{:?}/{:?}/{:?} resource={:?} scope={:?}/{:?} scope_attributes={:?} \
+         schemas={:?}/{:?} raw={:?}",
+        row.log_digest,
+        row.ordinal,
+        row.timestamp.timestamp_micros(),
+        row.time.map(|t| t.timestamp_micros()),
+        row.observed_time.map(|t| t.timestamp_micros()),
+        row.severity_number,
+        row.severity_text,
+        json(&row.body),
+        row.body_text,
+        json(&row.attributes),
+        row.dropped_attributes_count,
+        row.flags,
+        row.trace_id,
+        row.span_id,
+        row.event_name,
+        row.session_id,
+        row.user_id,
+        row.environment,
+        row.service_name,
+        row.service_version,
+        row.service_namespace,
+        row.service_instance_id,
+        json(&row.resource_attributes),
+        row.scope_name,
+        row.scope_version,
+        json(&row.scope_attributes),
+        row.scope_schema_url,
+        row.resource_schema_url,
+        json(&row.raw_log),
+    )
 }
 
 /// The fastest of three runs of a read, with its answer.
@@ -237,11 +337,30 @@ async fn reads_agree_at_a_million_spans() {
     let duck_repo: Arc<dyn AnalyticsRepository + Send + Sync> = Arc::new(duck.clone());
     let ch_repo: Arc<dyn AnalyticsRepository + Send + Sync> = Arc::new(ch.clone());
 
-    let exports = scale_corpus();
+    let (exports, log_exports) = scale_corpus();
+    let project_name = "default";
     for repo in [&duck_repo, &ch_repo] {
         let FilePipeline {
-            _temp, pipeline, ..
+            _temp,
+            pipeline,
+            transactional,
+            files,
+            ..
         } = file_pipeline(repo).await;
+        for request in &log_exports {
+            // As the collector receives it: the project named on the resource.
+            let mut request = request.clone();
+            sideseat_ingestion::otlp::inject_project_id_logs(&mut request, project_name);
+            sideseat_ingestion::logs::ingest(
+                &request,
+                repo.as_ref(),
+                transactional.as_ref(),
+                Some(&files),
+                Utc::now(),
+            )
+            .await
+            .expect("every corpus logs export is stored");
+        }
         for chunk in exports.chunks(16) {
             let outcomes = pipeline.run_batch_outcomes_for_test(chunk).await;
             assert!(
@@ -334,6 +453,27 @@ async fn reads_agree_at_a_million_spans() {
         )
     };
     let latest = DateTime::<Utc>::from_timestamp_micros(latest_us).expect("latest");
+    // The median log by its identity's hash, and a mid-frequency body term.
+    let (log_digest, log_ordinal, log_term): (String, u32, String) = {
+        let conn = duck.0.conn();
+        let (digest, ordinal) = conn
+            .query_row(
+                "SELECT log_digest, ordinal FROM otel_logs ORDER BY hash(log_digest), log_digest, ordinal \
+                 LIMIT 1 OFFSET (SELECT count(*) / 2 FROM otel_logs)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("a log");
+        let term = conn
+            .query_row(
+                "SELECT term FROM log_terms WHERE length(term) > 4 GROUP BY 1 \
+                 ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50",
+                [],
+                |row| row.get(0),
+            )
+            .expect("a log term");
+        (digest, ordinal, term)
+    };
     let week = Some(latest - chrono::TimeDelta::days(7));
 
     let mut timings: Vec<(String, std::time::Duration, std::time::Duration)> = Vec::new();
@@ -553,8 +693,56 @@ async fn reads_agree_at_a_million_spans() {
             .collect::<Vec<_>>()
     });
 
+    let logs = sideseat_ports::types::ListLogsParams {
+        project_id: project.clone(),
+        page: 1,
+        limit: 50,
+        ..Default::default()
+    };
+    compare!("list logs", |repo| repo.list_logs(&logs), |page| {
+        let (rows, total): (Vec<sideseat_ports::types::LogRow>, u64) = page;
+        (total, rows.iter().map(describe_log).collect::<Vec<_>>())
+    });
+    compare!(
+        "get log",
+        |repo| repo.get_log(&project, &log_digest, log_ordinal),
+        |row| {
+            let row: Option<sideseat_ports::types::LogRow> = row;
+            row.as_ref().map(describe_log)
+        }
+    );
+    let log_search = SearchQuery {
+        signal: SearchSignal::Logs,
+        expression: sideseat_ports::types::SearchExpr::Term {
+            field: None,
+            term: log_term.clone(),
+        },
+        ..search.clone()
+    };
+    compare!("search logs", |repo| repo.search(&log_search), |page| {
+        let page: sideseat_ports::types::SearchPage = page;
+        page.candidates
+            .iter()
+            .map(|candidate| match (&candidate.record, &candidate.source) {
+                (SearchRecord::Log(log), sideseat_ports::types::SearchSource::Log(source)) => {
+                    format!(
+                        "{}/{} {:?} {:?} {:?} {:?} {:?}",
+                        log.log_digest,
+                        log.ordinal,
+                        log.body_text,
+                        source.body_text,
+                        source.body.as_deref().map(canonical_json),
+                        source.event_name,
+                        source.attributes.as_deref().map(canonical_json)
+                    )
+                }
+                (record, _) => format!("{record:?}"),
+            })
+            .collect::<Vec<_>>()
+    });
+
     println!(
-        "\n{} span rows; trace {trace}; session {session}; term {term}\n\
+        "\n{} span rows; trace {trace}; session {session}; term {term}; log term {log_term}\n\
          | read | DuckDB | ClickHouse |\n|---|---|---|",
         corpus * copies
     );

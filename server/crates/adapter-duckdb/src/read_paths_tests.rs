@@ -48,6 +48,8 @@ struct Samples {
     datapoint: Option<(String, chrono::DateTime<Utc>)>,
     metric_name: Option<String>,
     term: Option<String>,
+    /// A mid-frequency term of the project's log bodies, as `term` is of its spans.
+    log_term: Option<String>,
 }
 
 fn one<T: duckdb::types::FromSql>(conn: &duckdb::Connection, sql: &str) -> Option<T> {
@@ -149,6 +151,13 @@ fn samples(service: &DuckdbService) -> Samples {
              ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50"
         ),
     );
+    let log_term = one(
+        &conn,
+        &format!(
+            "SELECT term FROM log_terms WHERE project_id = '{p}' AND length(term) > 4 GROUP BY 1 \
+             ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50"
+        ),
+    );
     Samples {
         project: ProjectId::from(project.as_str()),
         trace,
@@ -160,6 +169,7 @@ fn samples(service: &DuckdbService) -> Samples {
         datapoint,
         metric_name,
         term,
+        log_term,
     }
 }
 
@@ -531,6 +541,26 @@ async fn read_paths() {
             ..Default::default()
         })
     );
+    if let Some(term) = &s.log_term {
+        measure!(
+            rows,
+            &profile,
+            "api: search logs",
+            repo.search(&SearchQuery {
+                project_id: project.clone(),
+                signal: SearchSignal::Logs,
+                expression: SearchExpr::Term {
+                    field: None,
+                    term: term.clone(),
+                },
+                limit: 50,
+                max_examined: 10_000,
+                cursor: None,
+                from_timestamp: None,
+                to_timestamp: None,
+            })
+        );
+    }
     if let Some((digest, ordinal, log_instant)) = &s.log {
         measure!(
             rows,
