@@ -41,10 +41,11 @@ pub use normalized::{
     noted_references_from_column,
 };
 pub use search::{
-    DEFAULT_SEARCH_MAX_EXAMINED, LogSearchSource, SEARCH_RECALL_FLOOR, SEARCH_TERMS_PER_FIELD,
-    SearchBackfillDocument, SearchBackfillSource, SearchCandidate, SearchCursor, SearchDocument,
-    SearchExpr, SearchField, SearchFieldTerms, SearchLogRecord, SearchPage, SearchQuery,
-    SearchRecord, SearchRecordId, SearchSignal, SearchSource, SearchSpanRecord, SpanSearchSource,
+    DEFAULT_SEARCH_MAX_EXAMINED, LogSearchSource, SEARCH_RECALL_FLOOR, SEARCH_SOURCE_CHUNK_BYTES,
+    SEARCH_SOURCE_CHUNK_ROWS, SEARCH_TERMS_PER_FIELD, SearchBackfillDocument, SearchBackfillSource,
+    SearchCandidate, SearchCursor, SearchDocument, SearchExpr, SearchField, SearchFieldTerms,
+    SearchLogRecord, SearchPage, SearchQuery, SearchRecord, SearchRecordId, SearchSignal,
+    SearchSource, SearchSourceKey, SearchSpanRecord, SpanSearchSource,
 };
 
 // Re-export analytics types (query results and params)

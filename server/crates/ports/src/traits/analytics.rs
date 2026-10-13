@@ -250,7 +250,19 @@ pub trait LogStore: Send + Sync {
 /// Chronological, non-ranking search over spans and logs.
 #[async_trait]
 pub trait SearchIndex: Send + Sync {
+    /// One page of candidates, in the order the page is examined, each carrying only what orders and keys it:
+    /// its text is read afterwards, a chunk at a time ([`Self::search_sources`]).
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage, DataError>;
+
+    /// The source text of each of `keys`, in order, read in one statement: `None` for a key whose revision is no
+    /// longer the current one - deleted, superseded or expired since the page was read - which the search skips
+    /// as a non-match. At most [`crate::types::SEARCH_SOURCE_CHUNK_ROWS`] keys; the caller cuts them to
+    /// [`crate::types::SEARCH_SOURCE_CHUNK_BYTES`] of text.
+    async fn search_sources(
+        &self,
+        query: &SearchQuery,
+        keys: &[crate::types::SearchSourceKey],
+    ) -> Result<Vec<Option<crate::types::SearchSource>>, DataError>;
 
     /// Best-effort detector for writes landing in the traversal region already consumed.
     async fn search_arrivals_detected(

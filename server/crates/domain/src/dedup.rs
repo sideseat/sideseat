@@ -240,6 +240,14 @@ impl SearchIndex for DedupAnalyticsRepository {
         self.inner.search(query).await
     }
 
+    async fn search_sources(
+        &self,
+        query: &SearchQuery,
+        keys: &[sideseat_ports::types::SearchSourceKey],
+    ) -> Result<Vec<Option<sideseat_ports::types::SearchSource>>, DataError> {
+        self.inner.search_sources(query, keys).await
+    }
+
     async fn search_arrivals_detected(
         &self,
         query: &SearchQuery,

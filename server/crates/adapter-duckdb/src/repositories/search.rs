@@ -2,7 +2,8 @@ use duckdb::{Connection, params};
 use sideseat_ports::types::{
     LogSearchSource, NormalizedSpan, SearchBackfillDocument, SearchBackfillSource, SearchCandidate,
     SearchCursor, SearchDocument, SearchLogRecord, SearchPage, SearchQuery, SearchRecord,
-    SearchRecordId, SearchSignal, SearchSource, SearchSpanRecord, SpanSearchSource,
+    SearchRecordId, SearchSignal, SearchSource, SearchSourceKey, SearchSpanRecord,
+    SpanSearchSource,
 };
 use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
@@ -17,42 +18,6 @@ use crate::sql_types::SqlTimestamp;
 /// Identities per batched delete. A row-value `IN` list binds three values each, and a statement with tens of
 /// thousands of parameters costs more to plan than it saves.
 const DELETE_CHUNK: usize = 500;
-
-struct SpanCandidate {
-    trace_id: String,
-    span_id: String,
-    span_name: Option<String>,
-    input_preview: Option<String>,
-    output_preview: Option<String>,
-    messages: Option<String>,
-    tool_definitions: Option<String>,
-    tool_names: Option<String>,
-    gen_ai_tool_name: Option<String>,
-    status_message: Option<String>,
-    exception_type: Option<String>,
-    exception_message: Option<String>,
-    exception_stacktrace: Option<String>,
-    timestamp_us: i64,
-    _match_state: i16,
-    search_indexed: bool,
-}
-
-struct LogCandidate {
-    log_digest: String,
-    ordinal: u32,
-    severity_text: Option<String>,
-    body_text: Option<String>,
-    trace_id: Option<String>,
-    span_id: Option<String>,
-    body: Option<String>,
-    event_name: Option<String>,
-    attributes: Option<String>,
-    raw_log: Option<String>,
-    noted_references: Option<String>,
-    timestamp_us: i64,
-    _match_state: i16,
-    search_indexed: bool,
-}
 
 /// Replace the term rows of these spans: one delete for the batch, then the rows appended.
 ///
@@ -191,8 +156,7 @@ pub fn delete_for_project(conn: &Connection, project_id: &str) -> Result<(), Duc
 
 pub fn search(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
     match request.signal {
-        SearchSignal::Spans => search_spans(conn, request),
-        SearchSignal::Logs => search_logs(conn, request),
+        SearchSignal::Spans | SearchSignal::Logs => search_page(conn, request),
     }
 }
 
@@ -398,77 +362,96 @@ fn set_search_bits(
     Ok(())
 }
 
-fn search_spans(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
+/// One page of light candidates: identity, short columns, row id and text length, in page order.
+fn search_page(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
     let started_at_us = traversal_watermark(conn, request)?;
     let search_indexing_complete = indexing_complete(conn, request)?;
     let plan = search_sql::candidates(request, Backend::Duckdb);
     let values = duckdb_values(plan.query.params());
     let mut statement = conn.prepare(plan.query.sql())?;
     let mut result = statement.query(values.as_slice())?;
-    let mut rows = Vec::new();
-    while let Some(row) = result.next()? {
-        rows.push(SpanCandidate {
-            trace_id: row.get(0)?,
-            span_id: row.get(1)?,
-            span_name: row.get(2)?,
-            input_preview: row.get(3)?,
-            output_preview: row.get(4)?,
-            messages: row.get(5)?,
-            tool_definitions: row.get(6)?,
-            tool_names: row.get(7)?,
-            gen_ai_tool_name: row.get(8)?,
-            status_message: row.get(9)?,
-            exception_type: row.get(10)?,
-            exception_message: row.get(11)?,
-            exception_stacktrace: row.get(12)?,
-            timestamp_us: row.get(13)?,
-            _match_state: row.get(14)?,
-            search_indexed: row.get(15)?,
-        });
-    }
-    let limit_reached = rows.len() > request.max_examined as usize;
-    rows.truncate(request.max_examined as usize);
     let mut candidates = Vec::new();
-    let mut next_cursor = None;
-    for row in rows {
-        let cursor = SearchCursor {
-            timestamp_us: row.timestamp_us,
-            tie_breaker: format!("{}\0{}", row.trace_id, row.span_id),
-            ordinal: 0,
-            started_at_us,
+    let mut limit_reached = false;
+    while let Some(row) = result.next()? {
+        if candidates.len() == request.max_examined as usize {
+            limit_reached = true;
+            break;
+        }
+        // row_id, four light columns, revision_us, content_digest, source_bytes, timestamp_us, match_state,
+        // search_indexed.
+        let row_id: i64 = row.get(0)?;
+        let revision_us: i64 = row.get(5)?;
+        let content_digest: String = row.get(6)?;
+        let source_bytes: u64 = row.get(7)?;
+        let timestamp_us: i64 = row.get(8)?;
+        let indexed: bool = row.get(10)?;
+        let timestamp = chrono::DateTime::from_timestamp_micros(timestamp_us)
+            .unwrap_or(chrono::DateTime::UNIX_EPOCH);
+        let (record, id, tie_breaker, ordinal) = match request.signal {
+            SearchSignal::Spans => {
+                let (trace_id, span_id): (String, String) = (row.get(1)?, row.get(2)?);
+                (
+                    SearchRecord::Span(SearchSpanRecord {
+                        trace_id: trace_id.clone(),
+                        span_id: span_id.clone(),
+                        timestamp,
+                        span_name: None,
+                        input_preview: row.get(3)?,
+                        output_preview: row.get(4)?,
+                    }),
+                    SearchRecordId::Span {
+                        trace_id: trace_id.clone(),
+                        span_id: span_id.clone(),
+                    },
+                    format!("{trace_id}\0{span_id}"),
+                    0,
+                )
+            }
+            SearchSignal::Logs => {
+                let (log_digest, ordinal): (String, u32) = (row.get(1)?, row.get(2)?);
+                (
+                    SearchRecord::Log(SearchLogRecord {
+                        log_digest: log_digest.clone(),
+                        ordinal,
+                        timestamp,
+                        severity_text: None,
+                        body_text: None,
+                        trace_id: row.get(3)?,
+                        span_id: row.get(4)?,
+                    }),
+                    SearchRecordId::Log {
+                        log_digest: log_digest.clone(),
+                        ordinal,
+                    },
+                    log_digest,
+                    ordinal,
+                )
+            }
         };
-        next_cursor = Some(cursor.clone());
         candidates.push(SearchCandidate {
-            record: SearchRecord::Span(SearchSpanRecord {
-                trace_id: row.trace_id,
-                span_id: row.span_id,
-                timestamp: chrono::DateTime::from_timestamp_micros(row.timestamp_us)
-                    .unwrap_or(chrono::DateTime::UNIX_EPOCH),
-                span_name: row.span_name.clone(),
-                input_preview: row.input_preview.clone(),
-                output_preview: row.output_preview.clone(),
-            }),
+            record,
             document: SearchDocument {
-                indexed: row.search_indexed,
+                indexed,
                 fields: Vec::new(),
             },
-            source: SearchSource::Span(SpanSearchSource {
-                messages: row.messages,
-                tool_definitions: row.tool_definitions,
-                tool_names: row.tool_names,
-                input_preview: row.input_preview,
-                output_preview: row.output_preview,
-                gen_ai_tool_name: row.gen_ai_tool_name,
-                status_message: row.status_message,
-                exception_type: row.exception_type,
-                exception_message: row.exception_message,
-                exception_stacktrace: row.exception_stacktrace,
-                span_name: row.span_name,
-            }),
-            cursor,
+            key: SearchSourceKey {
+                id,
+                row_id: Some(row_id),
+                timestamp_us,
+                revision_us,
+                content_digest,
+            },
+            source_bytes,
+            cursor: SearchCursor {
+                timestamp_us,
+                tie_breaker,
+                ordinal,
+                started_at_us,
+            },
             indeterminate: false,
         });
     }
+    let next_cursor = candidates.last().map(|candidate| candidate.cursor.clone());
     let examined = u32::try_from(candidates.len()).unwrap_or(u32::MAX);
     Ok(SearchPage {
         candidates,
@@ -481,84 +464,80 @@ fn search_spans(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, 
     })
 }
 
-fn search_logs(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
-    let started_at_us = traversal_watermark(conn, request)?;
-    let search_indexing_complete = indexing_complete(conn, request)?;
-    let plan = search_sql::candidates(request, Backend::Duckdb);
-    let values = duckdb_values(plan.query.params());
-    let mut statement = conn.prepare(plan.query.sql())?;
-    let mut result = statement.query(values.as_slice())?;
-    let mut rows = Vec::new();
-    while let Some(row) = result.next()? {
-        rows.push(LogCandidate {
-            log_digest: row.get(0)?,
-            ordinal: row.get(1)?,
-            severity_text: row.get(2)?,
-            body_text: row.get(3)?,
-            trace_id: row.get(4)?,
-            span_id: row.get(5)?,
-            body: row.get(6)?,
-            event_name: row.get(7)?,
-            attributes: row.get(8)?,
-            raw_log: row.get(9)?,
-            noted_references: row.get(10)?,
-            timestamp_us: row.get(11)?,
-            _match_state: row.get(12)?,
-            search_indexed: row.get(13)?,
-        });
-    }
-    let limit_reached = rows.len() > request.max_examined as usize;
-    rows.truncate(request.max_examined as usize);
-    let mut candidates = Vec::new();
-    let mut next_cursor = None;
-    for row in rows {
-        let cursor = SearchCursor {
-            timestamp_us: row.timestamp_us,
-            tie_breaker: row.log_digest.clone(),
-            ordinal: row.ordinal,
-            started_at_us,
+/// The source text of `keys`, in order: a key's row read by row id, and kept only while it is still that
+/// revision of that identity and its winner in the project - a row deleted, superseded, or its number reused for
+/// another row since, answers `None`.
+pub fn sources(
+    conn: &Connection,
+    request: &SearchQuery,
+    keys: &[SearchSourceKey],
+) -> Result<Vec<Option<SearchSource>>, DuckdbError> {
+    let Some(query) = search_sql::sources(
+        request.project_id.as_str(),
+        request.signal,
+        keys,
+        Backend::Duckdb,
+    ) else {
+        return Ok(vec![None; keys.len()]);
+    };
+    let values = duckdb_values(query.params());
+    let mut statement = conn.prepare(query.sql())?;
+    let mut rows = statement.query(values.as_slice())?;
+    let mut found: HashMap<i64, (SearchRecordId, i64, String, SearchSource)> = HashMap::new();
+    while let Some(row) = rows.next()? {
+        let row_id: i64 = row.get(0)?;
+        let revision_us: i64 = row.get(3)?;
+        let content_digest: String = row.get(4)?;
+        let (id, source) = match request.signal {
+            SearchSignal::Spans => (
+                SearchRecordId::Span {
+                    trace_id: row.get(1)?,
+                    span_id: row.get(2)?,
+                },
+                SearchSource::Span(SpanSearchSource {
+                    messages: row.get(5)?,
+                    tool_definitions: row.get(6)?,
+                    tool_names: row.get(7)?,
+                    input_preview: row.get(8)?,
+                    output_preview: row.get(9)?,
+                    gen_ai_tool_name: row.get(10)?,
+                    status_message: row.get(11)?,
+                    exception_type: row.get(12)?,
+                    exception_message: row.get(13)?,
+                    exception_stacktrace: row.get(14)?,
+                    span_name: row.get(15)?,
+                }),
+            ),
+            SearchSignal::Logs => (
+                SearchRecordId::Log {
+                    log_digest: row.get(1)?,
+                    ordinal: row.get(2)?,
+                },
+                SearchSource::Log(LogSearchSource {
+                    body_text: row.get(5)?,
+                    body: row.get(6)?,
+                    event_name: row.get(7)?,
+                    severity_text: row.get(8)?,
+                    attributes: row.get(9)?,
+                    raw_log: row.get(10)?,
+                    noted_references: sideseat_ports::types::noted_references_from_column(
+                        row.get::<_, Option<String>>(11)?.as_deref(),
+                    ),
+                }),
+            ),
         };
-        next_cursor = Some(cursor.clone());
-        candidates.push(SearchCandidate {
-            record: SearchRecord::Log(SearchLogRecord {
-                log_digest: row.log_digest,
-                ordinal: row.ordinal,
-                timestamp: chrono::DateTime::from_timestamp_micros(row.timestamp_us)
-                    .unwrap_or(chrono::DateTime::UNIX_EPOCH),
-                severity_text: row.severity_text.clone(),
-                body_text: row.body_text.clone(),
-                trace_id: row.trace_id.clone(),
-                span_id: row.span_id.clone(),
-            }),
-            document: SearchDocument {
-                indexed: row.search_indexed,
-                fields: Vec::new(),
-            },
-            source: SearchSource::Log(LogSearchSource {
-                body_text: row.body_text,
-                body: row.body,
-                event_name: row.event_name,
-                severity_text: row.severity_text,
-                attributes: row.attributes,
-                raw_log: row.raw_log,
-                noted_references: sideseat_ports::types::noted_references_from_column(
-                    row.noted_references.as_deref(),
-                ),
-            }),
-            cursor,
-            indeterminate: false,
-        });
+        found.insert(row_id, (id, revision_us, content_digest, source));
     }
-    let examined = u32::try_from(candidates.len()).unwrap_or(u32::MAX);
-    Ok(SearchPage {
-        candidates,
-        next_cursor,
-        examined,
-        examination_limit_reached: limit_reached,
-        arrivals_detected: false,
-        index_lag_us: 0,
-        search_indexing_complete,
-    })
+    Ok(keys
+        .iter()
+        .map(|key| {
+            let (id, revision_us, content_digest, source) = found.get(&key.row_id?)?;
+            (*id == key.id
+                && *revision_us == key.revision_us
+                && *content_digest == key.content_digest)
+                .then(|| source.clone())
+        })
+        .collect())
 }
 
 fn traversal_watermark(conn: &Connection, request: &SearchQuery) -> Result<i64, DuckdbError> {

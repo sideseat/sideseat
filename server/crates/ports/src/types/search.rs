@@ -239,13 +239,39 @@ pub struct SearchLogRecord {
     pub span_id: Option<String>,
 }
 
+/// The most bytes of source text one [`crate::traits::SearchIndex::search_sources`] read carries: a page's text is
+/// read a bounded chunk at a time, in page order, so what a search holds is one chunk, whatever the page.
+pub const SEARCH_SOURCE_CHUNK_BYTES: u64 = 8 << 20;
+
+/// The most candidates one source read names, however small their text.
+pub const SEARCH_SOURCE_CHUNK_ROWS: usize = 256;
+
+/// Which stored revision a candidate is, for reading its source text later: its identity, the row it was found in
+/// where the store numbers rows (DuckDB, which can reuse a number once its row is gone), and the revision itself -
+/// its write instant and, for a span, its content digest, since two revisions can share an instant. A source read
+/// answers only for that same revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchSourceKey {
+    pub id: SearchRecordId,
+    pub row_id: Option<i64>,
+    /// The record's own instant, which bounds where a store that keeps no index on its identity looks.
+    pub timestamp_us: i64,
+    pub revision_us: i64,
+    /// Empty for a log, whose identity is its content.
+    pub content_digest: String,
+}
+
 #[derive(Debug)]
 pub struct SearchCandidate {
     pub record: SearchRecord,
     /// Terms and truncation loaded from the backend's index.
     pub document: SearchDocument,
-    /// Raw source reconstructed into field text by the domain, never by an adapter.
-    pub source: SearchSource,
+    /// What its source text is read by ([`crate::traits::SearchIndex::search_sources`]); the domain reconstructs
+    /// field text from it, never an adapter.
+    pub key: SearchSourceKey,
+    /// What that source text weighs - the row's logical size, which bounds it - so the reads can be cut to
+    /// [`SEARCH_SOURCE_CHUNK_BYTES`]. Zero is unknown, and is read alone.
+    pub source_bytes: u64,
     pub cursor: SearchCursor,
     /// The term index could not prove true or false because a relevant field hit its cap.
     pub indeterminate: bool,

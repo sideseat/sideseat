@@ -7,10 +7,10 @@ use thiserror::Error;
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::SearchIndex;
 use sideseat_ports::types::{
-    LogSearchSource, NormalizedLog, NormalizedSpan, ProjectId, SEARCH_TERMS_PER_FIELD,
-    SearchBackfillDocument, SearchCandidate, SearchDocument, SearchExpr, SearchField,
-    SearchFieldTerms, SearchPage, SearchQuery, SearchRecord, SearchSignal, SearchSource,
-    SpanSearchSource,
+    LogSearchSource, NormalizedLog, NormalizedSpan, ProjectId, SEARCH_SOURCE_CHUNK_BYTES,
+    SEARCH_SOURCE_CHUNK_ROWS, SEARCH_TERMS_PER_FIELD, SearchBackfillDocument, SearchCandidate,
+    SearchDocument, SearchExpr, SearchField, SearchFieldTerms, SearchPage, SearchQuery,
+    SearchRecord, SearchSignal, SearchSource, SpanSearchSource,
 };
 
 const FRAGMENT_CONTEXT_CHARS: usize = 80;
@@ -84,6 +84,32 @@ pub struct SearchResultPage {
     pub search_indexing_complete: bool,
 }
 
+/// The next candidates whose source text is read together: up to [`SEARCH_SOURCE_CHUNK_ROWS`] of them and
+/// [`SEARCH_SOURCE_CHUNK_BYTES`] of text, and always at least one - a row larger than the chunk, or of unknown size,
+/// is read alone, which its own bound, the size of the OTLP request it arrived in, limits.
+fn next_source_chunk(
+    candidates: &mut std::iter::Peekable<std::vec::IntoIter<SearchCandidate>>,
+) -> Vec<SearchCandidate> {
+    let mut chunk = Vec::new();
+    let mut bytes = 0u64;
+    while let Some(next) = candidates.peek() {
+        // A row whose size was never recorded weighs a whole chunk, so it is read alone.
+        let weight = match next.source_bytes {
+            0 => SEARCH_SOURCE_CHUNK_BYTES,
+            known => known,
+        };
+        let fits = chunk.is_empty()
+            || (chunk.len() < SEARCH_SOURCE_CHUNK_ROWS
+                && bytes.saturating_add(weight) <= SEARCH_SOURCE_CHUNK_BYTES);
+        if !fits {
+            break;
+        }
+        bytes = bytes.saturating_add(weight);
+        chunk.extend(candidates.next());
+    }
+    chunk
+}
+
 pub struct SearchService;
 
 impl SearchService {
@@ -104,32 +130,55 @@ impl SearchService {
         let mut indexing_complete = search_indexing_complete;
         let mut actual_cursor = None;
         let mut actual_examined = 0;
-        for candidate in candidates {
-            let SearchCandidate {
-                record,
-                document,
-                source,
-                cursor,
-                indeterminate,
-            } = candidate;
-            actual_examined += 1;
-            actual_cursor = Some(cursor);
-            let document = materialize_document(document, &source);
-            let mut record = record;
-            if let (SearchRecord::Log(log), SearchSource::Log(source)) = (&mut record, &source) {
-                log.body_text = crate::log_views::resolve_source(source).body_text;
-            }
-            let exact = evaluate(&query.expression, &document, query.signal, true);
-            indexing_complete &= document.indexed
-                && !document_touched_truncation(&query.expression, &document, query.signal);
-            if exact != Truth::False {
-                hits.push(SearchHit {
-                    fragments: fragments(&document, &query.expression, query.signal),
+        // The page's text is read a chunk at a time, in page order, and the search stops at `limit` hits: what it
+        // holds is one chunk's text, whatever the page.
+        let mut candidates = candidates.into_iter().peekable();
+        'page: while candidates.peek().is_some() {
+            let chunk = next_source_chunk(&mut candidates);
+            let keys: Vec<_> = chunk
+                .iter()
+                .map(|candidate| candidate.key.clone())
+                .collect();
+            let sources = index.search_sources(query, &keys).await?;
+            for (candidate, source) in chunk.into_iter().zip(sources) {
+                let SearchCandidate {
                     record,
-                    indeterminate: indeterminate || exact == Truth::Unknown,
-                });
-                if hits.len() >= query.limit as usize {
-                    break;
+                    document,
+                    cursor,
+                    indeterminate,
+                    ..
+                } = candidate;
+                actual_examined += 1;
+                actual_cursor = Some(cursor);
+                // Gone or superseded since the page was read: not a match, and examined like any other.
+                let Some(source) = source else {
+                    continue;
+                };
+                let document = materialize_document(document, &source);
+                let mut record = record;
+                // The columns a hit shows that no length bound holds come with the text, not the page.
+                match (&mut record, &source) {
+                    (SearchRecord::Log(log), SearchSource::Log(source)) => {
+                        log.body_text = crate::log_views::resolve_source(source).body_text;
+                        log.severity_text = source.severity_text.clone();
+                    }
+                    (SearchRecord::Span(span), SearchSource::Span(source)) => {
+                        span.span_name = source.span_name.clone();
+                    }
+                    _ => {}
+                }
+                let exact = evaluate(&query.expression, &document, query.signal, true);
+                indexing_complete &= document.indexed
+                    && !document_touched_truncation(&query.expression, &document, query.signal);
+                if exact != Truth::False {
+                    hits.push(SearchHit {
+                        fragments: fragments(&document, &query.expression, query.signal),
+                        record,
+                        indeterminate: indeterminate || exact == Truth::Unknown,
+                    });
+                    if hits.len() >= query.limit as usize {
+                        break 'page;
+                    }
                 }
             }
         }
@@ -806,3 +855,7 @@ fn next_char_boundary(value: &str, mut position: usize) -> usize {
 #[cfg(test)]
 #[path = "search_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "search_source_tests.rs"]
+mod source_tests;

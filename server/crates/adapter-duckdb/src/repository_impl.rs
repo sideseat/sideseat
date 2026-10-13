@@ -483,6 +483,23 @@ impl SearchIndex for DuckdbRepository {
         .map_err(Into::into)
     }
 
+    async fn search_sources(
+        &self,
+        request: &SearchQuery,
+        keys: &[sideseat_ports::types::SearchSourceKey],
+    ) -> Result<Vec<Option<sideseat_ports::types::SearchSource>>, DataError> {
+        let db = Arc::clone(&self.0);
+        let request = request.clone();
+        let keys = keys.to_vec();
+        DuckdbService::run_query(&self.0, move || {
+            let conn = db.conn();
+            search::sources(&conn, &request, &keys)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn search_arrivals_detected(
         &self,
         request: &SearchQuery,

@@ -9,6 +9,9 @@ use sideseat_ports::types::{SearchCursor, SearchExpr, SearchField, SearchQuery, 
 use crate::Backend;
 use crate::analytics::{ParameterizedQuery, QueryValue};
 
+mod sources;
+pub use sources::sources;
+
 /// Remove the term rows of many span identities in one statement.
 ///
 /// A span writes about 35 term rows, so a batch of a thousand spans used to issue a thousand deletes and
@@ -223,17 +226,23 @@ pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePla
         timestamp = shape.timestamp_micros("r"),
         indexed = shape.indexed_expression(),
     );
+    // Only what orders, keys and sizes a candidate: its text is read after, a bounded chunk at a time
+    // (`sources`). Carrying the page's text through the final ordering held all of it at once, which at a
+    // million spans passed the memory limit.
     let sql = match (request.signal, backend) {
-        // Scored by row, the page picked, and only the page's rows read whole, by row id: carrying the text
-        // through the scoring and the ordering, or joining it back by identity, scanned every winner's text.
+        // Scored by row, the page picked, and the picked rows' light columns and text lengths read by row id.
         (signal, Backend::Duckdb) => format!(
             "WITH winners AS ({winners}){hits}, {scored}, \
              picked AS (SELECT * FROM scored WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}) \
-             SELECT {text}, p.timestamp_us, p.match_state, p.search_indexed \
+             SELECT p.row_id, {light}, {revision} AS revision_us, {digest} AS content_digest, \
+             {bytes} AS source_bytes, p.timestamp_us, p.match_state, p.search_indexed \
              FROM {table} r JOIN picked p ON r.rowid = p.row_id \
              ORDER BY {order}",
             winners = shape.winners(),
-            text = shape.candidate_projection(),
+            light = shape.light_projection(),
+            revision = shape.ingested_micros("r"),
+            digest = shape.content_digest("r"),
+            bytes = shape.source_bytes("r"),
             order = shape.order(),
             table = match signal {
                 SearchSignal::Spans => "otel_spans",
@@ -707,29 +716,64 @@ impl Shape {
         }
     }
 
-    /// The columns a candidate is scored and ordered with. DuckDB's candidates carry only their identity and are
-    /// read whole once chosen (`candidates`), since carrying their text through the scoring held every
-    /// candidate's messages and, at a million spans, exceeded the memory limit - and a log's raw record, which its
-    /// body views are rebuilt from, is the largest column it has.
-    fn scored_projection(self) -> &'static str {
+    /// The columns a candidate is scored and ordered with: never its text, which carried through the scoring held
+    /// every candidate's messages - and a log's raw record, which its body views are rebuilt from, is the largest
+    /// column it has. DuckDB reads the picked rows' light columns by row id afterwards; ClickHouse carries them,
+    /// with the revision and the text's length, which it computes as it scans.
+    fn scored_projection(self) -> String {
         match (self.signal, self.backend) {
-            (SearchSignal::Spans, Backend::Duckdb) => "r.row_id, r.trace_id, r.span_id",
-            (SearchSignal::Logs, Backend::Duckdb) => "r.row_id, r.log_digest, r.ordinal",
-            _ => self.candidate_projection(),
+            (SearchSignal::Spans, Backend::Duckdb) => "r.row_id, r.trace_id, r.span_id".to_string(),
+            (SearchSignal::Logs, Backend::Duckdb) => {
+                "r.row_id, r.log_digest, r.ordinal".to_string()
+            }
+            (_, Backend::Clickhouse) => format!(
+                "{}, {} AS revision_us, {} AS content_digest, {} AS source_bytes",
+                self.light_projection(),
+                self.ingested_micros("r"),
+                self.content_digest("r"),
+                self.source_bytes("r")
+            ),
         }
     }
 
-    fn candidate_projection(self) -> &'static str {
+    /// What a candidate carries besides its text: its identity and the previews a hit shows, which ingestion cuts
+    /// to a bounded length. A span's name and a log's severity text have no such bound, so they come with the text.
+    fn light_projection(self) -> &'static str {
+        match self.signal {
+            SearchSignal::Spans => "r.trace_id, r.span_id, r.input_preview, r.output_preview",
+            SearchSignal::Logs => "r.log_digest, r.ordinal, r.trace_id, r.span_id",
+        }
+    }
+
+    /// The text a candidate is verified against, read by `sources`.
+    fn source_projection(self) -> &'static str {
         match self.signal {
             SearchSignal::Spans => {
-                "r.trace_id, r.span_id, r.span_name, r.input_preview, r.output_preview, \
-                 r.messages, r.tool_definitions, r.tool_names, r.gen_ai_tool_name, \
-                 r.status_message, r.exception_type, r.exception_message, r.exception_stacktrace"
+                "r.messages, r.tool_definitions, r.tool_names, r.input_preview, r.output_preview, \
+                 r.gen_ai_tool_name, r.status_message, r.exception_type, r.exception_message, \
+                 r.exception_stacktrace, r.span_name"
             }
             SearchSignal::Logs => {
-                "r.log_digest, r.ordinal, r.severity_text, r.body_text, r.trace_id, r.span_id, \
-                 r.body, r.event_name, r.attributes, r.raw_log, r.noted_references"
+                "r.body_text, r.body, r.event_name, r.severity_text, r.attributes, r.raw_log, \
+                 r.noted_references"
             }
+        }
+    }
+
+    /// What the row `alias`'s source text weighs, for cutting its reads into chunks: the row's logical size,
+    /// the length of its JSON form, which every text column is part of - stored with the row, so the page reads no
+    /// text to know it. Reading the text's own lengths read every candidate's text in one vector, which is what the
+    /// chunked reads exist to avoid.
+    fn source_bytes(self, alias: &str) -> String {
+        format!("{alias}.logical_bytes")
+    }
+
+    /// The content digest that, with its write instant, tells one revision of the row `alias` from another; a log's
+    /// identity is its content, so it has none.
+    fn content_digest(self, alias: &str) -> String {
+        match self.signal {
+            SearchSignal::Spans => format!("{alias}.content_digest"),
+            SearchSignal::Logs => "''".to_string(),
         }
     }
 

@@ -222,3 +222,58 @@ fn backfill_pages_only_unindexed_current_rows_in_identity_order() {
     assert!(clickhouse.sql().contains("r.search_indexed = 0"));
     assert!(clickhouse.sql().contains("ORDER BY log_digest, ordinal"));
 }
+
+/// A page carries no text: its statement reads none of the source columns, on either backend. The source read binds
+/// every placeholder, reads DuckDB rows by number with their revision for the caller to check, and on ClickHouse
+/// narrows to the identities still at the key's revision before it reads any text.
+#[test]
+fn a_page_carries_no_text_and_its_sources_are_read_by_revision() {
+    use sideseat_ports::types::{SearchRecordId, SearchSourceKey};
+    for signal in [SearchSignal::Spans, SearchSignal::Logs] {
+        let query = request(SearchExpr::MatchAll, signal);
+        for backend in [Backend::Duckdb, Backend::Clickhouse] {
+            let page = candidates(&query, backend).query;
+            let text = match signal {
+                SearchSignal::Spans => ["r.messages", "r.exception_stacktrace", "r.span_name"],
+                SearchSignal::Logs => ["r.raw_log", "r.body", "r.severity_text"],
+            };
+            for column in text {
+                let selected = page.sql().matches(column).count();
+                assert_eq!(selected, 0, "{column} in a page: {}", page.sql());
+            }
+            assert!(page.sql().contains("logical_bytes"), "{}", page.sql());
+            let id = match signal {
+                SearchSignal::Spans => SearchRecordId::Span {
+                    trace_id: "t".into(),
+                    span_id: "s".into(),
+                },
+                SearchSignal::Logs => SearchRecordId::Log {
+                    log_digest: "d".into(),
+                    ordinal: 0,
+                },
+            };
+            let keys = [SearchSourceKey {
+                id,
+                row_id: Some(7),
+                timestamp_us: 1_700_000_000_000_000,
+                revision_us: 42,
+                content_digest: "digest".into(),
+            }];
+            let sources = sources("project", signal, &keys, backend).expect("a read");
+            assert_eq!(
+                sources.sql().matches('?').count(),
+                sources.params().len(),
+                "{}",
+                sources.sql()
+            );
+            assert!(sources.sql().contains("revision_us"), "{}", sources.sql());
+            if backend == Backend::Clickhouse {
+                assert!(
+                    sources.sql().contains("revision_us, content_digest) IN"),
+                    "{}",
+                    sources.sql()
+                );
+            }
+        }
+    }
+}

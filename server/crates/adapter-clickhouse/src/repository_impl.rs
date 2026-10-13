@@ -443,6 +443,14 @@ impl SearchIndex for ClickhouseRepository {
         tenant_query!(self, &request.project_id, search::search, request)
     }
 
+    async fn search_sources(
+        &self,
+        request: &SearchQuery,
+        keys: &[sideseat_ports::types::SearchSourceKey],
+    ) -> Result<Vec<Option<sideseat_ports::types::SearchSource>>, DataError> {
+        tenant_query!(self, &request.project_id, search::sources, request, keys)
+    }
+
     async fn search_arrivals_detected(
         &self,
         request: &SearchQuery,
