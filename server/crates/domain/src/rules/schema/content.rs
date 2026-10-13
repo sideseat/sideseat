@@ -105,6 +105,14 @@ pub struct ValuePredicate {
     /// of them says so with a predicate of its own.
     #[serde(default, deserialize_with = "listed")]
     pub only_members: Vec<String>,
+    /// The value must equal the value at this path, both read from the same subject: the evidence a projection
+    /// needs that two members it would collapse into one say the same thing (`{"path": "$[0].text", "same_as":
+    /// "$[0].inner_content.text"}`). Each path must select exactly one value - nothing, or several, and it does
+    /// not hold - and the two compare as JSON values do: a number by how it is stored (`1` is not `1.0`, whose
+    /// text differs), an object as a map whatever its member order, an array in order, a string exactly.
+    #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
+    pub same_as: Option<JsonPath>,
 }
 
 /// A JSON kind, for `ValuePredicate::kind`.

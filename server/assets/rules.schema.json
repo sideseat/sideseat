@@ -853,6 +853,13 @@
             "type": "string"
           },
           "default": []
+        },
+        "same_as": {
+          "description": "The value must equal the value at this path, both read from the same subject: the evidence a projection\nneeds that two members it would collapse into one say the same thing (`{\"path\": \"$[0].text\", \"same_as\":\n\"$[0].inner_content.text\"}`). Each path must select exactly one value - nothing, or several, and it does\nnot hold - and the two compare as JSON values do: a number by how it is stored (`1` is not `1.0`, whose\ntext differs), an object as a map whatever its member order, an array in order, a string exactly.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

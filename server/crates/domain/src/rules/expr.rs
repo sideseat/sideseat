@@ -369,6 +369,12 @@ pub enum JsonAtom {
         path: super::schema::JsonPath,
         satisfies: Box<Expr<JsonSubjectAtom>>,
     },
+    /// Each path selects exactly one value, and the two are equal as JSON values. A **total** question: a path
+    /// selecting nothing, or several, answers no.
+    SameAs {
+        path: super::schema::JsonPath,
+        other: super::schema::JsonPath,
+    },
 }
 
 /// One question about a single selected value.
@@ -475,6 +481,13 @@ impl JsonAtom {
                 }
                 answer
             }
+            Self::SameAs { path, other } => {
+                let (left, right) = (path.query(payload), other.query(payload));
+                Truth::total(matches!(
+                    (left.exactly_one(), right.exactly_one()),
+                    (Ok(a), Ok(b)) if a == b
+                ))
+            }
         }
     }
 }
@@ -507,7 +520,7 @@ fn all_two<A>(children: Vec<Expr<A>>) -> Expr<A> {
 ///   exactly that - `none_of` set, every other condition unset - so the translation is the explicit
 ///   `any(not exists, some(not one_of))`, which says what the special case meant instead of relying on a
 ///   negation that quietly accepts absence.
-pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Option<JsonExpr> {
+fn value_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Option<JsonExpr> {
     let path = predicate
         .path
         .clone()
@@ -649,6 +662,27 @@ pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Opti
         (None, None) if predicate.path.is_some() => Some(Expr::Atom(JsonAtom::Exists { path })),
         (None, None) => None,
     }
+}
+
+/// A `ValuePredicate` as a JSON expression, its `same_as` a conjunct beside the rest: the value must also equal
+/// the value at the other path.
+pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Option<JsonExpr> {
+    let rest = value_expr_of_predicate(predicate);
+    let Some(other) = &predicate.same_as else {
+        return rest;
+    };
+    let path = predicate
+        .path
+        .clone()
+        .unwrap_or_else(|| super::schema::JsonPath::parse("$").expect("`$` is a path"));
+    let same = Expr::Atom(JsonAtom::SameAs {
+        path,
+        other: other.clone(),
+    });
+    Some(match rest {
+        Some(rest) => all_two(vec![rest, same]),
+        None => same,
+    })
 }
 
 /// A `PredicateSet` as one JSON expression.

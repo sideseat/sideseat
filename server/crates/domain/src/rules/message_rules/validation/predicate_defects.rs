@@ -78,6 +78,7 @@ fn set_defect(set: &PredicateSet) -> Option<&'static str> {
             + usize::from(!p.none_of.is_empty())
             + usize::from(p.equals.is_some())
             + usize::from(!p.only_members.is_empty())
+            + usize::from(p.same_as.is_some())
             == 1
     };
     // A pair one side or the other of which holds of *every* root value. Only total tests qualify: `not_null`
@@ -233,6 +234,24 @@ fn atom_defect(predicate: &ValuePredicate, positive: bool) -> Option<&'static st
         .path
         .as_ref()
         .is_none_or(|path| path.to_string() == "$");
+    // A value always equals itself, so `same_as` naming its own *singular* path states nothing beyond presence. A
+    // path that can select several values is different: compared with itself it asks that it select exactly one,
+    // a real constraint. Beside `exists: false` it asks an absent value to equal another, which never holds.
+    if let Some(other) = &predicate.same_as {
+        let own = predicate
+            .path
+            .as_ref()
+            .map_or_else(|| "$".to_string(), ToString::to_string);
+        let singular = !own.contains(['*', '?', ':', ',']) && !own.contains("..");
+        if other.to_string() == own && singular {
+            return Some("`same_as` names the predicate's own path, which every value equals");
+        }
+        if predicate.exists == Some(false) {
+            return Some(
+                "`same_as` asks the value to equal another, which an absent value never does",
+            );
+        }
+    }
     if predicate.exists == Some(false)
         && (predicate.kind.is_some()
             || predicate.non_empty.is_some()

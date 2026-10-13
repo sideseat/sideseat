@@ -841,3 +841,152 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         "a fallback rule's rank orders nothing against a dialect rule's"
     );
 }
+
+/// `same_as` answers the same through the JSON grammar and the retired evaluator, over one table of cases:
+/// equal strings, a differing one, 1 against 1.0 (unequal: a number compares as it is stored), objects whose
+/// members are in another order (equal), arrays in another order (unequal), a missing path on either side and a
+/// path selecting several values (false), and `same_as` beside another condition.
+#[test]
+fn same_as_answers_alike_in_both_evaluators() {
+    use crate::rules::expr::json_expr_of_predicate;
+    use crate::rules::message_rules::predicate_holds_for_test as retired;
+    use crate::rules::schema::ValuePredicate;
+    use serde_json::json;
+    let cases = [
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": "x", "b": "x"}),
+            true,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": "x", "b": "y"}),
+            false,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": 1, "b": 1.0}),
+            false,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": 1, "b": 1}),
+            true,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": {"x": 1, "y": [2]}, "b": {"y": [2], "x": 1}}),
+            true,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": [1, 2], "b": [2, 1]}),
+            false,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"a": "x"}),
+            false,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b"}),
+            json!({"b": "x"}),
+            false,
+        ),
+        (
+            json!({"path": "$.a[*]", "same_as": "$.b"}),
+            json!({"a": ["x", "x"], "b": "x"}),
+            false,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b[*]"}),
+            json!({"a": "x", "b": ["x"]}),
+            true,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b", "kind": "string"}),
+            json!({"a": 1, "b": 1}),
+            false,
+        ),
+        (
+            json!({"path": "$.a", "same_as": "$.b", "kind": "number"}),
+            json!({"a": 1, "b": 1}),
+            true,
+        ),
+        (json!({"same_as": "$.b"}), json!({"b": {"b": 1}}), false),
+    ];
+    for (predicate, payload, want) in cases {
+        let parsed: ValuePredicate =
+            serde_json::from_value(predicate.clone()).expect("the case parses");
+        let old = retired(&parsed, &payload);
+        let new = json_expr_of_predicate(&parsed)
+            .map(|expr| expr.eval(&mut |atom| atom.eval(&payload)).holds())
+            .unwrap_or(true);
+        assert_eq!((old, new), (want, want), "{predicate} over {payload}");
+    }
+}
+
+/// A `same_as` naming its own path states nothing, and one beside `exists: false` can never hold: both are
+/// refused where they are declared.
+#[test]
+fn a_same_as_that_cannot_mean_anything_is_refused() {
+    use crate::rules::message_rules::member_predicate_defect;
+    use crate::rules::schema::ValuePredicate;
+    let parse = |value: serde_json::Value| -> ValuePredicate {
+        serde_json::from_value(value).expect("the predicate parses")
+    };
+    let own = parse(serde_json::json!({"path": "$.a", "same_as": "$.a"}));
+    assert!(member_predicate_defect(&own, true).is_some());
+    let root = parse(serde_json::json!({"same_as": "$"}));
+    assert!(member_predicate_defect(&root, true).is_some());
+    let absent = parse(serde_json::json!({"path": "$.a", "exists": false, "same_as": "$.b"}));
+    assert!(member_predicate_defect(&absent, true).is_some());
+    let fine = parse(serde_json::json!({"path": "$.a", "same_as": "$.b"}));
+    assert_eq!(member_predicate_defect(&fine, true), None);
+}
+
+/// A `same_as` is a condition of its own: beside `exists: true`, with `exists: false` as the other branch, the
+/// pair is false for `{"a": 1, "b": 2}`, so it is no tautology and compiles.
+#[test]
+fn a_same_as_beside_exists_is_a_condition_of_its_own() {
+    use crate::rules::message_rules::predicate_defect;
+    let condition = serde_json::from_value(serde_json::json!({
+        "any": [
+            {"path": "$.a", "exists": true, "same_as": "$.b"},
+            {"path": "$.a", "exists": false}
+        ]
+    }))
+    .expect("the condition parses");
+    assert_eq!(predicate_defect(&condition), None);
+}
+
+/// Compared with itself, a path that can select several values asks that it select exactly one: allowed, and it
+/// holds for one item and fails for none or two, in both evaluators.
+#[test]
+fn a_plural_path_compared_with_itself_asks_for_exactly_one() {
+    use crate::rules::expr::json_expr_of_predicate;
+    use crate::rules::message_rules::{
+        member_predicate_defect, predicate_holds_for_test as retired,
+    };
+    use crate::rules::schema::ValuePredicate;
+    let predicate: ValuePredicate =
+        serde_json::from_value(serde_json::json!({"path": "$.items[*]", "same_as": "$.items[*]"}))
+            .expect("the predicate parses");
+    assert_eq!(member_predicate_defect(&predicate, true), None);
+    assert_eq!(member_predicate_defect(&predicate, false), None);
+    for (items, want) in [
+        (serde_json::json!([]), false),
+        (serde_json::json!(["x"]), true),
+        (serde_json::json!(["x", "x"]), false),
+    ] {
+        let payload = serde_json::json!({ "items": items });
+        let new = json_expr_of_predicate(&predicate)
+            .map(|expr| expr.eval(&mut |atom| atom.eval(&payload)).holds())
+            .unwrap_or(true);
+        assert_eq!(
+            (retired(&predicate, &payload), new),
+            (want, want),
+            "{payload}"
+        );
+    }
+}

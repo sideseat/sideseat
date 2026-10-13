@@ -196,10 +196,13 @@ the value itself) and the tests asked of what it selects:
 | `none_of` | is none of these strings (any non-string holds; alone, so does an absent member) |
 | `equals` | is exactly this JSON value; `null` is not a test, so ask `kind: "null"` |
 | `only_members` | is an object with no member outside these |
+| `same_as` | equals the one value at this other path of the same subject (`1` is not `1.0`; member order aside); a path selecting nothing or several fails it |
 
 Every test of one atom is asked of one selected value, so `{"path": "$.items[*]", "starts_with": "a", "one_of":
 [...]}` needs a single item satisfying both. A test of the wrong kind for the value (a string test on a number) is
-unknown, and `"exists": false` beside it makes it false. Where the subject is not the value being read, the field
+unknown, and `"exists": false` beside it makes it false. `same_as` is the one test that reads beyond the selected value: it proves two members a
+projection would collapse say the same thing, so the projection loses nothing. It is not numeric equality: `1` and
+`1.0` print differently, so they differ. Where the subject is not the value being read, the field
 says so: `parent_where` (the value a selection came out of), `skip_where` (a section dropped where it holds),
 `raw_where` (a carrier's text, as a JSON string, before it is parsed).
 
@@ -1034,6 +1037,7 @@ and one type spanning both would have to mean different things depending on wher
 | `none_of` | list of string | The value must not be any of these strings. |
 | `equals` | any JSON value | The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about strings. `null` is refused here; `kind: null` says it. |
 | `only_members` | list of string | The value must be an object with no member outside these. A subset: a shape that must also hold one of them says so with a predicate of its own. |
+| `same_as` | string | The value must equal the value at this path, both read from the same subject: the evidence a projection needs that two members it would collapse into one say the same thing (`{"path": "$[0].text", "same_as": "$[0].inner_content.text"}`). Each path must select exactly one value - nothing, or several, and it does not hold - and the two compare as JSON values do: a number by how it is stored (`1` is not `1.0`, whose text differs), an object as a map whatever its member order, an array in order, a string exactly. |
 
 ### `ValueKind`
 

@@ -128,8 +128,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), ai_model_id=None, metadata={}, content_type='text', text='395.0', encoding=None)]",
-          "content_digest": "dab59b3e05b6b3f8",
+          "content": "395.0",
+          "content_digest": "55eec83bf9eedc98",
           "tool_name": "calculator-calculate",
           "observation_type": "tool"
         }
@@ -204,8 +204,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), ai_model_id=None, metadata={}, content_type='text', text='395.0', encoding=None)]",
-          "content_digest": "dab59b3e05b6b3f8",
+          "content": "395.0",
+          "content_digest": "55eec83bf9eedc98",
           "tool_name": "calculator-calculate",
           "observation_type": "tool"
         },
@@ -264,8 +264,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), ai_model_id=None, metadata={}, content_type='text', text='395.0', encoding=None)]",
-          "content_digest": "dab59b3e05b6b3f8",
+          "content": "395.0",
+          "content_digest": "55eec83bf9eedc98",
           "tool_name": "calculator-calculate",
           "observation_type": "tool"
         },
@@ -306,8 +306,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), ai_model_id=None, metadata={}, content_type='text', text='395.0', encoding=None)]",
-        "content_digest": "dab59b3e05b6b3f8",
+        "content": "395.0",
+        "content_digest": "55eec83bf9eedc98",
         "tool_name": "calculator-calculate",
         "observation_type": "tool"
       },

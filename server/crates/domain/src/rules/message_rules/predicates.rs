@@ -9,6 +9,19 @@ pub(crate) fn predicate_holds_for_test(predicate: &ValuePredicate, value: &JsonV
 
 #[cfg(test)]
 pub(super) fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
+    if let Some(other) = &predicate.same_as {
+        let path = predicate.path.as_ref();
+        let left = path.map_or_else(|| vec![value], |path| query(value, path));
+        let right = query(value, other);
+        if !(left.len() == 1 && right.len() == 1 && left[0] == right[0]) {
+            return false;
+        }
+        let rest = ValuePredicate {
+            same_as: None,
+            ..predicate.clone()
+        };
+        return predicate_holds(value, &rest);
+    }
     // A path that can match more than once is asked **existentially**: some match satisfies the condition.
     // Answering only about the first is a silent narrowing, and it would disagree with `exists`, which on a
     // filter path already means "at least one".

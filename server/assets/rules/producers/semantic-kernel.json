@@ -54,7 +54,12 @@
             {
               "from": "gen_ai.tool.name",
               "as": "name",
-              "or_span_name": [{"strip_prefix": "execute_tool "}, "trim"]
+              "or_span_name": [
+                {
+                  "strip_prefix": "execute_tool "
+                },
+                "trim"
+              ]
             },
             {
               "from": "gen_ai.tool.call.id",
@@ -66,6 +71,123 @@
       "emit": "message",
       "priority": 168,
       "reads_tool_spans": true
+    },
+    {
+      "id": "semantic-kernel.tool_call_result_repr",
+      "doc": "A tool's result Semantic Kernel recorded as the `str()` of a list of its content objects - an MCP tool's `[TextContent(inner_content=TextContent(type='text', text='...', annotations=None, meta=None), ai_model_id=None, metadata={}, content_type='text', text='...', encoding=None)]` - read with Python's `repr` where the literal reading refuses it, only where the text reprints exactly. A list of one such `TextContent`, holding nothing but its text (no metadata, model id, encoding, annotations or other members) and stating that text once (its own and its inner content's are the same), is that text; any other list stays text, read by the conventions' rule, so nothing it holds is dropped.",
+      "where": {
+        "source": "scope.name",
+        "equals": "semantic_kernel.functions.kernel_function"
+      },
+      "read": {
+        "attribute": "gen_ai.tool.call.result"
+      },
+      "parse": "python_repr",
+      "priority": 169,
+      "reads_tool_spans": true,
+      "also": [
+        {
+          "id": "result",
+          "select": "$",
+          "where": {
+            "all": [
+              {
+                "path": "$[0].__python_constructor",
+                "equals": "TextContent"
+              },
+              {
+                "path": "$[1]",
+                "exists": false
+              },
+              {
+                "path": "$[0]",
+                "only_members": [
+                  "__python_constructor",
+                  "inner_content",
+                  "ai_model_id",
+                  "metadata",
+                  "content_type",
+                  "text",
+                  "encoding"
+                ]
+              },
+              {
+                "path": "$[0].text",
+                "kind": "string"
+              },
+              {
+                "path": "$[0].text",
+                "same_as": "$[0].inner_content.text"
+              },
+              {
+                "path": "$[0].content_type",
+                "equals": "text"
+              },
+              {
+                "path": "$[0].ai_model_id",
+                "kind": "null"
+              },
+              {
+                "path": "$[0].encoding",
+                "kind": "null"
+              },
+              {
+                "path": "$[0].metadata",
+                "equals": {}
+              },
+              {
+                "path": "$[0].inner_content.__python_constructor",
+                "equals": "TextContent"
+              },
+              {
+                "path": "$[0].inner_content",
+                "only_members": [
+                  "__python_constructor",
+                  "type",
+                  "text",
+                  "annotations",
+                  "meta"
+                ]
+              },
+              {
+                "path": "$[0].inner_content.type",
+                "equals": "text"
+              },
+              {
+                "path": "$[0].inner_content.annotations",
+                "kind": "null"
+              },
+              {
+                "path": "$[0].inner_content.meta",
+                "kind": "null"
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "block": {
+              "type": "tool_result",
+              "attach": [
+                {
+                  "from": "gen_ai.tool.name",
+                  "as": "name",
+                  "or_span_name": [
+                    {
+                      "strip_prefix": "execute_tool "
+                    },
+                    "trim"
+                  ]
+                },
+                {
+                  "from": "gen_ai.tool.call.id",
+                  "as": "tool_use_id"
+                }
+              ]
+            },
+            "content_from": "$[0].text"
+          }
+        }
+      ]
     }
   ]
 }

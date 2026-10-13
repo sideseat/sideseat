@@ -108,11 +108,6 @@ const UNUSED: &[(&str, &str)] = &[
         "every fact axis stays independently overridable, as `carrier_is_atomic_emission`",
     ),
     (
-        "ValueKind=null",
-        "part of the closed JSON kind vocabulary a `kind` predicate offers; a kind set missing one would be an \
-         arbitrary hole",
-    ),
-    (
         "ValueKind=number",
         "part of the closed JSON kind vocabulary, as `null`",
     ),

@@ -877,3 +877,59 @@ fn try_raw_io(
     messages.extend(produced);
     found
 }
+
+/// A tool result printed as a list of one content object holding only its text reads as that text; one holding
+/// anything more stays the text it was printed as, so nothing it carries is dropped.
+#[test]
+fn a_printed_text_content_result_is_its_text_only_when_it_holds_nothing_else() {
+    let read = |result: &str| {
+        let attrs = make_attrs(&[("gen_ai.tool.call.result", result)]);
+        let span = SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
+            name: "execute_tool calculator-calculate",
+            attrs: &attrs,
+            scope_name: Some("semantic_kernel.functions.kernel_function"),
+            is_tool_span: true,
+        };
+        let mut messages = Vec::new();
+        let mut unused = Vec::new();
+        try_declared_rules_for_span(
+            &mut messages,
+            &mut unused,
+            span,
+            Utc::now(),
+            &mut std::collections::HashSet::new(),
+        );
+        serde_json::to_string(&messages.iter().map(|m| &m.content).collect::<Vec<_>>())
+            .unwrap_or_default()
+    };
+    let plain = "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), \
+                 ai_model_id=None, metadata={}, content_type='text', text='395.0', encoding=None)]";
+    let shown = read(plain);
+    assert!(
+        shown.contains("395.0") && !shown.contains("TextContent"),
+        "{shown}"
+    );
+    for richer in [
+        "[TextContent(text='ok', payload={'answer': 42})]",
+        // A model id or an encoding the projection would drop.
+        "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), \
+         ai_model_id='model-1', metadata={}, content_type='text', text='395.0', encoding=None)]",
+        "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), \
+         ai_model_id=None, metadata={}, content_type='text', text='395.0', encoding='base64')]",
+        // Two texts that differ: projecting either loses the other.
+        "[TextContent(inner_content=TextContent(type='text', text='payload', annotations=None, meta=None), \
+         ai_model_id=None, metadata={}, content_type='text', text='ok', encoding=None)]",
+        "[TextContent(inner_content=TextContent(type='text', text='395.0', annotations=None, meta=None), \
+         ai_model_id=None, metadata={'source': 'cache'}, content_type='text', text='395.0', encoding=None)]",
+    ] {
+        // Read by the conventions' rule instead: one result, holding the whole rendering as it was printed.
+        let shown = read(richer);
+        assert!(!shown.contains("__python_constructor"), "{shown}");
+        let rendered = serde_json::to_string(richer).expect("a string");
+        assert!(
+            shown.contains(&rendered[1..rendered.len() - 1]),
+            "a richer result lost what it carries: {shown}"
+        );
+    }
+}
