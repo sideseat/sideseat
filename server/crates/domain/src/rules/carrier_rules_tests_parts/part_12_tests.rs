@@ -688,6 +688,11 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the engine's own tree for a parsed constructor, which assets select from",
         ),
         (
+            "server/crates/domain/src/sideml/content/python_object.rs",
+            "__python_value",
+            "the engine's own tree for a parsed enum repr, the value beside the member, which assets select from",
+        ),
+        (
             "server/crates/domain/src/sideml/normalize/categorization.rs",
             "documents",
             "one of SideSeat's own extraction roles, which the assets map retrieved material onto; the role-authority \

@@ -83,8 +83,12 @@
       ]
     },
     "trace-1/haystack.agent.step.llm/span-10": {
-      "message_count": 1,
+      "message_count": 5,
       "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -92,6 +96,40 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_TUlvGgpIT7EMF96OzDFQHZ\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "35f7a3f12e8b7818",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"_meta\":{\"fastmcp\":{\"wrap_result\":true}},\"content\":[{\"type\":\"text\",\"text\":\"395.0\",\"annotations\":null,\"_meta\":null}],\"structuredContent\":{\"result\":395.0},\"isError\":false,\"resultType\":\"complete\"}",
+          "content_digest": "2d50bb2b56ad57b5",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**",
@@ -101,8 +139,10 @@
       ]
     },
     "trace-1/haystack.agent.step.llm/span-6": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "system",
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -110,6 +150,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_TUlvGgpIT7EMF96OzDFQHZ\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
@@ -189,7 +245,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -197,7 +253,7 @@
           "entry_type": "text",
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -247,7 +303,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -255,7 +311,7 @@
           "entry_type": "text",
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -291,9 +347,9 @@
     "role_sequence": [
       "assistant",
       "tool",
-      "assistant",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
@@ -317,28 +373,28 @@
       },
       {
         "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+        "content_digest": "94524de89ab3c69f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_TUlvGgpIT7EMF96OzDFQHZ\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
         "content_digest": "35f7a3f12e8b7818",
         "tool_name": "calculate",
         "observation_type": "generation"
-      },
-      {
-        "index": 3,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
-        "content_digest": "94524de89ab3c69f",
-        "observation_type": "agent"
       }
     ]
   }

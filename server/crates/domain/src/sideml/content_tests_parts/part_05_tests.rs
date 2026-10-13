@@ -317,3 +317,38 @@ fn several_parts_keep_a_json_list_of_blocks() {
         json!(parts)
     );
 }
+
+/// The parts of a message Python's `repr` printed, read as the blocks they are: text, a call with its id, a
+/// result answering its call, and reasoning with its signature - which stays the signature and never becomes
+/// text a view could show.
+#[test]
+fn the_parts_of_a_printed_python_message_read_as_blocks() {
+    let printed = "ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, _content=[\
+                   ReasoningContent(reasoning_text='Add first.', extra={'signature': 'sig-abc123'}), \
+                   TextContent(text='Computing.'), \
+                   ToolCall(tool_name='calculate', arguments={'expression': '1 + 2'}, id='call-1', extra=None), \
+                   ToolCallResult(result='3', origin=ToolCall(tool_name='calculate', arguments={'expression': '1 + 2'}, id='call-1', extra=None), error=False)\
+                   ], _name=None, _meta={})";
+    let message = super::try_parse_python_object_repr(printed).expect("the message reads");
+    let blocks: Vec<JsonValue> = message["_content"]
+        .as_array()
+        .expect("its content")
+        .iter()
+        .map(|part| normalize_content_block(part).expect("each part reads"))
+        .collect();
+    assert_eq!(blocks[0]["type"], "thinking", "{blocks:?}");
+    assert_eq!(blocks[0]["text"], "Add first.");
+    assert_eq!(blocks[0]["signature"], "sig-abc123");
+    assert_eq!(blocks[1], json!({"type": "text", "text": "Computing."}));
+    assert_eq!(blocks[2]["type"], "tool_use");
+    assert_eq!(blocks[2]["id"], "call-1");
+    assert_eq!(blocks[2]["name"], "calculate");
+    assert_eq!(blocks[2]["input"], json!({"expression": "1 + 2"}));
+    assert_eq!(blocks[3]["type"], "tool_result");
+    assert_eq!(blocks[3]["tool_use_id"], "call-1");
+    assert_eq!(blocks[3]["content"], "3");
+    // The signature is the reasoning's, nowhere else.
+    for block in &blocks[1..] {
+        assert!(!block.to_string().contains("sig-abc123"), "{block}");
+    }
+}

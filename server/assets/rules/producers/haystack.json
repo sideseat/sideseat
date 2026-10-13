@@ -364,7 +364,7 @@
   "messages": [
     {
       "id": "haystack.agent_step_llm_input",
-      "doc": "A model step's structured request. Haystack falls back to Python repr when callbacks or Tool objects are present; JSON snapshots on the enclosing Agent remain authoritative for those cases, so an unreadable repr is deliberately not converted into a fake text turn.",
+      "doc": "A model step's structured request, as JSON. Where Haystack falls back to Python's `repr` - when callbacks or Tool objects are present - `haystack.agent_step_llm_input_repr` reads it.",
       "where": {
         "all": [
           {
@@ -404,6 +404,53 @@
         }
       ],
       "priority": 1700
+    },
+    {
+      "id": "haystack.agent_step_llm_input_repr",
+      "doc": "A model step's request where Haystack printed it with Python's `repr` (it does when a Tool object or an MCP result is not JSON-serialisable): a dict of `ChatMessage(_role=<ChatRole.USER: 'user'>, _content=[TextContent(...), ToolCall(...), ToolCallResult(...)])` and `Tool(...)` objects. Read only where the text reprints exactly; each message's role is its enum's value.",
+      "where": {
+        "all": [
+          {
+            "source": "span_name",
+            "equals": "haystack.agent.step.llm"
+          },
+          {
+            "source": "scope.name",
+            "equals": "haystack"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.step.llm.input"
+      },
+      "parse": "python_repr",
+      "also": [
+        {
+          "id": "messages",
+          "select": "$.messages[*]",
+          "where": {
+            "all": [
+              {
+                "path": "$.__python_constructor",
+                "equals": "ChatMessage"
+              },
+              {
+                "path": "$._role.__python_value",
+                "kind": "string"
+              },
+              {
+                "path": "$._content",
+                "kind": "array"
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$._role.__python_value",
+            "content_from": "$._content"
+          }
+        }
+      ],
+      "priority": 1705
     },
     {
       "id": "haystack.agent_step_llm_output",
@@ -851,6 +898,96 @@
       "thinking": {
         "text": "$.reasoning.reasoning_text",
         "signature": "$.reasoning.extra.signature"
+      }
+    },
+    {
+      "id": "haystack.repr_text",
+      "doc": "A `TextContent` of a `ChatMessage` Haystack printed with `repr`: its text. An empty one - the text beside a response's tool calls - is no block.",
+      "at": "before_provider_formats",
+      "priority": 111,
+      "where": {
+        "all": [
+          {
+            "path": "$.__python_constructor",
+            "equals": "TextContent"
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "text": {
+        "text": "$.text"
+      }
+    },
+    {
+      "id": "haystack.repr_tool_call",
+      "doc": "A `ToolCall` Haystack printed with `repr`: the call, its id and its arguments.",
+      "at": "before_provider_formats",
+      "priority": 112,
+      "where": {
+        "all": [
+          {
+            "path": "$.__python_constructor",
+            "equals": "ToolCall"
+          },
+          {
+            "path": "$.tool_name",
+            "kind": "string"
+          }
+        ]
+      },
+      "tool_use": {
+        "id": "$.id",
+        "name": "$.tool_name",
+        "input": "$.arguments"
+      }
+    },
+    {
+      "id": "haystack.repr_tool_call_result",
+      "doc": "A `ToolCallResult` Haystack printed with `repr`: the result, answering its originating call's id.",
+      "at": "before_provider_formats",
+      "priority": 113,
+      "where": {
+        "all": [
+          {
+            "path": "$.__python_constructor",
+            "equals": "ToolCallResult"
+          },
+          {
+            "path": "$.origin.tool_name",
+            "kind": "string"
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.origin.id",
+        "name": "$.origin.tool_name",
+        "content": "$.result",
+        "is_error": "$.error"
+      }
+    },
+    {
+      "id": "haystack.repr_reasoning",
+      "doc": "A `ReasoningContent` Haystack printed with `repr`: the reasoning's text, and the signature the provider gave it, which stays the signature it is and never becomes text.",
+      "at": "before_provider_formats",
+      "priority": 114,
+      "where": {
+        "all": [
+          {
+            "path": "$.__python_constructor",
+            "equals": "ReasoningContent"
+          },
+          {
+            "path": "$.reasoning_text",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": "$.reasoning_text",
+        "signature": "$.extra.signature"
       }
     }
   ]
