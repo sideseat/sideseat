@@ -207,10 +207,14 @@ pub(super) fn rule_condition(rule: &CompiledMessageRule) -> Condition {
         }
     }
     // `raw_where` is asked of the carrier's raw text before anything is read, so a rule declaring one reads
-    // nothing on a span whose text it refuses - which is a claim narrowed by the payload, like a reading's.
+    // nothing on a span whose text it refuses - which is a claim narrowed by the payload, like a reading's. So is
+    // a rule's own `decode`: a value whose member does not decode reads nothing, and a later reader of the same
+    // carrier is reached. An entry decode narrows nothing, since an undecoded entry is still emitted.
     Condition {
         gate,
-        narrowed: (any && every_reading_narrowed) || !rule.raw_where.is_empty(),
+        narrowed: (any && every_reading_narrowed)
+            || !rule.raw_where.is_empty()
+            || rule.decode.is_some(),
         parsed_as,
     }
 }
