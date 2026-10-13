@@ -793,3 +793,44 @@ fn why_a_response_ended_does_not_mark_its_text_as_reasoning() {
 
 include!("tests_pieces.rs");
 include!("tests_metadata.rs");
+
+/// End to end on a committed capture: reasoning proven absent from the span of the call that produced it
+/// (`output_not_exported`) is refused the moment that span carries it - here the reasoning's text added to one of
+/// the span's own carriers, beside everything it already holds.
+#[test]
+fn a_producing_span_that_carries_the_reasoning_refuses_the_output_gap() {
+    let truths = truth::load_all();
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = crate::discover_fixtures().into_iter().collect();
+    let truth = &truths["llama-index/reasoning"];
+    let fixture = "llama-index/native/reasoning";
+    let paths = &fixtures[fixture];
+    let checked = truth.for_fixture(fixture);
+    let fact = checked
+        .facts
+        .iter()
+        .find(|f| f.id == "fact-002")
+        .expect("the reasoning");
+    let recon = super::super::recon::build(fixture, paths);
+    let matching = super::super::matching::match_calls(&checked, &recon, &mut Vec::new());
+    let call = fact.call.as_ref().expect("the reasoning's call");
+    let span = recon.generations[matching.span_of[call]].span.clone();
+    let mut haystack = Haystack::of_fixture(paths);
+    assert!(
+        matches!(prove_output(fact, &span, &haystack), Proof::Absent),
+        "the capture's producing span carries none of the reasoning"
+    );
+    let text = fact.value["text"].as_str().expect("its text");
+    let carrier = haystack
+        .carriers
+        .iter_mut()
+        .find(|c| c.span.as_deref() == Some(span.as_str()))
+        .expect("a carrier of the span");
+    carrier.strings.push((
+        "output.value".to_string(),
+        text.split_whitespace().collect::<Vec<_>>().join(" "),
+    ));
+    assert!(
+        present(prove_output(fact, &span, &haystack)),
+        "a producing span carrying the reasoning must refuse the gap"
+    );
+}

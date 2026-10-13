@@ -13,11 +13,31 @@
       "messages": []
     },
     "trace-1/BaseWorkflowAgent.parse_agent_output/span-8": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10, and the optimal solution takes 17 minutes. I'm working out the sequence: send 1&2 over together, send 1 back, send 5&10 over together, send 2 back, then finish with…[12613 chars]",
+          "content_digest": "490f3dd052522060",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The fastest total is 17 minutes.** ## Schedule | Step | Movement | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 wal…[902 chars]",
+          "content_digest": "c1afac8ab27f5252",
+          "observation_type": "chain"
+        }
+      ]
     },
     "trace-1/BaseWorkflowAgent.run_agent_step/span-5": {
       "message_count": 0,
@@ -84,9 +104,10 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -102,6 +123,14 @@
         },
         {
           "index": 1,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10, and the optimal solution takes 17 minutes. I'm working out the sequence: send 1&2 over together, send 1 back, send 5&10 over together, send 2 back, then finish with…[12613 chars]",
+          "content_digest": "490f3dd052522060",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
           "content": "**The fastest total is 17 minutes.** ## Schedule | Step | Movement | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 wal…[902 chars]",
@@ -113,9 +142,10 @@
   },
   "session_views": {
     "llama-index-reasoning": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -132,6 +162,14 @@
         {
           "index": 1,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10, and the optimal solution takes 17 minutes. I'm working out the sequence: send 1&2 over together, send 1 back, send 5&10 over together, send 2 back, then finish with…[12613 chars]",
+          "content_digest": "490f3dd052522060",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
           "entry_type": "text",
           "content": "**The fastest total is 17 minutes.** ## Schedule | Step | Movement | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 wal…[902 chars]",
           "content_digest": "c1afac8ab27f5252",
@@ -141,9 +179,10 @@
     }
   },
   "feed_view": {
-    "message_count": 2,
+    "message_count": 3,
     "role_sequence": [
       "user",
+      "assistant",
       "assistant"
     ],
     "tool_names": [],
@@ -159,6 +198,14 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "thinking",
+        "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10, and the optimal solution takes 17 minutes. I'm working out the sequence: send 1&2 over together, send 1 back, send 5&10 over together, send 2 back, then finish with…[12613 chars]",
+        "content_digest": "490f3dd052522060",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "**The fastest total is 17 minutes.** ## Schedule | Step | Movement | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 wal…[902 chars]",

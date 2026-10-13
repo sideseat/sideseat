@@ -324,7 +324,9 @@ class Framework:
     #: ``withheld_reasoning`` - signed reasoning with no text the producer exports no part for
     #: (``not_exported``); ``reasoning_signature`` - that reasoning's signature, the step itself exported
     #: (``signature_not_exported``); ``reasoning_output`` - that reasoning missing from the span that
-    #: produced it, a later request re-sending it (``output_not_exported``); ``reasoning_span_signature``
+    #: produced it, a later request re-sending it (``output_not_exported``); ``visible_reasoning_output`` -
+    #: visible reasoning missing from the span that produced it, another carrier of the capture holding it
+    #: (``output_not_exported``); ``reasoning_span_signature``
     #: - that reasoning's signature missing from the span that produced it, another carrier holding it
     #: (``span_signature_not_exported``); ``tool_calling_round_output`` - the tool calls of a response that
     #: only calls tools, missing from the span that produced it, other carriers holding them

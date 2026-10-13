@@ -138,6 +138,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "output_not_exported",
+   "detail": "the reasoning the model showed: the model call's flattened output drops the reasoning part, while the agent's step result printed beside it keeps the provider's whole response, reasoning and signature included",
+   "subject": "fact-002"
   }
  ],
  "requests": {

@@ -28,6 +28,57 @@
   ],
   "messages": [
     {
+      "id": "llamaindex.agent_output_response",
+      "doc": "The agent's step result LlamaIndex hands its output parser: `input.value` is `{\"ctx\": ..., \"ev\": \"AgentOutput(...)\"}`, the event printed with Python's `repr`, whose `raw` member is the provider's whole response as it arrived - here a Converse response, reasoning and its signature included, which the model call's own span drops from its flattened output. Read only where the event reprints byte for byte as an `AgentOutput` holding that response; its message is read as the provider wrote it.",
+      "where": {
+        "all": [
+          {
+            "source": "span_name",
+            "equals": "BaseWorkflowAgent.parse_agent_output"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.llama_index"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json",
+      "decode": {
+        "select": "$.ev",
+        "parse": "python_repr",
+        "where": {
+          "all": [
+            {
+              "path": "$.ev.__python_constructor",
+              "equals": "AgentOutput"
+            },
+            {
+              "path": "$.ev.raw.output.message.role",
+              "equals": "assistant"
+            },
+            {
+              "path": "$.ev.raw.output.message.content",
+              "kind": "array"
+            }
+          ]
+        }
+      },
+      "also": [
+        {
+          "id": "response",
+          "select": "$.ev.raw.output.message",
+          "wrap": {
+            "role_from": "$.role",
+            "content_from": "$.content"
+          }
+        }
+      ],
+      "priority": 210
+    },
+    {
       "id": "llamaindex.chain_input",
       "doc": "LlamaIndex workflow CHAIN spans serialize Context objects and workflow events in `input.value`; model-call descendants carry the actual conversation. Claim this framework state so the generic fallback does not render it as a user turn.",
       "where": {

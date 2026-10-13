@@ -667,6 +667,34 @@ def test_an_output_off_its_span_is_declared_for_a_call_a_later_one_follows() -> 
     }
 
 
+def test_visible_reasoning_off_its_span_stays_owed_by_the_conversation() -> None:
+    """`visible_reasoning_output` keeps reasoning the model showed owed, with an `output_not_exported` gap the
+    rubric proves on its span; withheld reasoning is no case of it."""
+    off_span = derive.assemble(
+        "p",
+        "reasoning",
+        [
+            model_call(
+                wire.reasoning_part("Weigh it.", signed=True), wire.text_part("17.")
+            ),
+            model_call(wire.reasoning_part("", signed=True), wire.text_part("Done.")),
+        ],
+        options=derive.Options(
+            framework=derive.Framework.of(
+                {"unexported": {"visible_reasoning_output": "held elsewhere"}}
+            )
+        ),
+    )
+    shown, withheld = facts_by_kind(off_span, "reasoning")
+    assert shown["require"] is not None
+    assert [
+        (g["fact"], g["reason"], g["subject"])
+        for g in off_span.gaps
+        if g["reason"] == "output_not_exported"
+    ] == [("reasoning", "output_not_exported", shown["id"])]
+    assert not any(g.get("subject") == withheld["id"] for g in off_span.gaps)
+
+
 PLANNER = derive.Framework.of(
     {
         "action_plans": {"Plan": "action"},

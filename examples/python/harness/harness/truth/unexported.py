@@ -38,6 +38,7 @@ UNEXPORTED = frozenset(
         "visible_reasoning",
         "reasoning_signature",
         "reasoning_output",
+        "visible_reasoning_output",
         "reasoning_span_signature",
         "tool_calling_round_output",
         "parallel_tool_results",
@@ -161,6 +162,18 @@ def apply(builder: Builder, framework: Framework) -> None:
             else:
                 fact["require"] = None
                 gap("reasoning", "not_exported", unsent, fact["id"])
+    if detail := declared("visible_reasoning_output"):
+        # Reasoning the model showed, which the span of the call that produced it leaves out while another
+        # carrier of the capture holds it: still owed by the conversation views, off that span. The rubric proves
+        # per capture that the producing span carries none of it.
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "reasoning"
+                and fact["value"].get("text")
+                and not withheld(fact["value"])
+                and fact["require"] is not None
+            ):
+                gap("reasoning", "output_not_exported", detail, fact["id"])
     if detail := declared("reasoning_span_signature"):
         for fact in builder.facts:
             if (

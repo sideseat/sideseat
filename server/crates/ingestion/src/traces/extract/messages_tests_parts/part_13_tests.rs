@@ -379,3 +379,72 @@ fn a_printed_user_message_is_decoded_only_when_it_is_one_whole() {
         assert_eq!(read_from(scope, whole), serde_json::json!(whole), "{scope}");
     }
 }
+
+/// An agent's step result a Python framework printed with `repr` is read for the provider's response it holds -
+/// the reasoning its model call's own span dropped - only on that framework's output-parsing span, and only where
+/// the event reprints byte for byte as the step result holding one; anything else reads nothing here.
+#[test]
+fn a_printed_agent_output_is_read_for_the_response_it_holds() {
+    let read_as = |name: &'static str, scope: &'static str, ev: &str| {
+        let payload = serde_json::json!({"ctx": "<workflows.context.context.Context object at 0x1>", "ev": ev});
+        let attrs = make_attrs(&[
+            ("openinference.span.kind", "CHAIN"),
+            ("input.value", &payload.to_string()),
+        ]);
+        let span = SpanExtraction {
+            rules: sideseat_domain::rules::ruleset(),
+            name,
+            attrs: &attrs,
+            scope_name: Some(scope),
+            is_tool_span: false,
+        };
+        let mut messages = Vec::new();
+        let mut unused = Vec::new();
+        try_declared_rules_for_span(
+            &mut messages,
+            &mut unused,
+            span,
+            Utc::now(),
+            &mut std::collections::HashSet::new(),
+        );
+        serde_json::to_string(&messages.iter().map(|m| &m.content).collect::<Vec<_>>())
+            .unwrap_or_default()
+    };
+    let (name, scope) = (
+        "BaseWorkflowAgent.parse_agent_output",
+        "openinference.instrumentation.llama_index",
+    );
+    let output = "AgentOutput(response=None, current_agent_name='assistant', raw={'output': {'message': {'role': 'assistant', 'content': [{'reasoningContent': {'reasoningText': {'text': 'Weigh the crossings.', 'signature': 'sig-1'}}}, {'text': 'Seventeen minutes.'}]}}})";
+    let shown = read_as(name, scope, output);
+    assert!(
+        shown.contains("reasoningContent\":{\"reasoningText")
+            && shown.contains("Seventeen minutes."),
+        "{shown}"
+    );
+    // Each negative holds the same reasoning, so only the guard it breaks keeps it unread.
+    let cut = &output[..output.len() - 8];
+    let other = output.replacen("AgentOutput(", "ToolCallResult(", 1);
+    for (why, name, scope, ev) in [
+        ("cut short", name, scope, cut),
+        ("another event", name, scope, other.as_str()),
+        (
+            "another span",
+            "BaseWorkflowAgent.run_agent_step",
+            scope,
+            output,
+        ),
+        (
+            "another producer",
+            name,
+            "openinference.instrumentation.openai",
+            output,
+        ),
+    ] {
+        let shown = read_as(name, scope, ev);
+        assert!(
+            !shown.contains("\"type\":\"thinking\"")
+                && !shown.contains("reasoningContent\":{\"reasoningText"),
+            "{why}: {shown}"
+        );
+    }
+}

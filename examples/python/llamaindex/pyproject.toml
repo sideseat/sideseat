@@ -26,6 +26,10 @@ modalities = ["document"]
 reason = "reasoning the model signed and withheld the text of: LlamaIndex's telemetry exports no reasoning part for it, and no payload holds one"
 scenarios = ["multi_agent", "multi_turn", "session"]
 
+[tool.sideseat-example.truth.unexported.visible_reasoning_output]
+reason = "the reasoning the model showed: the model call's flattened output drops the reasoning part, while the agent's step result printed beside it keeps the provider's whole response, reasoning and signature included"
+scenarios = ["reasoning"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false
