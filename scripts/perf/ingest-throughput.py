@@ -562,7 +562,9 @@ def main() -> int:
     parser.add_argument("--cores", default="1", help="comma-separated core counts")
     parser.add_argument("--memory", default="2g")
     parser.add_argument(
-        "--rates", default="250,500,1000,2500,5000,10000,25000,50000,100000"
+        "--rates",
+        # Fine around the knee one core reaches today, so the sustained rate resolves a change; coarse past it.
+        default="250,375,500,625,750,875,1000,1250,1500,2000,2500,5000,10000,25000,50000,100000",
     )
     parser.add_argument("--step-secs", type=int, default=20)
     parser.add_argument("--workers", type=int, default=16)
