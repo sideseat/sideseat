@@ -1,0 +1,268 @@
+{
+ "python": "3.14.3",
+ "cases": [
+  {
+   "repr": "''",
+   "value": ""
+  },
+  {
+   "repr": "'plain'",
+   "value": "plain"
+  },
+  {
+   "repr": "\"it's\"",
+   "value": "it's"
+  },
+  {
+   "repr": "'say \"hi\"'",
+   "value": "say \"hi\""
+  },
+  {
+   "repr": "'both \\' and \"'",
+   "value": "both ' and \""
+  },
+  {
+   "repr": "'back\\\\slash'",
+   "value": "back\\slash"
+  },
+  {
+   "repr": "'line\\nbreak'",
+   "value": "line\nbreak"
+  },
+  {
+   "repr": "'tab\\there'",
+   "value": "tab\there"
+  },
+  {
+   "repr": "'cr\\rhere'",
+   "value": "cr\rhere"
+  },
+  {
+   "repr": "'bell\\x07'",
+   "value": "bell\u0007"
+  },
+  {
+   "repr": "'nul\\x00'",
+   "value": "nul\u0000"
+  },
+  {
+   "repr": "'del\\x7f'",
+   "value": "del"
+  },
+  {
+   "repr": "'nbsp\\xa0'",
+   "value": "nbsp "
+  },
+  {
+   "repr": "'é'",
+   "value": "é"
+  },
+  {
+   "repr": "'snow☃man'",
+   "value": "snow☃man"
+  },
+  {
+   "repr": "'emoji😀'",
+   "value": "emoji😀"
+  },
+  {
+   "repr": "'zw\\u200b'",
+   "value": "zw​"
+  },
+  {
+   "repr": "'rtl\\u202e'",
+   "value": "rtl‮"
+  },
+  {
+   "repr": "'\\U000e0001'",
+   "value": "󠀁"
+  },
+  {
+   "repr": "'trail\\\\'",
+   "value": "trail\\"
+  },
+  {
+   "repr": "0",
+   "value": 0
+  },
+  {
+   "repr": "7",
+   "value": 7
+  },
+  {
+   "repr": "-12",
+   "value": -12
+  },
+  {
+   "repr": "18446744073709551615",
+   "value": 18446744073709551615
+  },
+  {
+   "repr": "-9223372036854775808",
+   "value": -9223372036854775808
+  },
+  {
+   "repr": "0.0",
+   "value": 0.0
+  },
+  {
+   "repr": "-0.0",
+   "value": -0.0
+  },
+  {
+   "repr": "0.1",
+   "value": 0.1
+  },
+  {
+   "repr": "2.5",
+   "value": 2.5
+  },
+  {
+   "repr": "-3.75",
+   "value": -3.75
+  },
+  {
+   "repr": "1e-05",
+   "value": 1e-05
+  },
+  {
+   "repr": "0.0001",
+   "value": 0.0001
+  },
+  {
+   "repr": "0.00012",
+   "value": 0.00012
+  },
+  {
+   "repr": "1000000000000000.0",
+   "value": 1000000000000000.0
+  },
+  {
+   "repr": "1e+16",
+   "value": 1e+16
+  },
+  {
+   "repr": "123.456",
+   "value": 123.456
+  },
+  {
+   "repr": "1.5e+300",
+   "value": 1.5e+300
+  },
+  {
+   "repr": "5e-324",
+   "value": 5e-324
+  },
+  {
+   "repr": "1.7976931348623157e+308",
+   "value": 1.7976931348623157e+308
+  },
+  {
+   "repr": "1.2345678901234568e+18",
+   "value": 1.2345678901234568e+18
+  },
+  {
+   "repr": "1000000000000000.0",
+   "value": 1000000000000000.0
+  },
+  {
+   "repr": "9007199254740992.0",
+   "value": 9007199254740992.0
+  },
+  {
+   "repr": "Message(_role=<Role.SYSTEM: 'system'>, _content=[Text(text='You are concise.', annotations=None)], _name=None, _meta={})",
+   "value": {
+    "__python_constructor": "Message",
+    "_role": {
+     "__python_enum": "Role.SYSTEM",
+     "__python_value": "system"
+    },
+    "_content": [
+     {
+      "__python_constructor": "Text",
+      "text": "You are concise.",
+      "annotations": null
+     }
+    ],
+    "_name": null,
+    "_meta": {}
+   }
+  },
+  {
+   "repr": "Message(_role=<Role.USER: 'user'>, _content=[Text(text='it\\'s \"quoted\"\\nand broken', annotations=None), Text(text='☃', annotations=(1,))], _name=None, _meta={'k': [1, 2.5, None, True]})",
+   "value": {
+    "__python_constructor": "Message",
+    "_role": {
+     "__python_enum": "Role.USER",
+     "__python_value": "user"
+    },
+    "_content": [
+     {
+      "__python_constructor": "Text",
+      "text": "it's \"quoted\"\nand broken",
+      "annotations": null
+     },
+     {
+      "__python_constructor": "Text",
+      "text": "☃",
+      "annotations": [
+       1
+      ]
+     }
+    ],
+    "_name": null,
+    "_meta": {
+     "k": [
+      1,
+      2.5,
+      null,
+      true
+     ]
+    }
+   }
+  },
+  {
+   "repr": "[Text(text='a', annotations=None), Text(text='b', annotations=None)]",
+   "value": [
+    {
+     "__python_constructor": "Text",
+     "text": "a",
+     "annotations": null
+    },
+    {
+     "__python_constructor": "Text",
+     "text": "b",
+     "annotations": null
+    }
+   ]
+  },
+  {
+   "repr": "{'messages': [Message(_role=<Role.USER: 'user'>, _content=[], _name=None, _meta={})], 'tools': ()}",
+   "value": {
+    "messages": [
+     {
+      "__python_constructor": "Message",
+      "_role": {
+       "__python_enum": "Role.USER",
+       "__python_value": "user"
+      },
+      "_content": [],
+      "_name": null,
+      "_meta": {}
+     }
+    ],
+    "tools": []
+   }
+  },
+  {
+   "repr": "(Text(text='one', annotations=None),)",
+   "value": [
+    {
+     "__python_constructor": "Text",
+     "text": "one",
+     "annotations": null
+    }
+   ]
+  }
+ ]
+}

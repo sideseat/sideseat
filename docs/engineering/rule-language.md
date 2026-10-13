@@ -355,6 +355,16 @@ JSON tree the readings select from, with the class kept beside the members (`__p
 quote inside a string, so `java_tostring` accepts a reading only where printing it again with the format's own
 spacing gives back the text byte for byte; where two readings both do, the earliest end of the string is taken.
 
+`python_repr` reads any value Python's `repr` prints - a constructor, a list or dict of them, any of them the
+whole text - and `python_fields` a data model's `str()`, its fields as `name=value` with no class. An enum repr
+keeps its member and value (`{"__python_enum": "ChatRole.USER", "__python_value": "user"}`), and an object `repr`
+cannot print (`<function f at 0x...>`) is an opaque leaf, `{"__python_opaque": true}`, holding nothing to read
+(the raw carrier keeps its bytes); no asset may select it or below it outside a `where`
+(`no_asset_reads_inside_an_opaque_python_object`).
+Both accept a reading only where printing it again in `repr`'s own spacing gives back the text byte for byte,
+strings as their source tokens and numbers held to `repr`'s own spelling; a bare name, other spacing, a number
+or an escape `repr` never writes leaves the carrier as text.
+
 Some producers re-send the turns of a tool loop as text in every request - the call written out as prose, the
 result quoted back - while the call and the result are also on record losslessly, in the model's output and on
 the tool's own span. A reading marks those messages with `rendering`, a value condition asked of the same value
@@ -1214,6 +1224,8 @@ How a raw attribute string becomes a value.
 - `"python_constructor_repr_sequence"`: Parse text that is several Python constructor `repr`s written back to back, into an array of their trees.
 - `"python_literal"`: Parse the Python `str()` of a dict or a list - single-quoted strings, `True`, `False`, `None` - into a JSON tree; the carrier is skipped when the whole text is not one.
 - `"java_tostring"`: Parse Java's conventional `toString` of an object graph - `Name { key = value, ... }`, lists as `[a, b]`, maps as `{k=v}` - into a JSON tree, each object's class under `__java_class`; the carrier is skipped when the whole text is not one object or one list.
+- `"python_repr"`: Parse one value Python's `repr` printed - constructors, enum reprs, objects `repr` cannot print, lists, tuples, dicts, strings, numbers, `True`/`False`/`None`, any of them the whole text - into a JSON tree: constructors as `python_constructor_repr` gives them, an enum repr as `{"__python_enum", "__python_value"}` and an unprintable object (`<function f at 0x...>`) as `{"__python_opaque": true}`, holding nothing to read.
+- `"python_fields"`: Parse a data model's `str()` - `name=value` fields separated by single spaces, each value as `python_repr` reads it, no class name - into an object of the fields, under the same byte-exact reprint rule. Opt-in per rule: `a=1 b=2` is also prose.
 - `"text"`: Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a non-string or an accidental number into a number.
 
 ### `OverlaySpec`

@@ -15,6 +15,7 @@ mod java_tostring;
 mod legacy_chain;
 #[cfg(any(test, feature = "test-support"))]
 mod provider_formats;
+mod python_object;
 mod python_repr;
 mod stable_hash;
 mod tool_result;
@@ -30,6 +31,7 @@ use provider_formats::{
 };
 #[cfg(test)]
 use provider_formats::{try_gemini_function_format, try_vercel_format};
+pub(crate) use python_object::{try_parse_python_fields, try_parse_python_object_repr};
 pub(crate) use python_repr::try_normalize_python_constructor_content;
 pub(crate) use python_repr::try_parse_python_repr;
 pub(crate) use python_repr::{

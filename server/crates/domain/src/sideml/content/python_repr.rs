@@ -114,9 +114,9 @@ pub(crate) fn try_parse_python_repr(s: &str) -> Option<JsonValue> {
     serde_json::from_str(&out).ok()
 }
 
-const PYTHON_REPR_MAX_DEPTH: usize = 64;
-const PYTHON_CONSTRUCTOR_MEMBER: &str = "__python_constructor";
-const PYTHON_POSITIONAL_MEMBER: &str = "__python_args";
+pub(super) const PYTHON_REPR_MAX_DEPTH: usize = 64;
+pub(super) const PYTHON_CONSTRUCTOR_MEMBER: &str = "__python_constructor";
+pub(super) const PYTHON_POSITIONAL_MEMBER: &str = "__python_args";
 
 /// Parse one Python constructor `repr` into a JSON tree.
 ///

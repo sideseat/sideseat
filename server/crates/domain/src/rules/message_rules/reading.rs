@@ -56,6 +56,8 @@ pub(in crate::rules) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonVa
         }
         ParseMode::PythonLiteral => crate::sideml::content::try_parse_python_literal(raw),
         ParseMode::JavaToString => crate::sideml::content::try_parse_java_tostring(raw),
+        ParseMode::PythonRepr => crate::sideml::content::try_parse_python_object_repr(raw),
+        ParseMode::PythonFields => crate::sideml::content::try_parse_python_fields(raw),
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.
         ParseMode::Text => Some(json!(raw)),

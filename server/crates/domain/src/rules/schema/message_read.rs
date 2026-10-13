@@ -598,6 +598,19 @@ pub enum ParseMode {
     /// text. Strings are kept exactly as written, and a bare number only where it reads back as written.
     #[serde(rename = "java_tostring")]
     JavaToString,
+    /// Parse one value Python's `repr` printed - constructors, enum reprs, objects `repr` cannot print, lists,
+    /// tuples, dicts, strings, numbers, `True`/`False`/`None`, any of them the whole text - into a JSON tree:
+    /// constructors as `python_constructor_repr` gives them, an enum repr as `{"__python_enum", "__python_value"}`
+    /// and an unprintable object (`<function f at 0x...>`) as `{"__python_opaque": true}`, holding nothing to read.
+    ///
+    /// A reading is accepted only where printing it again in `repr`'s own spacing reproduces the text byte for
+    /// byte, strings and numbers as their source tokens; anything else stays text. For a framework that records
+    /// its objects with `str()` where they are not JSON-serialisable.
+    PythonRepr,
+    /// Parse a data model's `str()` - `name=value` fields separated by single spaces, each value as
+    /// `python_repr` reads it, no class name - into an object of the fields, under the same byte-exact reprint
+    /// rule. Opt-in per rule: `a=1 b=2` is also prose.
+    PythonFields,
     /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
     /// non-string or an accidental number into a number.
     Text,

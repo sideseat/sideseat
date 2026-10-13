@@ -1570,6 +1570,16 @@
           "const": "java_tostring"
         },
         {
+          "description": "Parse one value Python's `repr` printed - constructors, enum reprs, objects `repr` cannot print, lists,\ntuples, dicts, strings, numbers, `True`/`False`/`None`, any of them the whole text - into a JSON tree:\nconstructors as `python_constructor_repr` gives them, an enum repr as `{\"__python_enum\", \"__python_value\"}`\nand an unprintable object (`<function f at 0x...>`) as `{\"__python_opaque\": true}`, holding nothing to read.\n\nA reading is accepted only where printing it again in `repr`'s own spacing reproduces the text byte for\nbyte, strings and numbers as their source tokens; anything else stays text. For a framework that records\nits objects with `str()` where they are not JSON-serialisable.",
+          "type": "string",
+          "const": "python_repr"
+        },
+        {
+          "description": "Parse a data model's `str()` - `name=value` fields separated by single spaces, each value as\n`python_repr` reads it, no class name - into an object of the fields, under the same byte-exact reprint\nrule. Opt-in per rule: `a=1 b=2` is also prose.",
+          "type": "string",
+          "const": "python_fields"
+        },
+        {
           "description": "Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a\nnon-string or an accidental number into a number.",
           "type": "string",
           "const": "text"

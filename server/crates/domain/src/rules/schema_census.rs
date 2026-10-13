@@ -64,6 +64,16 @@ const UNUSED: &[(&str, &str)] = &[
          `toString`; no shipped rule reads one yet",
     ),
     (
+        "ParseMode=python_repr",
+        "Python's `repr` of an object graph, read only where it reprints byte for byte, for a producer that \
+         records its objects with `str()`; the producers' assets take it up in their own slice",
+    ),
+    (
+        "ParseMode=python_fields",
+        "a data model's `str()`, read under the same reprint rule; the producers' assets take it up in \
+         their own slice",
+    ),
+    (
         "CitationKind=file",
         "part of the closed set of things a citation points into; OpenAI's `file_citation` and Anthropic's document \
          citations need it, and no captured telemetry carries one yet",

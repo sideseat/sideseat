@@ -377,3 +377,131 @@ fn a_clause_id_names_one_clause_in_every_section() {
     assert!(blocks(&["t.a", "t.a"]).is_err(), "one id twice");
     assert!(blocks(&[""]).is_err(), "an empty id");
 }
+
+/// A path's text with the escapes JSONPath decodes in a quoted member (`\uXXXX`) decoded, so a selector cannot
+/// hide a member's name by escaping its letters.
+fn decoded_path(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find("\\u") {
+        out.push_str(&rest[..at]);
+        let code = rest
+            .get(at + 2..at + 6)
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok());
+        match code.and_then(char::from_u32) {
+            Some(c) => {
+                out.push(c);
+                rest = &rest[at + 6..];
+            }
+            None => {
+                out.push_str("\\u");
+                rest = &rest[at + 2..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Where an asset reads inside an object `repr` could not print (`__python_opaque`, from `python_repr`): every
+/// path naming it outside a `where` test, and every path selecting below it anywhere. The opaque leaf is kept so
+/// nothing about it is lost, never so a rule can mine it for content.
+fn reads_inside_python_opaque(
+    value: &serde_json::Value,
+    in_where: bool,
+    at: &str,
+    out: &mut Vec<String>,
+) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, member) in map {
+                reads_inside_python_opaque(
+                    member,
+                    in_where || key == "where",
+                    &format!("{at}.{key}"),
+                    out,
+                );
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                reads_inside_python_opaque(item, in_where, &format!("{at}[{index}]"), out);
+            }
+        }
+        serde_json::Value::String(raw) if decoded_path(raw).contains("__python_") => {
+            let text = &decoded_path(raw);
+            // Every `__python_` spelling must name one of the tree's own members in full: a selector escaping
+            // its letters (`['__python_\\u006fpaque']`) names none and is flagged as the member it may be.
+            const MEMBERS: [&str; 5] = ["constructor", "args", "enum", "value", "opaque"];
+            let named: Vec<&str> = text
+                .split("__python_")
+                .skip(1)
+                .map(|rest| {
+                    let end = rest
+                        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                        .unwrap_or(rest.len());
+                    &rest[..end]
+                })
+                .collect();
+            let unknown = named.iter().any(|name| !MEMBERS.contains(name));
+            // Below the member: any further step after it - however its selector is closed, spaced or joined
+            // with others.
+            let below = text
+                .split("__python_opaque")
+                .skip(1)
+                .any(|rest| rest.contains(['.', '[']));
+            let opaque = named.contains(&"opaque");
+            if unknown || below || (opaque && !in_where) {
+                out.push(format!("{at} = {text:?}"));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// No asset reads content from inside an opaque leaf: a `where` may ask whether a value is one, nothing may
+/// select it or below it.
+#[test]
+fn no_asset_reads_inside_an_opaque_python_object() {
+    let mut found = Vec::new();
+    for (path, bytes) in sideseat_rule_assets::sources() {
+        let Ok(asset) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            continue;
+        };
+        reads_inside_python_opaque(&asset, false, &path, &mut found);
+    }
+    assert!(
+        found.is_empty(),
+        "assets reading an opaque Python object: {found:#?}"
+    );
+    // The check sees both ways of reading one: selecting it, and selecting below it; a `where` asking whether a
+    // value is one passes.
+    let probe = serde_json::json!({
+        "where": {"path": "$.ctx.__python_opaque", "exists": true},
+        "select": "$.ctx.__python_opaque",
+        "content_from": "$.f.__python_opaque.text",
+        "cases": [{"where": {"path": "$.__python_opaque[0]"}}],
+        "escaped": "$.ctx['__python_\\u006fpaque']",
+        "prefix_escaped": "$.ctx['\\u005f_python_opaque']",
+        "quoted_below": {"where": {"path": "$.ctx['__python_opaque'].text"}},
+        "spaced_below": {"where": {"path": "$.ctx['__python_opaque' ] .text"}},
+        "union_below": {"where": {"path": "$.ctx['__python_opaque','other'].text"}},
+        "constructor": "$.__python_constructor"
+    });
+    let mut probed = Vec::new();
+    reads_inside_python_opaque(&probe, false, "probe", &mut probed);
+    probed.sort();
+    assert_eq!(
+        probed,
+        [
+            "probe.cases[0].where.path = \"$.__python_opaque[0]\"",
+            "probe.content_from = \"$.f.__python_opaque.text\"",
+            "probe.escaped = \"$.ctx['__python_opaque']\"",
+            "probe.prefix_escaped = \"$.ctx['__python_opaque']\"",
+            "probe.quoted_below.where.path = \"$.ctx['__python_opaque'].text\"",
+            "probe.select = \"$.ctx.__python_opaque\"",
+            "probe.spaced_below.where.path = \"$.ctx['__python_opaque' ] .text\"",
+            "probe.union_below.where.path = \"$.ctx['__python_opaque','other'].text\"",
+        ]
+    );
+}
