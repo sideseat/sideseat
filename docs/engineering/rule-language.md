@@ -1107,6 +1107,7 @@ emits - because that is ownership and policy rather than a transform.
 | `compose` | [`ComposeSpec`](#composespec) or null | Assemble one message from several attributes, rather than wrapping one read value. |
 | `tool_repr` | [`ToolReprSpec`](#toolreprspec) or null |  |
 | `parse` | [`ParseMode`](#parsemode) or null | How to turn its raw string into a value. Absent for an indexed family, which has no single string to parse - each member is read on its own. |
+| `decode` | [`MemberDecode`](#memberdecode) or null | One member of the parsed value that is itself serialised, decoded in place before any reading - `also` included - selects from it: a JSON carrier holding a framework's printed object in one string member. For a single carrier read with `parse`; an indexed family's entries declare theirs on `read`. A value whose member does not decode is not this rule's shape, and the rule reads nothing from it. |
 | `wrap` | [`WrapSpec`](#wrapspec) or null | Wrap the parsed value in a message envelope with this role. |
 | `emit` | [`EmitTarget`](#emittarget) or null | Whether the observation is a message or a tool definition. |
 | `aggregate_into_array` | true or false | Emit one observation whose value is the array of everything read, rather than one per reading. |
@@ -1201,6 +1202,7 @@ than a field to un-refuse.
 | `numeric_members` | list of string | Entry members to read as a number where the text is one. |
 | `entry_value` | string | Read one *value* out of each indexed entry, rather than the entry's assembled members. |
 | `entry_value_parse` | [`ParseMode`](#parsemode) or null | How the projected value is read. `json` **drops** an entry whose payload does not parse, which is what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a malformed schema would be emitted as the string it is, reported as a tool definition. |
+| `decode` | [`MemberDecode`](#memberdecode) or null | One member of each entry that is itself serialised, decoded in place once the entry is assembled and before `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the `role` that stays as it is. |
 | `overlay` | [`OverlaySpec`](#overlayspec) or null | A richer copy of these same messages, held by another carrier and matched by position. |
 
 ### `FirstPresent_string`
@@ -1232,6 +1234,23 @@ How a raw attribute string becomes a value.
 - `"python_fields"`: Parse a data model's `str()` - `name=value` fields separated by single spaces, each value as `python_repr` reads it, no class name - into an object of the fields, under the same byte-exact reprint rule. Opt-in per rule: `a=1 b=2` is also prose.
 - `"text"`: Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a non-string or an accidental number into a number.
 
+### `MemberDecode`
+
+One member of an already-parsed value, decoded **in place**: its text becomes the value it decodes to and its
+siblings stay, so a later selection reads through it (`$.raw.choices`, `$.content.contents`).
+
+One step wherever it is declared - a message rule, an indexed family's entries, an overlay - with one
+behaviour, which fails closed: a member absent, not text, or text its mode refuses is left exactly as it was,
+never a partial structure. A rule or an overlay declaring the decode then reads nothing; an entry keeps its
+members as they are. The Python and Java readers accept only text that prints back byte for byte, so a
+truncated object is never read as a partial one.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `select` (required) | string | The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole value is decoded by the carrier's own `parse`. |
+| `parse` (required) | [`ParseMode`](#parsemode) | How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a selection then finds nothing in. |
+
 ### `OverlaySpec`
 
 Another carrier of the same span describing the same messages at higher fidelity.
@@ -1246,7 +1265,7 @@ beside it keeps them, so where both describe one message the richer one is prefe
 | `doc` | string |  |
 | `from` (required) | string | The attribute holding the richer copy. |
 | `parse` | [`ParseMode`](#parsemode) or null |  |
-| `decode` | [`MemberDecode`](#memberdecode) or null | A member of the parsed copy that is itself serialised, decoded before the counterpart list is selected from it - a JSON payload carrying the provider's response as a Python `repr` in one string member. Absent, or present and not text that decodes, the copy holds no counterparts and nothing is overlaid. |
+| `decode` | [`MemberDecode`](#memberdecode) or null | A member of the parsed copy that is itself serialised, decoded in place before the counterpart list is selected through it - a JSON payload carrying the provider's response as a Python `repr` in one string member. Absent, or present and not text that decodes, the member stays text, a selection through it finds no counterparts and nothing is overlaid. |
 | `select` (required) | [`FirstUsable_string`](#firstusable_string) | Ordered paths to the counterpart list; the first that resolves to an array is used. |
 | `unwrap_single_element_list` | true or false | Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one conversation as a batch of one, and the members of *that* are the messages. |
 | `witness` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What the list must look like to be this dialect's own serialisation. Without it, any array of objects at that path would be treated as the same messages. |
@@ -1255,17 +1274,6 @@ beside it keeps them, so where both describe one message the richer one is prefe
 | `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What that content must be for the overlay to be an improvement. |
 | `as_member` | string | The member the content becomes, replacing every member under `when_member_prefix`. Empty where the overlay only prepends, which keeps those members and renumbers them. |
 | `prepend_from` | [`FirstPresent_string`](#firstpresent_string) | Ordered paths to blocks of the counterpart that go **before** the flattened content, which is kept. |
-
-### `MemberDecode`
-
-One member of an already-parsed value, decoded: what a reading writes as `select` and `parse` on its element, as
-a step of its own where a later selection reads the decoded value.
-
-| Key | Type | What it is |
-| --- | --- | --- |
-| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
-| `select` (required) | string | The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole value is decoded by the carrier's own `parse`. |
-| `parse` (required) | [`ParseMode`](#parsemode) | How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a selection then finds nothing in. |
 
 ### `FirstUsable_string`
 

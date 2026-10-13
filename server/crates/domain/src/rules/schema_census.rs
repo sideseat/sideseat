@@ -34,6 +34,16 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "MessageRule.decode",
+        "the decode step on a rule's read value, the same step an overlay ships: the capture it is for holds a \
+         printed object in one member of a JSON carrier, and its asset follows the step",
+    ),
+    (
+        "ReadSpec.decode",
+        "the decode step on each entry of an indexed family, the same step an overlay ships: the captures it is \
+         for hold a printed object as an entry's content, and their assets follow the step",
+    ),
+    (
         "TerminalContent=aggregate",
         "half of the closed set of what a stream's terminal reading holds: a producer whose final reading is \
          always the whole response declares it; the one shipped stream's terminal depends on its model adapter, \

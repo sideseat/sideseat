@@ -35,9 +35,9 @@ use serde_json::{Value as JsonValue, json};
 use super::expr::Expr;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
-    MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode, PredicateSet,
-    ReadSpec, SectionsSpec, ToolCallsSpec, ToolReprSpec, ValueCondition, ValueKind, ValuePredicate,
-    WrapSpec,
+    MemberDecode, MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode,
+    PredicateSet, ReadSpec, SectionsSpec, ToolCallsSpec, ToolReprSpec, ValueCondition, ValueKind,
+    ValuePredicate, WrapSpec,
 };
 use super::span_conditions::{self, SpanExpr};
 use super::{expr, refusal, schema, tool_repr};
@@ -422,6 +422,8 @@ pub struct CompiledMessageRule {
     pub read: ReadSpec,
     pub compose: Option<CompiledCompose>,
     pub parse: Option<ParseMode>,
+    /// The read value's one serialised member, decoded in place before any reading selects from it.
+    pub decode: Option<MemberDecode>,
     pub require_members: Option<MemberRequirements>,
     pub wrap: Option<WrapSpec>,
     pub target: EmitTarget,
@@ -676,6 +678,7 @@ impl CarrierPattern {
 mod build;
 mod compile_plan;
 mod compile_rule;
+mod decode;
 mod emit;
 mod plan;
 mod predicates;
@@ -687,6 +690,7 @@ mod walk;
 use build::*;
 pub use compile_plan::compile;
 use compile_rule::*;
+use decode::*;
 use emit::*;
 use plan::*;
 use predicates::element_passes;

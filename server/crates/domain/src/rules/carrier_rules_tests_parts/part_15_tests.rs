@@ -222,7 +222,7 @@ fn an_overlay_decodes_a_serialised_member_before_selecting() {
         format!(
             r#"{{"id":"t","messages":[{{"id":"t.out","priority":1,"emit":"message",
                 "read":{{"indexed_family":"fam","entry_member":"message",
-                  "overlay":{{"from":"rich","parse":"json",{decode}"select":"$.choices",
+                  "overlay":{{"from":"rich","parse":"json",{decode}"select":"$.raw.choices",
                     "witness":{{"path":"$[*].message","exists":true}},
                     "when_member_prefix":"contents.","content_from":"$.message.content",
                     "where":{{"kind":"array"}},"as_member":"content"}}}},
@@ -263,7 +263,9 @@ fn an_overlay_decodes_a_serialised_member_before_selecting() {
         ),
         (
             "the member not text",
-            serde_json::json!({"raw": {"choices": []}}).to_string(),
+            // Already structure a selection through it would read: declared serialised, it is not this shape.
+            serde_json::json!({"raw": {"choices": [{"message": {"content": [{"type": "text", "text": "x"}]}}]}})
+                .to_string(),
         ),
     ] {
         let kept = read(&rich);
@@ -588,4 +590,272 @@ fn a_version_range_is_not_asked_beside_a_member_test() {
         super::span_conditions::lower(&parsed, super::span_conditions::Readable::ALL).is_err(),
         "a version range beside a member test reads the version as text"
     );
+}
+
+/// **A family's entries may decode one serialised member in place, and fail closed.** An entry whose `content` is
+/// a framework's printed object keeps its `role` beside the decoded content. Text the reader refuses - a printed
+/// object cut short, `"This is the c..."` - stays exactly the text it was, never a partial structure, and the
+/// entry keeps its other members. A decode with nothing to rewrite, or beside an overlay rewriting the same entry,
+/// is refused.
+#[test]
+fn an_entry_decodes_its_serialised_member_in_place_and_fails_closed() {
+    use crate::rules::message_rules::{MessageCompileError, MessageContext};
+    let rule = |read: &str| {
+        format!(
+            r#"{{"id":"t","messages":[{{"id":"t.in","priority":1,"emit":"message","read":{{{read}}},
+                "require_members":{{"all_of":[{{"name":"role"}}]}}}}]}}"#
+        )
+    };
+    let entry = |parse: &str, content: &str| {
+        let plan = probe_compile(&rule(&format!(
+            r#""indexed_family":"fam","entry_member":"message","decode":{{"select":"$.content","parse":"{parse}"}}"#
+        )))
+        .expect("the probe compiles");
+        let attrs = probe_attrs(&[
+            ("fam.0.message.role", "user"),
+            ("fam.0.message.content", content),
+        ]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        let values = plan
+            .run(&ctx)
+            .into_iter()
+            .map(|e| e.value)
+            .collect::<Vec<_>>();
+        assert_eq!(values.len(), 1, "one entry: {values:?}");
+        assert_eq!(values[0]["role"], "user", "the sibling stays: {values:?}");
+        values[0]["content"].clone()
+    };
+    assert_eq!(
+        entry(
+            "python_repr",
+            "Text(text='This is the whole text.', annotations=None)"
+        ),
+        serde_json::json!({"__python_constructor": "Text", "text": "This is the whole text.", "annotations": null}),
+    );
+    assert_eq!(
+        entry(
+            "java_tostring",
+            r#"TextContent { text = "This is the whole text." }"#
+        )["__java_class"],
+        "TextContent",
+    );
+    for (parse, truncated) in [
+        ("python_repr", "Text(text='This is the c..."),
+        ("python_fields", "text='This is the c..."),
+        ("java_tostring", r#"TextContent { text = "This is the c..."#),
+    ] {
+        assert_eq!(
+            entry(parse, truncated),
+            serde_json::json!(truncated),
+            "{parse}: a printed object cut short stays the text it was"
+        );
+    }
+    // Each beside a control: the same rule without the decode compiles, so the refusal is the decode's.
+    for (read, decode) in [
+        (
+            r#""attribute":"a""#,
+            r#""select":"$.content","parse":"python_repr""#,
+        ),
+        (
+            r#""indexed_family":"fam""#,
+            r#""select":"$","parse":"python_repr""#,
+        ),
+        (
+            r#""indexed_family":"fam""#,
+            r#""select":"$.content","parse":"text""#,
+        ),
+        (
+            r#""indexed_family":"fam","entry_member":"message",
+               "overlay":{"from":"rich","parse":"json","select":"$.choices",
+                 "witness":{"path":"$[*].message","exists":true},"when_member_prefix":"contents.",
+                 "content_from":"$.message.content","where":{"kind":"array"},"as_member":"content"}"#,
+            r#""select":"$.content","parse":"python_repr""#,
+        ),
+    ] {
+        // A raw attribute states its parse; a family has none to state.
+        let parse = if read.contains("attribute") {
+            r#","parse":"json""#
+        } else {
+            ""
+        };
+        let rule = |read: &str| {
+            format!(
+                r#"{{"id":"t","messages":[{{"id":"t.in","priority":1,"emit":"message","read":{{{read}}}{parse}}}]}}"#
+            )
+        };
+        probe_compile(&rule(read))
+            .unwrap_or_else(|e| panic!("the control compiles: {read}: {e:?}"));
+        assert!(
+            matches!(
+                probe_compile(&rule(&format!(r#"{read},"decode":{{{decode}}}"#))),
+                Err(MessageCompileError::Inexpressible { .. })
+            ),
+            "an entry decode that rewrites nothing, or races an overlay, is refused: {read} {decode}"
+        );
+    }
+}
+
+/// **A rule may decode one serialised member of the value its carrier parses to, in place.** A JSON carrier
+/// holding a printed object in one member is read through it - its other members kept, and `also` selecting
+/// through the decoded member. Declared to hold a serialised member and not holding one - absent, cut short, or
+/// already structure - the value is not this rule's shape and reads nothing. Where the value is assembled rather
+/// than parsed, a rule decode is refused.
+#[test]
+fn a_rule_decodes_a_member_of_its_value_in_place_and_reads_nothing_without_it() {
+    use crate::rules::message_rules::{MessageCompileError, MessageContext};
+    let rule = |read: &str, decode: &str| {
+        format!(
+            r#"{{"id":"t","messages":[{{"id":"t.out","priority":1,"emit":"message","read":{{{read}}},
+                "parse":"json","decode":{decode},
+                "also":[{{"id":"said","select":"$.ev.response",
+                  "wrap":{{"role_from":"$.role","content_from":"$.text"}}}}]}}]}}"#
+        )
+    };
+    let plan = probe_compile(&rule(
+        r#""attribute":"input.value""#,
+        r#"{"select":"$.ev","parse":"python_repr"}"#,
+    ))
+    .expect("the probe compiles");
+    let read = |payload: serde_json::Value| {
+        let attrs = probe_attrs(&[("input.value", &payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| e.value)
+            .collect::<Vec<_>>()
+    };
+    let said = read(serde_json::json!({
+        "ctx": "<Context object at 0x1>",
+        "ev": "Output(response=Said(role='assistant', text='The whole answer.'))",
+    }));
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert_eq!(said[0]["role"], "assistant", "{said:?}");
+    assert!(
+        serde_json::to_string(&said[0])
+            .expect("serialises")
+            .contains("The whole answer."),
+        "the decoded member is read through: {said:?}"
+    );
+    for (why, payload) in [
+        ("absent", serde_json::json!({"ctx": "c"})),
+        (
+            "cut short",
+            serde_json::json!({"ev": "Output(response=Said(role='assistant', text='This is the c..."}),
+        ),
+        (
+            "already structure",
+            serde_json::json!({"ev": {"response": {"role": "assistant", "text": "x"}}}),
+        ),
+    ] {
+        assert!(read(payload).is_empty(), "{why}: the rule reads nothing");
+    }
+    // Each beside a control: the same rule without the decode compiles, so the refusal is the decode's.
+    for (read, decode) in [
+        (
+            r#""attribute":"input.value""#,
+            r#"{"select":"$","parse":"python_repr"}"#,
+        ),
+        (
+            r#""attribute":"input.value""#,
+            r#"{"select":"$.ev","parse":"text"}"#,
+        ),
+        (
+            r#""indexed_family":"fam""#,
+            r#"{"select":"$.ev","parse":"python_repr"}"#,
+        ),
+    ] {
+        let parse = if read.contains("attribute") {
+            r#","parse":"json""#
+        } else {
+            ""
+        };
+        let rule = |extra: &str| {
+            format!(
+                r#"{{"id":"t","messages":[{{"id":"t.out","priority":1,"emit":"message","read":{{{read}}}{parse}{extra}}}]}}"#
+            )
+        };
+        probe_compile(&rule("")).unwrap_or_else(|e| panic!("the control compiles: {read}: {e:?}"));
+        assert!(
+            matches!(
+                probe_compile(&rule(&format!(r#","decode":{decode}"#))),
+                Err(MessageCompileError::Inexpressible { .. })
+            ),
+            "a rule decode with no parsed value to rewrite is refused: {read} {decode}"
+        );
+    }
+}
+
+/// **A rule's decode narrows its claim, so a later reader of the same carrier is reached.** A value whose member
+/// does not decode reads nothing, and the next rule reading that attribute must then read it - compiled as a
+/// valid pair rather than refused as contested, and at run time the one that reads. A rule keeping its carrier
+/// as `text` has no member to decode, and declaring one is refused.
+#[test]
+fn a_rule_decode_leaves_an_undecoded_carrier_to_the_next_reader() {
+    use crate::rules::message_rules::{MessageCompileError, MessageContext};
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[
+            {"id":"t.decoded","priority":1,"emit":"message","read":{"attribute":"input.value"},"parse":"json",
+             "decode":{"select":"$.ev","parse":"python_repr"}},
+            {"id":"t.plain","priority":2,"emit":"message","read":{"attribute":"input.value"},"parse":"json"}]}"#,
+    )
+    .expect("a decoding reader and a later reader of the same carrier are a valid pair");
+    let read = |payload: serde_json::Value| {
+        let attrs = probe_attrs(&[("input.value", &payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| (e.rule_id.to_string(), e.value))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        read(serde_json::json!({"ev": "Said(text='whole')"})),
+        [(
+            "t.decoded".to_string(),
+            serde_json::json!({"ev": {"__python_constructor": "Said", "text": "whole"}})
+        )],
+    );
+    let cut = serde_json::json!({"ev": "Said(text='This is the c..."});
+    assert_eq!(read(cut.clone()), [("t.plain".to_string(), cut)]);
+    let text = |decode: &str| {
+        format!(
+            r#"{{"id":"t","messages":[{{"id":"t.text","priority":1,"emit":"message",
+                "read":{{"attribute":"input.value"}},"parse":"text"{decode}}}]}}"#
+        )
+    };
+    probe_compile(&text("")).expect("the control compiles");
+    assert!(
+        matches!(
+            probe_compile(&text(
+                r#","decode":{"select":"$.ev","parse":"python_repr"}"#
+            )),
+            Err(MessageCompileError::Inexpressible { .. })
+        ),
+        "a decode on a carrier kept as text is refused"
+    );
+}
+
+/// **An entry is decoded before `entry_value` projects it**, so a projection may select through the decoded
+/// member; one that does not decode leaves nothing for a path through it to find.
+#[test]
+fn an_entry_decode_comes_before_its_projection() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message","entry_value":"$.content.text",
+              "decode":{"select":"$.content","parse":"python_repr"}}}]}"#,
+    )
+    .expect("the probe compiles");
+    let read = |content: &str| {
+        let attrs = probe_attrs(&[
+            ("fam.0.message.role", "user"),
+            ("fam.0.message.content", content),
+        ]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| e.value)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(read("Text(text='whole')"), [serde_json::json!("whole")]);
+    assert!(read("Text(text='This is the c...").is_empty());
 }

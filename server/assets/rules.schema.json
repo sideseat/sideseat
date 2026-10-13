@@ -1038,6 +1038,17 @@
             }
           ]
         },
+        "decode": {
+          "description": "One member of the parsed value that is itself serialised, decoded in place before any reading - `also`\nincluded - selects from it: a JSON carrier holding a framework's printed object in one string member. For a\nsingle carrier read with `parse`; an indexed family's entries declare theirs on `read`. A value whose member\ndoes not decode is not this rule's shape, and the rule reads nothing from it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemberDecode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "wrap": {
           "description": "Wrap the parsed value in a message envelope with this role.\n\nSome carriers hold a bare payload rather than a message - a tool's arguments, say - and the role\nthat payload represents is a fact about the carrier, so it is declared beside it.",
           "anyOf": [
@@ -1425,6 +1436,17 @@
             }
           ]
         },
+        "decode": {
+          "description": "One member of each entry that is itself serialised, decoded in place once the entry is assembled and\nbefore `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the\n`role` that stays as it is.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemberDecode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "overlay": {
           "description": "A richer copy of these same messages, held by another carrier and matched by position.",
           "anyOf": [
@@ -1593,6 +1615,33 @@
         }
       ]
     },
+    "MemberDecode": {
+      "description": "One member of an already-parsed value, decoded **in place**: its text becomes the value it decodes to and its\nsiblings stay, so a later selection reads through it (`$.raw.choices`, `$.content.contents`).\n\nOne step wherever it is declared - a message rule, an indexed family's entries, an overlay - with one\nbehaviour, which fails closed: a member absent, not text, or text its mode refuses is left exactly as it was,\nnever a partial structure. A rule or an overlay declaring the decode then reads nothing; an entry keeps its\nmembers as they are. The Python and Java readers accept only text that prints back byte for byte, so a\ntruncated object is never read as a partial one.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "select": {
+          "description": "The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole\nvalue is decoded by the carrier's own `parse`.",
+          "type": "string"
+        },
+        "parse": {
+          "description": "How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a\nselection then finds nothing in.",
+          "$ref": "#/$defs/ParseMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "select",
+        "parse"
+      ]
+    },
     "OverlaySpec": {
       "description": "Another carrier of the same span describing the same messages at higher fidelity.\n\nNot an enrichment of what some other reader produced - both carriers are attributes of one span, and\nthe join is positional: entry *n* of the family and member *n* of the other carrier's list are the\nsame message. A flattened family loses whole content blocks and redacts urls, while the serialised copy\nbeside it keeps them, so where both describe one message the richer one is preferred.",
       "type": "object",
@@ -1618,7 +1667,7 @@
           ]
         },
         "decode": {
-          "description": "A member of the parsed copy that is itself serialised, decoded before the counterpart list is selected from\nit - a JSON payload carrying the provider's response as a Python `repr` in one string member. Absent, or\npresent and not text that decodes, the copy holds no counterparts and nothing is overlaid.",
+          "description": "A member of the parsed copy that is itself serialised, decoded in place before the counterpart list is\nselected through it - a JSON payload carrying the provider's response as a Python `repr` in one string\nmember. Absent, or present and not text that decodes, the member stays text, a selection through it finds\nno counterparts and nothing is overlaid.",
           "anyOf": [
             {
               "$ref": "#/$defs/MemberDecode"
@@ -1668,33 +1717,6 @@
         "from",
         "select",
         "when_member_prefix"
-      ]
-    },
-    "MemberDecode": {
-      "description": "One member of an already-parsed value, decoded: what a reading writes as `select` and `parse` on its element, as\na step of its own where a later selection reads the decoded value.",
-      "type": "object",
-      "properties": {
-        "doc": {
-          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "select": {
-          "description": "The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole\nvalue is decoded by the carrier's own `parse`.",
-          "type": "string"
-        },
-        "parse": {
-          "description": "How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a\nselection then finds nothing in.",
-          "$ref": "#/$defs/ParseMode"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "select",
-        "parse"
       ]
     },
     "FirstUsable_string": {

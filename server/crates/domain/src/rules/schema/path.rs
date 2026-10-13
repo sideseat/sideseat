@@ -50,6 +50,15 @@ impl JsonPath {
     pub fn query<'b>(&self, value: &'b JsonValue) -> serde_json_path::NodeList<'b> {
         self.parsed.query(value)
     }
+
+    /// Where the first match sits in `value`, as a JSON Pointer into it: the address a step that rewrites the
+    /// matched member in place writes through, since a query only lends its matches.
+    pub fn first_location(&self, value: &JsonValue) -> Option<String> {
+        let located = self.parsed.query_located(value);
+        located
+            .first()
+            .map(|node| node.location().to_json_pointer())
+    }
 }
 
 /// Two declared paths are the same statement exactly when they are spelled the same.

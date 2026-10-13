@@ -333,9 +333,15 @@ pub(super) fn emit_rule<'p>(
                 }
                 return out;
             }
-            let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
+            let Some(mut parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
                 return out;
             };
+            // Declared to hold a serialised member and not holding one, the value is not this rule's shape.
+            if let Some(decode) = &rule.decode
+                && !decode_member_in_place(&mut parsed, decode)
+            {
+                return out;
+            }
             (attribute, parsed, OwnedCarrier::just(attribute))
         }
     };

@@ -486,7 +486,13 @@ fn no_asset_reads_inside_an_opaque_python_object() {
         "quoted_below": {"where": {"path": "$.ctx['__python_opaque'].text"}},
         "spaced_below": {"where": {"path": "$.ctx['__python_opaque' ] .text"}},
         "union_below": {"where": {"path": "$.ctx['__python_opaque','other'].text"}},
-        "constructor": "$.__python_constructor"
+        "constructor": "$.__python_constructor",
+        // A decode is a selection like any other: it may not open an opaque leaf, on a rule, on an indexed
+        // family's entries, or on an overlay - nor may a reading select below one through a decoded member.
+        "decode": {"select": "$.ctx.__python_opaque", "parse": "python_repr"},
+        "read": {"decode": {"select": "$.content['__python_opaque']", "parse": "java_tostring"}},
+        "overlay": {"decode": {"select": "$.raw.__python_opaque.text", "parse": "json"}},
+        "through_decoded": {"also": [{"select": "$.ev.ctx.__python_opaque"}]}
     });
     let mut probed = Vec::new();
     reads_inside_python_opaque(&probe, false, "probe", &mut probed);
@@ -496,11 +502,15 @@ fn no_asset_reads_inside_an_opaque_python_object() {
         [
             "probe.cases[0].where.path = \"$.__python_opaque[0]\"",
             "probe.content_from = \"$.f.__python_opaque.text\"",
+            "probe.decode.select = \"$.ctx.__python_opaque\"",
             "probe.escaped = \"$.ctx['__python_opaque']\"",
+            "probe.overlay.decode.select = \"$.raw.__python_opaque.text\"",
             "probe.prefix_escaped = \"$.ctx['__python_opaque']\"",
             "probe.quoted_below.where.path = \"$.ctx['__python_opaque'].text\"",
+            "probe.read.decode.select = \"$.content['__python_opaque']\"",
             "probe.select = \"$.ctx.__python_opaque\"",
             "probe.spaced_below.where.path = \"$.ctx['__python_opaque' ] .text\"",
+            "probe.through_decoded.also[0].select = \"$.ev.ctx.__python_opaque\"",
             "probe.union_below.where.path = \"$.ctx['__python_opaque','other'].text\"",
         ]
     );

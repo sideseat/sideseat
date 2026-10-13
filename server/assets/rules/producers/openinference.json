@@ -227,7 +227,7 @@
                   "select": "$.raw",
                   "parse": "python_constructor_repr"
                 },
-                "select": "$.choices",
+                "select": "$.raw.choices",
                 "witness": {
                   "path": "$[*].message",
                   "exists": true,

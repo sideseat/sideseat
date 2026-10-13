@@ -56,6 +56,12 @@ pub struct MessageRule {
     /// string to parse - each member is read on its own.
     #[serde(default)]
     pub parse: Option<ParseMode>,
+    /// One member of the parsed value that is itself serialised, decoded in place before any reading - `also`
+    /// included - selects from it: a JSON carrier holding a framework's printed object in one string member. For a
+    /// single carrier read with `parse`; an indexed family's entries declare theirs on `read`. A value whose member
+    /// does not decode is not this rule's shape, and the rule reads nothing from it.
+    #[serde(default)]
+    pub decode: Option<MemberDecode>,
     /// Wrap the parsed value in a message envelope with this role.
     ///
     /// Some carriers hold a bare payload rather than a message - a tool's arguments, say - and the role
@@ -279,6 +285,11 @@ pub struct ReadSpec {
     /// malformed schema would be emitted as the string it is, reported as a tool definition.
     #[serde(default)]
     pub entry_value_parse: Option<ParseMode>,
+    /// One member of each entry that is itself serialised, decoded in place once the entry is assembled and
+    /// before `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the
+    /// `role` that stays as it is.
+    #[serde(default)]
+    pub decode: Option<MemberDecode>,
     /// A richer copy of these same messages, held by another carrier and matched by position.
     #[serde(default)]
     pub overlay: Option<OverlaySpec>,
@@ -417,9 +428,10 @@ pub struct OverlaySpec {
     pub from: String,
     #[serde(default)]
     pub parse: Option<ParseMode>,
-    /// A member of the parsed copy that is itself serialised, decoded before the counterpart list is selected from
-    /// it - a JSON payload carrying the provider's response as a Python `repr` in one string member. Absent, or
-    /// present and not text that decodes, the copy holds no counterparts and nothing is overlaid.
+    /// A member of the parsed copy that is itself serialised, decoded in place before the counterpart list is
+    /// selected through it - a JSON payload carrying the provider's response as a Python `repr` in one string
+    /// member. Absent, or present and not text that decodes, the member stays text, a selection through it finds
+    /// no counterparts and nothing is overlaid.
     #[serde(default)]
     pub decode: Option<MemberDecode>,
     /// Ordered paths to the counterpart list; the first that resolves to an array is used.
@@ -464,8 +476,14 @@ pub struct OverlaySpec {
     pub prepend_any_of: FirstOf<JsonPath, false>,
 }
 
-/// One member of an already-parsed value, decoded: what a reading writes as `select` and `parse` on its element, as
-/// a step of its own where a later selection reads the decoded value.
+/// One member of an already-parsed value, decoded **in place**: its text becomes the value it decodes to and its
+/// siblings stay, so a later selection reads through it (`$.raw.choices`, `$.content.contents`).
+///
+/// One step wherever it is declared - a message rule, an indexed family's entries, an overlay - with one
+/// behaviour, which fails closed: a member absent, not text, or text its mode refuses is left exactly as it was,
+/// never a partial structure. A rule or an overlay declaring the decode then reads nothing; an entry keeps its
+/// members as they are. The Python and Java readers accept only text that prints back byte for byte, so a
+/// truncated object is never read as a partial one.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]

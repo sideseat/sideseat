@@ -20,6 +20,7 @@ pub(super) fn compile_rule(
         read,
         compose,
         parse,
+        decode,
         wrap,
         emit,
         aggregate_into_array,
@@ -61,6 +62,12 @@ pub(super) fn compile_rule(
     }
     if compose.is_none() && branch_set.is_none() && read.named_count() != 1 {
         return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
+    }
+    if let Some(detail) = decode_placement_defect(rule) {
+        return Err(MessageCompileError::Inexpressible {
+            rule: id.clone(),
+            detail,
+        });
     }
     // Every combination the runner would silently ignore is refused here instead. Each of these
     // was accepted and did nothing, which reads as a rule that works.
@@ -669,14 +676,6 @@ pub(super) fn compile_rule(
                  `as_member` would name a member nothing writes - it belongs to `content_from`",
             ));
         }
-        if let Some(decode) = &overlay.decode
-            && (decode.select.to_string() == "$" || decode.parse == ParseMode::Text)
-        {
-            return Err(inexpressible(
-                "an overlay's `decode` names a member and how it decodes: the whole value is the carrier's own \
-                 `parse`, and a member kept as text is a string no counterpart list can be selected from",
-            ));
-        }
     }
     if tool_repr.is_some()
         && (emit_target != EmitTarget::ToolDefinitions
@@ -933,6 +932,7 @@ pub(super) fn compile_rule(
             .zip(compose_gates)
             .map(|(compose, gates)| compile_compose(compose, gates)),
         parse: *parse,
+        decode: decode.clone(),
         require_members: require_members.clone(),
         wrap: wrap.clone(),
         target: emit_target,

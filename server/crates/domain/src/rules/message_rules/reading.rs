@@ -664,6 +664,15 @@ pub(super) fn indexed_entries(
                 object.insert(member.to_string(), member_value(member, value, numeric));
             }
         }
+        // The entry's own serialised member, read once the entry is whole. Never beside an overlay (compilation
+        // refuses it), so which of the two rewrites a member first is not a question.
+        if let Some(decode) = &read.decode {
+            let mut entry = JsonValue::Object(std::mem::take(&mut object));
+            decode_member_in_place(&mut entry, decode);
+            if let JsonValue::Object(decoded) = entry {
+                object = decoded;
+            }
+        }
         if let Some(overlay) = overlay
             && let Some(content) = counterpart_content(overlay, counterparts.as_ref(), index)
             && object
@@ -790,13 +799,11 @@ pub(super) fn counterpart_list(
 ) -> Option<Vec<JsonValue>> {
     let raw = attrs.get(overlay.from.as_str())?;
     let mut parsed = parse_value(raw, overlay.parse.unwrap_or(ParseMode::Json))?;
-    // One decoding step, declared: a member absent, not text, or not decoding leaves no counterparts.
-    if let Some(decode) = &overlay.decode {
-        let decoded = {
-            let member = singular(&parsed, &decode.select, "overlay decode")?.as_str()?;
-            parse_value(member, decode.parse)?
-        };
-        parsed = decoded;
+    // A copy declared to hold a serialised member and not holding one is not this shape: no counterparts.
+    if let Some(decode) = &overlay.decode
+        && !decode_member_in_place(&mut parsed, decode)
+    {
+        return None;
     }
     let list = overlay
         .select_any_of
