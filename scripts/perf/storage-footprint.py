@@ -88,7 +88,6 @@ SPAN_TABLES = {
 }
 LOG_TABLES = {
     "otel_logs": "logs",
-    "log_terms": "logs",
     # Derived from the records: which file each traced record names, so a release can see it.
     "log_media_refs": "logs",
 }

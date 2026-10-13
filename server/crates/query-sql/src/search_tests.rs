@@ -66,7 +66,8 @@ fn term_matches_are_read_for_the_candidates_only() {
         field: Some(SearchField::Prompt),
         term: "common".to_string(),
     };
-    for signal in [SearchSignal::Spans, SearchSignal::Logs] {
+    // Spans only: a log's terms are on its row (`a_log_s_terms_are_read_from_its_own_row`).
+    for signal in [SearchSignal::Spans] {
         let query = request(term.clone(), signal);
         let scored = candidates(&query, Backend::Duckdb).query;
         let through = SearchCursor {
@@ -102,6 +103,39 @@ fn term_matches_are_read_for_the_candidates_only() {
         let clickhouse = candidates(&query, Backend::Clickhouse).query;
         assert!(!clickhouse.sql().contains("candidates AS"));
     }
+}
+
+/// DuckDB reads a log's terms from its own row, a field's column holding each term between spaces, so a term
+/// matches only whole: no term table is joined, and the term binds spaced.
+#[test]
+fn a_log_s_terms_are_read_from_its_own_row() {
+    let query = request(
+        SearchExpr::Term {
+            field: Some(SearchField::Body),
+            term: "common".to_string(),
+        },
+        SearchSignal::Logs,
+    );
+    let sql = candidates(&query, Backend::Duckdb).query;
+    assert!(!sql.sql().contains("hits AS"), "{}", sql.sql());
+    assert!(!sql.sql().contains("_terms"), "{}", sql.sql());
+    assert!(
+        sql.sql()
+            .contains("contains(coalesce(r.search_body, ''), ?)"),
+        "{}",
+        sql.sql()
+    );
+    assert!(
+        sql.params()
+            .iter()
+            .any(|value| matches!(value, QueryValue::String(text) if text == " common "))
+    );
+    assert_eq!(sql.sql().matches('?').count(), sql.params().len());
+    assert_eq!(
+        crate::search::duckdb_log_term_column(&["ab".to_string(), "abc".to_string()]).as_deref(),
+        Some(" ab abc ")
+    );
+    assert_eq!(crate::search::duckdb_log_term_column(&[]), None);
 }
 
 #[test]

@@ -76,13 +76,6 @@ fn rewrites() -> Vec<(&'static str, Vec<(&'static str, String)>)> {
             ],
         ),
         (
-            "log_terms",
-            vec![
-                ("log_digest", identity("log_digest", 64)),
-                ("ingested_at", shifted("ingested_at")),
-            ],
-        ),
-        (
             "otel_metrics",
             vec![
                 ("datapoint_id", identity("datapoint_id", 64)),

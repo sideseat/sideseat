@@ -1,6 +1,6 @@
 //! DuckDB OTLP log writes and typed reads.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use duckdb::{Connection, params};
 use sideseat_core::utils::json::json_to_opt_string;
@@ -39,11 +39,11 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
             })
             .collect();
         let stored_rows = super::keyed::log_rows(conn, &identities)?;
-        let mut stored: HashMap<super::keyed::LogIdentity, Vec<i64>> = HashMap::new();
+        let mut stored: HashSet<super::keyed::LogIdentity> = HashSet::new();
         let mut rowids = Vec::with_capacity(stored_rows.len());
-        for (rowid, identity, ingested_us) in stored_rows {
+        for (rowid, identity, _) in stored_rows {
             rowids.push(rowid);
-            stored.entry(identity).or_default().push(ingested_us);
+            stored.insert(identity);
         }
         super::keyed::delete_rows(conn, target.table(), &rowids)?;
         // A replaced identity's reference rows for the references this delivery writes again go, so they are
@@ -51,7 +51,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
         let rewritten: Vec<(String, String, u32, String)> = logs
             .iter()
             .filter(|log| {
-                stored.contains_key(&(
+                stored.contains(&(
                     log.project_id.clone().unwrap_or_default(),
                     log.log_digest.clone(),
                     log.ordinal,
@@ -80,6 +80,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
             let (search_fields, search_truncated) =
                 sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Logs, &log.search);
             let (body, body_text) = log.stored_body_views();
+            let terms = sideseat_query_sql::search::duckdb_log_term_columns(&log.search);
             appender.append_row(params![
                 log.project_id.as_deref().unwrap_or_default(),
                 log.log_digest.as_str(),
@@ -119,12 +120,15 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 search_truncated,
                 log.frame_key,
                 log.noted_references_column().as_deref(),
+                terms[0].as_deref(),
+                terms[1].as_deref(),
+                terms[2].as_deref(),
+                terms[3].as_deref(),
             ])?;
         }
         appender.flush()?;
         drop(appender);
         write_media_refs(conn, logs)?;
-        super::search::replace_log_terms(conn, logs, &stored)?;
         Ok(())
     })
 }

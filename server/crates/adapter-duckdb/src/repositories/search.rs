@@ -1,8 +1,8 @@
 use duckdb::{Connection, params};
 use sideseat_ports::types::{
-    LogSearchSource, NormalizedLog, NormalizedSpan, SearchBackfillDocument, SearchBackfillSource,
-    SearchCandidate, SearchCursor, SearchDocument, SearchLogRecord, SearchPage, SearchQuery,
-    SearchRecord, SearchRecordId, SearchSignal, SearchSource, SearchSpanRecord, SpanSearchSource,
+    LogSearchSource, NormalizedSpan, SearchBackfillDocument, SearchBackfillSource, SearchCandidate,
+    SearchCursor, SearchDocument, SearchLogRecord, SearchPage, SearchQuery, SearchRecord,
+    SearchRecordId, SearchSignal, SearchSource, SearchSpanRecord, SpanSearchSource,
 };
 use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
@@ -17,23 +17,6 @@ use crate::sql_types::SqlTimestamp;
 /// Identities per batched delete. A row-value `IN` list binds three values each, and a statement with tens of
 /// thousands of parameters costs more to plan than it saves.
 const DELETE_CHUNK: usize = 500;
-
-/// The last item of each identity, in input order: what writing the items one at a time would have left.
-fn last_per_identity<'a, T, K: Eq + std::hash::Hash>(
-    items: &'a [T],
-    key: impl Fn(&'a T) -> K,
-) -> Vec<&'a T> {
-    let mut last = std::collections::HashMap::with_capacity(items.len());
-    for (index, item) in items.iter().enumerate() {
-        last.insert(key(item), index);
-    }
-    items
-        .iter()
-        .enumerate()
-        .filter(|(index, item)| last.get(&key(item)) == Some(index))
-        .map(|(_, item)| item)
-        .collect()
-}
 
 struct SpanCandidate {
     trace_id: String,
@@ -169,73 +152,14 @@ pub fn replace_span_terms(
     Ok(())
 }
 
-/// Replace the term rows of these logs, the same way: the stored revisions' terms deleted, then the rows appended.
-pub fn replace_log_terms(
-    conn: &Connection,
-    logs: &[NormalizedLog],
-    stored: &HashMap<LogIdentity, Vec<i64>>,
-) -> Result<(), DuckdbError> {
-    if logs.is_empty() {
-        return Ok(());
-    }
-    let logs = last_per_identity(logs, |log| {
-        (
-            log.project_id.as_deref().unwrap_or_default(),
-            log.log_digest.as_str(),
-            log.ordinal,
-        )
-    });
-    let superseded: Vec<LogIdentity> = logs
-        .iter()
-        .map(|log| {
-            (
-                log.project_id.clone().unwrap_or_default(),
-                log.log_digest.clone(),
-                log.ordinal,
-            )
-        })
-        .filter(|identity| stored.contains_key(identity))
-        .collect();
-    for chunk in superseded.chunks(DELETE_CHUNK) {
-        let revisions: Vec<i64> = chunk
-            .iter()
-            .flat_map(|identity| stored[identity].iter().copied())
-            .collect();
-        if let Some(query) = search_sql::duckdb_log_term_delete_of_revisions(chunk, &revisions) {
-            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
-        }
-    }
-    let mut appender = conn.appender("log_terms")?;
-    for log in &logs {
-        let project_id = log.project_id.as_deref().unwrap_or_default();
-        let ingested_at = SqlTimestamp(log.ingested_at.unwrap_or(log.timestamp));
-        for field in &log.search.fields {
-            for term in &field.terms {
-                appender.append_row(params![
-                    project_id,
-                    log.log_digest.as_str(),
-                    log.ordinal,
-                    field.field.as_str(),
-                    term.as_str(),
-                    ingested_at,
-                ])?;
-            }
-        }
-    }
-    appender.flush()?;
-    Ok(())
-}
-
 pub fn delete_for_traces(
     conn: &Connection,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<(), DuckdbError> {
     let mut span_terms = conn.prepare(search_sql::DUCKDB_SPAN_TERMS_DELETE_TRACE_SQL)?;
-    let mut log_terms = conn.prepare(search_sql::DUCKDB_LOG_TERMS_DELETE_TRACE_SQL)?;
     for trace_id in trace_ids {
         span_terms.execute(params![project_id, trace_id])?;
-        log_terms.execute(params![project_id, trace_id])?;
     }
     Ok(())
 }
@@ -254,20 +178,12 @@ pub fn delete_for_spans(
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
     }
-    let mut log_terms = conn.prepare(search_sql::DUCKDB_LOG_TERMS_DELETE_SPAN_SQL)?;
-    for (trace_id, span_id) in spans {
-        log_terms.execute(params![project_id, trace_id, span_id])?;
-    }
     Ok(())
 }
 
 pub fn delete_for_project(conn: &Connection, project_id: &str) -> Result<(), DuckdbError> {
     conn.execute(
         search_sql::DUCKDB_SPAN_TERMS_DELETE_PROJECT_SQL,
-        params![project_id],
-    )?;
-    conn.execute(
-        search_sql::DUCKDB_LOG_TERMS_DELETE_PROJECT_SQL,
         params![project_id],
     )?;
     Ok(())
@@ -428,43 +344,27 @@ fn write_log_backfill(
             panic!("log search backfill received a span identity");
         };
         let identity: LogIdentity = (project_id.to_string(), log_digest.clone(), *ordinal);
-        let rows = keyed::log_rows(conn, &[(identity.clone(), None)])?;
-        let revisions: Vec<i64> = rows
-            .iter()
-            .map(|(_, _, ingested_us)| *ingested_us)
-            .collect();
-        if let Some(query) = search_sql::duckdb_log_term_delete_of_revisions(
-            std::slice::from_ref(&identity),
-            &revisions,
-        ) {
-            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
-        }
-        // A log identity has one stored row: a redelivery replaces it.
-        let Some(&(rowid, _, current_us)) =
-            rows.iter().max_by_key(|(_, _, ingested_us)| *ingested_us)
+        let rows = keyed::log_rows(conn, &[(identity, None)])?;
+        // A log identity has one stored row: a redelivery replaces it. Its terms are on the row, written with the
+        // bits that say which fields it indexed.
+        let Some(&(rowid, _, _)) = rows.iter().max_by_key(|(_, _, ingested_us)| *ingested_us)
         else {
             continue;
         };
-        let ingested_at = SqlTimestamp(micros_to_datetime(current_us));
-        let mut appender = conn.appender("log_terms")?;
-        write_document_terms(&document.document, |field, term| {
-            appender.append_row(params![
-                project_id,
-                log_digest,
-                ordinal,
-                field,
-                term,
-                ingested_at
-            ])?;
-            Ok(())
-        })?;
-        appender.flush()?;
-        drop(appender);
-        set_search_bits(
-            conn,
-            SearchSignal::Logs,
-            rowid,
-            search_sql::duckdb_document_bits(SearchSignal::Logs, &document.document),
+        let terms = search_sql::duckdb_log_term_columns(&document.document);
+        let (fields, truncated) =
+            search_sql::duckdb_document_bits(SearchSignal::Logs, &document.document);
+        conn.execute(
+            search_sql::duckdb_search_bits_update(SearchSignal::Logs),
+            params![
+                terms[0].as_deref(),
+                terms[1].as_deref(),
+                terms[2].as_deref(),
+                terms[3].as_deref(),
+                fields,
+                truncated,
+                rowid
+            ],
         )?;
     }
     Ok(())

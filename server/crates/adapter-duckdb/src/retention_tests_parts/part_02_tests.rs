@@ -392,39 +392,6 @@ async fn expired_spans_take_their_search_terms() {
     );
 }
 
-/// An expired log record's search terms go with it, page by page.
-#[tokio::test]
-async fn expired_logs_take_their_search_terms() {
-    let (_temp_dir, analytics) = create_test_service().await;
-    let conn = analytics.conn();
-    insert_governed_log(
-        &conn,
-        "default",
-        "digest-old",
-        "2020-01-01 00:00:00",
-        None,
-        10,
-    );
-    let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
-    insert_governed_log(&conn, "default", "digest-new", &recent, None, 10);
-    conn.execute_batch(
-        "INSERT INTO log_terms VALUES
-           ('default', 'digest-old', 0, 'body', 'alpha', '2020-01-01 00:00:00'),
-           ('default', 'digest-new', 0, 'body', 'beta', now())",
-    )
-    .expect("terms");
-
-    let (deleted, _) =
-        super::cleanup_logs_by_time(&conn, 1, &no_intent, Utc::now()).expect("cleanup");
-    assert_eq!(deleted, 1);
-    assert_eq!(
-        term_rows(&conn, "log_terms"),
-        1,
-        "the expired log's terms outlived it"
-    );
-    assert_eq!(signal_count(&conn, "otel_logs", "default"), 1);
-}
-
 /// An expired traced log records its trace as owing a file release before it goes, and its media references go
 /// with it; a live one's stay, so a release still sees what it names.
 #[tokio::test]

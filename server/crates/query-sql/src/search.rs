@@ -35,25 +35,6 @@ pub fn duckdb_span_term_delete(
     ))
 }
 
-/// The same for log term rows, keyed by the log identity.
-pub fn duckdb_log_term_delete(identities: &[(String, String, u32)]) -> Option<ParameterizedQuery> {
-    if identities.is_empty() {
-        return None;
-    }
-    let tuples = std::iter::repeat_n("(?, ?, ?)", identities.len())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut params = Vec::with_capacity(identities.len() * 3);
-    for (project_id, log_digest, ordinal) in identities {
-        params.push(QueryValue::String(project_id.clone()));
-        params.push(QueryValue::String(log_digest.clone()));
-        params.push(QueryValue::Int64(i64::from(*ordinal)));
-    }
-    Some(ParameterizedQuery::new(
-        format!("DELETE FROM log_terms WHERE (project_id, log_digest, ordinal) IN ({tuples})"),
-        params,
-    ))
-}
 /// Remove the term rows the stored revisions of these span identities wrote.
 ///
 /// `revisions_us` are those revisions' ingest instants in epoch microseconds. A revision's terms carry its
@@ -85,32 +66,6 @@ pub fn duckdb_span_term_delete_of_revisions(
     ))
 }
 
-/// The same for log term rows, keyed by the log identity.
-pub fn duckdb_log_term_delete_of_revisions(
-    identities: &[(String, String, u32)],
-    revisions_us: &[i64],
-) -> Option<ParameterizedQuery> {
-    if identities.is_empty() || revisions_us.is_empty() {
-        return None;
-    }
-    let mut params = Vec::with_capacity(identities.len() * 3);
-    for (project_id, log_digest, ordinal) in identities {
-        params.push(QueryValue::String(project_id.clone()));
-        params.push(QueryValue::String(log_digest.clone()));
-        params.push(QueryValue::Int64(i64::from(*ordinal)));
-    }
-    Some(ParameterizedQuery::new(
-        format!(
-            "DELETE FROM log_terms WHERE ingested_at IN ({}) AND (project_id, log_digest, ordinal) IN ({})",
-            instants(revisions_us),
-            std::iter::repeat_n("(?, ?, ?)", identities.len())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        params,
-    ))
-}
-
 /// Distinct epoch-microsecond instants as DuckDB timestamp literals.
 fn instants(revisions_us: &[i64]) -> String {
     let mut revisions = revisions_us.to_vec();
@@ -125,17 +80,40 @@ fn instants(revisions_us: &[i64]) -> String {
 
 pub const DUCKDB_SPAN_TERMS_DELETE_TRACE_SQL: &str =
     "DELETE FROM span_terms WHERE project_id = ? AND trace_id = ?";
-pub const DUCKDB_LOG_TERMS_DELETE_TRACE_SQL: &str = "DELETE FROM log_terms WHERE project_id = ? AND EXISTS (\
-     SELECT 1 FROM otel_logs l WHERE l.project_id = log_terms.project_id \
-     AND l.log_digest = log_terms.log_digest AND l.ordinal = log_terms.ordinal \
-     AND l.trace_id = ?)";
-pub const DUCKDB_LOG_TERMS_DELETE_SPAN_SQL: &str = "DELETE FROM log_terms WHERE project_id = ? AND EXISTS (\
-     SELECT 1 FROM otel_logs l WHERE l.project_id = log_terms.project_id \
-     AND l.log_digest = log_terms.log_digest AND l.ordinal = log_terms.ordinal \
-     AND l.trace_id = ? AND l.span_id = ?)";
 pub const DUCKDB_SPAN_TERMS_DELETE_PROJECT_SQL: &str =
     "DELETE FROM span_terms WHERE project_id = ?";
-pub const DUCKDB_LOG_TERMS_DELETE_PROJECT_SQL: &str = "DELETE FROM log_terms WHERE project_id = ?";
+
+/// A field's exact terms as a DuckDB log record holds them: each between single spaces, in the document's order, so
+/// a term is present exactly where ` term ` is - a term is a run of alphanumerics (`tokenize`) and never holds a
+/// space. `None` for a field with no terms; whether the record indexed the field at all is `search_fields`'s.
+pub fn duckdb_log_term_column(terms: &[String]) -> Option<String> {
+    (!terms.is_empty()).then(|| {
+        let mut column =
+            String::with_capacity(terms.iter().map(|term| term.len() + 1).sum::<usize>() + 1);
+        column.push(' ');
+        for term in terms {
+            column.push_str(term);
+            column.push(' ');
+        }
+        column
+    })
+}
+
+/// A log document's term columns, one per field logs search, in the table's order (`search_body`,
+/// `search_event_name`, `search_severity`, `search_attributes`).
+pub fn duckdb_log_term_columns(
+    document: &sideseat_ports::types::SearchDocument,
+) -> Vec<Option<String>> {
+    Shape::new(SearchSignal::Logs, Backend::Duckdb)
+        .fields()
+        .iter()
+        .map(|field| {
+            document
+                .field(*field)
+                .and_then(|entry| duckdb_log_term_column(&entry.terms))
+        })
+        .collect()
+}
 /// Whether a span's winner is still the revision a backfill read, by its content digest, and still not indexed
 /// in every field: project, trace, span, digest.
 pub fn duckdb_span_backfill_cas_sql() -> String {
@@ -147,15 +125,18 @@ pub fn duckdb_span_backfill_cas_sql() -> String {
     )
 }
 
-/// Set a backfilled DuckDB record's `search_fields` and `search_truncated`, by row id: binds the two, then the
-/// row id.
+/// Set a backfilled DuckDB record's search state, by row id: binds a log's four term columns, then for either
+/// signal `search_fields` and `search_truncated`, then the row id.
 pub fn duckdb_search_bits_update(signal: SearchSignal) -> &'static str {
     match signal {
         SearchSignal::Spans => {
             "UPDATE otel_spans SET search_fields = ?, search_truncated = ? WHERE rowid = ?"
         }
+        // A log's terms are on its row, so its backfill writes them with the bits: the four term columns
+        // (`duckdb_log_term_columns`) first.
         SearchSignal::Logs => {
-            "UPDATE otel_logs SET search_fields = ?, search_truncated = ? WHERE rowid = ?"
+            "UPDATE otel_logs SET search_body = ?, search_event_name = ?, search_severity = ?, \
+             search_attributes = ?, search_fields = ?, search_truncated = ? WHERE rowid = ?"
         }
     }
 }
@@ -458,6 +439,9 @@ fn field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase: bool) 
 /// fields it indexed and which it truncated (`search_fields`, `search_truncated`). Asking the term table for those
 /// too joined every record against every term row of the field - at a million spans, more than the memory limit.
 fn duckdb_field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase: bool) -> Lowered {
+    if shape.signal == SearchSignal::Logs {
+        return duckdb_log_field_leaf(shape, field, terms, phrase);
+    }
     let present = format!(
         "list_has_all(coalesce(h.pairs, []::VARCHAR[]), [{}])",
         std::iter::repeat_n("?", terms.len())
@@ -476,6 +460,37 @@ fn duckdb_field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase:
         params: terms
             .iter()
             .map(|term| QueryValue::String(term_pair(field, term)))
+            .collect(),
+    }
+}
+
+/// A log's field leaf over the terms its row holds (`duckdb_log_term_column`): each term present where ` term ` is.
+fn duckdb_log_field_leaf(
+    shape: Shape,
+    field: SearchField,
+    terms: &[String],
+    phrase: bool,
+) -> Lowered {
+    let column = format!("coalesce(r.search_{}, '')", field.as_str());
+    let present = if terms.is_empty() {
+        "true".to_string()
+    } else {
+        std::iter::repeat_n(format!("contains({column}, ?)"), terms.len())
+            .collect::<Vec<_>>()
+            .join(" AND ")
+    };
+    let bit = duckdb_field_bit(shape.signal, field);
+    let truncated = format!("(r.search_truncated & {bit}) != 0");
+    let field_indexed = format!("(r.search_fields & {bit}) != 0");
+    let positive = if phrase { 1 } else { 2 };
+    Lowered {
+        sql: format!(
+            "CASE WHEN ({present}) THEN {positive} WHEN {truncated} THEN 1 \
+             WHEN NOT ({field_indexed}) THEN 1 ELSE 0 END"
+        ),
+        params: terms
+            .iter()
+            .map(|term| QueryValue::String(format!(" {term} ")))
             .collect(),
     }
 }
@@ -789,7 +804,11 @@ impl Shape {
     fn term_matches(self, request: &SearchQuery, params: &mut Vec<QueryValue>) -> (String, String) {
         let mut terms = Vec::new();
         expression_terms(&request.expression, &mut terms);
-        if self.backend == Backend::Clickhouse || terms.is_empty() {
+        // ClickHouse's records, and DuckDB's logs, hold their terms on the row.
+        if self.backend == Backend::Clickhouse
+            || self.signal == SearchSignal::Logs
+            || terms.is_empty()
+        {
             return (String::new(), "winners r".to_string());
         }
         let (key, candidate, join) = match self.signal {
@@ -798,11 +817,7 @@ impl Shape {
                 "(t.trace_id, t.span_id) IN (SELECT trace_id, span_id FROM candidates)",
                 "h.trace_id = r.trace_id AND h.span_id = r.span_id",
             ),
-            SearchSignal::Logs => (
-                "t.log_digest AS log_digest, t.ordinal AS ordinal",
-                "(t.log_digest, t.ordinal) IN (SELECT log_digest, ordinal FROM candidates)",
-                "h.log_digest = r.log_digest AND h.ordinal = r.ordinal",
-            ),
+            SearchSignal::Logs => unreachable!("a log's terms are on its row"),
         };
         params.push(QueryValue::String(request.project_id.to_string()));
         params.extend(
@@ -825,10 +840,7 @@ impl Shape {
     }
 
     fn term_table(self) -> &'static str {
-        match self.signal {
-            SearchSignal::Spans => "span_terms",
-            SearchSignal::Logs => "log_terms",
-        }
+        "span_terms"
     }
 
     fn unindexed_predicate(self) -> String {

@@ -207,13 +207,6 @@ fn scale_statements(
             ],
         ),
         (
-            "log_terms",
-            vec![
-                ("log_digest", identity("log_digest", 64)),
-                ("ingested_at", shifted("ingested_at")),
-            ],
-        ),
-        (
             "log_media_refs",
             vec![
                 ("log_digest", identity("log_digest", 64)),
@@ -453,7 +446,7 @@ async fn reads_agree_at_a_million_spans() {
         )
     };
     let latest = DateTime::<Utc>::from_timestamp_micros(latest_us).expect("latest");
-    // The median log by its identity's hash, and a mid-frequency body term.
+    // The median log by its identity's hash, and a mid-frequency term over every field logs search.
     let (log_digest, log_ordinal, log_term): (String, u32, String) = {
         let conn = duck.0.conn();
         let (digest, ordinal) = conn
@@ -466,7 +459,10 @@ async fn reads_agree_at_a_million_spans() {
             .expect("a log");
         let term = conn
             .query_row(
-                "SELECT term FROM log_terms WHERE length(term) > 4 GROUP BY 1 \
+                "SELECT term FROM (SELECT unnest(string_split(trim(terms), ' ')) AS term FROM (\
+                 SELECT search_body AS terms FROM otel_logs UNION ALL SELECT search_event_name FROM otel_logs \
+                 UNION ALL SELECT search_severity FROM otel_logs UNION ALL SELECT search_attributes FROM otel_logs) \
+                 WHERE terms IS NOT NULL) WHERE length(term) > 4 GROUP BY 1 \
                  ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50",
                 [],
                 |row| row.get(0),

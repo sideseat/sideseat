@@ -164,8 +164,8 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn, &TestClock).unwrap();
         conn.execute_batch(
-            "DROP TABLE log_terms; CREATE TABLE log_terms (log_digest VARCHAR NOT NULL, project_id VARCHAR NOT NULL, \
-             ordinal UINTEGER NOT NULL, field VARCHAR NOT NULL, term VARCHAR NOT NULL, \
+            "DROP TABLE span_terms; CREATE TABLE span_terms (trace_id VARCHAR NOT NULL, project_id VARCHAR NOT NULL, \
+             span_id VARCHAR NOT NULL, field VARCHAR NOT NULL, term VARCHAR NOT NULL, \
              ingested_at TIMESTAMP NOT NULL);",
         )
         .unwrap();

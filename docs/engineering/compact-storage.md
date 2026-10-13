@@ -481,6 +481,17 @@ rebuilt ones otherwise, through the domain, so every reader sees the same views 
 ClickHouse, which keeps no reference table, the release reads the raw record's values unescaped, since a verified
 producer reference now lives only there.
 
+### Log search terms
+
+A log record's exact search terms are on its row, as ClickHouse keeps them: one column per field logs search
+(`search_body`, `search_event_name`, `search_severity`, `search_attributes`), each term between single spaces, so a
+term is present exactly where ` term ` is - a term is a run of alphanumerics and never holds a space. DuckDB's
+`log_terms` table repeated the record's 64-character digest, its project and the field name on each of its
+fifty-odd terms, and its term text was 818 B/record; the row columns cost two blocks on the corpus. Search reads the
+terms from the candidate rows themselves (`search::duckdb_log_term_column`), with the field state from the same
+row's `search_fields` and `search_truncated`, and the backfill writes them with those bits; a term goes with its
+record by construction, so no delete has terms to chase.
+
 ### Deferred: log records into the raw store
 
 Log records are their own raw form, `otel_logs.raw_log`: the OTLP/JSON of the record, media held by reference and

@@ -48,7 +48,7 @@ struct Samples {
     datapoint: Option<(String, chrono::DateTime<Utc>)>,
     metric_name: Option<String>,
     term: Option<String>,
-    /// A mid-frequency term of the project's log bodies, as `term` is of its spans.
+    /// A mid-frequency term of the project's logs, over every field they search, as `term` is of its spans.
     log_term: Option<String>,
 }
 
@@ -154,7 +154,12 @@ fn samples(service: &DuckdbService) -> Samples {
     let log_term = one(
         &conn,
         &format!(
-            "SELECT term FROM log_terms WHERE project_id = '{p}' AND length(term) > 4 GROUP BY 1 \
+            "SELECT term FROM (SELECT unnest(string_split(trim(terms), ' ')) AS term FROM (\
+             SELECT search_body AS terms FROM otel_logs WHERE project_id = '{p}' \
+             UNION ALL SELECT search_event_name FROM otel_logs WHERE project_id = '{p}' \
+             UNION ALL SELECT search_severity FROM otel_logs WHERE project_id = '{p}' \
+             UNION ALL SELECT search_attributes FROM otel_logs WHERE project_id = '{p}') \
+             WHERE terms IS NOT NULL) WHERE length(term) > 4 GROUP BY 1 \
              ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50"
         ),
     );

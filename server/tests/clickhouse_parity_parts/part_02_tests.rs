@@ -354,6 +354,17 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
             ingested_at: Some(ingested_at),
             ..Default::default()
         },
+        NormalizedLog {
+            project_id: Some(PROJECT.to_string()),
+            log_digest: "log-c".to_string(),
+            ordinal: 0,
+            timestamp: ts(498),
+            body: serde_json::json!("alphabetical"),
+            body_text: Some("alphabetical".to_string()),
+            severity_number: 9,
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
     ];
     sideseat_domain::search::index_logs(&mut logs);
     logs.push(NormalizedLog {
@@ -427,6 +438,18 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
     let ch_log_second = run_logs(&ch, log_phrase, Some(log_cursor), 1).await;
     assert_eq!(duck_log_second, ch_log_second);
     assert_eq!(duck_log_second.0, vec![("log-b".to_string(), 0, false)]);
+
+    // A term matches whole, never as part of a longer one, on both backends.
+    for (query, expected) in [
+        ("body:alphabetical", vec![("log-c".to_string(), 0, false)]),
+        ("body:alphabe", vec![]),
+    ] {
+        let expression = sideseat_domain::search::parse(query, SearchSignal::Logs).unwrap();
+        let duck_whole = run_logs(&duck, expression.clone(), None, 10).await;
+        let ch_whole = run_logs(&ch, expression, None, 10).await;
+        assert_eq!(duck_whole.0, ch_whole.0, "{query}");
+        assert_eq!(duck_whole.0, expected, "{query}");
+    }
 
     let legacy_log = sideseat_domain::search::parse("body:historical", SearchSignal::Logs).unwrap();
     let duck_legacy_log = run_logs(&duck, legacy_log.clone(), None, 10).await;

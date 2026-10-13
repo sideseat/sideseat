@@ -863,22 +863,15 @@ fn delete_expired_log_pages(
             if !traces.is_empty() {
                 record_intent(&traces)?;
             }
-            for statement in [
-                dml::retention::retention_delete_expired_log_media(
+            execute_statement(
+                conn,
+                &dml::retention::retention_delete_expired_log_media(
                     project_id,
                     cutoff,
                     now,
                     RETENTION_BATCH_SIZE,
                 ),
-                dml::retention::retention_delete_expired_log_terms(
-                    project_id,
-                    cutoff,
-                    now,
-                    RETENTION_BATCH_SIZE,
-                ),
-            ] {
-                execute_statement(conn, &statement)?;
-            }
+            )?;
             let deleted = execute_statement(
                 conn,
                 &dml::retention::retention_delete_expired_logs(

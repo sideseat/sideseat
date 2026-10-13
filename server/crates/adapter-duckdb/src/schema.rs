@@ -427,7 +427,16 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     -- The references this record's views show as a note, as a JSON array; NULL on every record without one. With
     -- raw_log, what an unstored body and body_text are rebuilt from (domain::log_body): both are NULL wherever
     -- the raw record rebuilds them, as nearly every record's does.
-    noted_references          VARCHAR
+    noted_references          VARCHAR,
+    -- The record's exact search terms, one column per field logs search, as ClickHouse keeps them: each term between
+    -- single spaces (search::duckdb_log_term_column), NULL for a field with none. On the row rather than in a term
+    -- table, which repeated the record's identity on every term, about fifty times a record. The body's terms are
+    -- zstd, which their text needs; the attributes' keep the default, as small on the corpus and three times faster
+    -- for a search to scan.
+    search_body               VARCHAR USING COMPRESSION zstd,
+    search_event_name         VARCHAR,
+    search_severity           VARCHAR,
+    search_attributes         VARCHAR
 );
 -- The identity's uniqueness, which no scan reads: a write replaces an identity's row, and this makes a second
 -- row for it an error rather than a duplicate. The lookups a write and its confirmation make are bounded by the
@@ -499,15 +508,6 @@ CREATE TABLE IF NOT EXISTS span_terms (
     ingested_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS log_terms (
-    project_id VARCHAR NOT NULL,
-    log_digest VARCHAR NOT NULL,
-    ordinal UINTEGER NOT NULL,
-    field VARCHAR NOT NULL,
-    term VARCHAR NOT NULL,
-    ingested_at TIMESTAMP NOT NULL
-);
-
 -- The media references of the log rows that hold any, one row per log and reference: what a file release reads
 -- to see which media a trace's logs still name, since otel_logs has no trace lookup. Written and deleted in the
 -- transactions that write and delete the log rows, so it never outlives one. Rows exist only for media-bearing
@@ -551,7 +551,6 @@ mod tests {
             "otel_metrics",
             "otel_logs",
             "span_terms",
-            "log_terms",
             "log_media_refs",
             "otel_raw",
             "otel_raw_pending",

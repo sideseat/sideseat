@@ -277,25 +277,6 @@ fn expired_log_values(
         .collect()
 }
 
-/// Delete the search terms of one oldest page of expired DuckDB logs, before the page itself
-/// ([`retention_delete_expired_logs`], same arguments, same transaction): terms left behind are search rows no
-/// record owns.
-pub fn retention_delete_expired_log_terms(
-    project_id: Option<&str>,
-    cutoff: DateTime<Utc>,
-    now: DateTime<Utc>,
-    limit: i64,
-) -> DmlStatement {
-    retention_statement(
-        format!(
-            "DELETE FROM log_terms WHERE (project_id, log_digest, ordinal) IN (\
-             SELECT project_id, log_digest, ordinal FROM ({}) page)",
-            expired_log_page(project_id.is_some())
-        ),
-        expired_log_values(project_id, cutoff, now, limit),
-    )
-}
-
 /// The traces of one oldest page of expired DuckDB logs, recorded as owing a file release before the page goes
 /// ([`retention_delete_expired_logs`], same arguments, same transaction). Every traced log, not only one that holds
 /// media now: a redelivery may have replaced a record that named a file with one that does not, and only the
