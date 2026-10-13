@@ -69,7 +69,7 @@ struct ChLogInsertRow {
 
 impl From<&NormalizedLog> for ChLogInsertRow {
     fn from(log: &NormalizedLog) -> Self {
-        let (body, body_text) = log.stored_body_views();
+        let (body, body_text, attributes) = log.stored_views();
         Self {
             project_id: log.project_id.clone().unwrap_or_default(),
             log_digest: log.log_digest.clone(),
@@ -81,7 +81,7 @@ impl From<&NormalizedLog> for ChLogInsertRow {
             severity_text: log.severity_text.clone(),
             body,
             body_text,
-            attributes: json_to_opt_string(&log.attributes),
+            attributes,
             dropped_attributes_count: log.dropped_attributes_count,
             flags: log.flags,
             trace_id: log.trace_id.clone(),

@@ -211,26 +211,27 @@ pub struct NormalizedLog {
     /// the same ones; not serialised, as `media` is not.
     #[serde(skip)]
     pub noted_references: Vec<String>,
-    /// Whether the raw record, read back as stored, rebuilds the body and its text exactly (`domain::log_body`), so
-    /// neither is stored. False until ingest has checked, which stores them.
+    /// Whether the raw record, read back as stored, rebuilds the body, its text and the attributes exactly
+    /// (`domain::log_views`), so none is stored. False until ingest has checked, which stores them.
     #[serde(skip)]
-    pub body_rebuilds_from_raw: bool,
+    pub views_rebuild_from_raw: bool,
 }
 
 impl NormalizedLog {
-    /// The `body` and `body_text` columns stored for this record: none where its raw record rebuilds them; otherwise
-    /// the body's JSON and its text, an empty text standing for a record that has neither - never a derived text,
+    /// The `body`, `body_text` and `attributes` columns stored for this record: none where its raw record rebuilds
+    /// them; otherwise each as derived, an empty text standing for a record that has none - never a derived text,
     /// which is absent where empty - so a read does not rebuild what the raw record would answer differently.
-    pub fn stored_body_views(&self) -> (Option<String>, Option<String>) {
-        if self.body_rebuilds_from_raw {
-            return (None, None);
+    pub fn stored_views(&self) -> (Option<String>, Option<String>, Option<String>) {
+        if self.views_rebuild_from_raw {
+            return (None, None, None);
         }
         match (
             sideseat_core::utils::json::json_to_opt_string(&self.body),
             &self.body_text,
+            sideseat_core::utils::json::json_to_opt_string(&self.attributes),
         ) {
-            (None, None) => (None, Some(String::new())),
-            (body, text) => (body, text.clone()),
+            (None, None, None) => (None, Some(String::new()), None),
+            (body, text, attributes) => (body, text.clone(), attributes),
         }
     }
 

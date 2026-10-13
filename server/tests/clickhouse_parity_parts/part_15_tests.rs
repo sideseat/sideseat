@@ -710,7 +710,7 @@ async fn reads_agree_at_a_million_spans() {
         }
     );
     // The log reads as the API answers them: through the domain, which rebuilds the body views a store keeps only
-    // in the raw record (`log_body`).
+    // in the raw record (`log_views`).
     let duck_view = sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(duck.clone()));
     let ch_view = sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(ch.clone()));
     macro_rules! compare_views {

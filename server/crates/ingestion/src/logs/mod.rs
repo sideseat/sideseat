@@ -1,12 +1,12 @@
 //! OTLP logs ingestion and stable identity.
 
-#[cfg(test)]
-mod body_views_tests;
 mod extract;
 mod identity;
 mod ingest;
 mod media;
 mod messages;
+#[cfg(test)]
+mod views_tests;
 
 pub use extract::extract_logs_batch;
 pub use identity::log_digest;

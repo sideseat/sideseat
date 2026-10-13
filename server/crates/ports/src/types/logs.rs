@@ -36,8 +36,8 @@ pub struct LogRow {
     pub resource_schema_url: Option<String>,
     pub raw_log: Option<String>,
     pub ingested_at: DateTime<Utc>,
-    /// The references the record's views show as a note: with `raw_log`, what an unstored `body` and `body_text`
-    /// are rebuilt from (`domain::log_body`).
+    /// The references the record's views show as a note: with `raw_log`, what an unstored `body`, `body_text`
+    /// and `attributes` are rebuilt from (`domain::log_views`).
     pub noted_references: Vec<String>,
 }
 

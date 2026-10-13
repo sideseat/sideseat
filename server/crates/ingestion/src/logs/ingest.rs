@@ -392,17 +392,18 @@ pub(super) fn note_unbacked(log: &mut sideseat_ports::types::NormalizedLog, miss
     log.logical_bytes = crate::accounting::log_logical_bytes(log);
 }
 
-/// Whether the record's raw form, read back as it is stored, rebuilds its body and the body's text exactly - with
-/// the references it noted - so neither is stored (`domain::log_body`). Checked against the stored text, not the
+/// Whether the record's raw form, read back as it is stored, rebuilds its body, the body's text and its attributes
+/// exactly - with the references it noted - so none is stored (`domain::log_views`). Checked against the stored text, not the
 /// value in hand: a number the text does not give back exactly makes the views stored, never wrong.
-pub(super) fn settle_body_views(log: &mut sideseat_ports::types::NormalizedLog) {
-    let derived = sideseat_domain::log_body::BodyViews {
+pub(super) fn settle_views(log: &mut sideseat_ports::types::NormalizedLog) {
+    let derived = sideseat_domain::log_views::LogViews {
         body: sideseat_core::utils::json::json_to_opt_string(&log.body),
         body_text: log.body_text.clone(),
+        attributes: sideseat_core::utils::json::json_to_opt_string(&log.attributes),
     };
-    log.body_rebuilds_from_raw = sideseat_core::utils::json::json_to_opt_string(&log.raw_log)
+    log.views_rebuild_from_raw = sideseat_core::utils::json::json_to_opt_string(&log.raw_log)
         .is_some_and(|raw| {
-            sideseat_domain::log_body::rebuilds(&raw, &log.noted_references, &derived)
+            sideseat_domain::log_views::rebuilds(&raw, &log.noted_references, &derived)
         });
 }
 
@@ -604,7 +605,7 @@ async fn write_logs(
 ) -> Result<HashSet<String>, WriteFailure> {
     sideseat_domain::search::index_logs(logs);
     for log in logs.iter_mut() {
-        settle_body_views(log);
+        settle_views(log);
     }
     if let Some(governance) = governance {
         governance

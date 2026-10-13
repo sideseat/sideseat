@@ -425,8 +425,8 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     -- like `messages`. A framed request's view reads by it.
     frame_key                 UHUGEINT,
     -- The references this record's views show as a note, as a JSON array; NULL on every record without one. With
-    -- raw_log, what an unstored body and body_text are rebuilt from (domain::log_body): both are NULL wherever
-    -- the raw record rebuilds them, as nearly every record's does.
+    -- raw_log, what an unstored body, body_text and attributes are rebuilt from (domain::log_views): all three are
+    -- NULL wherever the raw record rebuilds them, as nearly every record's does.
     noted_references          VARCHAR,
     -- The record's exact search terms, one column per field logs search, as ClickHouse keeps them: each term between
     -- single spaces (search::duckdb_log_term_column), NULL for a field with none. On the row rather than in a term

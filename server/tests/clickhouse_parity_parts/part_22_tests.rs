@@ -78,7 +78,7 @@ async fn a_log_s_media_is_seen_by_the_release_and_recorded_by_the_age_pass() {
                 format!("see {}", verified.replacen("#!", "#!!", 1))}}
         ]}}}),
         media: vec![verified.clone()],
-        body_rebuilds_from_raw: true,
+        views_rebuild_from_raw: true,
         ..log.clone()
     };
     for backend in [

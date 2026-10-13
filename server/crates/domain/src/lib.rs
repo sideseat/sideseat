@@ -9,7 +9,7 @@
 pub mod cleanup;
 pub mod dedup;
 pub mod files;
-pub mod log_body;
+pub mod log_views;
 pub mod maintenance;
 pub mod observations;
 pub mod pricing;

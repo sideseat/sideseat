@@ -26,7 +26,7 @@ pub(super) async fn reference_fields_for_traces(
         for (raw_log, body, attributes, messages) in logs {
             // The raw record's values unescaped: SideSeat's references, and the producer's - which ingest verified
             // or noted - where the body that holds them is not stored but rebuilt from the raw record
-            // (`domain::log_body`). The derived columns stored beside it are read by their values.
+            // (`domain::log_views`). The derived columns stored beside it are read by their values.
             raw_values(&raw_log, fields);
             for derived in [body, attributes, messages] {
                 string_values(&derived, fields);

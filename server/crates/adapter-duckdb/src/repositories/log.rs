@@ -79,7 +79,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
         for log in logs {
             let (search_fields, search_truncated) =
                 sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Logs, &log.search);
-            let (body, body_text) = log.stored_body_views();
+            let (body, body_text, attributes) = log.stored_views();
             let terms = sideseat_query_sql::search::duckdb_log_term_columns(&log.search);
             appender.append_row(params![
                 log.project_id.as_deref().unwrap_or_default(),
@@ -92,7 +92,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 log.severity_text.as_deref(),
                 body.as_deref(),
                 body_text.as_deref(),
-                json_to_opt_string(&log.attributes).as_deref(),
+                attributes.as_deref(),
                 log.dropped_attributes_count,
                 log.flags,
                 log.trace_id.as_deref(),

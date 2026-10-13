@@ -153,7 +153,7 @@ fn extract_logs(
                     frame_key,
                     media,
                     noted_references: Vec::new(),
-                    body_rebuilds_from_raw: false,
+                    views_rebuild_from_raw: false,
                 };
                 log.logical_bytes = crate::accounting::log_logical_bytes(&mut log);
                 result.push(log);

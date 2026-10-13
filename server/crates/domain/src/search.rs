@@ -117,7 +117,7 @@ impl SearchService {
             let document = materialize_document(document, &source);
             let mut record = record;
             if let (SearchRecord::Log(log), SearchSource::Log(source)) = (&mut record, &source) {
-                log.body_text = crate::log_body::resolve_source(source).body_text;
+                log.body_text = crate::log_views::resolve_source(source).body_text;
             }
             let exact = evaluate(&query.expression, &document, query.signal, true);
             indexing_complete &= document.indexed
@@ -363,7 +363,7 @@ fn span_source_texts(source: &SpanSearchSource) -> BTreeMap<SearchField, String>
 }
 
 fn log_source_texts(source: &LogSearchSource) -> BTreeMap<SearchField, String> {
-    let views = crate::log_body::resolve_source(source);
+    let views = crate::log_views::resolve_source(source);
     [
         (
             SearchField::Body,
@@ -379,7 +379,7 @@ fn log_source_texts(source: &LogSearchSource) -> BTreeMap<SearchField, String> {
         ),
         (
             SearchField::Attributes,
-            source.attributes.clone().unwrap_or_default(),
+            views.attributes.unwrap_or_default(),
         ),
     ]
     .into_iter()

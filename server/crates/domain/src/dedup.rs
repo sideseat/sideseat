@@ -189,11 +189,13 @@ impl LogStore for DedupAnalyticsRepository {
         self.inner.insert_logs(logs).await
     }
 
-    /// Each row's body views answered (`log_body`): stored only where the raw record does not rebuild them.
+    /// Each row's body views answered (`log_views`): stored only where the raw record does not rebuild them.
     async fn list_logs(&self, params: &ListLogsParams) -> Result<(Vec<LogRow>, u64), DataError> {
         let (rows, total) = self.inner.list_logs(params).await?;
         Ok((
-            rows.into_iter().map(crate::log_body::resolve_row).collect(),
+            rows.into_iter()
+                .map(crate::log_views::resolve_row)
+                .collect(),
             total,
         ))
     }
@@ -208,7 +210,7 @@ impl LogStore for DedupAnalyticsRepository {
             .inner
             .get_log(project_id, log_digest, ordinal)
             .await?
-            .map(crate::log_body::resolve_row))
+            .map(crate::log_views::resolve_row))
     }
 
     async fn get_log_filter_options(

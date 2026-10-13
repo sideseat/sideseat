@@ -469,17 +469,18 @@ keyed read materialises the trace's rows; and the release's lookup of the record
 `otel_raw_traces` by a `trace_id` it has no index on, which scans that table. Paging owners alone would not bound
 it; an index answering (trace, record) presence does, and that slice measures it.
 
-### Log body views
+### Log views
 
-A log record's `body` and `body_text` are functions of its raw record (`otel_logs.raw_log`) and of the references
-ingest found unbacked in the project's store (`noted_references`), so they are not stored: ingest renders them from
-the raw record exactly as a read will, compares the result with what it derived from the decoded record, and stores
-both columns only where the two differ (`domain::log_body`). On the corpus that is no record; it is a body holding a
-double that OTLP/JSON cannot hold or whose text does not parse back to the same value. A read - the log list, a
-single log, search's candidates and its term backfill - answers the stored columns where there are any and the
-rebuilt ones otherwise, through the domain, so every reader sees the same views whichever way they were reached. On
-ClickHouse, which keeps no reference table, the release reads the raw record's values unescaped, since a verified
-producer reference now lives only there.
+A log record's `body`, `body_text` and `attributes` are functions of its raw record (`otel_logs.raw_log`) and of the
+references ingest found unbacked in the project's store (`noted_references`), so they are not stored: ingest renders
+them from the raw record exactly as a read will, compares the result with what it derived from the decoded record,
+and stores the three columns only where they differ (`domain::log_views`). On the corpus that is no record; it is a
+record holding a double that OTLP/JSON cannot hold or whose text does not parse back to the same value, or an
+attribute holding bytes, which the typed attributes tag and the rebuild does not. A read - the log list, a single log,
+search's candidates and its term backfill - answers the stored columns where there are any and the rebuilt ones
+otherwise, through the domain, so every reader sees the same views whichever way they were reached. On ClickHouse,
+which keeps no reference table, the release reads the raw record's values unescaped, since a verified producer
+reference now lives only there.
 
 ### Log search terms
 
