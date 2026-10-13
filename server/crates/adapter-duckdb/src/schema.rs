@@ -191,8 +191,8 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- makes a winner a condition on the row rather than a window over the table (sideseat_query_sql::winners).
     superseded_at              TIMESTAMP,
     -- The search fields this revision indexed and those whose terms were cut short, one bit per field
-    -- (sideseat_query_sql::search::duckdb_field_bit): a search reads a record's field state here and only its
-    -- terms from span_terms. No bit set means not indexed yet, which the backfill picks up.
+    -- (sideseat_query_sql::search::duckdb_field_bit): a search reads a record's field state here, beside its
+    -- terms. No bit set means not indexed yet, which the backfill picks up.
     search_fields              UTINYINT NOT NULL DEFAULT 0,
     search_truncated           UTINYINT NOT NULL DEFAULT 0,
     -- The conversation thread a request span belongs to, where a producer exports each request as what it added
@@ -210,7 +210,20 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- The key a detached request frame names this span by, where a carrier frames requests
     -- (CarrierRule::frames_requests); '' on every other span, which is almost all of them. Derived at ingest for
     -- the thread key's reason, and read only on the row a span view already holds, so no index.
-    request_frame              VARCHAR NOT NULL DEFAULT ''
+    request_frame              VARCHAR NOT NULL DEFAULT '',
+    -- The revision's exact search terms, one column per field spans search, as ClickHouse keeps them: each term
+    -- between single spaces (search::duckdb_term_column), NULL for a field with none. On the row rather than in a
+    -- term table, which repeated the span's identity and instant on each of about 32 terms: measured at thirty
+    -- passes of the pinned corpus, 237 B a span there against 38 here. Each revision carries its own, and a search
+    -- reads winners, so a correction writes no delete and a deleted row takes its terms with it. The prompt's and
+    -- completion's terms are zstd, which their length needs - the prompt's are left uncompressed by the default,
+    -- 162 B a span against 13 - and the short fields keep the default, which a search scans faster.
+    search_prompt              VARCHAR USING COMPRESSION zstd,
+    search_completion          VARCHAR USING COMPRESSION zstd,
+    search_tool_name           VARCHAR,
+    search_tool_args           VARCHAR,
+    search_error               VARCHAR,
+    search_span_name           VARCHAR
 );
 
 -- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose
@@ -431,7 +444,7 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     -- NULL wherever the raw record rebuilds them, as nearly every record's does.
     noted_references          VARCHAR,
     -- The record's exact search terms, one column per field logs search, as ClickHouse keeps them: each term between
-    -- single spaces (search::duckdb_log_term_column), NULL for a field with none. On the row rather than in a term
+    -- single spaces (search::duckdb_term_column), NULL for a field with none. On the row rather than in a term
     -- table, which repeated the record's identity on every term, about fifty times a record. The body's terms are
     -- zstd, which their text needs; the attributes' keep the default, as small on the corpus and three times faster
     -- for a search to scan.
@@ -495,24 +508,6 @@ CREATE TABLE IF NOT EXISTS otel_raw_pending (
     enqueued_at  TIMESTAMP NOT NULL
 );
 
--- Current-version search terms. Corrections replace these rows in the same transaction as
--- appending the new source revision. An empty term is a field marker, not a searchable token.
--- `ingested_at` is the revision's, the same for every term a write appends, so it costs a run per write and lets
--- the delete a correction makes read only the row groups that revision's terms were appended to: an index on
--- span identity would cost a key per term, about 35 per span.
--- No index on `term`. Search drives from the span rows - its leaves are correlated `EXISTS` subqueries keyed by
--- span identity - so an ART index on `term` alone cannot serve the lookup, and measured on the fixture corpus it
--- answers no faster than no index at all while costing 588 bytes per span and an ART insert for each of a span's
--- 35 term rows. If a corpus large enough to change that appears, the index to add is the one the predicate uses.
-CREATE TABLE IF NOT EXISTS span_terms (
-    project_id VARCHAR NOT NULL,
-    trace_id VARCHAR NOT NULL,
-    span_id VARCHAR NOT NULL,
-    field VARCHAR NOT NULL,
-    term VARCHAR NOT NULL,
-    ingested_at TIMESTAMP NOT NULL
-);
-
 -- The media references of the log rows that hold any, one row per log and reference: what a file release reads
 -- to see which media a trace's logs still name, since otel_logs has no trace lookup. Written and deleted in the
 -- transactions that write and delete the log rows, so it never outlives one. Rows exist only for media-bearing
@@ -555,7 +550,6 @@ mod tests {
             "otel_spans",
             "otel_metrics",
             "otel_logs",
-            "span_terms",
             "log_media_refs",
             "otel_raw",
             "otel_raw_pending",

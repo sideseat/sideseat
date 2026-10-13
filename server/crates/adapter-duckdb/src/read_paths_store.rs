@@ -43,14 +43,6 @@ fn rewrites() -> Vec<(&'static str, Vec<(&'static str, String)>)> {
             ],
         ),
         (
-            "span_terms",
-            vec![
-                ("trace_id", identity("trace_id", 32)),
-                ("span_id", identity("span_id", 16)),
-                ("ingested_at", shifted("ingested_at")),
-            ],
-        ),
-        (
             "otel_raw",
             vec![
                 ("raw_id", identity("raw_id", 64)),

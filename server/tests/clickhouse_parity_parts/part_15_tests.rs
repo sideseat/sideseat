@@ -172,14 +172,6 @@ fn scale_statements(
             ],
         ),
         (
-            "span_terms",
-            vec![
-                ("trace_id", identity("trace_id", 32)),
-                ("span_id", identity("span_id", 16)),
-                ("ingested_at", shifted("ingested_at")),
-            ],
-        ),
-        (
             "otel_raw",
             vec![
                 ("raw_id", identity("raw_id", 64)),
@@ -434,7 +426,10 @@ async fn reads_agree_at_a_million_spans() {
                  GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1",
             ),
             one(
-                "SELECT term FROM span_terms WHERE length(term) > 4 GROUP BY 1 \
+                "SELECT term FROM (SELECT unnest(string_split(trim(terms), ' ')) AS term FROM (\
+                 SELECT unnest([search_prompt, search_completion, search_tool_name, search_tool_args, \
+                 search_error, search_span_name]) AS terms FROM otel_spans \
+                 WHERE superseded_at IS NULL) WHERE terms IS NOT NULL) WHERE length(term) > 4 GROUP BY 1 \
                  ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50",
             ),
             conn.query_row(

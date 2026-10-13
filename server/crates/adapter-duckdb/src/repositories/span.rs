@@ -37,8 +37,7 @@ pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), D
         let stored = super::keyed::span_revisions(conn, &identities, since_us)?;
         let supersession = super::supersession::plan(spans, &stored);
         super::keyed::supersede_rows(conn, &supersession.updates)?;
-        insert_spans(conn, target.table(), spans, &supersession.new)?;
-        super::search::replace_span_terms(conn, spans, &super::keyed::winner_instants(&stored))
+        insert_spans(conn, target.table(), spans, &supersession.new)
     })
 }
 
@@ -57,6 +56,8 @@ fn insert_spans(
     for (span, superseded_us) in spans.iter().zip(superseded_us) {
         let (search_fields, search_truncated) =
             sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Spans, &span.search);
+        let terms =
+            sideseat_query_sql::search::duckdb_term_columns(SearchSignal::Spans, &span.search);
         let tags = SqlVec(&span.tags);
         let stop_sequences = SqlVec(&span.gen_ai_stop_sequences);
         let finish_reasons = SqlVec(&span.gen_ai_finish_reasons);
@@ -165,6 +166,13 @@ fn insert_spans(
             (!span.request_thread.is_empty()).then_some(span.request_thread.as_str()),
             span.span_marks,
             span.request_frame.as_str(),
+            // The search terms, one column per field, in the schema's order (`duckdb_term_columns`).
+            terms[0].as_deref(),
+            terms[1].as_deref(),
+            terms[2].as_deref(),
+            terms[3].as_deref(),
+            terms[4].as_deref(),
+            terms[5].as_deref(),
         ])?;
     }
 
@@ -214,14 +222,23 @@ mod tests {
         }
     }
 
+    /// The prompt terms a search of the span reads: its winner's.
     fn stored_terms(conn: &duckdb::Connection) -> Vec<String> {
-        let mut stmt = conn
-            .prepare("SELECT term FROM span_terms WHERE trace_id = 'trace' AND span_id = 'span' ORDER BY term")
-            .expect("prepare");
-        stmt.query_map([], |row| row.get(0))
-            .expect("query")
-            .collect::<Result<_, _>>()
-            .expect("rows")
+        let column: Option<String> = conn
+            .query_row(
+                "SELECT search_prompt FROM otel_spans \
+                 WHERE trace_id = 'trace' AND span_id = 'span' AND superseded_at IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .expect("winner");
+        let mut terms: Vec<String> = column
+            .unwrap_or_default()
+            .split_whitespace()
+            .map(str::to_string)
+            .collect();
+        terms.sort();
+        terms
     }
 
     /// A span with no thread stores NULL as its thread key, never '': the thread index holds no NULL keys, so it
@@ -255,10 +272,9 @@ mod tests {
         );
     }
 
-    /// A correction and the export it corrects in one batch leave the correction's terms, as two writes would.
-    ///
-    /// The terms are deleted for the whole batch and then appended; appending every revision would leave both
-    /// vocabularies, so a search would match words the stored span no longer contains.
+    /// A correction and the export it corrects in one batch leave the correction's terms where a search reads
+    /// them, as two writes would: a search that matched the corrected revision's words would match what the
+    /// stored span no longer contains.
     #[tokio::test]
     async fn two_revisions_in_one_batch_leave_the_last_revisions_terms() {
         let (_temp_dir, analytics) = create_test_service().await;
@@ -277,33 +293,6 @@ mod tests {
             stored_terms(&other),
             "batched and sequential writes must agree"
         );
-    }
-
-    /// Term rows are appended in the batch's order. Appended in a hash map's order, which differs from one
-    /// process to the next, the same batch stored different bytes each time it was written.
-    #[tokio::test]
-    async fn a_batchs_terms_are_appended_in_its_order() {
-        let (_temp_dir, analytics) = create_test_service().await;
-        let spans: Vec<NormalizedSpan> = (0..40)
-            .map(|index| NormalizedSpan {
-                span_id: format!("span-{index:02}"),
-                ..revision(&["term"])
-            })
-            .collect();
-        analytics
-            .write(|conn| insert_batch(conn, &spans))
-            .expect("batch");
-        let conn = analytics.conn();
-        let mut statement = conn
-            .prepare("SELECT span_id FROM span_terms ORDER BY rowid")
-            .expect("prepare");
-        let appended: Vec<String> = statement
-            .query_map([], |row| row.get(0))
-            .expect("query")
-            .collect::<Result<_, _>>()
-            .expect("rows");
-        let expected: Vec<String> = spans.iter().map(|span| span.span_id.clone()).collect();
-        assert_eq!(appended, expected);
     }
 
     #[tokio::test]

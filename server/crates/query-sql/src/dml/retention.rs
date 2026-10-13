@@ -170,20 +170,6 @@ pub fn retention_selected_traces(limit: i64) -> DmlStatement {
     )
 }
 
-/// Delete the search terms of every selected logical span identity, before its revisions.
-///
-/// A term row that outlives its span is matched against whatever is stored under that identity next: a span
-/// reusing an expired identity was excluded by a `NOT` term its predecessor held, before exact verification could
-/// see it, and every later correction deleted only its own revision's terms, so the stale ones stayed.
-pub fn retention_delete_selected_span_terms() -> DmlStatement {
-    retention_statement(
-        "DELETE FROM span_terms \
-         WHERE (project_id, trace_id, span_id) \
-               IN (SELECT project_id, trace_id, span_id FROM _retention_batch)",
-        Vec::new(),
-    )
-}
-
 /// Delete every physical revision of every selected logical span identity.
 pub fn retention_delete_selected_spans() -> DmlStatement {
     retention_statement(

@@ -104,7 +104,8 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
             let (search_fields, search_truncated) =
                 sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Logs, &log.search);
             let (body, body_text, attributes) = log.stored_views();
-            let terms = sideseat_query_sql::search::duckdb_log_term_columns(&log.search);
+            let terms =
+                sideseat_query_sql::search::duckdb_term_columns(SearchSignal::Logs, &log.search);
             appender.append_row(params![
                 log.project_id.as_deref().unwrap_or_default(),
                 log.log_digest.as_str(),

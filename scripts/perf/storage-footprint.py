@@ -80,7 +80,6 @@ RAW_TABLES = {"otel_raw": "traces"}
 RAW_LAYERS = tuple(f"analytics:{table}" for table in RAW_TABLES)
 SPAN_TABLES = {
     "otel_spans": "traces",
-    "span_terms": "traces",
     "span_partition_anomalies": "traces",
     # Derived from the records: which hold spans of which trace, so a deletion can find them.
     "otel_raw_traces": "traces",

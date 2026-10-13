@@ -1,158 +1,15 @@
 use duckdb::{Connection, params};
 use sideseat_ports::types::{
-    LogSearchSource, NormalizedSpan, SearchBackfillDocument, SearchBackfillSource, SearchCandidate,
-    SearchCursor, SearchDocument, SearchLogRecord, SearchPage, SearchQuery, SearchRecord,
-    SearchRecordId, SearchSignal, SearchSource, SearchSourceKey, SearchSpanRecord,
-    SpanSearchSource,
+    LogSearchSource, SearchBackfillDocument, SearchBackfillSource, SearchCandidate, SearchCursor,
+    SearchDocument, SearchLogRecord, SearchPage, SearchQuery, SearchRecord, SearchRecordId,
+    SearchSignal, SearchSource, SearchSourceKey, SearchSpanRecord, SpanSearchSource,
 };
 use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
 use std::collections::HashMap;
 
-use sideseat_core::utils::time::micros_to_datetime;
-
 use super::keyed::{self, LogIdentity, SpanIdentity};
 use crate::error::DuckdbError;
-use crate::sql_types::SqlTimestamp;
-
-/// Identities per batched delete. A row-value `IN` list binds three values each, and a statement with tens of
-/// thousands of parameters costs more to plan than it saves.
-const DELETE_CHUNK: usize = 500;
-
-/// Replace the term rows of these spans: one delete for the batch, then the rows appended.
-///
-/// A span carries about 35 term rows, so the row-at-a-time `INSERT` this used to do was the write path's largest
-/// cost by a wide margin - measured at 3.3 ms per span against 129 microseconds for the span row itself, which
-/// the appender already wrote. The rows go through the same appender now, and the deletes that make a
-/// redelivery idempotent are one statement for the whole batch.
-///
-/// A batch can hold several revisions of one span - a correction and the export it corrects. Writing them one
-/// at a time left the last revision's terms, so only the last revision of each identity is written here: the
-/// batched delete would otherwise leave every revision's vocabulary behind.
-///
-/// A span's terms are its **winner's** - the revision a read answers with, the latest by `ingested_at` - so a
-/// search matches what the span shows. `stored` is the winner before this write, by its instant
-/// (`keyed::span_revisions`, read before the new rows were appended), and that instant is exactly where the terms
-/// are: one value per identity whatever the span's history, so a correction deletes one revision's terms and
-/// reads only the row groups they went to. A revision older than the stored winner - a write whose instant was
-/// set earlier, by another instance's clock or a redelivery - does not win, so it leaves the winner's terms
-/// alone and writes none of its own. A new span, almost every span, deletes nothing: a delete for every span of
-/// every batch read the whole term table, about 35 rows per span ever stored.
-pub fn replace_span_terms(
-    conn: &Connection,
-    spans: &[NormalizedSpan],
-    stored: &HashMap<SpanIdentity, i64>,
-) -> Result<(), DuckdbError> {
-    if spans.is_empty() {
-        return Ok(());
-    }
-    let instant = super::supersession::instant_of;
-    let identity_of = |span: &NormalizedSpan| -> SpanIdentity {
-        (
-            span.project_id.clone().unwrap_or_default(),
-            span.trace_id.clone(),
-            span.span_id.clone(),
-        )
-    };
-    // The batch's own winner per identity: the latest instant, and of equal instants the later span, which is
-    // what the rows' `rowid` order makes the winner on read.
-    let mut winners: HashMap<SpanIdentity, usize> = HashMap::new();
-    for (index, span) in spans.iter().enumerate() {
-        match winners.get(&identity_of(span)) {
-            Some(&previous) if instant(&spans[previous]) > instant(span) => {}
-            _ => {
-                winners.insert(identity_of(span), index);
-            }
-        }
-    }
-    // In batch order, not the map's: a hash map's order differs from one process to the next, and the term
-    // table's bytes must not.
-    let mut superseded: Vec<(SpanIdentity, i64)> = Vec::new();
-    let mut writing: Vec<&NormalizedSpan> = Vec::new();
-    for (index, span) in spans.iter().enumerate() {
-        let identity = identity_of(span);
-        if winners.get(&identity) != Some(&index) {
-            continue;
-        }
-        match stored.get(&identity) {
-            Some(&stored_us) if instant(span) < stored_us => {}
-            Some(&stored_us) => {
-                superseded.push((identity, stored_us));
-                writing.push(span);
-            }
-            None => writing.push(span),
-        }
-    }
-    for chunk in superseded.chunks(DELETE_CHUNK) {
-        let identities: Vec<SpanIdentity> =
-            chunk.iter().map(|(identity, _)| identity.clone()).collect();
-        let revisions: Vec<i64> = chunk.iter().map(|(_, stored_us)| *stored_us).collect();
-        if let Some(query) =
-            search_sql::duckdb_span_term_delete_of_revisions(&identities, &revisions)
-        {
-            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
-        }
-    }
-    let spans = writing;
-    let mut appender = conn.appender("span_terms")?;
-    for span in &spans {
-        let project_id = span.project_id.as_deref().unwrap_or_default();
-        let ingested_at = SqlTimestamp(span.ingested_at.unwrap_or(chrono::DateTime::UNIX_EPOCH));
-        // Only terms: which fields the span indexed, an empty one too, and which it truncated, its row says
-        // (`search_fields`, `search_truncated`).
-        for field in &span.search.fields {
-            for term in &field.terms {
-                appender.append_row(params![
-                    project_id,
-                    span.trace_id.as_str(),
-                    span.span_id.as_str(),
-                    field.field.as_str(),
-                    term.as_str(),
-                    ingested_at,
-                ])?;
-            }
-        }
-    }
-    appender.flush()?;
-    Ok(())
-}
-
-pub fn delete_for_traces(
-    conn: &Connection,
-    project_id: &str,
-    trace_ids: &[String],
-) -> Result<(), DuckdbError> {
-    let mut span_terms = conn.prepare(search_sql::DUCKDB_SPAN_TERMS_DELETE_TRACE_SQL)?;
-    for trace_id in trace_ids {
-        span_terms.execute(params![project_id, trace_id])?;
-    }
-    Ok(())
-}
-
-pub fn delete_for_spans(
-    conn: &Connection,
-    project_id: &str,
-    spans: &[(String, String)],
-) -> Result<(), DuckdbError> {
-    let identities: Vec<(String, String, String)> = spans
-        .iter()
-        .map(|(trace_id, span_id)| (project_id.to_string(), trace_id.clone(), span_id.clone()))
-        .collect();
-    for chunk in identities.chunks(DELETE_CHUNK) {
-        if let Some(query) = search_sql::duckdb_span_term_delete(chunk) {
-            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
-        }
-    }
-    Ok(())
-}
-
-pub fn delete_for_project(conn: &Connection, project_id: &str) -> Result<(), DuckdbError> {
-    conn.execute(
-        search_sql::DUCKDB_SPAN_TERMS_DELETE_PROJECT_SQL,
-        params![project_id],
-    )?;
-    Ok(())
-}
 
 pub fn search(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
     match request.signal {
@@ -249,7 +106,8 @@ fn write_span_backfill(
         if !still_current_and_unindexed {
             continue;
         }
-        // The terms carry the winner's instant, as a write's do, so a later correction finds them.
+        // The terms go on the winner's row, with the bits that say which fields it indexed: a search reads them
+        // there, and a later revision carries its own.
         let identity: SpanIdentity = (project_id.to_string(), trace_id.clone(), span_id.clone());
         let revisions = keyed::span_revisions(conn, std::slice::from_ref(&identity), i64::MAX)?;
         let Some(winner) = revisions
@@ -263,32 +121,22 @@ fn write_span_backfill(
         else {
             continue;
         };
-        if let Some(query) = search_sql::duckdb_span_term_delete_of_revisions(
-            std::slice::from_ref(&identity),
-            &[winner.ingested_us],
-        ) {
-            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
-        }
-        let ingested_at = SqlTimestamp(micros_to_datetime(winner.ingested_us));
-        let mut appender = conn.appender("span_terms")?;
-        write_document_terms(&document.document, |field, term| {
-            appender.append_row(params![
-                project_id,
-                trace_id,
-                span_id,
-                field,
-                term,
-                ingested_at
-            ])?;
-            Ok(())
-        })?;
-        appender.flush()?;
-        drop(appender);
-        set_search_bits(
-            conn,
-            SearchSignal::Spans,
-            winner.rowid,
-            search_sql::duckdb_document_bits(SearchSignal::Spans, &document.document),
+        let terms = search_sql::duckdb_term_columns(SearchSignal::Spans, &document.document);
+        let (fields, truncated) =
+            search_sql::duckdb_document_bits(SearchSignal::Spans, &document.document);
+        conn.execute(
+            search_sql::duckdb_search_bits_update(SearchSignal::Spans),
+            params![
+                terms[0].as_deref(),
+                terms[1].as_deref(),
+                terms[2].as_deref(),
+                terms[3].as_deref(),
+                terms[4].as_deref(),
+                terms[5].as_deref(),
+                fields,
+                truncated,
+                winner.rowid
+            ],
         )?;
     }
     Ok(())
@@ -315,7 +163,7 @@ fn write_log_backfill(
         else {
             continue;
         };
-        let terms = search_sql::duckdb_log_term_columns(&document.document);
+        let terms = search_sql::duckdb_term_columns(SearchSignal::Logs, &document.document);
         let (fields, truncated) =
             search_sql::duckdb_document_bits(SearchSignal::Logs, &document.document);
         conn.execute(
@@ -331,34 +179,6 @@ fn write_log_backfill(
             ],
         )?;
     }
-    Ok(())
-}
-
-/// Every term of a document, by field. Which fields it indexed - an empty one too - and which it truncated, the
-/// record's own row says (`set_search_bits`, and the writers' `search_fields`).
-fn write_document_terms(
-    document: &SearchDocument,
-    mut write: impl FnMut(&str, &str) -> Result<(), DuckdbError>,
-) -> Result<(), DuckdbError> {
-    for field in &document.fields {
-        for term in &field.terms {
-            write(field.field.as_str(), term)?;
-        }
-    }
-    Ok(())
-}
-
-/// Record on a backfilled row which fields it now indexes and which it truncated.
-fn set_search_bits(
-    conn: &Connection,
-    signal: SearchSignal,
-    rowid: i64,
-    (fields, truncated): (u8, u8),
-) -> Result<(), DuckdbError> {
-    conn.execute(
-        search_sql::duckdb_search_bits_update(signal),
-        params![fields, truncated, rowid],
-    )?;
     Ok(())
 }
 

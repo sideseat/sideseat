@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::*;
 use crate::DuckdbService;
 use sideseat_core::storage::AppStorage;
-use sideseat_ports::types::{ProjectId, SearchExpr, SearchField, SearchFieldTerms};
+use sideseat_ports::types::{NormalizedSpan, ProjectId, SearchExpr, SearchField, SearchFieldTerms};
 
 async fn service() -> (tempfile::TempDir, DuckdbService) {
     let temp = tempfile::TempDir::new().expect("temp dir");
@@ -72,8 +72,8 @@ fn candidates(conn: &Connection, term: &str) -> Vec<(String, bool)> {
 }
 
 /// A span is a candidate when the term is in the field (a match), when the field's terms were cut short or the
-/// span is not indexed yet (unknown), and not when the field is indexed whole without it - the field's state read
-/// from the span row, the term from the term table. The backfill indexes a span by setting its row's state too.
+/// span is not indexed yet (unknown), and not when the field is indexed whole without it - the field's state and
+/// its terms both read from the span row. The backfill indexes a span by setting its row's state and terms too.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn field_state_comes_from_the_row_and_the_backfill_sets_it() {
     let (_temp, service) = service().await;
@@ -99,7 +99,7 @@ async fn field_state_comes_from_the_row_and_the_backfill_sets_it() {
         );
         let empty: u64 = conn
             .query_row(
-                "SELECT count(*) FROM span_terms WHERE term = ''",
+                "SELECT count(*) FROM otel_spans WHERE contains(search_prompt, '  ')",
                 [],
                 |row| row.get(0),
             )
@@ -146,10 +146,10 @@ async fn field_state_comes_from_the_row_and_the_backfill_sets_it() {
     );
 }
 
-/// A ranged search answers from its range alone, its term matches read for the range's candidates: the spans
-/// that hold the term inside it, and none outside it however many do.
+/// A ranged search answers from its range alone: the spans that hold the term inside it, and none outside it
+/// however many do.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_ranged_search_reads_its_term_matches_for_the_range() {
+async fn a_ranged_search_answers_from_its_range_alone() {
     let (_temp, service) = service().await;
     let spans: Vec<NormalizedSpan> = (0..40)
         .map(|second| span(&format!("s{second:02}"), second, prompt("common", false)))

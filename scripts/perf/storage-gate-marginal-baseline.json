@@ -7,9 +7,9 @@
  "signals": {
   "traces": {
    "items": 27314,
-   "stored_excluding_media": 18509520,
-   "per_item": 677.66,
-   "fixed_blocks": 11.34
+   "stored_excluding_media": 13004688,
+   "per_item": 476.12,
+   "fixed_blocks": 12.84
   },
   "logs": {
    "items": 5342,
@@ -46,15 +46,11 @@
    "indexes": 2.5
   },
   "otel_spans": {
-   "columns": -1.5,
-   "indexes": 6.5
+   "columns": 3.5,
+   "indexes": 5.0
   },
   "schema_version": {
    "columns": 1.0,
-   "indexes": 0.0
-  },
-  "span_terms": {
-   "columns": 2.0,
    "indexes": 0.0
   }
  },

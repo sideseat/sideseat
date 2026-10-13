@@ -333,9 +333,10 @@ fn search_term_write_amplification_preserves_the_recall_floor() {
         let (term_rows, logical_term_bytes): (i64, i64) = {
             let conn = service.conn();
             conn.query_row(
-                "SELECT COUNT(*), COALESCE(SUM(\
-                 LENGTH(project_id) + LENGTH(trace_id) + LENGTH(span_id) + \
-                 LENGTH(field) + LENGTH(term) + 1), 0) FROM span_terms",
+                "SELECT COALESCE(SUM(len(string_split(trim(terms), ' '))), 0), \
+                 COALESCE(SUM(LENGTH(terms)), 0) FROM (SELECT unnest([search_prompt, \
+                 search_completion, search_tool_name, search_tool_args, search_error, \
+                 search_span_name]) AS terms FROM otel_spans) WHERE terms IS NOT NULL",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -369,7 +370,7 @@ fn search_term_write_amplification_preserves_the_recall_floor() {
         "the measurement wrote no physical term index"
     );
     eprintln!(
-        "SEARCH INDEX footprint: {} spans, {} term rows ({:.1}/span), {:.0} logical term \
+        "SEARCH INDEX footprint: {} spans, {} terms ({:.1}/span), {:.0} logical term \
          bytes/span, {:.0} physical bytes/span; ingest {:?} baseline -> {:?} indexed; recall \
          {:.3} (floor {:.3})",
         532,

@@ -236,15 +236,17 @@ async fn deleting_a_session_takes_its_spans_search_terms() {
         }],
     )
     .expect("insert");
-    conn.execute_batch(
-        "INSERT INTO span_terms VALUES ('project', 'trace', 'span', 'prompt', 'alpha', now())",
-    )
-    .expect("terms");
+    conn.execute_batch("UPDATE otel_spans SET search_prompt = ' alpha ' WHERE span_id = 'span'")
+        .expect("terms");
 
     let deleted = delete_sessions(&conn, "project", &["session-1".to_string()]).expect("delete");
     assert_eq!(deleted, vec!["trace".to_string()]);
     let terms: i64 = conn
-        .query_row("SELECT COUNT(*) FROM span_terms", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM otel_spans WHERE search_prompt IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
         .expect("count");
     assert_eq!(terms, 0, "the session's span terms outlived it");
 }

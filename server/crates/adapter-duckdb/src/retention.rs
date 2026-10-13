@@ -674,12 +674,8 @@ fn delete_spans_with_query(
 
         // The records those rows name go to reconciliation in the same transaction as the delete.
         execute_statement(conn, &dml::raw::enqueue_raw_for_retention_batch())?;
-        // Its search terms first, while the batch names it; then every revision of each selected identity
-        // (events, links and messages are embedded in the span row).
-        execute_statement(
-            conn,
-            &dml::retention::retention_delete_selected_span_terms(),
-        )?;
+        // Every revision of each selected identity, its search terms with it (events, links, messages and terms
+        // are on the span row).
         let rows = execute_statement(conn, &dml::retention::retention_delete_selected_spans())?;
 
         Ok(BatchOutcome {

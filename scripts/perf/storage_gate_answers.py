@@ -87,7 +87,11 @@ def requests_for(store: Path) -> list[str]:
         if datapoint:
             requests.append(f"{base}/metrics/{datapoint[0]}")
         term = first(
-            "SELECT term FROM span_terms WHERE project_id = ? AND regexp_matches(term, '^[a-z][a-z0-9]*$') AND term NOT IN ('and', 'or', 'not') "
+            "SELECT term FROM (SELECT unnest(string_split(trim(terms), ' ')) AS term FROM ("
+            "SELECT unnest([search_prompt, search_completion, search_tool_name, search_tool_args, "
+            "search_error, search_span_name]) AS terms FROM otel_spans "
+            "WHERE project_id = ? AND superseded_at IS NULL) WHERE terms IS NOT NULL) "
+            "WHERE regexp_matches(term, '^[a-z][a-z0-9]*$') AND term NOT IN ('and', 'or', 'not') "
             "GROUP BY term ORDER BY count(*) DESC, term LIMIT 1",
             project,
         )

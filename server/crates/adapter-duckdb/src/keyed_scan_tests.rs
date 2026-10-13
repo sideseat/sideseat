@@ -323,69 +323,6 @@ async fn ingest_lookups_read_the_rows_they_name() {
     }
 }
 
-/// A correction deletes its earlier revision's terms from the row groups they were appended to; a new span
-/// deletes nothing.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_correction_deletes_only_where_its_revision_wrote() {
-    let s = store().await;
-    const TERMS: i64 = 500_000;
-    const PER_WRITE: i64 = 5_000;
-    let start_us = 1_700_000_000_000_000_i64;
-    // Terms of a hundred earlier writes, each write's terms appended together under its instant.
-    s.service
-        .write(|conn| {
-            conn.execute_batch(&format!(
-                "INSERT INTO span_terms SELECT 'p', lpad(to_hex(i // 35), 32, '0'), lpad(to_hex(i), 16, '0'), \
-                 'prompt', 'term' || (i % 997)::VARCHAR, \
-                 make_timestamp({start_us} + (i // {PER_WRITE}) * 1000000) FROM range({TERMS}) r(i) ORDER BY i"
-            ))
-            .map_err(Into::into)
-        })
-        .expect("terms");
-    let revision_us = start_us + 60 * 1_000_000;
-    let correction = NormalizedSpan {
-        project_id: Some(PROJECT.into()),
-        trace_id: format!("{:0>32}", format!("{:x}", 60 * PER_WRITE / 35)),
-        span_id: format!("{:0>16}", format!("{:x}", 60 * PER_WRITE)),
-        ingested_at: Some(Utc::now()),
-        ..Default::default()
-    };
-    let identity: keyed::SpanIdentity = (
-        PROJECT.to_string(),
-        correction.trace_id.clone(),
-        correction.span_id.clone(),
-    );
-    s.service
-        .write(|conn| {
-            super::repositories::search::replace_span_terms(
-                conn,
-                std::slice::from_ref(&correction),
-                &std::collections::HashMap::from([(identity, revision_us)]),
-            )
-        })
-        .expect("replace");
-    let scanned = rows_scanned(&s.profile);
-    assert!(
-        scanned <= 2 * 122_880,
-        "the correction's delete scanned {scanned} of {TERMS} term rows"
-    );
-
-    std::fs::remove_file(&s.profile).expect("clear the profile");
-    s.service
-        .write(|conn| {
-            super::repositories::search::replace_span_terms(
-                conn,
-                std::slice::from_ref(&correction),
-                &std::collections::HashMap::new(),
-            )
-        })
-        .expect("replace");
-    assert!(
-        !s.profile.exists(),
-        "a span with no stored revision runs no delete"
-    );
-}
-
 /// Keys that each find many rows - a span corrected five times, whole traces, one span id a client reuses in
 /// every project - stay on the index past DuckDB's default limit, so the cost follows the rows asked for.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -500,15 +437,7 @@ async fn a_corrected_span_keeps_only_its_last_revisions_terms() {
             .await
             .expect("revision");
     }
-    let conn = s.service.conn();
-    let mut statement = conn
-        .prepare("SELECT term FROM span_terms WHERE trace_id = ? AND span_id = ? ORDER BY term")
-        .expect("prepare");
-    let terms: Vec<String> = statement
-        .query_map([trace(11), span(11, 3)], |row| row.get(0))
-        .expect("terms")
-        .collect::<Result<_, _>>()
-        .expect("terms");
+    let terms = winner_prompt_terms(&s.service.conn(), &trace(11), &span(11, 3));
     assert_eq!(terms, vec!["third".to_string()]);
 }
 
@@ -576,17 +505,7 @@ async fn a_span_keeps_its_winners_terms_whatever_order_revisions_arrive_in() {
         },
         ..Default::default()
     };
-    let terms = || -> Vec<String> {
-        let conn = s.service.conn();
-        let mut statement = conn
-            .prepare("SELECT term FROM span_terms WHERE trace_id = ? AND span_id = ? ORDER BY term")
-            .expect("prepare");
-        statement
-            .query_map([trace(12), span(12, 4)], |row| row.get(0))
-            .expect("terms")
-            .collect::<Result<_, _>>()
-            .expect("terms")
-    };
+    let terms = || winner_prompt_terms(&s.service.conn(), &trace(12), &span(12, 4));
     s.repo
         .insert_spans(vec![revision("winner", START_US + 2_000_000)])
         .await
@@ -687,3 +606,22 @@ async fn a_composed_request_reads_its_thread_and_its_calls_through_the_index() {
 
 #[path = "keyed_scan_frames_tests.rs"]
 mod frames;
+
+/// The prompt terms a search of a span reads: its winning revision's, from the row.
+fn winner_prompt_terms(conn: &duckdb::Connection, trace_id: &str, span_id: &str) -> Vec<String> {
+    let column: Option<String> = conn
+        .query_row(
+            "SELECT search_prompt FROM otel_spans \
+             WHERE trace_id = ? AND span_id = ? AND superseded_at IS NULL",
+            [trace_id, span_id],
+            |row| row.get(0),
+        )
+        .expect("the winner");
+    let mut terms: Vec<String> = column
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    terms.sort();
+    terms
+}

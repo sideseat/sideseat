@@ -147,7 +147,11 @@ fn samples(service: &DuckdbService) -> Samples {
     let term = one(
         &conn,
         &format!(
-            "SELECT term FROM span_terms WHERE project_id = '{p}' AND length(term) > 4 GROUP BY 1 \
+            "SELECT term FROM (SELECT unnest(string_split(trim(terms), ' ')) AS term FROM (\
+             SELECT unnest([search_prompt, search_completion, search_tool_name, search_tool_args, \
+             search_error, search_span_name]) AS terms FROM otel_spans \
+             WHERE project_id = '{p}' AND superseded_at IS NULL) \
+             WHERE terms IS NOT NULL) WHERE length(term) > 4 GROUP BY 1 \
              ORDER BY count(*) DESC, 1 LIMIT 1 OFFSET 50"
         ),
     );

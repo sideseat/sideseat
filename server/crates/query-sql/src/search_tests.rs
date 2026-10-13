@@ -57,85 +57,52 @@ fn document_bits_name_the_indexed_and_the_truncated_fields() {
     assert_eq!(duckdb_field_bit(SearchSignal::Logs, SearchField::Prompt), 0);
 }
 
-/// DuckDB reads a search's term rows for its candidates alone - the winners its time range and cursor admit -
-/// so a narrow range does not aggregate every record of the project that holds a term. The values bind in the
-/// order the statement names them.
+/// DuckDB reads a record's terms from its own row, a field's column holding each term between spaces, so a term
+/// matches only whole: no term table is joined, and the term binds spaced - for a span as for a log.
 #[test]
-fn term_matches_are_read_for_the_candidates_only() {
-    let term = SearchExpr::Term {
-        field: Some(SearchField::Prompt),
-        term: "common".to_string(),
-    };
-    // Spans only: a log's terms are on its row (`a_log_s_terms_are_read_from_its_own_row`).
-    for signal in [SearchSignal::Spans] {
-        let query = request(term.clone(), signal);
-        let scored = candidates(&query, Backend::Duckdb).query;
+fn a_record_s_terms_are_read_from_its_own_row() {
+    for (signal, field, column) in [
+        (SearchSignal::Logs, SearchField::Body, "search_body"),
+        (SearchSignal::Spans, SearchField::Prompt, "search_prompt"),
+    ] {
+        let query = request(
+            SearchExpr::Term {
+                field: Some(field),
+                term: "common".to_string(),
+            },
+            signal,
+        );
         let through = SearchCursor {
             timestamp_us: 42,
             tie_breaker: "trace\0span".to_string(),
             ordinal: 0,
             started_at_us: 30,
         };
-        let missed = arrivals(&query, &through, Backend::Duckdb);
-        for statement in [&scored, &missed] {
-            let sql = statement.sql();
-            let scope = sql
-                .find(", candidates AS (SELECT * FROM winners r WHERE ")
-                .expect("candidates");
-            let hits = sql.find(", hits AS (").expect("hits");
-            assert!(scope < hits, "{sql}");
-            assert!(sql[hits..].contains("FROM candidates)"), "{sql}");
-            assert!(sql.contains("FROM candidates r LEFT JOIN hits h"), "{sql}");
-            assert_eq!(sql.matches('?').count(), statement.params().len(), "{sql}");
-            // The term binds after the range and cursor the candidates read, and before nothing it precedes.
-            let at = statement
-                .params()
-                .iter()
-                .position(|value| matches!(value, QueryValue::String(text) if text == "common"))
-                .expect("the term is bound");
-            let range = statement
-                .params()
-                .iter()
-                .position(|value| matches!(value, QueryValue::Int64(1)))
-                .expect("the range is bound");
-            assert!(range < at, "{sql}");
+        for sql in [
+            candidates(&query, Backend::Duckdb).query,
+            arrivals(&query, &through, Backend::Duckdb),
+        ] {
+            assert!(!sql.sql().contains("hits AS"), "{}", sql.sql());
+            assert!(!sql.sql().contains("_terms"), "{}", sql.sql());
+            assert!(
+                sql.sql()
+                    .contains(&format!("contains(coalesce(r.{column}, ''), ?)")),
+                "{}",
+                sql.sql()
+            );
+            assert!(
+                sql.params()
+                    .iter()
+                    .any(|value| matches!(value, QueryValue::String(text) if text == " common "))
+            );
+            assert_eq!(sql.sql().matches('?').count(), sql.params().len());
         }
-        let clickhouse = candidates(&query, Backend::Clickhouse).query;
-        assert!(!clickhouse.sql().contains("candidates AS"));
     }
-}
-
-/// DuckDB reads a log's terms from its own row, a field's column holding each term between spaces, so a term
-/// matches only whole: no term table is joined, and the term binds spaced.
-#[test]
-fn a_log_s_terms_are_read_from_its_own_row() {
-    let query = request(
-        SearchExpr::Term {
-            field: Some(SearchField::Body),
-            term: "common".to_string(),
-        },
-        SearchSignal::Logs,
-    );
-    let sql = candidates(&query, Backend::Duckdb).query;
-    assert!(!sql.sql().contains("hits AS"), "{}", sql.sql());
-    assert!(!sql.sql().contains("_terms"), "{}", sql.sql());
-    assert!(
-        sql.sql()
-            .contains("contains(coalesce(r.search_body, ''), ?)"),
-        "{}",
-        sql.sql()
-    );
-    assert!(
-        sql.params()
-            .iter()
-            .any(|value| matches!(value, QueryValue::String(text) if text == " common "))
-    );
-    assert_eq!(sql.sql().matches('?').count(), sql.params().len());
     assert_eq!(
-        crate::search::duckdb_log_term_column(&["ab".to_string(), "abc".to_string()]).as_deref(),
+        crate::search::duckdb_term_column(&["ab".to_string(), "abc".to_string()]).as_deref(),
         Some(" ab abc ")
     );
-    assert_eq!(crate::search::duckdb_log_term_column(&[]), None);
+    assert_eq!(crate::search::duckdb_term_column(&[]), None);
 }
 
 #[test]
@@ -154,7 +121,7 @@ fn negated_phrase_stays_a_candidate_on_both_backends() {
 }
 
 #[test]
-fn duckdb_uses_term_relations_and_clickhouse_uses_native_token_functions() {
+fn duckdb_reads_terms_on_the_row_and_clickhouse_uses_native_token_functions() {
     let expression = SearchExpr::And(
         Box::new(SearchExpr::Term {
             field: Some(SearchField::Prompt),
@@ -169,7 +136,17 @@ fn duckdb_uses_term_relations_and_clickhouse_uses_native_token_functions() {
         &request(expression.clone(), SearchSignal::Spans),
         Backend::Duckdb,
     );
-    assert!(duckdb.query.sql().contains("FROM span_terms"));
+    let sql = duckdb.query.sql();
+    assert!(!sql.contains("span_terms"), "{sql}");
+    assert!(
+        sql.contains("contains(coalesce(r.search_prompt, ''), ?)"),
+        "{sql}"
+    );
+    assert!(
+        sql.contains("contains(coalesce(r.search_completion, ''), ?)"),
+        "{sql}"
+    );
+    assert_eq!(sql.matches('?').count(), duckdb.query.params().len());
     assert!(duckdb.query.sql().contains("least("));
     let clickhouse = candidates(
         &request(expression, SearchSignal::Spans),

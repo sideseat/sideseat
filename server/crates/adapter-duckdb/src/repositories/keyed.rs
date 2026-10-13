@@ -1,6 +1,6 @@
 //! Stored rows looked up through an identity index, and the deletes a write makes by their row ids.
 //!
-//! A write replaces what it supersedes: a correction's span terms, a redelivered log or datapoint. DuckDB
+//! A write replaces what it supersedes: a redelivered log or datapoint, or marks a corrected span's revision. DuckDB
 //! deletes through the same scans it reads with, so a delete filtered by identity read every row of the table;
 //! these find the rows through the identity's index instead ([`sideseat_query_sql::keyed`]) and delete them by
 //! row id. Rows are found and deleted inside the writer's transaction on the one connection, so a row id read is
@@ -88,23 +88,6 @@ pub(crate) fn span_revisions(
         }
     }
     Ok(revisions)
-}
-
-/// The ingest instant of each identity's current winner, the one revision with search terms: the latest, so the
-/// greatest instant whatever order the revisions were stored in.
-pub(crate) fn winner_instants(
-    revisions: &HashMap<SpanIdentity, Vec<StoredRevision>>,
-) -> HashMap<SpanIdentity, i64> {
-    revisions
-        .iter()
-        .filter_map(|(identity, stored)| {
-            stored
-                .iter()
-                .map(|revision| revision.ingested_us)
-                .max()
-                .map(|instant| (identity.clone(), instant))
-        })
-        .collect()
 }
 
 /// Set `superseded_at` on these stored rows, by row id: the stored revisions a write's new revisions follow.

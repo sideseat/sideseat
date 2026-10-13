@@ -370,16 +370,15 @@ async fn expired_spans_take_their_search_terms() {
     let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
     insert_test_span(&conn, "trace-new", "span-new", &recent);
     conn.execute_batch(
-        "INSERT INTO span_terms VALUES
-           ('default', 'trace-old', 'span-old', 'prompt', 'alpha', '2020-01-01 00:00:00'),
-           ('default', 'trace-new', 'span-new', 'prompt', 'beta', now())",
+        "UPDATE otel_spans SET search_prompt = ' alpha ' WHERE span_id = 'span-old';
+         UPDATE otel_spans SET search_prompt = ' beta ' WHERE span_id = 'span-new';",
     )
     .expect("terms");
 
     let (deleted, _) = cleanup_by_time(&conn, 1, &no_intent).expect("cleanup");
     assert_eq!(deleted, 1);
     let left: Vec<String> = conn
-        .prepare("SELECT term FROM span_terms ORDER BY term")
+        .prepare("SELECT trim(search_prompt) FROM otel_spans ORDER BY 1")
         .expect("prepare")
         .query_map([], |row| row.get(0))
         .expect("query")

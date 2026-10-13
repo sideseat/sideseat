@@ -112,14 +112,14 @@ mod tests {
         assert_eq!(version, SCHEMA_VERSION);
     }
 
-    /// A store at this version created with an earlier layout - here, the term table before it carried
-    /// `ingested_at` - is refused with the reset instruction rather than written to.
+    /// A store at this version created with an earlier layout - here, the reconciliation queue before its entries
+    /// carried a token - is refused with the reset instruction rather than written to.
     #[test]
     fn a_store_with_an_earlier_layout_of_this_version_is_refused() {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn, &TestClock).unwrap();
         conn.execute_batch(
-            "ALTER TABLE span_terms DROP COLUMN ingested_at; DROP INDEX idx_spans_span;",
+            "ALTER TABLE otel_raw_pending DROP COLUMN token; DROP INDEX idx_spans_span;",
         )
         .unwrap();
         let error = ensure_schema(&conn, &TestClock).unwrap_err();
@@ -128,7 +128,7 @@ mod tests {
         };
         assert_eq!(mismatch.version, SCHEMA_VERSION);
         let message = mismatch.to_string();
-        assert!(message.contains("span_terms.ingested_at"), "{message}");
+        assert!(message.contains("otel_raw_pending.token"), "{message}");
         assert!(message.contains("idx_spans_span"), "{message}");
         assert!(message.contains("sideseat system prune"), "{message}");
     }
@@ -164,9 +164,8 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         ensure_schema(&conn, &TestClock).unwrap();
         conn.execute_batch(
-            "DROP TABLE span_terms; CREATE TABLE span_terms (trace_id VARCHAR NOT NULL, project_id VARCHAR NOT NULL, \
-             span_id VARCHAR NOT NULL, field VARCHAR NOT NULL, term VARCHAR NOT NULL, \
-             ingested_at TIMESTAMP NOT NULL);",
+            "DROP TABLE otel_raw_pending; CREATE TABLE otel_raw_pending (raw_id VARCHAR NOT NULL, \
+             project_id VARCHAR NOT NULL, token VARCHAR NOT NULL, enqueued_at TIMESTAMP NOT NULL);",
         )
         .unwrap();
         assert!(matches!(

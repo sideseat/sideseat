@@ -108,15 +108,16 @@ and the same figures, on a RAM disk, on an ordinary disk and from a release buil
 
 DuckDB runs on one thread there and in the measurement, where the server sizes its threads from the host. The
 requirement that what is stored and answered not depend on the core count is read as each table's byte count and
-every answer, not where the engine places a segment in its own file. Measured on the pinned corpus: one pass leaves
-the same 71 blocks and the same per-table bytes at 1, 2, 4 and 8 threads, with span_terms' segments in other
-blocks above one thread; three passes do not - four threads leave 185 blocks where one leaves 180, every extra one
-span_terms', whose 76 segments the checkpoint packs into 45 blocks on four threads and 40 on one. The answers -
-every read `make bench-reads` makes and each project's trace, session and span message views, 1,069 reads - are the
-same bytes at one thread and four. `make storage-gate-equivalence` replays on four threads and requires the same
-figures and the same answers as on one; until the checkpoint runs on one thread whatever the host, the figures do
-not match and it fails, by design. Its answers are read by servers on the host's own thread count; reading them at
-one and four too waits for the engine's thread count to be a server setting.
+every answer, not where the engine places a segment in its own file. Measured on the pinned corpus while span terms
+were a table of their own (Span search terms): one pass leaves the same 71 blocks and the same per-table bytes at 1,
+2, 4 and 8 threads, with span_terms' segments in other blocks above one thread; three passes do not - four threads
+leave 185 blocks where one leaves 180, every extra one span_terms', whose 76 segments the checkpoint packs into 45
+blocks on four threads and 40 on one. The answers - every read `make bench-reads` makes and each project's trace,
+session and span message views, 1,069 reads - are the same bytes at one thread and four. `make
+storage-gate-equivalence` replays on four threads and requires the same figures and the same answers as on one;
+until the checkpoint runs on one thread whatever the host, the figures do not match and it fails, by design. Its
+answers are read by servers on the host's own thread count; reading them at one and four too waits for the engine's
+thread count to be a server setting.
 
 The corpus goes through three times, the later passes as new telemetry (ids rewritten, instants a day on), so a
 256 KB block is a smaller share of each table. Each table is measured as its segments' bytes and its indexes'. An
@@ -131,17 +132,17 @@ any change, a tail moving between tables included, fails until the commit that m
 
 These are not the live gate's figures and do not compare with them: the live gate spreads the residue over the
 signals by rows and gates metrics on the derived million-point load, so its 784 and 815 B/span and 139 B/point were
-another measurement. Measured on all 1,654 pinned exports, three passes, excluding media and the residual:
+another measurement. Measured on all 1,758 pinned exports, three passes, excluding media and the residual, on
+2026-10-13; the marginal figures below are the ones the targets are judged on:
 
 | Signal | Stored per item | Target | Largest parts |
 | --- | ---: | ---: | --- |
-| Traces | 761.0 B/span | 480 | `otel_spans` 244.7 and its three ART indexes 90.1, `span_terms` 257.5, `otel_raw` 103.0 and its index 19.3, `otel_raw_traces` 38.7 |
-| Logs | 2,440 B/record | 300 | `log_terms` 1,430.4, `otel_logs` 883.5 and its index 126.2 |
+| Traces | 558.2 B/span | 480 | `otel_spans` 300.7, its search terms included, and its three ART indexes 89.6, `otel_raw` 102.4 and its index 19.2, `otel_raw_traces` 38.4 |
+| Logs | 359.9 B/record | 300 | `otel_logs` 261.7, its search terms included, and its index 32.7, `log_media_refs` 65.4 |
 | Metrics | 364 B/point | 150 | `otel_metrics` 364.1, on the 480 captured points: a block's worth, not a rate |
 
-The span indexes - on `span_id`, `trace_id` and the thread key - are the cheapest lever on the trace figure: 90 B of
-the 281 above the target. The log figure is mostly its terms and its body; the span re-send, index and log-encoding
-work is measured against this table.
+The span indexes - on `span_id`, `trace_id` and the thread key - are the largest part left beside the columns: at
+thirty passes the `span_id` index alone is 51 B a span.
 
 ### What one more item costs
 
@@ -155,7 +156,8 @@ three, in blocks, which can be fractional or negative because a table grows by w
 it in the commit that moves it. It takes two replays, six minutes on a RAM disk, so it is opt-in and run before a
 release; `make check` runs the three-pass gate alone.
 
-The rate is linear in the passes. Measured on 2026-10-13 from three passes to five, ten and thirty, excluding media:
+The rate is linear in the passes. Measured on 2026-10-13, before span search terms moved onto the row, from three
+passes to five, ten and thirty, excluding media:
 
 | Signal | 3 to 5 | 3 to 10 | 3 to 30 | 5's distance from 30's |
 | --- | ---: | ---: | ---: | ---: |
@@ -167,8 +169,9 @@ Five passes is the second count because its rate is within one block of thirty's
 between the two counts - one block being the grain a store grows in. The resolution follows from that: one block
 over the 960 metric points and 5,342 log records two passes add is 273 and 49 B an item, so a small signal's rate at
 five passes reads high by up to a block, as metrics and logs do here; the traces' 27,314 spans resolve it to 10 B.
-From three passes to thirty, where a block is 0.7 B a span, 3.6 B a record and 20 B a point, the traces stand at
-671 B/span against 480, logs at 200 B/record against 300 and metrics at 202 B/point against 150.
+From three passes to thirty, where a block is 0.7 B a span, 3.6 B a record and 20 B a point, the traces stood at 671
+B/span against 480, logs at 200 B/record against 300 and metrics at 202 B/point against 150. With the span terms on
+the row the gate's marginal trace figure is 476.12 B/span (`storage-gate-marginal-baseline.json`).
 
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
@@ -207,53 +210,49 @@ record already held the whole export - 3,628 B/span. The content-body store was 
 gone the inline columns did not grow by a byte (`otel_spans` stayed at 274.2 B/span), which is the measurement
 that shows its 2,556 B/span was pure duplication of what the columns and the record already held.
 
-What is left, in order of size, is the DuckDB residue - almost all of it index pages, and 588 B/span of that is
-the ART index on `span_terms(term)`, which the search does not drive from (its lookups are keyed by span
-identity and measure no faster with the index than without) - then the term postings themselves, one row per
-term per span.
+What was left then, in order of size, was the DuckDB residue - almost all of it index pages, and 588 B/span of that
+the ART index on the term table's `term`, which the search did not drive from (its lookups were keyed by span
+identity and measured no faster with the index than without) - then the term postings themselves, one row per term
+per span, since moved onto the span row (Span search terms).
 
-**An index exists only where a read provably uses it.** DuckDB reads through an ART index only for a scan whose
-one filter is an equality or IN list on the column of a single-column index; it never scans through a compound
-index, and a second predicate in the same scan reads the whole table. The compound indexes on spans, logs,
-metrics and raw records were therefore never read - on a million spans every per-identity read scanned every row
-with them and without - while they held a quarter of the file and every insert maintained them. They are gone;
-what remains is one single-column index per key a read looks rows up by (`otel_spans.span_id` and `trace_id`,
-`otel_raw.raw_id`, `otel_raw_traces.raw_id`). A log identity's one row is the write's, as a metric point's is: it
-replaces the stored row with the batch's winner, the latest `ingested_at` as ClickHouse keeps, under the store's
-single writer; the unique index that once refused a second row cost 131 B a record on the corpus (556.14 to 425.28 B
-per log record). Every read keyed on one of them is written so the key is its scan's only filter
-(`sideseat_query_sql::keyed`), binds at most 512 keys, and stays on the index however many rows its keys find
-(DuckDB's `index_scan_max_count`, raised on the connection), so a long trace or a span id a client reuses costs the
-rows it asks for rather than the table; deletes go by the row ids a keyed read found. The keys are bound one
-placeholder each: a list bound as one value - split from a string, or cast to `VARCHAR[]` for `= ANY` or `unnest`,
-the only list forms the Rust driver can bind - is not read through the index at all, and scanned every row of a
-million to find 64 on 1.5.6. No read depends on that form. Writing the keys into the statement as literals instead
-of binding them was measured too and saved nothing: the same cost at 1, 64 and 512 keys over a million spans, and
-per-export write-path and server ingest figures within noise in the pinned 1-core container. The raw identities
-stay hex text too, measured against 32-byte binary over a million spans by rebuilding each raw table both ways: the
-columns compress to the same size (`otel_raw` 98.83 MB hex against 99.09 MB binary, `otel_spans.raw_id` 4.46 against
-4.19 MB), and only the two ART indexes gain - `idx_raw_id` 7.34 to 4.72 MB, `idx_raw_traces_raw` 7.60 to 5.24 MB,
-about 5 B a span in all, deferred as not worth a schema change for 0.7 %. Dropping `signal_until` and `hold_until`
-from DuckDB's `otel_raw_traces`, which repeat the record's own, would save 0.79 MB, 0.8 B a span, and is not done.
-What an index scan holds of
-those rows sits outside `memory_limit`: DuckDB 1.5.6 gathers the key's row ids in a `std::set` while the scan
-initialises, about 50 B a row, then keeps them as an array of 8 B a row, neither through the buffer manager; and it
-fetches the rows one at a time, roughly 30 µs a row. Both grow with the rows a key finds, which the read has to
-answer anyway - a million rows under one key is about 50 MB of heap for a moment and 30 seconds of fetches
-(`docs/engineering/request-context.md` has the frames read's measurements). Log records and datapoints
-carry their own instant in their identity, so their reads take no index - one on `log_digest` measured 68 B per
-record and one on `datapoint_id` 85 B per point - but a list of the records' exact instants, which the row groups'
-zone maps answer one value at a time: a range from the earliest to the latest instant reads every row group
-between them, 983,040 rows against 245,760 for two instants a day apart on a million rows. A span's search terms
-are its winner's - the revision a read answers with, latest by `ingested_at` - and carry that instant, so the
-winner's instant, which the span rows already hold, is the pointer to them: a correction that wins deletes exactly
-the previous winner's terms, a revision older than the stored winner writes none, and a span with no stored
-revision deletes nothing. A store at version 2 whose tables, columns, column order or indexes differ from the ones
-this build creates is refused at startup with the reset instruction, as a store at another version is.
-`keyed_scan_tests` holds each lookup to a small multiple of its keys. Measured by the storage gate on the corpus:
-1,398 to 805 B per span, 3,499 to 2,586 B per log record and 154 to 138 B per metric point; on the corpus
-replicated to a million spans, the ingest-time lookups went from every row of the table to the rows they name
-(`read_paths` in the DuckDB adapter).
+**An index exists only where a read provably uses it.** DuckDB reads through an ART index only for a scan whose one
+filter is an equality or IN list on the column of a single-column index; it never scans through a compound index,
+and a second predicate in the same scan reads the whole table. The compound indexes on spans, logs, metrics and raw
+records were therefore never read - on a million spans every per-identity read scanned every row with them and
+without - while they held a quarter of the file and every insert maintained them. They are gone; what remains is one
+single-column index per key a read looks rows up by (`otel_spans.span_id` and `trace_id`, `otel_raw.raw_id`,
+`otel_raw_traces.raw_id`). A log identity's one row is the write's, as a metric point's is: it replaces the stored
+row with the batch's winner, the latest `ingested_at` as ClickHouse keeps, under the store's single writer; the
+unique index that once refused a second row cost 131 B a record on the corpus (556.14 to 425.28 B per log record).
+Every read keyed on one of them is written so the key is its scan's only filter (`sideseat_query_sql::keyed`), binds
+at most 512 keys, and stays on the index however many rows its keys find (DuckDB's `index_scan_max_count`, raised on
+the connection), so a long trace or a span id a client reuses costs the rows it asks for rather than the table;
+deletes go by the row ids a keyed read found. The keys are bound one placeholder each: a list bound as one value -
+split from a string, or cast to `VARCHAR[]` for `= ANY` or `unnest`, the only list forms the Rust driver can bind -
+is not read through the index at all, and scanned every row of a million to find 64 on 1.5.6. No read depends on
+that form. Writing the keys into the statement as literals instead of binding them was measured too and saved
+nothing: the same cost at 1, 64 and 512 keys over a million spans, and per-export write-path and server ingest
+figures within noise in the pinned 1-core container. The raw identities stay hex text too, measured against 32-byte
+binary over a million spans by rebuilding each raw table both ways: the columns compress to the same size
+(`otel_raw` 98.83 MB hex against 99.09 MB binary, `otel_spans.raw_id` 4.46 against 4.19 MB), and only the two ART
+indexes gain - `idx_raw_id` 7.34 to 4.72 MB, `idx_raw_traces_raw` 7.60 to 5.24 MB, about 5 B a span in all, deferred
+as not worth a schema change for 0.7 %. Dropping `signal_until` and `hold_until` from DuckDB's `otel_raw_traces`,
+which repeat the record's own, would save 0.79 MB, 0.8 B a span, and is not done. What an index scan holds of those
+rows sits outside `memory_limit`: DuckDB 1.5.6 gathers the key's row ids in a `std::set` while the scan initialises,
+about 50 B a row, then keeps them as an array of 8 B a row, neither through the buffer manager; and it fetches the
+rows one at a time, roughly 30 µs a row. Both grow with the rows a key finds, which the read has to answer anyway -
+a million rows under one key is about 50 MB of heap for a moment and 30 seconds of fetches
+(`docs/engineering/request-context.md` has the frames read's measurements). Log records and datapoints carry their
+own instant in their identity, so their reads take no index - one on `log_digest` measured 68 B per record and one
+on `datapoint_id` 85 B per point - but a list of the records' exact instants, which the row groups' zone maps answer
+one value at a time: a range from the earliest to the latest instant reads every row group between them, 983,040
+rows against 245,760 for two instants a day apart on a million rows. A span's search terms are on each revision's
+own row, and a search reads winners, so a correction deletes none and a deleted row takes its terms with it (Span
+search terms). A store at version 2 whose tables, columns, column order or indexes differ from the ones this build
+creates is refused at startup with the reset instruction, as a store at another version is. `keyed_scan_tests` holds
+each lookup to a small multiple of its keys. Measured by the storage gate on the corpus: 1,398 to 805 B per span,
+3,499 to 2,586 B per log record and 154 to 138 B per metric point; on the corpus replicated to a million spans, the
+ingest-time lookups went from every row of the table to the rows they name (`read_paths` in the DuckDB adapter).
 
 **A winner is a condition on its row, not a window over the table.** A span identity keeps every revision it
 was delivered as, and a read answers with the latest. DuckDB computed that with `ROW_NUMBER() OVER (PARTITION BY
@@ -267,15 +266,15 @@ and it costs no measurable bytes: the column is `NULL` on all but the corrected 
 (`read_paths` in the DuckDB adapter): list traces 228 ms, get trace 57 ms, list spans 71 ms, the feed 16 ms, the
 project message feed 100 ms, list sessions 137 ms and project stats 346 ms, each within the memory limit.
 
-**A search reads a record's field state from the record and only its terms from the term table.** Each of a
-span's six fields was answered by three correlated subqueries over `span_terms` - the term present, the field
-truncated, the field indexed at all - and DuckDB carried every candidate's identity into each, which at a million
-spans exceeded the memory limit; an empty field wrote an empty term only so the third could find it, 12% of the
-term rows. The record now carries `search_fields` and `search_truncated`, a bit per field, written with it and by
-the backfill, and the terms a search names are one aggregate over the term rows that hold them, joined to the
-candidates. Measured: span search on the corpus 223 to 20 ms, and at a million spans 81 ms within the limit;
-`span_terms` 281 to 255 B/span, and the trace signal 829 to 784 B/span on the storage gate, the two columns
-adding nothing measurable to `otel_spans`.
+**A search reads a record's field state from the record.** Each of a span's six fields was answered by three
+correlated subqueries over `span_terms` - the term present, the field truncated, the field indexed at all - and
+DuckDB carried every candidate's identity into each, which at a million spans exceeded the memory limit; an empty
+field wrote an empty term only so the third could find it, 12% of the term rows. The record now carries
+`search_fields` and `search_truncated`, a bit per field, written with it and by the backfill, and the terms a search
+names are one aggregate over the term rows that hold them, joined to the candidates. Measured: span search on the
+corpus 223 to 20 ms, and at a million spans 81 ms within the limit; `span_terms` 281 to 255 B/span, and the trace
+signal 829 to 784 B/span on the storage gate, the two columns adding nothing measurable to `otel_spans`. The terms
+have since moved onto the row as well (Span search terms).
 
 **Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
@@ -534,9 +533,29 @@ A log record's exact search terms are on its row, as ClickHouse keeps them: one 
 term is present exactly where ` term ` is - a term is a run of alphanumerics and never holds a space. DuckDB's
 `log_terms` table repeated the record's 64-character digest, its project and the field name on each of its
 fifty-odd terms, and its term text was 818 B/record; the row columns cost two blocks on the corpus. Search reads the
-terms from the candidate rows themselves (`search::duckdb_log_term_column`), with the field state from the same
+terms from the candidate rows themselves (`search::duckdb_term_column`), with the field state from the same
 row's `search_fields` and `search_truncated`, and the backfill writes them with those bits; a term goes with its
 record by construction, so no delete has terms to chase.
+
+### Span search terms
+
+A span revision's exact search terms are on its row, as a log record's are and as ClickHouse keeps them: one column
+per field spans search (`search_prompt`, `search_completion`, `search_tool_name`, `search_tool_args`,
+`search_error`, `search_span_name`), each term between single spaces, read by `search::duckdb_term_column`'s ` term
+` match with the field state from the same row's bits. The `span_terms` table repeated the span's project, trace,
+span, field and instant on each of about 32 terms; measured at thirty passes of the pinned corpus it held 237.4 B a
+span, its term text 70.6 of them. The prompt's column is the long one, 423 B of terms on average: with the default
+compression DuckDB leaves it uncompressed, 161.7 B a span, so it and the completion's are zstd and the four short
+fields keep the default; all six cost 37.75 B a span, measured by dropping the table. Each revision carries its own
+terms and every search path reads winners only, so a correction writes no delete - the bookkeeping that chose which
+revision's terms to delete is gone - and a deletion of any kind takes the terms with the row;
+`a_span_s_search_terms_go_with_its_row_on_both_backends` holds both backends to that through a correction, a reused
+identity and the five deletions. On the storage gate the trace signal went from 750.19 to 558.24 B a span at three
+passes, and from 677.66 to 476.12 B a span marginal. A search pays for it in reading: every candidate's prompt
+column is decompressed for its `contains`, so at a million spans DuckDB's span search went from 134.0 to 170.2 ms
+through the API and from 116.5 to 156.1 ms in the distributed bench, scanning 2.0 million rows where it scanned 34.6
+million, against ClickHouse's 333.5 and 325.5 ms; log search did not move. Ingest appends about 32 fewer rows a
+span, which the throughput profile has yet to measure.
 
 ### Deferred: log records into the raw store
 
