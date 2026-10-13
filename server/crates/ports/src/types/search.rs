@@ -136,11 +136,15 @@ pub struct SpanSearchSource {
 
 #[derive(Debug, Clone, Default)]
 pub struct LogSearchSource {
+    /// As stored: absent where the raw record rebuilds them (`domain::log_body`).
     pub body_text: Option<String>,
     pub body: Option<String>,
     pub event_name: Option<String>,
     pub severity_text: Option<String>,
     pub attributes: Option<String>,
+    /// What an unstored body and its text are rebuilt from.
+    pub raw_log: Option<String>,
+    pub noted_references: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

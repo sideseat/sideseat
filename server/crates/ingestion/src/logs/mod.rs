@@ -1,5 +1,7 @@
 //! OTLP logs ingestion and stable identity.
 
+#[cfg(test)]
+mod body_views_tests;
 mod extract;
 mod identity;
 mod ingest;

@@ -30,6 +30,15 @@ pub fn collect_file_references_in_str(value: &str, references: &mut Vec<String>)
     }
 }
 
+/// What a view shows in place of a reference whose bytes the project's store does not hold: says only what is
+/// known, the media type the reference names. The same for every signal, so a span and a log read alike.
+pub fn missing_content_note(uri: &str) -> String {
+    let media_type = sideseat_core::utils::file_uri::parse_file_uri(uri)
+        .and_then(|parsed| parsed.media_type.map(str::to_string))
+        .unwrap_or_else(|| "unknown type".to_string());
+    format!("[content not stored ({media_type})]")
+}
+
 /// Whether a character continues a reference's token, as [`collect_file_references_in_str`] reads one.
 fn continues_reference(character: char) -> bool {
     character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '/' | '.' | ':' | '+')

@@ -423,7 +423,11 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     -- sixteen bytes, where its messages were read from a carrier that frames requests
     -- (CarrierRule::frames_requests); NULL on every other record, which a run of costs nothing. Derived at ingest
     -- like `messages`. A framed request's view reads by it.
-    frame_key                 UHUGEINT
+    frame_key                 UHUGEINT,
+    -- The references this record's views show as a note, as a JSON array; NULL on every record without one. With
+    -- raw_log, what an unstored body and body_text are rebuilt from (domain::log_body): both are NULL wherever
+    -- the raw record rebuilds them, as nearly every record's does.
+    noted_references          VARCHAR
 );
 -- The identity's uniqueness, which no scan reads: a write replaces an identity's row, and this makes a second
 -- row for it an error rather than a duplicate. The lookups a write and its confirmation make are bounded by the

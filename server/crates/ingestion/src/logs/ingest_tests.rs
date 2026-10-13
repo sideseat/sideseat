@@ -80,12 +80,15 @@ async fn stores() -> Stores {
                 .await
                 .unwrap(),
         )));
+    // As the server assembles it: the domain answers each row's body views over what the adapter stores.
     let analytics: Arc<dyn AnalyticsRepository + Send + Sync> =
-        Arc::new(DuckdbRepository(Arc::new(
-            DuckdbService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .unwrap(),
-        )));
+        Arc::new(sideseat_domain::dedup::DedupAnalyticsRepository::new(
+            Box::new(DuckdbRepository(Arc::new(
+                DuckdbService::init(&app_storage, Arc::clone(&clock))
+                    .await
+                    .unwrap(),
+            ))),
+        ));
     let cache = Arc::new(
         CacheService::new(&sideseat_core::config::CacheConfig {
             backend: sideseat_core::config::CacheBackendType::Memory,

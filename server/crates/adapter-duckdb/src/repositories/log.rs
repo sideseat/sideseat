@@ -79,6 +79,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
         for log in logs {
             let (search_fields, search_truncated) =
                 sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Logs, &log.search);
+            let (body, body_text) = log.stored_body_views();
             appender.append_row(params![
                 log.project_id.as_deref().unwrap_or_default(),
                 log.log_digest.as_str(),
@@ -88,8 +89,8 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 SqlOptTimestamp(log.observed_time),
                 log.severity_number,
                 log.severity_text.as_deref(),
-                json_to_opt_string(&log.body).as_deref(),
-                log.body_text.as_deref(),
+                body.as_deref(),
+                body_text.as_deref(),
                 json_to_opt_string(&log.attributes).as_deref(),
                 log.dropped_attributes_count,
                 log.flags,
@@ -117,6 +118,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 search_fields,
                 search_truncated,
                 log.frame_key,
+                log.noted_references_column().as_deref(),
             ])?;
         }
         appender.flush()?;
@@ -262,6 +264,9 @@ fn execute_rows(conn: &Connection, query: &ParameterizedQuery) -> Result<Vec<Log
             resource_schema_url: row.get(27)?,
             raw_log: row.get(28)?,
             ingested_at: micros_to_datetime(row.get(29)?),
+            noted_references: sideseat_ports::types::noted_references_from_column(
+                row.get::<_, Option<String>>(30)?.as_deref(),
+            ),
         })
     })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)

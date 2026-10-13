@@ -20,8 +20,9 @@ fn placeholders(count: usize, each: &str) -> String {
 /// `logs` is the relation the rows are read from: on ClickHouse every replica's (`every_replica_table`), so a log
 /// one replica has committed and another has not yet received still keeps its file. Every version is read, not
 /// `FINAL`'s: a replaced revision's references can only keep a file a little longer, never release one early. The
-/// derived columns are read beside the raw record, because a producer's verified reference lives there - the raw
-/// record holds the producer's strings escaped.
+/// raw record holds the producer's strings escaped, its own references as written: the caller reads its values
+/// unescaped, since a body is stored only where the raw record does not rebuild it, and the derived columns stored
+/// beside it. A row is read only if it holds a reference in either spelling - `B64!#` is in both.
 pub fn references_for_traces(
     project_id: &str,
     trace_ids: &[String],
@@ -43,7 +44,7 @@ pub fn references_for_traces(
         Backend::Clickhouse => format!(
             "SELECT coalesce(raw_log, ''), coalesce(body, ''), coalesce(attributes, ''), messages FROM {logs} \
              WHERE project_id = ? AND trace_id IN ({traces}) AND position(concat(coalesce(raw_log, ''), ' ', \
-             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', messages), '#!B64!#') > 0 \
+             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', messages), 'B64!#') > 0 \
              SETTINGS skip_unavailable_shards = 0"
         ),
     };
@@ -75,7 +76,7 @@ pub fn media_trace_page(
         Backend::Clickhouse => format!(
             "SELECT DISTINCT assumeNotNull(trace_id) AS trace FROM {logs} WHERE project_id = ? \
              AND isNotNull(trace_id){after_clause} AND position(concat(coalesce(raw_log, ''), ' ', \
-             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', messages), '#!B64!#') > 0 \
+             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', messages), 'B64!#') > 0 \
              ORDER BY trace LIMIT ? SETTINGS skip_unavailable_shards = 0"
         ),
     };

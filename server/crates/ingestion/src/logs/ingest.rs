@@ -344,17 +344,18 @@ fn derived_references(log: &sideseat_ports::types::NormalizedLog) -> Vec<String>
 /// Replace each of a record's unbacked references with a note saying what is missing: in the record its columns
 /// are derived from, rebuilt from the raw form, and every derived column re-derived - so the body, its text and
 /// the messages agree, and a producer's key keeps its text in each. The raw form keeps the producer's string.
-fn note_unbacked(log: &mut sideseat_ports::types::NormalizedLog, missing: &[String]) {
+pub(super) fn note_unbacked(log: &mut sideseat_ports::types::NormalizedLog, missing: &[String]) {
     if missing.is_empty() {
         return;
     }
+    log.noted_references = missing.to_vec();
     let notes: Vec<(String, String)> = missing
         .iter()
         .map(|uri| {
-            let media_type = sideseat_core::utils::file_uri::parse_file_uri(uri)
-                .and_then(|parsed| parsed.media_type.map(str::to_string))
-                .unwrap_or_else(|| "unknown type".to_string());
-            (uri.clone(), format!("[content not stored ({media_type})]"))
+            (
+                uri.clone(),
+                sideseat_domain::files::missing_content_note(uri),
+            )
         })
         .collect();
     match super::media::derivation_record(&log.raw_log) {
@@ -389,6 +390,20 @@ fn note_unbacked(log: &mut sideseat_ports::types::NormalizedLog, missing: &[Stri
     }
     // The record's charge follows what is stored.
     log.logical_bytes = crate::accounting::log_logical_bytes(log);
+}
+
+/// Whether the record's raw form, read back as it is stored, rebuilds its body and the body's text exactly - with
+/// the references it noted - so neither is stored (`domain::log_body`). Checked against the stored text, not the
+/// value in hand: a number the text does not give back exactly makes the views stored, never wrong.
+pub(super) fn settle_body_views(log: &mut sideseat_ports::types::NormalizedLog) {
+    let derived = sideseat_domain::log_body::BodyViews {
+        body: sideseat_core::utils::json::json_to_opt_string(&log.body),
+        body_text: log.body_text.clone(),
+    };
+    log.body_rebuilds_from_raw = sideseat_core::utils::json::json_to_opt_string(&log.raw_log)
+        .is_some_and(|raw| {
+            sideseat_domain::log_body::rebuilds(&raw, &log.noted_references, &derived)
+        });
 }
 
 /// Replace each reference with its note in every string value of a JSON value - keys keep their text.
@@ -588,6 +603,9 @@ async fn write_logs(
     governance: Option<&StorageGovernanceService>,
 ) -> Result<HashSet<String>, WriteFailure> {
     sideseat_domain::search::index_logs(logs);
+    for log in logs.iter_mut() {
+        settle_body_views(log);
+    }
     if let Some(governance) = governance {
         governance
             .stamp_logs(logs)

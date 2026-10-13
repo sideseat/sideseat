@@ -65,6 +65,41 @@ async fn a_log_s_media_is_seen_by_the_release_and_recorded_by_the_age_pass() {
         "the backends name different media"
     );
 
+    // A producer's verified reference in a body the raw record rebuilds, so not stored: the raw record holds it
+    // escaped, and the release still sees it on both backends - while the same spelling as a key stays text.
+    let verified = format!("#!B64!#image/png::{}", "d".repeat(64));
+    let rebuilt = sideseat_ports::types::NormalizedLog {
+        log_digest: "2".repeat(64),
+        trace_id: Some("trace-verified".to_string()),
+        body: serde_json::json!(format!("see {verified}")),
+        body_text: Some(format!("see {verified}")),
+        raw_log: serde_json::json!({"body": {"kvlistValue": {"values": [
+            {"key": "#!!B64!#image/png::".to_string() + &"c".repeat(64), "value": {"stringValue":
+                format!("see {}", verified.replacen("#!", "#!!", 1))}}
+        ]}}}),
+        media: vec![verified.clone()],
+        body_rebuilds_from_raw: true,
+        ..log.clone()
+    };
+    for backend in [
+        &clickhouse as &(dyn AnalyticsRepository + Send + Sync),
+        &duckdb as &(dyn AnalyticsRepository + Send + Sync),
+    ] {
+        backend
+            .insert_logs(std::slice::from_ref(&rebuilt))
+            .await
+            .expect("insert the rebuilt log");
+        let fields = backend
+            .file_reference_fields_for_traces(&project, &["trace-verified".to_string()])
+            .await
+            .expect("references");
+        assert_eq!(
+            named(fields),
+            vec![verified.clone()],
+            "the verified reference is unseen"
+        );
+    }
+
     // A key spelled like a reference is the producer's text on both backends: the release never counts it.
     let keyed = sideseat_ports::types::NormalizedLog {
         log_digest: "1".repeat(64),
@@ -101,7 +136,7 @@ async fn a_log_s_media_is_seen_by_the_release_and_recorded_by_the_age_pass() {
         .await
         .expect("record the expiring traces");
     assert_eq!(
-        recorded, 3,
+        recorded, 4,
         "every expiring traced log's trace owes a release: a redelivery may have dropped a reference the \
          association still holds"
     );

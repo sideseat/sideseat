@@ -704,6 +704,16 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the OTLP summary quantile's own member",
         ),
         (
+            "server/crates/domain/src/log_body.rs",
+            "body",
+            "the OTLP log record's own member, read from the record's OTLP/JSON",
+        ),
+        (
+            "server/crates/domain/src/log_body.rs",
+            "value",
+            "the OTLP key-value pair's own member, read from the record's OTLP/JSON",
+        ),
+        (
             "server/crates/domain/src/pricing/mod.rs",
             "chat",
             "the pricing catalogue's default model mode, as the price list it loads spells it",

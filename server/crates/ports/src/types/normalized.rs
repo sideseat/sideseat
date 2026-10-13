@@ -206,6 +206,46 @@ pub struct NormalizedLog {
     /// what a store that cannot find a trace's log rows cheaply indexes, so a release sees what they name.
     #[serde(skip)]
     pub media: Vec<String>,
+    /// The references ingest found unbacked in the project's store, which the record's views show as a note
+    /// (`domain::files::missing_content_note`). Stored with the record, so a view rebuilt from the raw record notes
+    /// the same ones; not serialised, as `media` is not.
+    #[serde(skip)]
+    pub noted_references: Vec<String>,
+    /// Whether the raw record, read back as stored, rebuilds the body and its text exactly (`domain::log_body`), so
+    /// neither is stored. False until ingest has checked, which stores them.
+    #[serde(skip)]
+    pub body_rebuilds_from_raw: bool,
+}
+
+impl NormalizedLog {
+    /// The `body` and `body_text` columns stored for this record: none where its raw record rebuilds them; otherwise
+    /// the body's JSON and its text, an empty text standing for a record that has neither - never a derived text,
+    /// which is absent where empty - so a read does not rebuild what the raw record would answer differently.
+    pub fn stored_body_views(&self) -> (Option<String>, Option<String>) {
+        if self.body_rebuilds_from_raw {
+            return (None, None);
+        }
+        match (
+            sideseat_core::utils::json::json_to_opt_string(&self.body),
+            &self.body_text,
+        ) {
+            (None, None) => (None, Some(String::new())),
+            (body, text) => (body, text.clone()),
+        }
+    }
+
+    /// The noted references as their column holds them: a JSON array, absent where there are none.
+    pub fn noted_references_column(&self) -> Option<String> {
+        (!self.noted_references.is_empty())
+            .then(|| serde_json::to_string(&self.noted_references).unwrap_or_default())
+    }
+}
+
+/// The noted references a stored column holds (`NormalizedLog::noted_references_column`).
+pub fn noted_references_from_column(column: Option<&str>) -> Vec<String> {
+    column
+        .and_then(|text| serde_json::from_str(text).ok())
+        .unwrap_or_default()
 }
 
 // ============================================================================

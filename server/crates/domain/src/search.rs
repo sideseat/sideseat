@@ -115,6 +115,10 @@ impl SearchService {
             actual_examined += 1;
             actual_cursor = Some(cursor);
             let document = materialize_document(document, &source);
+            let mut record = record;
+            if let (SearchRecord::Log(log), SearchSource::Log(source)) = (&mut record, &source) {
+                log.body_text = crate::log_body::resolve_source(source).body_text;
+            }
             let exact = evaluate(&query.expression, &document, query.signal, true);
             indexing_complete &= document.indexed
                 && !document_touched_truncation(&query.expression, &document, query.signal);
@@ -252,6 +256,8 @@ pub fn log_document(log: &NormalizedLog) -> SearchDocument {
         event_name: log.event_name.clone(),
         severity_text: log.severity_text.clone(),
         attributes: serde_json::to_string(&log.attributes).ok(),
+        raw_log: None,
+        noted_references: Vec::new(),
     }))
 }
 
@@ -357,14 +363,11 @@ fn span_source_texts(source: &SpanSearchSource) -> BTreeMap<SearchField, String>
 }
 
 fn log_source_texts(source: &LogSearchSource) -> BTreeMap<SearchField, String> {
+    let views = crate::log_body::resolve_source(source);
     [
         (
             SearchField::Body,
-            source
-                .body_text
-                .clone()
-                .or_else(|| source.body.clone())
-                .unwrap_or_default(),
+            views.body_text.or(views.body).unwrap_or_default(),
         ),
         (
             SearchField::EventName,

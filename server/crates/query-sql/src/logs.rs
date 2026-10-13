@@ -171,7 +171,8 @@ fn projection(backend: Backend) -> String {
          l.session_id, l.user_id, l.environment, l.service_name, l.service_version, \
          l.service_namespace, l.service_instance_id, {} AS resource_attributes, \
          l.scope_name, l.scope_version, {} AS scope_attributes, \
-         l.scope_schema_url, l.resource_schema_url, {} AS raw_log, {} AS ingested_at_us",
+         l.scope_schema_url, l.resource_schema_url, {} AS raw_log, {} AS ingested_at_us, \
+         l.noted_references",
         timestamp_micros("l.timestamp", backend),
         nullable_timestamp_micros("l.time", backend),
         nullable_timestamp_micros("l.observed_time", backend),

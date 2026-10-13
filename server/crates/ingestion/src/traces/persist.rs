@@ -263,12 +263,7 @@ pub(super) fn note_unstored_files(
             // Says only what is known. This set holds two kinds - content rejected for quota, and a
             // reference whose bytes this project does not have - and naming quota for both told readers
             // something that may be untrue of their case.
-            let note = format!(
-                "[content not stored ({})]",
-                sideseat_core::utils::file_uri::parse_file_uri(uri)
-                    .and_then(|parsed| parsed.media_type.map(str::to_string))
-                    .unwrap_or_else(|| "unknown type".to_string())
-            );
+            let note = sideseat_domain::files::missing_content_note(uri);
             for field in [
                 span.messages.as_mut(),
                 span.tool_definitions.as_mut(),

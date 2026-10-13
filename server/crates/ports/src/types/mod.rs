@@ -36,7 +36,10 @@ pub use enums::{
 // test-only item cannot be seen by a dependent crate - so it lives beside its only users, in the domain.
 
 // Re-export normalized types (for ingestion)
-pub use normalized::{NormalizedLog, NormalizedMetric, NormalizedSpan, json_to_pre_serialized};
+pub use normalized::{
+    NormalizedLog, NormalizedMetric, NormalizedSpan, json_to_pre_serialized,
+    noted_references_from_column,
+};
 pub use search::{
     DEFAULT_SEARCH_MAX_EXAMINED, LogSearchSource, SEARCH_RECALL_FLOOR, SEARCH_TERMS_PER_FIELD,
     SearchBackfillDocument, SearchBackfillSource, SearchCandidate, SearchCursor, SearchDocument,

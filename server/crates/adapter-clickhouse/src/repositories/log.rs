@@ -64,10 +64,12 @@ struct ChLogInsertRow {
     search_attributes_truncated: u8,
     messages: String,
     frame_key: u128,
+    noted_references: Option<String>,
 }
 
 impl From<&NormalizedLog> for ChLogInsertRow {
     fn from(log: &NormalizedLog) -> Self {
+        let (body, body_text) = log.stored_body_views();
         Self {
             project_id: log.project_id.clone().unwrap_or_default(),
             log_digest: log.log_digest.clone(),
@@ -77,8 +79,8 @@ impl From<&NormalizedLog> for ChLogInsertRow {
             observed_time: log.observed_time.map(chrono_to_time),
             severity_number: log.severity_number,
             severity_text: log.severity_text.clone(),
-            body: json_to_opt_string(&log.body),
-            body_text: log.body_text.clone(),
+            body,
+            body_text,
             attributes: json_to_opt_string(&log.attributes),
             dropped_attributes_count: log.dropped_attributes_count,
             flags: log.flags,
@@ -113,6 +115,7 @@ impl From<&NormalizedLog> for ChLogInsertRow {
             search_attributes_truncated: search_terms(log, SearchField::Attributes).1,
             messages: log.messages.clone().unwrap_or_else(|| "[]".to_string()),
             frame_key: log.frame_key.unwrap_or_default(),
+            noted_references: log.noted_references_column(),
         }
     }
 }
@@ -156,6 +159,7 @@ struct ChLogReadRow {
     resource_schema_url: Option<String>,
     raw_log: Option<String>,
     ingested_at_us: i64,
+    noted_references: Option<String>,
 }
 
 impl From<ChLogReadRow> for LogRow {
@@ -193,6 +197,9 @@ impl From<ChLogReadRow> for LogRow {
             resource_schema_url: row.resource_schema_url,
             raw_log: row.raw_log,
             ingested_at: datetime_from_micros(row.ingested_at_us),
+            noted_references: sideseat_ports::types::noted_references_from_column(
+                row.noted_references.as_deref(),
+            ),
         }
     }
 }

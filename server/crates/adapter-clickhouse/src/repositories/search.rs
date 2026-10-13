@@ -38,6 +38,8 @@ struct LogBackfillSource {
     event_name: Option<String>,
     severity_text: Option<String>,
     attributes: Option<String>,
+    raw_log: Option<String>,
+    noted_references: Option<String>,
 }
 
 #[derive(Row, Deserialize)]
@@ -72,6 +74,8 @@ struct LogCandidate {
     body: Option<String>,
     event_name: Option<String>,
     attributes: Option<String>,
+    raw_log: Option<String>,
+    noted_references: Option<String>,
     timestamp_us: i64,
     #[serde(rename = "match_state")]
     _match_state: i16,
@@ -141,6 +145,10 @@ pub async fn backfill_page(
                         event_name: row.event_name,
                         severity_text: row.severity_text,
                         attributes: row.attributes,
+                        raw_log: row.raw_log,
+                        noted_references: sideseat_ports::types::noted_references_from_column(
+                            row.noted_references.as_deref(),
+                        ),
                     }),
                 })
                 .collect())
@@ -276,6 +284,10 @@ async fn search_logs(
                 event_name: row.event_name,
                 severity_text: row.severity_text,
                 attributes: row.attributes,
+                raw_log: row.raw_log,
+                noted_references: sideseat_ports::types::noted_references_from_column(
+                    row.noted_references.as_deref(),
+                ),
             }),
             cursor,
             indeterminate: false,

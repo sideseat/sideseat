@@ -64,6 +64,8 @@ struct LogCandidate {
     body: Option<String>,
     event_name: Option<String>,
     attributes: Option<String>,
+    raw_log: Option<String>,
+    noted_references: Option<String>,
     timestamp_us: i64,
     _match_state: i16,
     search_indexed: bool,
@@ -323,6 +325,10 @@ pub fn backfill_page(
                     event_name: row.get(4)?,
                     severity_text: row.get(5)?,
                     attributes: row.get(6)?,
+                    raw_log: row.get(7)?,
+                    noted_references: sideseat_ports::types::noted_references_from_column(
+                        row.get::<_, Option<String>>(8)?.as_deref(),
+                    ),
                 }),
             },
         });
@@ -594,9 +600,11 @@ fn search_logs(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, D
             body: row.get(6)?,
             event_name: row.get(7)?,
             attributes: row.get(8)?,
-            timestamp_us: row.get(9)?,
-            _match_state: row.get(10)?,
-            search_indexed: row.get(11)?,
+            raw_log: row.get(9)?,
+            noted_references: row.get(10)?,
+            timestamp_us: row.get(11)?,
+            _match_state: row.get(12)?,
+            search_indexed: row.get(13)?,
         });
     }
     let limit_reached = rows.len() > request.max_examined as usize;
@@ -632,6 +640,10 @@ fn search_logs(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, D
                 event_name: row.event_name,
                 severity_text: row.severity_text,
                 attributes: row.attributes,
+                raw_log: row.raw_log,
+                noted_references: sideseat_ports::types::noted_references_from_column(
+                    row.noted_references.as_deref(),
+                ),
             }),
             cursor,
             indeterminate: false,

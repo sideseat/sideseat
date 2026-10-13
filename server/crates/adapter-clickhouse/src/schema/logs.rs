@@ -54,6 +54,9 @@ fn otel_logs_columns() -> &'static str {
     -- other record, which the key never is. A framed request's view reads by it within one trace, which
     -- `idx_trace_id` already narrows to that trace's granules, so no index of its own.
     frame_key UInt128 DEFAULT 0 CODEC(ZSTD(1)),
+    -- The references this record's views show as a note, as a JSON array; NULL on every record without one. With
+    -- raw_log, what an unstored body and body_text are rebuilt from (domain::log_body).
+    noted_references Nullable(String) CODEC(ZSTD(3)),
     INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_search_body search_body TYPE text(tokenizer = 'array') GRANULARITY 1,

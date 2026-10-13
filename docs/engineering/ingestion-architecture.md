@@ -249,6 +249,10 @@ redelivery therefore replaces the same logical datapoint without collapsing dist
 Log identity is a semantic digest plus its ordinal within the export. The ordinal preserves equal log records
 that were intentionally emitted more than once in one request.
 
+A log's body and its text are not stored where its raw record rebuilds them, as it does for every captured record:
+ingest checks the rebuild against what it derived, and a read answers the rebuilt views through the domain
+(`domain::log_body`; see `compact-storage.md`, Log body views).
+
 Both paths:
 
 - inject the project id before normalization;

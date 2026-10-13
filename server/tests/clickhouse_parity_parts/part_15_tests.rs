@@ -693,24 +693,6 @@ async fn reads_agree_at_a_million_spans() {
             .collect::<Vec<_>>()
     });
 
-    let logs = sideseat_ports::types::ListLogsParams {
-        project_id: project.clone(),
-        page: 1,
-        limit: 50,
-        ..Default::default()
-    };
-    compare!("list logs", |repo| repo.list_logs(&logs), |page| {
-        let (rows, total): (Vec<sideseat_ports::types::LogRow>, u64) = page;
-        (total, rows.iter().map(describe_log).collect::<Vec<_>>())
-    });
-    compare!(
-        "get log",
-        |repo| repo.get_log(&project, &log_digest, log_ordinal),
-        |row| {
-            let row: Option<sideseat_ports::types::LogRow> = row;
-            row.as_ref().map(describe_log)
-        }
-    );
     let log_search = SearchQuery {
         signal: SearchSignal::Logs,
         expression: sideseat_ports::types::SearchExpr::Term {
@@ -719,27 +701,75 @@ async fn reads_agree_at_a_million_spans() {
         },
         ..search.clone()
     };
-    compare!("search logs", |repo| repo.search(&log_search), |page| {
-        let page: sideseat_ports::types::SearchPage = page;
-        page.candidates
-            .iter()
-            .map(|candidate| match (&candidate.record, &candidate.source) {
-                (SearchRecord::Log(log), sideseat_ports::types::SearchSource::Log(source)) => {
-                    format!(
-                        "{}/{} {:?} {:?} {:?} {:?} {:?}",
-                        log.log_digest,
-                        log.ordinal,
-                        log.body_text,
-                        source.body_text,
-                        source.body.as_deref().map(canonical_json),
-                        source.event_name,
-                        source.attributes.as_deref().map(canonical_json)
-                    )
-                }
-                (record, _) => format!("{record:?}"),
+    // The store's own candidate read, and below the answer the API gives over it.
+    compare!(
+        "search logs, the store's candidates",
+        |repo| repo.search(&log_search),
+        |page| {
+            let page: sideseat_ports::types::SearchPage = page;
+            page.candidates
+                .iter()
+                .map(|candidate| format!("{:?}", candidate.record))
+                .collect::<Vec<_>>()
+        }
+    );
+    // The log reads as the API answers them: through the domain, which rebuilds the body views a store keeps only
+    // in the raw record (`log_body`).
+    let duck_view = sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(duck.clone()));
+    let ch_view = sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(ch.clone()));
+    macro_rules! compare_views {
+        ($name:expr, |$repo:ident| $read:expr, |$answer:ident| $describe:expr) => {{
+            let (d_time, d) = fastest_of_three(|| async {
+                let $repo = &duck_view;
+                $read.await
             })
-            .collect::<Vec<_>>()
+            .await;
+            let (c_time, c) = fastest_of_three(|| async {
+                let $repo = &ch_view;
+                $read.await
+            })
+            .await;
+            let describe = |$answer| $describe;
+            let d = describe(d.unwrap_or_else(|error| panic!("{}: duckdb: {error}", $name)));
+            let c = describe(c.unwrap_or_else(|error| panic!("{}: clickhouse: {error}", $name)));
+            if d != c {
+                mismatches.push(format!(
+                    "{}:\n  duckdb:     {d:?}\n  clickhouse: {c:?}",
+                    $name
+                ));
+            }
+            timings.push(($name.to_string(), d_time, c_time));
+        }};
+    }
+    let logs = sideseat_ports::types::ListLogsParams {
+        project_id: project.clone(),
+        page: 1,
+        limit: 50,
+        ..Default::default()
+    };
+    compare_views!("list logs", |repo| repo.list_logs(&logs), |page| {
+        let (rows, total): (Vec<sideseat_ports::types::LogRow>, u64) = page;
+        (total, rows.iter().map(describe_log).collect::<Vec<_>>())
     });
+    compare_views!(
+        "get log",
+        |repo| repo.get_log(&project, &log_digest, log_ordinal),
+        |row| {
+            let row: Option<sideseat_ports::types::LogRow> = row;
+            row.as_ref().map(describe_log)
+        }
+    );
+    compare_views!(
+        "search logs",
+        |repo| sideseat_domain::search::SearchService::execute(repo, &log_search),
+        |page| {
+            let page: sideseat_domain::search::SearchResultPage = page;
+            page.hits
+                .iter()
+                .map(|hit| format!("{:?} {:?}", hit.record, hit.fragments))
+                .collect::<Vec<_>>()
+        }
+    );
 
     println!(
         "\n{} span rows; trace {trace}; session {session}; term {term}; log term {log_term}\n\

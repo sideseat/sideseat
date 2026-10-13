@@ -51,7 +51,9 @@ use sideseat_core::utils::file_uri::parse_file_uri;
 use sideseat_ports::cache::CacheKey;
 
 pub use error::FileServiceError;
-pub use references::{collect_file_references_in_str, replace_file_reference};
+pub use references::{
+    collect_file_references_in_str, missing_content_note, replace_file_reference,
+};
 
 /// File metadata without content
 #[derive(Debug, Clone)]

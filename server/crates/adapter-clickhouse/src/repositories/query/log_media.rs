@@ -24,9 +24,10 @@ pub(super) async fn reference_fields_for_traces(
         let query = bind_analytics_values(client.query(statement.sql()), statement.params());
         let logs: Vec<(String, String, String, String)> = query.fetch_all().await?;
         for (raw_log, body, attributes, messages) in logs {
-            // The raw record holds only SideSeat's references (producer strings are escaped); the derived columns
-            // are read by their values, as ingestion verified them.
-            fields.push(raw_log);
+            // The raw record's values unescaped: SideSeat's references, and the producer's - which ingest verified
+            // or noted - where the body that holds them is not stored but rebuilt from the raw record
+            // (`domain::log_body`). The derived columns stored beside it are read by their values.
+            raw_values(&raw_log, fields);
             for derived in [body, attributes, messages] {
                 string_values(&derived, fields);
             }
@@ -50,6 +51,36 @@ fn string_values(text: &str, into: &mut Vec<String>) {
             serde_json::Value::Object(members) => {
                 pending.extend(members.into_iter().map(|(_, m)| m))
             }
+            serde_json::Value::Array(items) => pending.extend(items),
+            _ => {}
+        }
+    }
+}
+
+/// The OTLP/JSON member naming a key-value pair's key, which is the producer's text and never a reference.
+const KEY: &str = "key";
+
+/// Every value of a raw record, unescaped as the producer wrote it (`file_uri::unescape_producer_text`): the strings
+/// its views are rebuilt from, so a reference a view shows is among them. A pair's key is not a value. A noted
+/// reference is read too - it can only keep a file the trace already owns for as long as the record lives - and text
+/// the parser cannot read is taken whole, for the same reason as [`string_values`].
+fn raw_values(text: &str, into: &mut Vec<String>) {
+    let unescape =
+        |text: &str| sideseat_core::utils::file_uri::unescape_producer_text(text).into_owned();
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) else {
+        into.push(unescape(text));
+        return;
+    };
+    let mut pending = vec![parsed];
+    while let Some(value) = pending.pop() {
+        match value {
+            serde_json::Value::String(text) => into.push(unescape(&text)),
+            serde_json::Value::Object(members) => pending.extend(
+                members
+                    .into_iter()
+                    .filter(|(member, _)| member != KEY)
+                    .map(|(_, value)| value),
+            ),
             serde_json::Value::Array(items) => pending.extend(items),
             _ => {}
         }
