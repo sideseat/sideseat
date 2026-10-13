@@ -202,7 +202,13 @@ placeholder each: a list bound as one value - split from a string, or cast to `V
 the only list forms the Rust driver can bind - is not read through the index at all, and scanned every row of a
 million to find 64 on 1.5.6. No read depends on that form. Writing the keys into the statement as literals instead
 of binding them was measured too and saved nothing: the same cost at 1, 64 and 512 keys over a million spans, and
-per-export write-path and server ingest figures within noise in the pinned 1-core container. What an index scan holds of
+per-export write-path and server ingest figures within noise in the pinned 1-core container. The raw identities
+stay hex text too, measured against 32-byte binary over a million spans by rebuilding each raw table both ways: the
+columns compress to the same size (`otel_raw` 98.83 MB hex against 99.09 MB binary, `otel_spans.raw_id` 4.46 against
+4.19 MB), and only the two ART indexes gain - `idx_raw_id` 7.34 to 4.72 MB, `idx_raw_traces_raw` 7.60 to 5.24 MB,
+about 5 B a span in all, deferred as not worth a schema change for 0.7 %. Dropping `signal_until` and `hold_until`
+from DuckDB's `otel_raw_traces`, which repeat the record's own, would save 0.79 MB, 0.8 B a span, and is not done.
+What an index scan holds of
 those rows sits outside `memory_limit`: DuckDB 1.5.6 gathers the key's row ids in a `std::set` while the scan
 initialises, about 50 B a row, then keeps them as an array of 8 B a row, neither through the buffer manager; and it
 fetches the rows one at a time, roughly 30 µs a row. Both grow with the rows a key finds, which the read has to
