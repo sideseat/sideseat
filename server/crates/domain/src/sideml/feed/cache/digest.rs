@@ -72,6 +72,28 @@ pub(super) fn digest_with(
         // log arriving for an unchanged span changes the answer while the span's body key stays the same.
         hasher.update(&(row.log_messages_json.len() as u64).to_le_bytes());
         hasher.update(row.log_messages_json.as_bytes());
+        // And a store's unresolved answer, should one reach the digest: the resolved messages are a function of it,
+        // so two rows that differ in it differ in what they reconstruct.
+        hasher.update(&(row.log_message_sources.len() as u64).to_le_bytes());
+        for source in &row.log_message_sources {
+            for part in [
+                source.messages.as_deref(),
+                source.raw_log.as_deref(),
+                source.scope_name.as_deref(),
+                source.noted_references.as_deref(),
+            ] {
+                match part {
+                    Some(text) => {
+                        hasher.update(&[1u8]);
+                        hasher.update(&(text.len() as u64).to_le_bytes());
+                        hasher.update(text.as_bytes());
+                    }
+                    None => {
+                        hasher.update(&[0u8]);
+                    }
+                }
+            }
+        }
 
         // Present-or-absent is hashed as well as the value. Mapping `None` to `""` made them the same
         // input, and an empty attribute is accepted - so a span whose `status_code` went from absent to

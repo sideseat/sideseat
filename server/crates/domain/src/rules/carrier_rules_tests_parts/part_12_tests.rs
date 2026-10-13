@@ -711,14 +711,14 @@ fn no_production_module_spells_a_declared_producer_word() {
         // OTLP's published `LogRecord.body` member name, a convention rather than a producer's spelling: the body
         // views are rebuilt from the record's OTLP/JSON, which names its body so for every producer.
         (
-            "server/crates/domain/src/log_views.rs",
+            "server/crates/domain/src/log_record.rs",
             "body",
             "the OTLP log record's own member, read from the record's OTLP/JSON",
         ),
         // OTLP's published `KeyValue.value` member name, a convention rather than a producer's spelling: a
         // key-value list's values are read from the record's OTLP/JSON, which names each so for every producer.
         (
-            "server/crates/domain/src/log_views.rs",
+            "server/crates/domain/src/log_record.rs",
             "value",
             "the OTLP key-value pair's own member, read from the record's OTLP/JSON",
         ),

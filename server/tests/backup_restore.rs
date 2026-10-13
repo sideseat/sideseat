@@ -268,7 +268,10 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
             .await
             .expect("restored duckdb"),
     );
-    let analytics: Arc<dyn AnalyticsRepository + Send + Sync> = Arc::new(DuckdbRepository(duckdb));
+    // Read as the server reads: the domain answers what the store keeps only in the raw record.
+    let analytics: Arc<dyn AnalyticsRepository + Send + Sync> = Arc::new(
+        sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(DuckdbRepository(duckdb))),
+    );
     let cache = Arc::new(
         CacheService::new(&CacheConfig {
             backend: CacheBackendType::Memory,

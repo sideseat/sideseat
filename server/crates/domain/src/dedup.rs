@@ -437,6 +437,10 @@ impl MessageStore for DedupAnalyticsRepository {
     ) -> Result<MessageQueryResult, DataError> {
         let mut result = self.inner.get_messages(params).await?;
         result.rows = deduplicate_by_span_identity(result.rows);
+        result
+            .rows
+            .iter_mut()
+            .for_each(crate::log_messages::resolve_row);
         Ok(result)
     }
 
@@ -446,6 +450,10 @@ impl MessageStore for DedupAnalyticsRepository {
     ) -> Result<MessageQueryResult, DataError> {
         let mut result = self.inner.get_project_messages(params).await?;
         result.rows = deduplicate_by_span_identity(result.rows);
+        result
+            .rows
+            .iter_mut()
+            .for_each(crate::log_messages::resolve_row);
         Ok(result)
     }
 
@@ -459,13 +467,17 @@ impl MessageStore for DedupAnalyticsRepository {
         Ok(rows)
     }
 
-    /// Passed through: the store reads each frame record's winning revision once, keyed by its identity, so there
-    /// is no span-level copy to collapse.
+    /// The store reads each frame record's winning revision once, keyed by its identity, so there is no span-level
+    /// copy to collapse; each record's messages are resolved from the store's answer (`log_messages`).
     async fn get_request_frames(
         &self,
         params: &sideseat_ports::types::RequestFramesParams,
     ) -> Result<Vec<sideseat_ports::types::RequestFrameRecord>, DataError> {
-        self.inner.get_request_frames(params).await
+        let mut frames = self.inner.get_request_frames(params).await?;
+        frames
+            .iter_mut()
+            .for_each(crate::log_messages::resolve_frame);
+        Ok(frames)
     }
 }
 

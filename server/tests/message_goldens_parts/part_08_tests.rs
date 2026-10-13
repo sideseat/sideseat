@@ -155,6 +155,7 @@ fn frame_records_beside(
                 log_digest: log.log_digest,
                 ordinal: log.ordinal,
                 messages_json: Some(messages),
+                source: None,
             },
         );
     }

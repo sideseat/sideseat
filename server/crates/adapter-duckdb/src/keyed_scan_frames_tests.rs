@@ -98,8 +98,9 @@ async fn the_frame_read_reads_only_the_frames_of_its_trace_and_key() {
     );
     assert!(
         frames[0]
-            .messages_json
-            .as_deref()
+            .source
+            .as_ref()
+            .and_then(|source| source.messages.as_deref())
             .is_some_and(|messages| messages.contains("re-delivered")),
         "the winning revision"
     );
@@ -181,7 +182,7 @@ async fn the_frame_read_reads_only_the_frames_of_its_trace_and_key() {
     assert_eq!(
         big_frames
             .iter()
-            .map(|f| (f.log_digest.as_str(), f.messages_json.is_some()))
+            .map(|f| (f.log_digest.as_str(), f.source.is_some()))
             .collect::<Vec<_>>(),
         [("f-big-1", true), ("f-big-2", false)],
         "the record past the byte bound is returned without its bytes"
@@ -205,7 +206,7 @@ async fn the_frame_read_stays_keyed_when_frames_are_in_most_row_groups() {
                  make_timestamp({START_US} + i * 1000000), 9, 0, 0, make_timestamp({START_US}), \
                  lpad(((i // 100) % 1000)::VARCHAR, 32, '0'), 'span', '[{{\"text\":\"frame\"}}]', \
                  CASE WHEN i % 100 = 0 THEN ((i // 100) % 1000 + 1)::UHUGEINT END \
-                 FROM range({}) r(i) ORDER BY i; CHECKPOINT;",
+                 FROM range({}) r(i) ORDER BY i; UPDATE otel_logs SET messages_bytes = strlen(messages) WHERE messages IS NOT NULL; CHECKPOINT;",
                 2 * LOGS_AND_POINTS
             ))
             .map_err(Into::into)
@@ -279,7 +280,7 @@ async fn a_trace_with_more_frames_than_memory_holds_is_still_answered() {
                  SELECT '{PROJECT}', lpad(i::VARCHAR, 8, '0'), 0, make_timestamp({START_US} + i * 1000), 9, 0, 0, \
                  make_timestamp({START_US}), 'trace', 'span', \
                  '[{{\"text\":\"' || i::VARCHAR || repeat('x', 16384) || '\"}}]', 1::UHUGEINT \
-                 FROM range(20000) r(i); CHECKPOINT;"
+                 FROM range(20000) r(i); UPDATE otel_logs SET messages_bytes = strlen(messages) WHERE messages IS NOT NULL; CHECKPOINT;"
             ))
             .map_err(Into::into)
         })
@@ -297,7 +298,7 @@ async fn a_trace_with_more_frames_than_memory_holds_is_still_answered() {
         frames.len(),
         sideseat_core::constants::REQUEST_FRAMES_MAX_RECORDS + 1
     );
-    assert!(frames.iter().all(|frame| frame.messages_json.is_some()));
+    assert!(frames.iter().all(|frame| frame.source.is_some()));
     assert_eq!(
         frames[0].log_digest, "00000000",
         "the first records, in order"
@@ -332,7 +333,7 @@ async fn the_frame_read_holds_the_bound_however_many_records_a_key_finds() {
                  SELECT '{PROJECT}', lpad(i::VARCHAR, 8, '0'), 0, make_timestamp({START_US} + i * 1000), 9, 0, 0, \
                  make_timestamp({START_US}), 'trace', 'span', '[{{\"text\":\"f\"}}]', \
                  CASE WHEN i % 4 = 0 THEN 1::UHUGEINT END \
-                 FROM range(400000) r(i); CHECKPOINT;"
+                 FROM range(400000) r(i); UPDATE otel_logs SET messages_bytes = strlen(messages) WHERE messages IS NOT NULL; CHECKPOINT;"
             ))
             .map_err(Into::into)
         })

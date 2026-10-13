@@ -39,6 +39,7 @@ fn row(messages: &[RawMessage]) -> MessageSpanRow {
         tool_definitions_json: "[]".to_string(),
         tool_names_json: "[]".to_string(),
         log_messages_json: "[]".to_string(),
+        log_message_sources: Vec::new(),
         body_cache_key: None,
         model: Some("model".to_string()),
         provider: None,

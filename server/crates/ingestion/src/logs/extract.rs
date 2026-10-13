@@ -154,6 +154,7 @@ fn extract_logs(
                     media,
                     noted_references: Vec::new(),
                     views_rebuild_from_raw: false,
+                    messages_rebuild_from_raw: false,
                 };
                 log.logical_bytes = crate::accounting::log_logical_bytes(&mut log);
                 result.push(log);
@@ -180,20 +181,23 @@ pub(crate) fn derive_content(
     project_id: Option<&str>,
     trace_id: Option<&str>,
 ) -> DerivedContent {
-    derive_content_rewriting(record, scope_name, project_id, trace_id, |_| {})
+    derive_content_noted(record, scope_name, project_id, trace_id, &[])
 }
 
-/// [`derive_content`], with `rewrite` applied to the messages' JSON before it is serialised - where a value decoded
-/// out of the record's text (JSON spelling `#` as `\u0023`, say) first appears, and the one place it can be
-/// changed structurally whatever its depth.
-pub(crate) fn derive_content_rewriting(
+/// [`derive_content`] of a record whose noted references (`notes`, each with its note) are already replaced in its
+/// values: the messages are derived by the one derivation a read uses (`domain::log_messages`), which also replaces
+/// them where a value decoded out of the record's text first appears.
+pub(crate) fn derive_content_noted(
     record: &opentelemetry_proto::tonic::logs::v1::LogRecord,
     scope_name: Option<&str>,
     project_id: Option<&str>,
     trace_id: Option<&str>,
-    rewrite: impl FnOnce(&mut serde_json::Value),
+    notes: &[(String, String)],
 ) -> DerivedContent {
-    let messages = super::messages::log_record_messages(record, scope_name);
+    let messages = sideseat_domain::log_messages::log_record_messages(
+        &super::content::log_record_content(record),
+        scope_name,
+    );
     // Stored in the project's and trace's form, which keeps the frames read to the trace's frames
     // (`RequestFrames::stored_key`). A record no request named a project for is attributed to the default one, as
     // the write fence attributes it.
@@ -214,11 +218,7 @@ pub(crate) fn derive_content_rewriting(
             .unwrap_or_default(),
         body_text: record.body.as_ref().and_then(body_text),
         attributes: attrs_to_typed_json(&record.attributes),
-        messages: (!messages.is_empty()).then(|| {
-            let mut value = serde_json::to_value(&messages).unwrap_or_default();
-            rewrite(&mut value);
-            value.to_string()
-        }),
+        messages: sideseat_domain::log_messages::messages_text(&messages, notes),
         frame_key,
     }
 }

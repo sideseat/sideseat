@@ -42,9 +42,9 @@ pub fn references_for_traces(
         // The four columns apart, so the caller reads the derived ones' values only: a producer's key is never a
         // reference, and a scan of the serialised JSON would count one.
         Backend::Clickhouse => format!(
-            "SELECT coalesce(raw_log, ''), coalesce(body, ''), coalesce(attributes, ''), messages FROM {logs} \
+            "SELECT coalesce(raw_log, ''), coalesce(body, ''), coalesce(attributes, ''), coalesce(messages, '') FROM {logs} \
              WHERE project_id = ? AND trace_id IN ({traces}) AND position(concat(coalesce(raw_log, ''), ' ', \
-             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', messages), 'B64!#') > 0 \
+             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', coalesce(messages, '')), 'B64!#') > 0 \
              SETTINGS skip_unavailable_shards = 0"
         ),
     };
@@ -76,7 +76,7 @@ pub fn media_trace_page(
         Backend::Clickhouse => format!(
             "SELECT DISTINCT assumeNotNull(trace_id) AS trace FROM {logs} WHERE project_id = ? \
              AND isNotNull(trace_id){after_clause} AND position(concat(coalesce(raw_log, ''), ' ', \
-             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', messages), 'B64!#') > 0 \
+             coalesce(body, ''), ' ', coalesce(attributes, ''), ' ', coalesce(messages, '')), 'B64!#') > 0 \
              ORDER BY trace LIMIT ? SETTINGS skip_unavailable_shards = 0"
         ),
     };

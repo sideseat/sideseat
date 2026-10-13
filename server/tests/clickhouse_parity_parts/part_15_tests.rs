@@ -743,6 +743,71 @@ async fn reads_agree_at_a_million_spans() {
         limit: 50,
         ..Default::default()
     };
+    // The message views as the API answers them, log records' messages rebuilt from their raw records: the
+    // samples above, the trace whose spans join the most log messages and its session, and the project feed.
+    let (log_trace, log_session): (String, String) = {
+        let conn = duck.0.conn();
+        conn.query_row(
+            "SELECT l.trace_id, coalesce(any_value(s.session_id), '') FROM otel_logs l \
+             LEFT JOIN otel_spans s ON s.trace_id = l.trace_id \
+             WHERE l.messages_bytes > 0 GROUP BY l.trace_id ORDER BY count(*) DESC, l.trace_id LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("a trace whose spans join log messages")
+    };
+    for (name, params) in [
+        (
+            "messages of a trace, through the domain",
+            MessageQueryParams {
+                project_id: project.clone(),
+                trace_id: Some(trace.clone()),
+                ..Default::default()
+            },
+        ),
+        (
+            "messages of a session, through the domain",
+            MessageQueryParams {
+                project_id: project.clone(),
+                session_id: Some(session.clone()),
+                ..Default::default()
+            },
+        ),
+        (
+            "messages of the trace with the most log messages",
+            MessageQueryParams {
+                project_id: project.clone(),
+                trace_id: Some(log_trace.clone()),
+                ..Default::default()
+            },
+        ),
+        (
+            "messages of that trace's session",
+            MessageQueryParams {
+                project_id: project.clone(),
+                session_id: Some(log_session.clone()),
+                ..Default::default()
+            },
+        ),
+    ] {
+        compare_views!(name, |repo| repo.get_messages(&params), |result| {
+            let result: sideseat_ports::types::MessageQueryResult = result;
+            sorted(result.rows.iter().map(describe_message_row).collect())
+        });
+    }
+    let feed = sideseat_ports::types::FeedMessagesParams {
+        project_id: project.clone(),
+        limit: 20,
+        ..Default::default()
+    };
+    compare_views!(
+        "project message feed, through the domain",
+        |repo| repo.get_project_messages(&feed),
+        |result| {
+            let result: sideseat_ports::types::MessageQueryResult = result;
+            sorted(result.rows.iter().map(describe_message_row).collect())
+        }
+    );
     compare_views!("list logs", |repo| repo.list_logs(&logs), |page| {
         let (rows, total): (Vec<sideseat_ports::types::LogRow>, u64) = page;
         (total, rows.iter().map(describe_log).collect::<Vec<_>>())
@@ -767,6 +832,87 @@ async fn reads_agree_at_a_million_spans() {
         }
     );
 
+    // Where ClickHouse's message views spend: each view read once more, alone, and every statement it ran.
+    if std::env::var("SIDESEAT_READ_PARITY_PROFILE").is_ok() {
+        let raw = raw_client(&url, database).with_option(
+            sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+            "1",
+        );
+        let views: Vec<(&str, MessageQueryParams)> = vec![
+            (
+                "messages of a trace",
+                MessageQueryParams {
+                    project_id: project.clone(),
+                    trace_id: Some(trace.clone()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "messages of a session",
+                MessageQueryParams {
+                    project_id: project.clone(),
+                    session_id: Some(session.clone()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "messages of the trace with the most log messages",
+                MessageQueryParams {
+                    project_id: project.clone(),
+                    trace_id: Some(log_trace.clone()),
+                    ..Default::default()
+                },
+            ),
+        ];
+        let columns: Vec<(String, u64, u64)> = raw
+            .query(
+                "SELECT name, data_compressed_bytes, data_uncompressed_bytes FROM system.columns \
+                 WHERE database = currentDatabase() AND table IN ('otel_logs', 'otel_logs_local') \
+                   AND name IN ('messages', 'messages_bytes', 'messages_hash', 'raw_log', 'noted_references') \
+                 ORDER BY name",
+            )
+            .fetch_all()
+            .await
+            .expect("the log columns");
+        let records: u64 = raw
+            .query("SELECT count() FROM otel_logs")
+            .fetch_one()
+            .await
+            .expect("the log records");
+        println!("\n{records} log rows\n| column | compressed | uncompressed |\n|---|---|---|");
+        for (name, compressed, uncompressed) in columns {
+            println!("| {name} | {compressed} | {uncompressed} |");
+        }
+        println!("\n| view | statement | ms | rows | bytes | memory |\n|---|---|---|---|---|---|");
+        for (name, params) in &views {
+            let since: i64 = raw
+                .query("SELECT toInt64(toUnixTimestamp64Micro(now64(6)))")
+                .fetch_one()
+                .await
+                .expect("the server's clock");
+            ch_view.get_messages(params).await.expect("the view");
+            raw.query("SYSTEM FLUSH LOGS")
+                .execute()
+                .await
+                .expect("flush the query log");
+            let statements: Vec<(String, u64, u64, u64, u64)> = raw
+                .query(
+                    "SELECT substring(replaceRegexpAll(query, '\\s+', ' '), 1, 90), query_duration_ms, \
+                            read_rows, read_bytes, memory_usage FROM system.query_log \
+                     WHERE type = 'QueryFinish' AND is_initial_query \
+                       AND toInt64(toUnixTimestamp64Micro(event_time_microseconds)) >= ? \
+                       AND query NOT ILIKE '%system.%' AND query NOT ILIKE '%now64(6)%' \
+                     ORDER BY event_time_microseconds",
+                )
+                .bind(since)
+                .fetch_all()
+                .await
+                .expect("the query log");
+            for (query, ms, rows, bytes, memory) in statements {
+                println!("| {name} | {query} | {ms} | {rows} | {bytes} | {memory} |");
+            }
+        }
+    }
     println!(
         "\n{} span rows; trace {trace}; session {session}; term {term}; log term {log_term}\n\
          | read | DuckDB | ClickHouse |\n|---|---|---|",

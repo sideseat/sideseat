@@ -6,7 +6,7 @@
    "indexes": 262144
   },
   "otel_logs": {
-   "columns": 2621384,
+   "columns": 2097104,
    "indexes": 262144
   },
   "otel_metrics": {
@@ -34,8 +34,8 @@
    "indexes": 0
   }
  },
- "residual": 524904,
- "analytics_used": 35127296,
+ "residual": 524896,
+ "analytics_used": 34603008,
  "transactional": {
   "api_keys": 20480,
   "auth_methods": 20480,
@@ -75,8 +75,8 @@
   },
   "logs": {
    "items": 8013,
-   "stored_excluding_media": 3407808,
-   "per_item": 425.28
+   "stored_excluding_media": 2883528,
+   "per_item": 359.86
   },
   "metrics": {
    "items": 1440,

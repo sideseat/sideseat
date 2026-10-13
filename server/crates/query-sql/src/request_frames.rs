@@ -51,7 +51,7 @@ pub fn frames_in_trace(
         "project_id = ?".to_string(),
         "trace_id = ?".to_string(),
         "span_id IS NOT NULL".to_string(),
-        "messages != '[]'".to_string(),
+        "messages_bytes > 0".to_string(),
     ];
     if let Some(watermark) = watermark_us {
         conditions.push(match backend {
@@ -69,6 +69,13 @@ pub fn frames_in_trace(
     let max_bytes = sideseat_core::constants::REQUEST_FRAMES_MAX_BYTES;
     let window =
         "ORDER BY timestamp, log_digest, ordinal ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW";
+    // Each record's messages as the store answers them: stored, or the raw record they are rebuilt from - built for
+    // the chosen records alone, after the scan that chooses them, which carries the columns as they stand.
+    let source = crate::messages::log_message_source(backend);
+    let fetched = crate::messages::log_message_source_of(
+        backend,
+        ["g.messages", "g.raw", "g.scope", "g.noted"],
+    );
     let sql = match backend {
         // Each pass an aggregate straight over a key-only scan through the key's index, keeping the first records
         // by `min_by(.., n)`: state of `n` rows whatever the key finds, where a materialised relation of the key's
@@ -86,7 +93,7 @@ pub fn frames_in_trace(
                 "WITH picked AS (\
                    SELECT min_by({{'keyed_rowid': rowid, 'trace_id': trace_id, 'span_id': span_id, \
                                    'ts': timestamp, 'log_digest': log_digest, 'ordinal': ordinal, \
-                                   'bytes': strlen(messages)}}, \
+                                   'bytes': messages_bytes}}, \
                                  CASE WHEN {conditions} THEN {order} END, {limit}) AS chosen \
                    FROM otel_logs WHERE frame_key = CAST(? AS UHUGEINT)), \
                  chosen AS MATERIALIZED (\
@@ -95,14 +102,18 @@ pub fn frames_in_trace(
                                              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running \
                    FROM (SELECT unnest(chosen) AS c FROM picked)), \
                  fetched AS (\
-                   SELECT min_by({{'fetched_rowid': rowid, 'messages': messages}}, \
+                   SELECT min_by({{'fetched_rowid': rowid, 'messages': messages, \
+                                   'raw': CASE WHEN messages IS NULL THEN raw_log END, \
+                                   'scope': CASE WHEN messages IS NULL THEN scope_name END, \
+                                   'noted': CASE WHEN messages IS NULL THEN noted_references END}}, \
                                  CASE WHEN rowid IN (SELECT keyed_rowid FROM chosen WHERE running <= {max_bytes}) \
                                       THEN {order} END, {limit}) AS got \
                    FROM otel_logs WHERE frame_key = CAST(? AS UHUGEINT)) \
                  SELECT c.trace_id, c.span_id, EPOCH_US(c.timestamp) AS timestamp_us, c.log_digest, c.ordinal, \
                         f.messages \
                  FROM chosen c \
-                 LEFT JOIN (SELECT g.fetched_rowid, g.messages FROM (SELECT unnest(got) AS g FROM fetched)) f \
+                 LEFT JOIN (SELECT g.fetched_rowid, {fetched} AS messages \
+                            FROM (SELECT unnest(got) AS g FROM fetched)) f \
                    ON f.fetched_rowid = c.keyed_rowid \
                  ORDER BY c.timestamp, c.log_digest, c.ordinal"
             )
@@ -135,7 +146,7 @@ pub fn frames_in_trace(
                    FROM (SELECT assumeNotNull(trace_id) AS frame_trace_id, \
                                 assumeNotNull(span_id) AS frame_span_id, \
                                 toInt64(toUnixTimestamp64Micro(timestamp)) AS timestamp_us, timestamp, log_digest, \
-                                ordinal, length(messages) AS bytes \
+                                ordinal, messages_bytes AS bytes \
                          FROM otel_logs FINAL \
                          WHERE frame_key = toUInt128(?) AND {conditions} \
                          ORDER BY timestamp, log_digest, ordinal LIMIT {limit})) \
@@ -143,7 +154,7 @@ pub fn frames_in_trace(
                         c.log_digest AS log_digest, c.ordinal AS ordinal, \
                         if(c.running <= {max_bytes}, f.messages, NULL) AS messages \
                  FROM chosen AS c \
-                 LEFT JOIN (SELECT log_digest, ordinal, messages FROM otel_logs FINAL \
+                 LEFT JOIN (SELECT log_digest, ordinal, {source} AS messages FROM otel_logs FINAL \
                             WHERE frame_key = toUInt128(?) AND project_id = ? AND trace_id = ? \
                               AND (log_digest, ordinal) GLOBAL IN \
                                   (SELECT log_digest, ordinal FROM chosen WHERE running <= {max_bytes})) AS f \

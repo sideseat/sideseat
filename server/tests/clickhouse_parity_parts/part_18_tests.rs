@@ -68,7 +68,7 @@ async fn log_messages_of_the_span(store: &(impl MessageStore + ?Sized)) -> usize
     let joined: Vec<serde_json::Value> = rows
         .iter()
         .flat_map(|row| {
-            serde_json::from_str::<Vec<serde_json::Value>>(&row.log_messages_json)
+            serde_json::from_str::<Vec<serde_json::Value>>(&log_messages(row))
                 .expect("log messages JSON")
         })
         .collect();

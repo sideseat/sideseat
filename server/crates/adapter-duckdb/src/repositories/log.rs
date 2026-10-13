@@ -139,7 +139,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 SqlTimestamp(log.ingested_at.unwrap_or(log.timestamp)),
                 SqlOptTimestamp(log.hold_until),
                 i64::try_from(log.logical_bytes).unwrap_or(i64::MAX),
-                log.messages.as_deref().unwrap_or("[]"),
+                log.stored_messages(),
                 search_fields,
                 search_truncated,
                 log.frame_key,
@@ -148,6 +148,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 terms[1].as_deref(),
                 terms[2].as_deref(),
                 terms[3].as_deref(),
+                log.messages_bytes(),
             ])?;
         }
         appender.flush()?;

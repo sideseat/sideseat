@@ -269,7 +269,7 @@ fn log_messages_source(
         "project_id = ?".to_string(),
         "trace_id IS NOT NULL".to_string(),
         "span_id IS NOT NULL".to_string(),
-        "messages != '[]'".to_string(),
+        "messages_bytes > 0".to_string(),
     ];
     if let Some(watermark) = watermark {
         conditions.push(match backend {
@@ -278,35 +278,103 @@ fn log_messages_source(
         });
         values.push(QueryValue::Int64(watermark));
     }
+    // ClickHouse reads the scope as `PREWHERE`, which it does not choose itself under `FINAL`: the record's trace and
+    // span are part of its identity, the same in every delivery, so filtering them before the deliveries are merged
+    // keeps the same winners - and the raw records of the rows it leaves out are never read.
+    let mut prewhere = String::new();
     if let Some((condition, scope_values)) = scope {
-        conditions.push(condition);
-        values.extend(scope_values);
+        match backend {
+            Backend::Duckdb => {
+                conditions.push(condition);
+                values.extend(scope_values);
+            }
+            Backend::Clickhouse => {
+                prewhere = format!("PREWHERE project_id = ? AND {condition} ");
+                let mut scoped = vec![QueryValue::String(project_id.to_string())];
+                scoped.extend(scope_values);
+                scoped.extend(values);
+                values = scoped;
+            }
+        }
     }
     let sql = match backend {
         Backend::Duckdb => format!(
             "SELECT trace_id AS log_trace_id, span_id AS log_span_id, \
-                    '[' || string_agg(substr(messages, 2, length(messages) - 2), ',' \
-                                      ORDER BY timestamp, log_digest, ordinal) || ']' AS aggregated \
+                    '[' || string_agg({source}, ',' ORDER BY timestamp, log_digest, ordinal) || ']' AS aggregated \
              FROM otel_logs \
              WHERE {} \
              GROUP BY trace_id, span_id",
-            conditions.join(" AND ")
+            conditions.join(" AND "),
+            source = log_message_source(Backend::Duckdb),
         ),
         // `FINAL` before the filter: the watermark and the non-empty test apply to the winning delivery,
         // which is what DuckDB's single row per identity is.
         Backend::Clickhouse => format!(
             "SELECT assumeNotNull(trace_id) AS log_trace_id, assumeNotNull(span_id) AS log_span_id, \
-                    concat('[', arrayStringConcat(arrayMap(entry -> entry.4, arraySort(groupArray(\
-                        (timestamp, log_digest, ordinal, substring(messages, 2, length(messages) - 2))\
-                    ))), ','), ']') AS aggregated \
-             FROM otel_logs FINAL \
+                    {sources} AS aggregated, {token} \
+             FROM otel_logs FINAL {prewhere}\
              WHERE {} \
              GROUP BY log_trace_id, log_span_id",
-            conditions.join(" AND ")
+            conditions.join(" AND "),
+            sources = CLICKHOUSE_LOG_MESSAGE_SOURCES,
+            token = CLICKHOUSE_CARRIER_TOKEN,
         ),
     };
     (sql, values)
 }
+
+/// One log record's messages as the store answers them (`LogMessageSource`), a JSON object: the stored array, or the
+/// raw record and what the derivation reads beside it where the messages are not stored, which the domain then
+/// rebuilds (`domain::log_messages`) - never both, so a read carries the stored array or the inputs ingest bounded
+/// it by (`ingest::settle_views`). A record carries messages exactly where `messages_bytes` is above zero.
+pub(crate) fn log_message_source(backend: Backend) -> String {
+    log_message_source_of(
+        backend,
+        ["messages", "raw_log", "scope_name", "noted_references"],
+    )
+}
+
+/// [`log_message_source`] over these expressions for the record's messages, raw record, scope and noted references
+/// - a read that carries them out of a scan under other names.
+pub(crate) fn log_message_source_of(
+    backend: Backend,
+    [messages, raw_log, scope, noted]: [&str; 4],
+) -> String {
+    match backend {
+        Backend::Duckdb => format!(
+            "CAST(json_object('m', {messages}, \
+                              'r', CASE WHEN {messages} IS NULL THEN CAST({raw_log} AS VARCHAR) END, \
+                              's', CASE WHEN {messages} IS NULL THEN {scope} END, \
+                              'n', CASE WHEN {messages} IS NULL THEN {noted} END) AS VARCHAR)"
+        ),
+        Backend::Clickhouse => format!(
+            "concat('{{\"m\":', if(isNull({messages}), 'null', toJSONString(assumeNotNull({messages}))), \
+                    ',\"r\":', if(isNull({messages}), toJSONString(ifNull({raw_log}, '')), 'null'), \
+                    ',\"s\":', if(isNull({messages}) AND isNotNull({scope}), \
+                                   toJSONString(assumeNotNull({scope})), 'null'), \
+                    ',\"n\":', if(isNull({messages}) AND isNotNull({noted}), \
+                                   toJSONString(assumeNotNull({noted})), 'null'), '}}')"
+        ),
+    }
+}
+
+/// A span's carrier revisions summed into a fixed-size token: their count, and the sum of each revision's hash - its
+/// identity, the instant it orders by, its receipt, and a hash of its messages (`messages_hash`), so the token moves
+/// with any change to what the span joins, a same-instant redelivery's included. Two reads of one span that agree on
+/// both read the same messages in the same order, so what one admitted the other answers; all of it is read from
+/// narrow columns, never a record's messages or raw form.
+const CLICKHOUSE_CARRIER_TOKEN: &str = "toUInt64(count()) AS carriers, \
+     sum(cityHash64(log_digest, ordinal, toInt64(toUnixTimestamp64Micro(timestamp)), \
+                    toInt64(toUnixTimestamp64Micro(ingested_at)), messages_hash)) AS carrier_token";
+
+/// ClickHouse's aggregate of a span's log records' messages as the store answers them (`LogMessageSource`), typed
+/// rather than JSON text, so no record's raw form is escaped to be read: an array of (messages, raw record, scope,
+/// noted references) in `(timestamp, log_digest, ordinal)` order, the last three only where the messages are not
+/// stored, the first only where they are.
+const CLICKHOUSE_LOG_MESSAGE_SOURCES: &str = "arrayMap(entry -> (entry.4, entry.5, entry.6, entry.7), \
+     arraySort(entry -> (entry.1, entry.2, entry.3), groupArray((timestamp, log_digest, ordinal, messages, \
+         if(isNull(messages), raw_log, NULL), if(isNull(messages), scope_name, NULL), \
+         if(isNull(messages), noted_references, NULL)))))";
 
 /// Join each selected span row to the messages its log records carry, in one statement.
 ///
@@ -330,11 +398,17 @@ fn join_log_messages(
         .map(|column| format!("s.{column} AS {column}"))
         .collect::<Vec<_>>()
         .join(", ");
-    // An unmatched `LEFT JOIN` row is NULL on DuckDB and the type's default, '', on ClickHouse.
+    // An unmatched `LEFT JOIN` row is NULL on DuckDB, and on ClickHouse the type's default or NULL as
+    // `join_use_nulls` says - so each value is normalised to the default, and an array cannot be NULL there.
     let log_messages = match backend {
-        Backend::Duckdb => "COALESCE(l.aggregated, '[]')",
+        Backend::Duckdb => {
+            "COALESCE(l.aggregated, '[]') AS log_messages, l.aggregated IS NOT NULL AS has_log_messages"
+        }
+        // The carrier token a feed page checks its messages by (`CLICKHOUSE_CARRIER_TOKEN`).
         Backend::Clickhouse => {
-            "if(ifNull(l.aggregated, '') = '', '[]', ifNull(l.aggregated, '[]'))"
+            "l.aggregated AS log_messages, notEmpty(l.aggregated) AS has_log_messages, \
+             toUInt64(ifNull(l.carriers, 0)) AS log_carriers, \
+             toUInt64(ifNull(l.carrier_token, 0)) AS log_carrier_token"
         }
     };
     let filter = filter.map(|f| format!(" WHERE {f}")).unwrap_or_default();
@@ -342,7 +416,7 @@ fn join_log_messages(
     ParameterizedQuery::new(
         format!(
             "SELECT * FROM (\n\
-             SELECT {columns}, {log_messages} AS log_messages\n\
+             SELECT {columns}, {log_messages}\n\
              FROM ({spans_sql}) s\n\
              LEFT JOIN ({logs_sql}) l ON l.log_trace_id = s.trace_id AND l.log_span_id = s.span_id\n\
              ){filter}\n\
@@ -454,15 +528,15 @@ pub fn get_messages(params: &MessageQueryParams, backend: Backend) -> Parameteri
     )
 }
 
-/// Read one stable project-wide page of message-bearing spans.
-///
-/// The page is ordered and cut by the span's own `ingested_at`, so a log record arriving after its span was
-/// paged does not bring the span back: the next traversal sees it, this one does not.
-pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> ParameterizedQuery {
-    let (source, mut values) = winner_source(backend, params.ingested_before_us);
+/// A feed page's own conditions on the spans, after the winner source's, with their values in that order: the
+/// project, the cursor and the time bounds.
+fn feed_conditions(
+    params: &FeedMessagesParams,
+    backend: Backend,
+) -> (Vec<String>, Vec<QueryValue>) {
+    let mut values = Vec::new();
     let mut conditions = vec!["project_id = ?".to_string()];
     values.push(QueryValue::String(params.project_id.to_string()));
-
     if let Some((cursor_time_us, cursor_span_id, cursor_trace_id)) = &params.cursor {
         let ingested = match backend {
             Backend::Duckdb => "EPOCH_US(ingested_at)",
@@ -489,21 +563,82 @@ pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> Pa
         values.push(value);
     }
 
+    (conditions, values)
+}
+
+/// Read one stable project-wide page of message-bearing spans.
+///
+/// The page is ordered and cut by the span's own `ingested_at`, so a log record arriving after its span was
+/// paged does not bring the span back: the next traversal sees it, this one does not.
+pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> ParameterizedQuery {
+    let (source, mut values) = winner_source(backend, params.ingested_before_us);
+    let (conditions, condition_values) = feed_conditions(params, backend);
+    values.extend(condition_values);
+
     if backend == Backend::Duckdb {
         return duckdb_project_messages(params, &conditions.join(" AND "), values);
     }
+    clickhouse_project_messages_page(params, &source, &conditions.join(" AND "), values)
+}
+
+/// ClickHouse's project feed page, cut before any log record's messages are read: the spans, each with the token of
+/// the winning revisions of the log records that carry messages for it - read from the carriers' keys alone, under
+/// the watermark, a fixed size per span - filtered, ordered and limited. The page's messages are then read for its
+/// spans alone ([`log_message_sources_of_spans`]), with the same token, so the read follows the page rather than
+/// the project, and a caller accepts it only where the tokens agree. Its rows carry an empty `log_messages`, which
+/// that second read fills.
+fn clickhouse_project_messages_page(
+    params: &FeedMessagesParams,
+    source: &str,
+    conditions: &str,
+    span_values: Vec<QueryValue>,
+) -> ParameterizedQuery {
+    let (carriers, carrier_values) = log_message_carriers_on(Backend::Clickhouse, params);
+    let columns = MESSAGE_COLUMNS
+        .iter()
+        .map(|column| format!("s.{column} AS {column}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    // In text order: the spans' source, then the carriers'.
+    let mut values = span_values;
+    values.extend(carrier_values);
+    ParameterizedQuery::new(
+        format!(
+            "SELECT * FROM (\n\
+             SELECT {columns}, {empty} AS log_messages, ifNull(c.carriers, 0) > 0 AS has_log_messages, \
+                    toUInt64(ifNull(c.carriers, 0)) AS log_carriers, \
+                    toUInt64(ifNull(c.carrier_token, 0)) AS log_carrier_token\n\
+             FROM (SELECT\n{projection}\nFROM {source}\nWHERE {conditions}) s\n\
+             LEFT JOIN ({carriers}) c ON c.log_trace_id = s.trace_id AND c.log_span_id = s.span_id\n\
+             ) WHERE {MESSAGE_CONTENT_FILTER}\n\
+             ORDER BY ingested_at_us DESC, span_id DESC, trace_id DESC\nLIMIT {limit}",
+            empty = CLICKHOUSE_NO_LOG_MESSAGE_SOURCES,
+            projection = message_projection(Backend::Clickhouse),
+            limit = params.limit,
+        ),
+        values,
+    )
+}
+
+/// The ClickHouse project feed in one statement: every candidate span joined to its log records' messages, then
+/// filtered and cut. Its read follows the project, so it is the fallback a feed read takes only where log records
+/// arriving between the page and its messages keep the two from agreeing ([`clickhouse_project_messages_page`]).
+pub fn clickhouse_project_messages_joined(params: &FeedMessagesParams) -> ParameterizedQuery {
+    let (source, mut values) = winner_source(Backend::Clickhouse, params.ingested_before_us);
+    let (conditions, condition_values) = feed_conditions(params, Backend::Clickhouse);
+    values.extend(condition_values);
     join_log_messages(
-        backend,
+        Backend::Clickhouse,
         (
             format!(
                 "SELECT\n{}\nFROM {source}\nWHERE {}",
-                message_projection(backend),
+                message_projection(Backend::Clickhouse),
                 conditions.join(" AND "),
             ),
             values,
         ),
         log_messages_source(
-            backend,
+            Backend::Clickhouse,
             params.project_id.as_str(),
             params.ingested_before_us,
             None,
@@ -512,6 +647,49 @@ pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> Pa
         "ingested_at_us DESC, span_id DESC, trace_id DESC",
         Some(params.limit),
     )
+}
+
+/// An empty aggregate of [`CLICKHOUSE_LOG_MESSAGE_SOURCES`]'s type.
+const CLICKHOUSE_NO_LOG_MESSAGE_SOURCES: &str = "CAST([], 'Array(Tuple(Nullable(String), Nullable(String), Nullable(String), Nullable(String)))')";
+
+/// The log records' messages of these spans, one row per span with its carrier token: what a ClickHouse feed page
+/// joins after it is cut ([`clickhouse_project_messages_page`]). Read by the trace ids' bloom filter, then the spans
+/// exactly, each identity's winning delivery under the watermark, as the page read them.
+pub fn log_message_sources_of_spans(
+    project_id: &str,
+    watermark: Option<i64>,
+    spans: &[(String, String)],
+) -> Option<ParameterizedQuery> {
+    if spans.is_empty() {
+        return None;
+    }
+    let mut traces: Vec<&str> = spans.iter().map(|(trace, _)| trace.as_str()).collect();
+    traces.sort_unstable();
+    traces.dedup();
+    let mut values: Vec<QueryValue> = traces
+        .iter()
+        .map(|trace| QueryValue::String((*trace).to_string()))
+        .collect();
+    for (trace, span) in spans {
+        values.push(QueryValue::String(trace.clone()));
+        values.push(QueryValue::String(span.clone()));
+    }
+    let scope = format!(
+        "trace_id IN ({}) AND (trace_id, span_id) IN ({})",
+        std::iter::repeat_n("?", traces.len())
+            .collect::<Vec<_>>()
+            .join(", "),
+        std::iter::repeat_n("(?, ?)", spans.len())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let (sql, aggregate_values) = log_messages_source(
+        Backend::Clickhouse,
+        project_id,
+        watermark,
+        Some((scope, values)),
+    );
+    Some(ParameterizedQuery::new(sql, aggregate_values))
 }
 
 /// DuckDB's project feed picks its page before it reads what the page shows. Joining every span's columns to
@@ -556,7 +734,8 @@ fn duckdb_project_messages(
                 OR (trace_id, span_id) IN (SELECT trace_id, span_id FROM carriers)) \
            ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {limit})\n\
          SELECT * FROM (\n\
-         SELECT {columns}, COALESCE(l.aggregated, '[]') AS log_messages\n\
+         SELECT {columns}, COALESCE(l.aggregated, '[]') AS log_messages, \
+                l.aggregated IS NOT NULL AS has_log_messages\n\
          FROM (SELECT\n{projection}\nFROM otel_spans WHERE rowid IN (SELECT row_id FROM picked)) s\n\
          LEFT JOIN ({aggregate}) l ON l.log_trace_id = s.trace_id AND l.log_span_id = s.span_id\n\
          ) WHERE {MESSAGE_CONTENT_FILTER}\n\
@@ -571,283 +750,46 @@ fn duckdb_project_messages(
 
 /// The spans with log messages, as DuckDB's feed aggregates them: the same conditions, without the aggregate.
 fn log_message_carriers(params: &FeedMessagesParams) -> (String, Vec<QueryValue>) {
+    log_message_carriers_on(Backend::Duckdb, params)
+}
+
+/// The spans log records carry messages for, by their keys alone: no record's messages or raw form is read. Each
+/// identity's winning delivery decides, under the watermark, as the log aggregate decides
+/// ([`log_messages_source`]).
+fn log_message_carriers_on(
+    backend: Backend,
+    params: &FeedMessagesParams,
+) -> (String, Vec<QueryValue>) {
     let mut values = vec![QueryValue::String(params.project_id.to_string())];
     let mut conditions = vec![
         "project_id = ?",
         "trace_id IS NOT NULL",
         "span_id IS NOT NULL",
-        "messages != '[]'",
+        "messages_bytes > 0",
     ];
     if let Some(watermark) = params.ingested_before_us {
-        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT");
+        conditions.push(match backend {
+            Backend::Duckdb => "EPOCH_US(ingested_at) < ?::BIGINT",
+            Backend::Clickhouse => "toInt64(toUnixTimestamp64Micro(ingested_at)) < ?",
+        });
         values.push(QueryValue::Int64(watermark));
     }
-    (
-        format!(
+    let sql = match backend {
+        Backend::Duckdb => format!(
             "SELECT DISTINCT trace_id, span_id FROM otel_logs WHERE {}",
             conditions.join(" AND ")
         ),
-        values,
-    )
+        // Each span's carrier token, by the carriers' keys alone, which the page's messages are checked by.
+        Backend::Clickhouse => format!(
+            "SELECT assumeNotNull(trace_id) AS log_trace_id, assumeNotNull(span_id) AS log_span_id, \
+                    {CLICKHOUSE_CARRIER_TOKEN} \
+             FROM otel_logs FINAL WHERE {} GROUP BY log_trace_id, log_span_id",
+            conditions.join(" AND ")
+        ),
+    };
+    (sql, values)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::{DateTime, Utc};
-    use sideseat_ports::types::ProjectId;
-
-    /// How many times a span winner as of a watermark binds it: DuckDB's condition names it twice
-    /// (`crate::winners`), ClickHouse's ranking once.
-    fn span_watermark_binds(backend: Backend) -> usize {
-        match backend {
-            Backend::Duckdb => 2,
-            Backend::Clickhouse => 1,
-        }
-    }
-
-    #[test]
-    fn message_selector_priority_and_watermark_bind_order_are_explicit() {
-        let params = MessageQueryParams {
-            project_id: ProjectId::from("tenant-'quoted"),
-            span_id: Some("span-'quoted".to_string()),
-            trace_id: Some("trace-'quoted".to_string()),
-            session_id: Some("ignored-session".to_string()),
-            trace_ids: Some(vec!["ignored-trace".to_string()]),
-            ingested_before_us: Some(99),
-            ..Default::default()
-        };
-        for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            let query = get_messages(&params, backend);
-            assert_eq!(query.sql().matches('?').count(), query.params().len());
-            let watermarks = span_watermark_binds(backend);
-            assert!(
-                query.params()[..watermarks]
-                    .iter()
-                    .all(|value| value == &QueryValue::Int64(99))
-            );
-            assert_eq!(
-                query.params().get(watermarks),
-                Some(&QueryValue::String("tenant-'quoted".to_string()))
-            );
-            assert!(query.sql().contains("span_id = ? AND trace_id = ?"));
-            assert!(!query.sql().contains("ignored-session"));
-            assert!(!query.sql().contains("ignored-trace"));
-        }
-    }
-
-    #[test]
-    fn empty_trace_batch_is_fail_closed_and_project_feed_uses_total_cursor() {
-        let empty = MessageQueryParams {
-            project_id: ProjectId::from("p"),
-            trace_ids: Some(Vec::new()),
-            ..Default::default()
-        };
-        for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            let query = get_messages(&empty, backend);
-            assert!(query.sql().contains("1 = 0"));
-            assert!(query.sql().contains(MESSAGE_CONTENT_FILTER));
-
-            let feed = get_project_messages(
-                &FeedMessagesParams {
-                    project_id: ProjectId::from("tenant-'quoted"),
-                    limit: 17,
-                    cursor: Some((42, "span-'quoted".to_string(), "trace-'quoted".to_string())),
-                    start_time: Some(
-                        DateTime::parse_from_rfc3339("2026-09-20T10:00:00Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    ),
-                    end_time: Some(
-                        DateTime::parse_from_rfc3339("2026-09-21T10:00:00Z")
-                            .unwrap()
-                            .with_timezone(&Utc),
-                    ),
-                    ingested_before_us: Some(100),
-                },
-                backend,
-            );
-            assert_eq!(feed.sql().matches('?').count(), feed.params().len());
-            // DuckDB finds the spans with log messages, picks the page and then joins their messages to it
-            // (`duckdb_project_messages`): the log bound is bound twice.
-            let (span_reads, log_reads) = match backend {
-                Backend::Duckdb => (1, 2),
-                Backend::Clickhouse => (1, 1),
-            };
-            let count = |wanted: &QueryValue| {
-                feed.params()
-                    .iter()
-                    .filter(|value| *value == wanted)
-                    .count()
-            };
-            assert_eq!(
-                count(&QueryValue::Int64(100)),
-                span_reads * span_watermark_binds(backend) + log_reads
-            );
-            assert_eq!(count(&QueryValue::Int64(42)), span_reads);
-            assert!(
-                feed.sql()
-                    .contains("ORDER BY ingested_at_us DESC, span_id DESC, trace_id DESC")
-            );
-            assert!(feed.sql().ends_with("LIMIT 17"));
-            assert!(!feed.sql().contains("tenant-'quoted"));
-        }
-    }
-
-    #[test]
-    fn session_membership_uses_the_same_watermark_as_message_rows() {
-        let params = MessageQueryParams {
-            project_id: ProjectId::from("p"),
-            session_id: Some("session-a".to_string()),
-            ingested_before_us: Some(123),
-            ..Default::default()
-        };
-        for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            let query = get_messages(&params, backend);
-            assert_eq!(query.sql().matches('?').count(), query.params().len());
-            assert_eq!(
-                query
-                    .params()
-                    .iter()
-                    .filter(|value| matches!(value, QueryValue::Int64(123)))
-                    .count(),
-                // Span rows, their session membership and the log aggregate's session scope are span
-                // winner conditions; the log aggregate's own bound is one.
-                3 * span_watermark_binds(backend) + 1,
-                "span rows, their session membership, the log aggregate and its session scope must all \
-                 use one traversal instant"
-            );
-            assert!(query.sql().contains("canonical_session = ?"));
-        }
-    }
-
-    fn every_selector() -> Vec<MessageQueryParams> {
-        let project_id = ProjectId::from("p");
-        vec![
-            MessageQueryParams {
-                project_id: project_id.clone(),
-                span_id: Some("s".to_string()),
-                trace_id: Some("t".to_string()),
-                ingested_before_us: Some(7),
-                ..Default::default()
-            },
-            MessageQueryParams {
-                project_id: project_id.clone(),
-                span_id: Some("s".to_string()),
-                ..Default::default()
-            },
-            MessageQueryParams {
-                project_id: project_id.clone(),
-                session_id: Some("session".to_string()),
-                ingested_before_us: Some(7),
-                ..Default::default()
-            },
-            MessageQueryParams {
-                project_id: project_id.clone(),
-                trace_id: Some("t".to_string()),
-                ..Default::default()
-            },
-            MessageQueryParams {
-                project_id: project_id.clone(),
-                trace_ids: Some(vec!["t1".to_string(), "t2".to_string()]),
-                ingested_before_us: Some(7),
-                ..Default::default()
-            },
-            MessageQueryParams {
-                project_id,
-                trace_ids: Some(Vec::new()),
-                ..Default::default()
-            },
-        ]
-    }
-
-    /// One statement per read, every placeholder bound, and the log aggregate narrowed by the same
-    /// selector and bounded by the same watermark as the span rows.
-    #[test]
-    fn log_messages_join_in_the_same_statement_with_matching_binds() {
-        for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            for params in every_selector() {
-                let query = get_messages(&params, backend);
-                assert_eq!(
-                    query.sql().matches('?').count(),
-                    query.params().len(),
-                    "{backend:?} {params:?}"
-                );
-                assert_eq!(query.sql().matches("LEFT JOIN").count(), 1);
-                assert!(query.sql().contains("FROM otel_logs"));
-                let watermarks = query
-                    .params()
-                    .iter()
-                    .filter(|value| matches!(value, QueryValue::Int64(7)))
-                    .count();
-                let span = span_watermark_binds(backend);
-                match params.ingested_before_us {
-                    // The span source and the log aggregate, plus both copies of session membership.
-                    Some(_) if params.session_id.is_some() && params.span_id.is_none() => {
-                        assert_eq!(watermarks, 3 * span + 1)
-                    }
-                    Some(_) => assert_eq!(watermarks, span + 1, "{backend:?} {params:?}"),
-                    None => assert_eq!(watermarks, 0),
-                }
-                let filtered = query.sql().contains(MESSAGE_CONTENT_FILTER);
-                assert_eq!(
-                    filtered,
-                    params.span_id.is_none(),
-                    "the span view alone applies no content filter"
-                );
-            }
-            let feed = get_project_messages(
-                &FeedMessagesParams {
-                    project_id: ProjectId::from("p"),
-                    limit: 5,
-                    ingested_before_us: Some(7),
-                    ..Default::default()
-                },
-                backend,
-            );
-            assert_eq!(feed.sql().matches('?').count(), feed.params().len());
-            assert_eq!(
-                feed.params()
-                    .iter()
-                    .filter(|value| matches!(value, QueryValue::Int64(7)))
-                    .count(),
-                match backend {
-                    // The log messages are found, to pick the page, and then joined to it.
-                    Backend::Duckdb => span_watermark_binds(backend) + 2,
-                    Backend::Clickhouse => span_watermark_binds(backend) + 1,
-                },
-                "a feed page and the log messages joined to it describe one instant"
-            );
-            let filter_at = feed.sql().find(MESSAGE_CONTENT_FILTER).expect("filtered");
-            let limit_at = feed.sql().rfind("LIMIT 5").expect("limited");
-            assert!(
-                filter_at < limit_at && feed.sql().ends_with("LIMIT 5"),
-                "the page is cut after the joined rows are filtered"
-            );
-        }
-    }
-
-    #[test]
-    fn the_content_filter_admits_a_span_whose_only_messages_are_in_logs() {
-        assert!(MESSAGE_CONTENT_FILTER.contains("log_messages != '[]'"));
-    }
-
-    #[test]
-    fn a_session_scopes_clickhouse_logs_with_a_global_subquery() {
-        let params = MessageQueryParams {
-            project_id: ProjectId::from("p"),
-            session_id: Some("session".to_string()),
-            ..Default::default()
-        };
-        assert!(
-            get_messages(&params, Backend::Clickhouse)
-                .sql()
-                .contains("trace_id GLOBAL IN (")
-        );
-        assert!(
-            !get_messages(&params, Backend::Duckdb)
-                .sql()
-                .contains("GLOBAL")
-        );
-    }
-}
+#[path = "messages_tests.rs"]
+mod tests;

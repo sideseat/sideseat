@@ -34,6 +34,7 @@ fn bench_session_scaling() {
             tool_definitions_json: "[]".to_string(),
             tool_names_json: "[]".to_string(),
             log_messages_json: "[]".to_string(),
+            log_message_sources: Vec::new(),
             body_cache_key: None,
             model: Some("claude".to_string()),
             provider: Some("bedrock".to_string()),
@@ -736,9 +737,9 @@ fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
             for resource in &decode_logs(&export).resource_logs {
                 for scope in &resource.scope_logs {
                     for record in &scope.log_records {
-                        let Some((name, attrs)) =
-                            sideseat_ingestion::logs::log_event_payload(record)
-                        else {
+                        let Some((name, attrs)) = sideseat_domain::log_messages::log_event_payload(
+                            &sideseat_ingestion::logs::log_record_content(record),
+                        ) else {
                             continue;
                         };
                         let empty = HashMap::new();

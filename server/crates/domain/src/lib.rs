@@ -9,8 +9,11 @@
 pub mod cleanup;
 pub mod dedup;
 pub mod files;
+pub mod log_messages;
+pub mod log_record;
 pub mod log_views;
 pub mod maintenance;
+pub mod message_events;
 pub mod observations;
 pub mod pricing;
 pub mod providers;

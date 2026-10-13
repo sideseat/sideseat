@@ -490,6 +490,16 @@ otherwise, through the domain, so every reader sees the same views whichever way
 which keeps no reference table, the release reads the raw record's values unescaped, since a verified producer
 reference now lives only there.
 
+### Log messages
+
+A log record's messages are a function of its raw record too, read by one derivation (`domain::log_messages`)
+that ingest runs on the record and a read on the stored raw record. They are stored only where the raw record does
+not rebuild them exactly, where they hold a file reference the release reads them for, or where the raw record is
+more than twice their length and 1 KiB besides; `messages_bytes` (4 bytes, zero on a record without messages)
+replaces `messages != '[]'` and the frame budget's `strlen(messages)`. On the corpus about one carrier in eight
+keeps its messages for size and a handful for references; the column fell from 65.4 B/record to below a block.
+ClickHouse also keeps `messages_hash` (1.8 B/record on the scale bench) for its two-statement feed read.
+
 ### Log search terms
 
 A log record's exact search terms are on its row, as ClickHouse keeps them: one column per field logs search

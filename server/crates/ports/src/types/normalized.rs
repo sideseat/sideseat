@@ -215,6 +215,11 @@ pub struct NormalizedLog {
     /// (`domain::log_views`), so none is stored. False until ingest has checked, which stores them.
     #[serde(skip)]
     pub views_rebuild_from_raw: bool,
+    /// Whether the raw record rebuilds `messages` exactly (`domain::log_messages`), so they are not stored, and
+    /// they hold no file reference - a release reads a record's stored messages for those. False until ingest has
+    /// checked, which stores them.
+    #[serde(skip)]
+    pub messages_rebuild_from_raw: bool,
 }
 
 impl NormalizedLog {
@@ -233,6 +238,40 @@ impl NormalizedLog {
             (None, None, None) => (None, Some(String::new()), None),
             (body, text, attributes) => (body, text.clone(), attributes),
         }
+    }
+
+    /// The `messages` column stored for this record: absent where it carries none or its raw record rebuilds them.
+    pub fn stored_messages(&self) -> Option<&str> {
+        (!self.messages_rebuild_from_raw)
+            .then_some(self.carried_messages())
+            .flatten()
+    }
+
+    /// The messages the record carries: an empty array is none.
+    fn carried_messages(&self) -> Option<&str> {
+        self.messages
+            .as_deref()
+            .filter(|messages| *messages != "[]")
+    }
+
+    /// The length in bytes of the record's messages as their JSON array, stored or not: zero for a record that
+    /// carries none. What a read asks for whether a record carries messages and what the frame budget sums.
+    pub fn messages_bytes(&self) -> u32 {
+        self.carried_messages().map_or(0, |messages| {
+            u32::try_from(messages.len()).unwrap_or(u32::MAX)
+        })
+    }
+
+    /// A hash of the record's messages as their JSON array, zero for a record that carries none: a narrow column a
+    /// two-statement read compares, so a redelivery that changes the messages without changing the record's
+    /// identity or instant - a key-value list's members reordered, which the identity sorts - is seen as a change.
+    /// FNV-1a over the bytes: the same on every server, and what it guards is a comparison, never a lookup.
+    pub fn messages_hash(&self) -> u64 {
+        self.carried_messages().map_or(0, |messages| {
+            messages.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+                (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+            })
+        })
     }
 
     /// The noted references as their column holds them: a JSON array, absent where there are none.

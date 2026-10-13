@@ -48,7 +48,9 @@ fn otel_logs_columns() -> &'static str {
     search_severity_truncated UInt8 DEFAULT 0,
     search_attributes Array(String) DEFAULT [],
     search_attributes_truncated UInt8 DEFAULT 0,
-    messages String DEFAULT '[]' CODEC(ZSTD(3)),
+    -- NULL for a record that carries no messages, and for one whose raw_log rebuilds them (domain::log_messages);
+    -- stored where it does not, or where they hold a file reference a release must see.
+    messages Nullable(String) CODEC(ZSTD(3)),
     -- The key the frame this record carries states, in its project's and trace's form (RequestFrames::stored_key),
     -- where its messages were read from a carrier that frames requests (CarrierRule::frames_requests); zero on every
     -- other record, which the key never is. A framed request's view reads by it within one trace, which
@@ -57,6 +59,11 @@ fn otel_logs_columns() -> &'static str {
     -- The references this record's views show as a note, as a JSON array; NULL on every record without one. With
     -- raw_log, what an unstored body, body_text and attributes are rebuilt from (domain::log_views).
     noted_references Nullable(String) CODEC(ZSTD(3)),
+    -- The length in bytes of the record's messages as their JSON array, stored or not; zero where it carries none.
+    messages_bytes UInt32 DEFAULT 0 CODEC(ZSTD(1)),
+    -- A hash of the record's messages, zero where it carries none (NormalizedLog::messages_hash): what a feed page
+    -- and the read of its messages compare, so a redelivery that changes the messages at the same instant is seen.
+    messages_hash UInt64 DEFAULT 0 CODEC(ZSTD(1)),
     INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_search_body search_body TYPE text(tokenizer = 'array') GRANULARITY 1,

@@ -60,7 +60,7 @@ pub use analytics::{
 // Re-export message types
 pub use logs::{ListLogsParams, LogRow};
 pub use messages::{
-    FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    FeedMessagesParams, LogMessageSource, MessageQueryParams, MessageQueryResult, MessageSpanRow,
     RequestContextParams, RequestContextRows, RequestFrameRecord, RequestFramesParams,
     SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, TRACE_FILTER_OPTION_COLUMNS,
 };

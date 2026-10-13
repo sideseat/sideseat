@@ -355,7 +355,7 @@ fn content_filter_matches_the_sql_predicate() {
     // appear left an inverted operator (`=` for `!=`) or a changed literal ('ERROR' -> 'error')
     // passing while `passes_content_filter` kept the old meaning.
     const EXPECTED: &str = "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' \
-                            OR status_code = 'ERROR' OR log_messages != '[]')";
+                            OR status_code = 'ERROR' OR has_log_messages)";
     assert_eq!(
         MESSAGE_CONTENT_FILTER, EXPECTED,
         "the SQL predicate changed; re-derive passes_content_filter from it, then update this \

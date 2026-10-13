@@ -327,7 +327,8 @@ async fn frames(
         .await
         .expect("the frames")
         .into_iter()
-        .map(|record| {
+        .map(|mut record| {
+            sideseat_domain::log_messages::resolve_frame(&mut record);
             (
                 record.span_id,
                 record.log_digest,
@@ -559,10 +560,10 @@ async fn the_frame_read_holds_the_bound_however_many_records_a_key_finds_on_clic
     client
         .query(&format!(
             "INSERT INTO otel_logs (project_id, log_digest, ordinal, timestamp, severity_number, \
-             dropped_attributes_count, flags, trace_id, span_id, ingested_at, messages, frame_key) \
+             dropped_attributes_count, flags, trace_id, span_id, ingested_at, messages, frame_key, messages_bytes) \
              SELECT '{PROJECT}', leftPad(toString(number), 8, '0'), 0, \
              now64(6) - INTERVAL 1 DAY + toIntervalMicrosecond(number), 9, 0, 0, 'tiny-trace', 'span', now64(6), \
-             '[{{\"text\":\"f\"}}]', toUInt128(77) FROM numbers(1000000)"
+             '[{{\"text\":\"f\"}}]', toUInt128(77), toUInt32(14) FROM numbers(1000000)"
         ))
         .execute()
         .await

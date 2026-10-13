@@ -45,6 +45,7 @@ fn request_view(messages: Vec<RawMessage>) -> FeedResult {
         log_digest: String::new(),
         ordinal: 0,
         messages_json: None,
+        source: None,
     });
     row.messages_json = serde_json::to_string(&messages).expect("messages serialise");
     row.observation_type = Some("generation".to_string());
@@ -59,6 +60,7 @@ fn record(span: &str, digest: &str, messages: Vec<RawMessage>) -> RequestFrameRe
         log_digest: digest.to_string(),
         ordinal: 0,
         messages_json: Some(serde_json::to_string(&messages).expect("messages serialise")),
+        source: None,
     }
 }
 

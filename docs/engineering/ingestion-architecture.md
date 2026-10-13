@@ -265,9 +265,15 @@ Both paths:
 Some instrumentations emit the conversation as log records linked to a span instead of as span events
 (OpenTelemetry's OpenAI v2 and botocore instrumentations by default, and the
 `gen_ai.client.inference.operation.details` event). A record that carries a trace and span id and that a
-declared `log_events` entry recognises is read at log ingest by the same event reader span events use, with
-no span context, and the resulting raw messages are stored in the derived `otel_logs.messages` column. The
-column is not producer content: it is outside `log_digest` and outside the confirmation identity.
+declared `log_events` entry recognises is read by the same event reader span events use, with no span context
+(`domain::message_events`), through one derivation over the record's decoded content (`domain::log_messages`):
+ingest reads it from the record, a read from the stored raw record. The messages are stored in
+`otel_logs.messages` only where the raw record does not rebuild them exactly, where they hold a file reference a
+release reads them for, or where the raw record is far larger than they are (more than twice their length and
+1 KiB besides, so a read of them transfers within a constant of what it budgets); everywhere else the column is
+NULL and the domain rebuilds them. `messages_bytes`, their length, says which records carry messages - what every
+read filters by - and is what the frame budget sums. The messages are not producer content: they are outside
+`log_digest` and outside the confirmation identity.
 
 The messages are never written into the span's row. Span rows are latest-ingest-wins and may arrive after
 the log, and the log is durable before acknowledgement while the span may still be queued. Instead, every
@@ -279,13 +285,29 @@ log store's winners in the same statement:
   its newest delivery (the only version DuckDB keeps);
 - arrays are concatenated in `(timestamp, log_digest, ordinal)` order, identical bytes on both backends;
 - the aggregate is narrowed by the span selector, through `GLOBAL IN` for a session on ClickHouse;
-- the content filter admits a span whose only messages are log-carried.
+- the content filter admits a span whose only messages are log-carried (`has_log_messages`).
+
+The store answers each record's messages as a source - the stored array, or the raw record and what the
+derivation reads beside it - and the domain resolves them before any reader sees the row. ClickHouse's project
+feed is read in two statements: the page first, each span with a fixed-size token of its winning carrier
+revisions (count, and a sum of hashes of identity, instant and `messages_hash`, from narrow columns), then the
+page's spans' sources with the same token; a page whose tokens disagree is read again, and after four attempts the
+one statement that joins every candidate span answers. One statement scoped by `GLOBAL IN` over the page measured
+42% slower on the feed, since ClickHouse evaluates the page subquery again. ClickHouse reads a log aggregate's
+scope as `PREWHERE`, which it does not choose under `FINAL`; the scope is the record's trace and span, the same in
+every delivery, so the winners are unchanged and a view reads only its own records' raw forms.
 
 At read time the log messages are appended to the span's raw messages before SideML projection, so roles,
 history and deduplication treat them as span events of the same name; a producer emitting a turn both ways
 is collapsed by content deduplication.
 
 Known limits:
+
+- admission - which spans have log messages - reads the project's carrier keys on both backends (DuckDB's
+  carriers relation, ClickHouse's token aggregate), a per-project cost on narrow columns; only the messages and raw
+  records a page shows are read whole;
+- a ClickHouse view of a session whose carriers are mostly rebuilt reads their raw records in place of their
+  messages, up to about twice the bytes: measured +14% on the scale bench's busiest such session;
 
 - the project feed pages by the span's `ingested_at`, so a log record arriving after its span was paged
   does not bring that span back into the traversal; the next traversal shows it;

@@ -7,8 +7,10 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 use crate::ClickhouseError;
+use std::collections::HashMap;
+
 use sideseat_ports::types::{
-    FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    FeedMessagesParams, LogMessageSource, MessageQueryParams, MessageQueryResult, MessageSpanRow,
     RequestContextParams, RequestContextRows, RequestFrameRecord, RequestFramesParams,
 };
 use sideseat_query_sql::{Backend, analytics, messages, request_context, request_frames};
@@ -54,7 +56,14 @@ struct ChMessageSpanRow {
     reasoning_tokens: i64,
     cost_input: f64,
     cost_output: f64,
-    log_messages: String,
+    /// The span's log records' messages as the store answers them: (messages, raw record, scope, noted references).
+    log_messages: Vec<ChLogMessageSource>,
+    /// What the content filter reads; the revisions below say the same, and more.
+    #[serde(rename = "has_log_messages")]
+    _has_log_messages: bool,
+    /// The carrier token a feed page saw (`messages::CLICKHOUSE_CARRIER_TOKEN`), which its messages are checked by.
+    log_carriers: u64,
+    log_carrier_token: u64,
     request_thread: String,
     span_marks: u16,
     request_frame: String,
@@ -84,7 +93,13 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
             cost_total: row.cost_total,
             tool_definitions_json: row.tool_definitions,
             tool_names_json: row.tool_names,
-            log_messages_json: row.log_messages,
+            // Resolved into the messages by the domain (`domain::log_messages`).
+            log_messages_json: "[]".to_string(),
+            log_message_sources: row
+                .log_messages
+                .into_iter()
+                .map(log_message_source)
+                .collect(),
             body_cache_key: None,
             observation_type: row.observation_type,
             session_id: row.session_id,
@@ -110,6 +125,36 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
             cost_output: row.cost_output,
         }
     }
+}
+
+/// One log record's messages as the typed aggregate answers them (`messages::CLICKHOUSE_LOG_MESSAGE_SOURCES`).
+type ChLogMessageSource = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+fn log_message_source(
+    (messages, raw_log, scope_name, noted_references): ChLogMessageSource,
+) -> LogMessageSource {
+    LogMessageSource {
+        messages,
+        raw_log,
+        scope_name,
+        noted_references,
+    }
+}
+
+/// A page's spans and their log messages, one row per span, with their carrier token
+/// (`messages::log_message_sources_of_spans`).
+#[derive(Debug, clickhouse::Row, serde::Deserialize)]
+struct ChLogMessagesRow {
+    log_trace_id: String,
+    log_span_id: String,
+    aggregated: Vec<ChLogMessageSource>,
+    carriers: u64,
+    carrier_token: u64,
 }
 
 async fn execute_message_query(
@@ -143,9 +188,70 @@ pub async fn get_project_messages(
     client: &Client,
     params: &FeedMessagesParams,
 ) -> Result<MessageQueryResult, ClickhouseError> {
+    // The page first, with each span's carrier token; then its spans' log messages alone, with theirs: the read
+    // follows the page, not the project. The two agree where every span's tokens match, so the messages are the ones
+    // the page admitted its spans by; where log records arriving between the reads keep them from agreeing, the one
+    // statement that joins every candidate span answers instead.
     let query = messages::get_project_messages(params, Backend::Clickhouse);
-    execute_message_query(client, &query).await
+    for _ in 0..FEED_READ_ATTEMPTS {
+        let rows: Vec<ChMessageSpanRow> =
+            bind_analytics_values(client.query(query.sql()), query.params())
+                .fetch_all()
+                .await?;
+        let spans: Vec<(String, String)> = rows
+            .iter()
+            .map(|row| (row.trace_id.clone(), row.span_id.clone()))
+            .collect();
+        let found: HashMap<(String, String), ChLogMessagesRow> =
+            match messages::log_message_sources_of_spans(
+                params.project_id.as_str(),
+                params.ingested_before_us,
+                &spans,
+            ) {
+                None => HashMap::new(),
+                Some(sources) => {
+                    bind_analytics_values(client.query(sources.sql()), sources.params())
+                        .fetch_all::<ChLogMessagesRow>()
+                        .await?
+                        .into_iter()
+                        .map(|row| ((row.log_trace_id.clone(), row.log_span_id.clone()), row))
+                        .collect()
+                }
+            };
+        let agree = rows.iter().all(|row| {
+            let read = found
+                .get(&(row.trace_id.clone(), row.span_id.clone()))
+                .map_or((0, 0), |read| (read.carriers, read.carrier_token));
+            read == (row.log_carriers, row.log_carrier_token)
+        });
+        if agree {
+            let rows = rows
+                .into_iter()
+                .map(|row| {
+                    // Every row of a span joins its messages: a page can hold one span twice, as the joined
+                    // statement then answers it twice.
+                    let sources = found
+                        .get(&(row.trace_id.clone(), row.span_id.clone()))
+                        .map(|read| read.aggregated.clone())
+                        .unwrap_or_default();
+                    let mut row = MessageSpanRow::from(row);
+                    row.log_message_sources = sources.into_iter().map(log_message_source).collect();
+                    row
+                })
+                .collect();
+            return Ok(MessageQueryResult { rows });
+        }
+    }
+    tracing::warn!("a feed page's log records kept changing under it; answering in one statement");
+    execute_message_query(
+        client,
+        &messages::clickhouse_project_messages_joined(params),
+    )
+    .await
 }
+
+/// How many times a feed page is read before it answers in one statement instead.
+const FEED_READ_ATTEMPTS: u32 = 4;
 
 /// A thread's rows, as the composed-request reads project them: the messages and the facts that place them.
 ///
@@ -206,6 +312,7 @@ fn thread_row_defaults() -> MessageSpanRow {
         tool_definitions_json: "[]".to_string(),
         tool_names_json: "[]".to_string(),
         log_messages_json: "[]".to_string(),
+        log_message_sources: Vec::new(),
         body_cache_key: None,
         model: None,
         provider: None,
@@ -330,7 +437,8 @@ pub async fn get_request_frames(
                 .unwrap_or(DateTime::UNIX_EPOCH),
             log_digest: row.log_digest,
             ordinal: row.ordinal,
-            messages_json: row.messages,
+            messages_json: None,
+            source: LogMessageSource::from_column(row.messages.as_deref()),
         })
         .collect())
 }

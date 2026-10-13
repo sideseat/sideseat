@@ -113,6 +113,109 @@ fn every_captured_record_is_answered_from_its_raw_record() {
     );
 }
 
+/// Every captured record's messages are what ingest derived before the derivation moved into the domain - the
+/// oracle `messages::log_record_messages`, over the record itself - and the stored raw record rebuilds them
+/// exactly, protobuf and OTLP/JSON alike.
+#[test]
+fn every_captured_record_carries_the_messages_ingest_derived_before() {
+    let (mut records, mut carriers) = (0usize, 0usize);
+    for path in &log_exports() {
+        let bytes = std::fs::read(path).expect("read export");
+        let request: ExportLogsServiceRequest = if path.extension().is_some_and(|e| e == "json") {
+            serde_json::from_slice(&bytes).expect("an OTLP/JSON export")
+        } else {
+            ExportLogsServiceRequest::decode(bytes.as_slice()).expect("an OTLP export")
+        };
+        for scope_logs in request.resource_logs.iter().flat_map(|r| &r.scope_logs) {
+            let scope = scope_logs
+                .scope
+                .as_ref()
+                .map(|scope| scope.name.as_str())
+                .filter(|name| !name.is_empty());
+            for record in &scope_logs.log_records {
+                let oracle = super::messages::log_record_messages(record, scope);
+                let oracle = (!oracle.is_empty()).then(|| {
+                    serde_json::to_value(&oracle)
+                        .unwrap_or_default()
+                        .to_string()
+                });
+                let derived = sideseat_domain::log_messages::messages_text(
+                    &sideseat_domain::log_messages::log_record_messages(
+                        &super::content::log_record_content(record),
+                        scope,
+                    ),
+                    &[],
+                );
+                assert_eq!(derived, oracle, "{}", path.display());
+                records += 1;
+                carriers += usize::from(derived.is_some());
+            }
+        }
+        for log in settled(&request) {
+            let raw =
+                sideseat_core::utils::json::json_to_opt_string(&log.raw_log).expect("a raw record");
+            assert_eq!(
+                sideseat_domain::log_messages::rebuild_messages(
+                    &raw,
+                    log.scope_name.as_deref(),
+                    &log.noted_references,
+                ),
+                Some(log.messages.clone()),
+                "{}",
+                path.display()
+            );
+        }
+    }
+    assert!(
+        records > 2_500 && carriers > 300,
+        "{records} records, {carriers} carriers"
+    );
+}
+
+/// A record far larger than its messages keeps them stored: a read of them - a span's view, a request's frames -
+/// would otherwise fetch the whole raw record for a few bytes of messages, beyond the bound it budgets.
+#[test]
+fn a_raw_record_much_larger_than_its_messages_keeps_them_stored() {
+    let (request, record) = log_exports()
+        .iter()
+        .filter(|path| path.extension().is_some_and(|e| e == "pb"))
+        .find_map(|path| {
+            let request = ExportLogsServiceRequest::decode(
+                std::fs::read(path).expect("read export").as_slice(),
+            )
+            .expect("an OTLP export");
+            let log = settled(&request)
+                .into_iter()
+                .find(|log| log.messages.is_some() && log.messages_rebuild_from_raw)?;
+            Some((request, log.log_digest))
+        })
+        .expect("a carrier whose messages are rebuilt");
+    let mut grown = request.clone();
+    for record in grown
+        .resource_logs
+        .iter_mut()
+        .flat_map(|resource| &mut resource.scope_logs)
+        .flat_map(|scope| &mut scope.log_records)
+    {
+        record.attributes.push(KeyValue {
+            key: "unrelated".to_string(),
+            value: Some(AnyValue {
+                value: Some(any_value::Value::StringValue("x".repeat(64 * 1024))),
+            }),
+        });
+    }
+    let original = settled(&request)
+        .into_iter()
+        .find(|log| log.log_digest == record)
+        .expect("the carrier");
+    let grown = settled(&grown)
+        .into_iter()
+        .find(|log| log.messages == original.messages)
+        .expect("the grown carrier");
+    assert!(!grown.messages_rebuild_from_raw);
+    assert_eq!(grown.stored_messages(), original.messages.as_deref());
+}
+
 /// A small deterministic generator, so a failure reproduces.
 struct Values(u64);
 

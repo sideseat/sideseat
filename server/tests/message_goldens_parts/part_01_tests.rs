@@ -64,6 +64,7 @@ fn message_row(span: &sideseat_ports::types::NormalizedSpan) -> MessageSpanRow {
             .unwrap_or_else(|| "[]".to_string()),
         tool_names_json: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
         log_messages_json: "[]".to_string(),
+        log_message_sources: Vec::new(),
         body_cache_key: None,
         model: span
             .gen_ai_response_model

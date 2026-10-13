@@ -54,7 +54,7 @@ fn plain_span(project: &str, trace: &str, span: &str, offset: i64) -> Normalized
 fn joined(rows: &[MessageSpanRow]) -> Vec<(String, String, Vec<String>)> {
     rows.iter()
         .map(|row| {
-            let messages: Vec<serde_json::Value> = serde_json::from_str(&row.log_messages_json)
+            let messages: Vec<serde_json::Value> = serde_json::from_str(&log_messages(row))
                 .unwrap_or_else(|e| panic!("log_messages_json is not an array: {e}: {row:?}"));
             (
                 row.trace_id.clone(),

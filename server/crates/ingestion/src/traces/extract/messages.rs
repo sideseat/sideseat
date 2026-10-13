@@ -15,10 +15,10 @@ use opentelemetry_proto::tonic::trace::v1::span::Event;
 use serde_json::Value as JsonValue;
 use serde_json::json;
 
-#[cfg(test)]
-use crate::message_events::parse_json_with_fallback;
-use crate::message_events::{EventSpan, is_message_event, read_message_event};
 use sideseat_core::utils::time::nanos_to_datetime;
+#[cfg(test)]
+use sideseat_domain::message_events::parse_json_with_fallback;
+use sideseat_domain::message_events::{EventSpan, is_message_event, read_message_event};
 pub use sideseat_domain::observations::{
     MessageSource, RawMessage, RawToolDefinition, RawToolNames, ToolDefinitionSource,
 };

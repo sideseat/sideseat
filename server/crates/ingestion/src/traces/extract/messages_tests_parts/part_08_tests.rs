@@ -947,7 +947,7 @@ fn a_span_event_attribute_with_no_value_is_left_unset() {
     let span_attrs = std::collections::HashMap::new();
     let messages = read_span_event(
         &event,
-        crate::message_events::EventSpan {
+        sideseat_domain::message_events::EventSpan {
             rules: sideseat_domain::rules::ruleset(),
             name: "call_llm",
             attrs: &span_attrs,

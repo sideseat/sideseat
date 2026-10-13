@@ -137,7 +137,7 @@ pub fn genai_span_predicate(alias: &str) -> String {
 /// Rows with no messages, no tools and no error are never returned, which is why the
 /// message-parsing harness applies the same filter when it builds its row sets.
 ///
-/// `log_messages` is the read-time join of the messages log records carry for the span, so a span whose
+/// `has_log_messages` says whether log records carry messages for the span, joined at read time, so a span whose
 /// conversation arrived only as log events is returned rather than filtered out.
 pub const MESSAGE_CONTENT_FILTER: &str = "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' \
-     OR status_code = 'ERROR' OR log_messages != '[]')";
+     OR status_code = 'ERROR' OR has_log_messages)";

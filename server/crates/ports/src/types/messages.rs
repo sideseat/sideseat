@@ -36,6 +36,39 @@ pub const SESSION_FILTER_OPTION_COLUMNS: &[&str] = &["environment", "user_id"];
 // Row types
 // ============================================================================
 
+/// One log record's messages as a store answers them, before the domain resolves them (`domain::log_messages`):
+/// the stored array, or - where the record's raw form rebuilds it, as nearly every record's does - the raw record
+/// and what the derivation reads beside it. Each member as the store's JSON names it.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Deserialize)]
+pub struct LogMessageSource {
+    /// The stored messages, a JSON array; absent where the raw record rebuilds them.
+    #[serde(rename = "m")]
+    pub messages: Option<String>,
+    /// The raw record, where the messages are not stored.
+    #[serde(rename = "r")]
+    pub raw_log: Option<String>,
+    /// The record's instrumentation scope, which a declared reading may ask.
+    #[serde(rename = "s")]
+    pub scope_name: Option<String>,
+    /// The references the record's views show as a note, as their column holds them.
+    #[serde(rename = "n")]
+    pub noted_references: Option<String>,
+}
+
+impl LogMessageSource {
+    /// The sources a span's log aggregate holds, in order: a JSON array of them, empty where the column is.
+    pub fn many_from_column(column: Option<&str>) -> Vec<Self> {
+        column
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_default()
+    }
+
+    /// One record's source, where the column holds one.
+    pub fn from_column(column: Option<&str>) -> Option<Self> {
+        column.and_then(|text| serde_json::from_str(text).ok())
+    }
+}
+
 /// Raw span row from database for message queries.
 ///
 /// Messages are stored as raw JSON at ingestion time.
@@ -61,6 +94,9 @@ pub struct MessageSpanRow {
     /// Kept apart from `messages_json` because the span's row and its log records are separate writes, and
     /// the span row's body hydration does not cover log records.
     pub log_messages_json: String,
+    /// The log records' messages as the store answered them, in that order, where the domain is still to resolve
+    /// them into `log_messages_json` (`domain::log_messages`); empty once it has.
+    pub log_message_sources: Vec<LogMessageSource>,
     /// Compact digest of the interpretation-bearing body inputs.
     ///
     /// Body hydration derives this from content-addressed hashes, with inline bytes used for fields
@@ -191,6 +227,9 @@ pub struct RequestFrameRecord {
     /// read before it already reach `REQUEST_FRAMES_MAX_BYTES`, so the statement returned its identity and not its
     /// bytes: a cut the view then reports.
     pub messages_json: Option<String>,
+    /// The record's messages as the store answered them, where the domain is still to resolve them into
+    /// `messages_json`; `None` once it has, and for a record the bound cut.
+    pub source: Option<LogMessageSource>,
 }
 
 /// The rows those two reads answered with, kept apart because they are different evidence.

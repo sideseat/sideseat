@@ -431,13 +431,20 @@ fn describe_span(s: &SpanRow) -> String {
 
 /// A message row, field by field. `messages_json` is compared in full: it is the input the SideML
 /// pipeline parses, so a single dropped event changes what users see.
+/// A row's log messages as the domain answers them, from the store's answer (`domain::log_messages`).
+fn log_messages(row: &MessageSpanRow) -> String {
+    let mut row = row.clone();
+    sideseat_domain::log_messages::resolve_row(&mut row);
+    row.log_messages_json
+}
+
 fn describe_message_row(r: &MessageSpanRow) -> String {
     format!(
         "span={} trace={} parent={:?} start={} end={:?} model={:?} provider={:?} status={:?} \
          exception={:?}/{:?}/{:?} tokens=[{},{},{}] cost={} observation={:?} session={:?} \
          messages={} tools={} tool_names={} scope={:?}/{:?} span_name={:?} framework={:?} \
          response={:?}/{:?} params=[{:?},{:?},{:?}] finish={:?} \
-         usage=[{},{},{}] cost_split=[{},{}] thread={} marks={} frame={}",
+         usage=[{},{},{}] cost_split=[{},{}] thread={} marks={} frame={} log_messages={}",
         r.span_id,
         r.trace_id,
         r.parent_span_id,
@@ -480,6 +487,7 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
         r.span_marks,
         // And the key a detached frame names a request by.
         r.request_frame,
+        log_messages(r)
     )
 }
 

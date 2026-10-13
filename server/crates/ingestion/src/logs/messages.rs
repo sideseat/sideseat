@@ -8,13 +8,19 @@
 
 use opentelemetry_proto::tonic::common::v1::any_value;
 use opentelemetry_proto::tonic::logs::v1::LogRecord;
+#[cfg(test)]
 use sideseat_core::utils::time::nanos_to_datetime;
 use sideseat_domain::observations::RawMessage;
 use sideseat_domain::rules::schema::LogEventPayload;
 
-use crate::message_events::{EventSpan, read_message_event, structured_attributes};
+use crate::message_events::structured_attributes;
 use crate::otlp::extract_attributes;
+#[cfg(test)]
+use sideseat_domain::message_events::{EventSpan, read_message_event};
 
+/// The derivation as ingest made it before `domain::log_messages` held it: kept as the oracle the domain one is
+/// held to over the corpus.
+#[cfg(test)]
 /// The raw messages one log record carries, or none.
 ///
 /// Nothing is read from a record that names no span, since nothing could attach it to a conversation, nor
@@ -90,6 +96,9 @@ fn body_member_key(record: &LogRecord, member: &str) -> Option<String> {
     }
 }
 
+/// The derivation as ingest made it before `domain::log_messages` held it: kept as the oracle the domain one is
+/// held to over the corpus.
+#[cfg(test)]
 /// The message event a log record is declared to carry: its name, and the attributes the event reader
 /// takes - the record's body members or its own attributes, as the `log_events` declaration says.
 ///
@@ -178,6 +187,9 @@ fn without_null_members(value: serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// The derivation as ingest made it before `domain::log_messages` held it: kept as the oracle the domain one is
+/// held to over the corpus.
+#[cfg(test)]
 /// Whether the record carries a usable trace and span id. All-zero ids are OpenTelemetry's "invalid".
 fn names_a_span(record: &LogRecord) -> bool {
     let valid = |id: &[u8]| !id.is_empty() && id.iter().any(|byte| *byte != 0);

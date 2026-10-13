@@ -317,12 +317,13 @@ fn derived_references(log: &sideseat_ports::types::NormalizedLog) -> Vec<String>
             // Deeper than the parser reads: the messages are derived again from the raw form, as a structure.
             Err(_) => match super::media::derivation_record(&log.raw_log) {
                 Some(record) => {
-                    super::extract::derive_content_rewriting(
-                        &record,
+                    let messages = sideseat_domain::log_messages::log_record_messages(
+                        &super::content::log_record_content(&record),
                         log.scope_name.as_deref(),
-                        log.project_id.as_deref(),
-                        log.trace_id.as_deref(),
-                        |value| values(value, &mut uris),
+                    );
+                    values(
+                        &serde_json::to_value(&messages).unwrap_or_default(),
+                        &mut uris,
                     );
                 }
                 None => sideseat_domain::files::collect_file_references_in_str(messages, &mut uris),
@@ -361,12 +362,12 @@ pub(super) fn note_unbacked(log: &mut sideseat_ports::types::NormalizedLog, miss
     match super::media::derivation_record(&log.raw_log) {
         Some(mut record) => {
             super::media::note_references(&mut record, &notes);
-            let derived = super::extract::derive_content_rewriting(
+            let derived = super::extract::derive_content_noted(
                 &record,
                 log.scope_name.as_deref(),
                 log.project_id.as_deref(),
                 log.trace_id.as_deref(),
-                |messages| rewrite_json(messages, &notes),
+                &notes,
             );
             log.body = derived.body;
             log.body_text = derived.body_text;
@@ -393,17 +394,49 @@ pub(super) fn note_unbacked(log: &mut sideseat_ports::types::NormalizedLog, miss
 }
 
 /// Whether the record's raw form, read back as it is stored, rebuilds its body, the body's text and its attributes
-/// exactly - with the references it noted - so none is stored (`domain::log_views`). Checked against the stored text, not the
+/// exactly - with the references it noted - so none is stored (`domain::log_views`), and its messages
+/// (`domain::log_messages`). Checked against the stored text, not the
 /// value in hand: a number the text does not give back exactly makes the views stored, never wrong.
+/// How much larger than its messages a raw record may be for the messages to be rebuilt from it rather than stored.
+const REBUILT_RAW_FACTOR: usize = 2;
+const REBUILT_RAW_SLACK: usize = 1024;
+
 pub(super) fn settle_views(log: &mut sideseat_ports::types::NormalizedLog) {
     let derived = sideseat_domain::log_views::LogViews {
         body: sideseat_core::utils::json::json_to_opt_string(&log.body),
         body_text: log.body_text.clone(),
         attributes: sideseat_core::utils::json::json_to_opt_string(&log.attributes),
     };
-    log.views_rebuild_from_raw = sideseat_core::utils::json::json_to_opt_string(&log.raw_log)
-        .is_some_and(|raw| {
-            sideseat_domain::log_views::rebuilds(&raw, &log.noted_references, &derived)
+    let raw = sideseat_core::utils::json::json_to_opt_string(&log.raw_log);
+    log.views_rebuild_from_raw = raw.as_deref().is_some_and(|raw| {
+        sideseat_domain::log_views::rebuilds(raw, &log.noted_references, &derived)
+    });
+    // The messages too, by the one derivation a read rebuilds them with - but kept where they hold a file reference:
+    // a release reads a record's stored messages for those, and never derives them.
+    let mut held = Vec::new();
+    if let Some(messages) = log.messages.as_deref() {
+        sideseat_domain::files::collect_file_references_in_str(messages, &mut held);
+    }
+    log.messages_rebuild_from_raw = held.is_empty()
+        && raw.as_deref().is_some_and(|raw| {
+            // A read of a record's messages - a span's view, a request's frames, bounded by their bytes - fetches
+            // the raw record in their place, so only one not much larger than they are: what a read transfers stays
+            // within a constant of the bound it budgets, however much else the record holds.
+            // The raw record and everything else a rebuild reads beside it.
+            let messages = log.messages.as_deref().map_or(0, str::len);
+            let inputs = raw.len()
+                + log.scope_name.as_deref().map_or(0, str::len)
+                + log.noted_references_column().map_or(0, |noted| noted.len());
+            inputs <= REBUILT_RAW_FACTOR * messages + REBUILT_RAW_SLACK
+        })
+        && raw.as_deref().is_some_and(|raw| {
+            sideseat_domain::log_messages::rebuild_messages(
+                raw,
+                log.scope_name.as_deref(),
+                &log.noted_references,
+            )
+            .as_ref()
+                == Some(&log.messages)
         });
 }
 

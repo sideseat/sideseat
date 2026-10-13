@@ -225,6 +225,7 @@ fn frame_row(record: &RequestFrameRecord) -> MessageSpanRow {
         tool_definitions_json: "[]".to_string(),
         tool_names_json: "[]".to_string(),
         log_messages_json: "[]".to_string(),
+        log_message_sources: Vec::new(),
         body_cache_key: None,
         model: None,
         provider: None,

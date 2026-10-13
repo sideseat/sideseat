@@ -413,9 +413,11 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     ingested_at               TIMESTAMP NOT NULL,
     hold_until                TIMESTAMP,
     logical_bytes             UBIGINT NOT NULL DEFAULT 0,
-    -- Raw messages a declared log event carries, derived at ingest and joined to the span it names at
-    -- read time. Not identity: `log_digest` covers the record, not this.
-    messages                  VARCHAR DEFAULT '[]' USING COMPRESSION zstd,
+    -- Raw messages a declared log event carries, joined to the span it names at read time. Not identity:
+    -- `log_digest` covers the record, not this. NULL for a record that carries none, and for one whose raw_log
+    -- rebuilds them (domain::log_messages), as nearly every record's does; stored where it does not, or where they
+    -- hold a file reference a release must see. `messages_bytes` says which records carry any.
+    messages                  VARCHAR USING COMPRESSION zstd,
     -- The search fields this record indexed and those it truncated, as on otel_spans.
     search_fields             UTINYINT NOT NULL DEFAULT 0,
     search_truncated          UTINYINT NOT NULL DEFAULT 0,
@@ -436,7 +438,10 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     search_body               VARCHAR USING COMPRESSION zstd,
     search_event_name         VARCHAR,
     search_severity           VARCHAR,
-    search_attributes         VARCHAR
+    search_attributes         VARCHAR,
+    -- The length in bytes of the record's messages as their JSON array, stored or not; zero where it carries none.
+    -- What a read asks for whether a record carries messages, and what the frame budget sums.
+    messages_bytes            UINTEGER NOT NULL DEFAULT 0
 );
 -- No index on the identity. One row per identity is the write's: it replaces the identity's stored row with the
 -- batch's winner, the highest `ingested_at` as ClickHouse's ReplacingMergeTree keeps, inside one transaction under
