@@ -873,6 +873,8 @@ fn blob_error(error: FileStorageError) -> StagingError {
     StagingError::Blob(error.to_string())
 }
 
+mod settlement;
+
 #[cfg(test)]
 #[path = "staging_tests.rs"]
 mod tests;

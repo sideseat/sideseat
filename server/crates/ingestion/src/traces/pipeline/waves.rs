@@ -97,22 +97,28 @@ pub(super) fn conflict_free_waves(
 impl TracePipeline {
     /// Persist exports in conflict-free waves, answering each; exports of a failed wave are retried alone. An
     /// export with a staged payload (`staged`, by index) is settled after its wave, before the next is written.
+    ///
+    /// `first_delivery`: these exports were received just now, not redelivered from the queue. Only then may an
+    /// export the batch stored whole be settled without reading it back; a redelivery always reads.
     pub(super) async fn run_waves(
         &self,
         requests: &[ExportTraceServiceRequest],
         received: &[ReceivedPayload],
         staged: &[Option<StagedPayload>],
+        first_delivery: bool,
     ) -> Vec<WaveAnswer> {
         let mut outcomes = vec![IngestOutcome::Failed; requests.len()];
         let mut settled = vec![false; requests.len()];
+        let mut written = vec![false; requests.len()];
         for wave in conflict_free_waves(requests, received) {
             let batch: Vec<ExportTraceServiceRequest> =
                 wave.iter().map(|&index| requests[index].clone()).collect();
             let bodies: Vec<ReceivedPayload> =
                 wave.iter().map(|&index| received[index].clone()).collect();
-            let answers = self.run_batch(&batch, &bodies).await;
+            let answers = self.run_batch_vouched(&batch, &bodies).await;
             for (&index, answer) in wave.iter().zip(answers) {
-                outcomes[index] = answer;
+                outcomes[index] = answer.outcome;
+                written[index] = answer.written;
             }
             if wave.len() > 1
                 && wave
@@ -123,23 +129,44 @@ impl TracePipeline {
                 // so what the failed batch did write is simply written again.
                 for &index in &wave {
                     if outcomes[index] == IngestOutcome::Failed {
-                        outcomes[index] = self
-                            .run_batch(
+                        let alone = self
+                            .run_batch_vouched(
                                 std::slice::from_ref(&requests[index]),
                                 std::slice::from_ref(&received[index]),
                             )
                             .await
                             .into_iter()
-                            .next()
-                            .unwrap_or(IngestOutcome::Failed);
+                            .next();
+                        outcomes[index] = alone
+                            .as_ref()
+                            .map_or(IngestOutcome::Failed, |answer| answer.outcome);
+                        written[index] = alone.is_some_and(|answer| answer.written);
                     }
                 }
             }
-            for &index in &wave {
-                if let (true, Some(Some(payload))) = (outcomes[index].is_final(), staged.get(index))
-                {
-                    settled[index] = self.settle_staged_trace(payload).await;
-                }
+            // The wave's payloads are settled together, and an export this execution stored whole is retired
+            // without reading it back where the store's acknowledged writes are durable (`crate::staging::settlement`).
+            let finals: Vec<usize> = wave
+                .iter()
+                .copied()
+                .filter(|&index| {
+                    outcomes[index].is_final() && matches!(staged.get(index), Some(Some(_)))
+                })
+                .collect();
+            let payloads: Vec<(&StagedPayload, bool)> = finals
+                .iter()
+                .filter_map(|&index| {
+                    staged
+                        .get(index)
+                        .and_then(Option::as_ref)
+                        .map(|payload| (payload, first_delivery && written[index]))
+                })
+                .collect();
+            for (index, done) in finals
+                .into_iter()
+                .zip(self.settle_staged_traces(&payloads).await)
+            {
+                settled[index] = done;
             }
         }
         outcomes

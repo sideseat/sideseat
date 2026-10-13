@@ -284,7 +284,7 @@ impl TracePipeline {
                         .map(|(_, payload, _, _)| Some(payload.clone()))
                         .collect::<Vec<_>>();
                     // Each export is settled after its own wave, before a later one is written (`waves.rs`).
-                    let answers = self.run_waves(&requests, &received, &staged).await;
+                    let answers = self.run_waves(&requests, &received, &staged, false).await;
                     // Each message by its own export's outcome: a fence that dropped another export's spans
                     // says nothing about this one.
                     for ((msg_id, payload, _, _), answer) in ready.into_iter().zip(answers) {
@@ -401,7 +401,37 @@ impl TracePipeline {
     }
 
     pub(super) async fn settle_staged_trace(&self, payload: &StagedPayload) -> bool {
-        match self.staging.settle(payload).await {
+        Self::settled(payload, self.staging.settle(payload).await)
+    }
+
+    /// Settle a wave's staged payloads, `(payload, written)` - written when the batch vouched for its export
+    /// (`BatchAnswer::written`) - one answer per payload, in order: whether it settled.
+    pub(super) async fn settle_staged_traces(
+        &self,
+        payloads: &[(&StagedPayload, bool)],
+    ) -> Vec<bool> {
+        let mut settled = vec![false; payloads.len()];
+        let mut read = Vec::new();
+        for (index, (payload, written)) in payloads.iter().enumerate() {
+            if *written {
+                settled[index] = Self::settled(payload, self.staging.settle_written(payload).await);
+            } else {
+                read.push(index);
+            }
+        }
+        let reading: Vec<&StagedPayload> = read.iter().map(|&index| payloads[index].0).collect();
+        let answers = self.staging.settle_traces(&reading).await;
+        for (index, answer) in read.into_iter().zip(answers) {
+            settled[index] = Self::settled(payloads[index].0, answer);
+        }
+        settled
+    }
+
+    fn settled(
+        payload: &StagedPayload,
+        disposition: Result<StagingDisposition, crate::staging::StagingError>,
+    ) -> bool {
+        match disposition {
             Ok(StagingDisposition::Confirmed) => true,
             Ok(StagingDisposition::DeliberatelyAbsent) => {
                 tracing::info!(

@@ -691,6 +691,8 @@ mod raw_ownership_tests;
 #[cfg(test)]
 mod receipt_precedence_tests;
 #[cfg(test)]
+mod settlement_skip_tests;
+#[cfg(test)]
 mod storable_timestamp_tests;
 #[cfg(test)]
 mod strip_unstorable_tests;

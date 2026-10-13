@@ -8,11 +8,13 @@
 //! What `ingest_hot_path` leaves out: the DuckDB and SQLite work a batch does, which the CPU profile of the
 //! ingest benchmark attributes most of a server's time to. One thread, every export written as new telemetry -
 //! each pass rewrites every trace and span id - so the figure is ingestion, not the idempotent redelivery path.
-//! Batches are cut from the corpus in order, as the inline batcher cuts them from the queue. Staging is not
-//! included: the payloads are written as a batch with no registration, the path `run_waves` takes for them.
+//! Batches are cut from the corpus in order, as the inline batcher cuts them from the queue. Staging is left out
+//! unless asked for: the payloads are written as a batch with no registration, the path `run_waves` takes for
+//! them.
 //!
 //! `BATCHES` (default `1,8,64`) picks the batch sizes, `PASSES` (default 2) the passes per size, `NO_MEDIA=1`
-//! leaves out exports above 512 KB. Run it in the bench image to measure the target's figure:
+//! leaves out exports above 512 KB, and `STAGED=1` stages each export first and settles its payload after its
+//! wave, as the inline path does. Run it in the bench image to measure the target's figure:
 //! `docker run --rm --cpus 1 --memory 2g sideseat-bench write-path`.
 
 use std::path::{Path, PathBuf};
@@ -189,16 +191,18 @@ async fn bench_ingest_write_path_per_export() {
         .and_then(|v| v.parse().ok())
         .unwrap_or(2);
     let no_media = std::env::var("NO_MEDIA").is_ok_and(|v| v == "1");
+    let staged = std::env::var("STAGED").is_ok_and(|v| v == "1");
     let corpus = decoded_corpus(no_media);
     let spans: usize = corpus.iter().map(span_count).sum();
     println!(
-        "\n[write-path] {} exports, {spans} spans per pass, {passes} pass(es) per batch size, one thread{}",
+        "\n[write-path] {} exports, {spans} spans per pass, {passes} pass(es) per batch size, one thread{}{}",
         corpus.len(),
         if no_media {
             ", exports > 512 KB left out"
         } else {
             ""
-        }
+        },
+        if staged { ", staged and settled" } else { "" }
     );
     println!("[write-path] | Batch | ms/export | us/span | exports/s | spans/s |");
     println!("[write-path] | ---: | ---: | ---: | ---: | ---: |");
@@ -216,6 +220,14 @@ async fn bench_ingest_write_path_per_export() {
                 .collect();
             let started = Instant::now();
             for chunk in requests.chunks(batch) {
+                if staged {
+                    let settled = pipeline.stage_and_run_waves_for_test(chunk).await;
+                    assert!(
+                        settled.iter().all(|settled| *settled),
+                        "every export of a batch is written and its payload settled"
+                    );
+                    continue;
+                }
                 let outcomes = pipeline.run_waves_outcomes_for_test(chunk).await;
                 assert!(
                     outcomes.iter().all(|outcome| !matches!(

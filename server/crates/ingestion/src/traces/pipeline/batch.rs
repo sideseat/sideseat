@@ -38,10 +38,58 @@ impl TracePipeline {
                 )
             })
             .collect();
-        self.run_waves(requests, &received, &vec![None; requests.len()])
+        self.run_waves(requests, &received, &vec![None; requests.len()], true)
             .await
             .into_iter()
             .map(|answer| answer.outcome)
+            .collect()
+    }
+
+    /// Stage each of `requests` as received now, then run them through [`Self::run_waves`] as the inline path
+    /// does - a first delivery - and answer whether each export was final and its payload settled.
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn stage_and_run_waves_for_test(
+        &self,
+        requests: &[ExportTraceServiceRequest],
+    ) -> Vec<bool> {
+        let received: Vec<ReceivedPayload> = requests
+            .iter()
+            .map(|request| {
+                ReceivedPayload::new(
+                    request.encode_to_vec(),
+                    sideseat_domain::raw_payload::RawContent::Protobuf,
+                    chrono::Utc::now(),
+                )
+            })
+            .collect();
+        let mut staged = Vec::with_capacity(requests.len());
+        for (request, body) in requests.iter().zip(&received) {
+            let reference = self
+                .staging
+                .stage(
+                    DEFAULT_PROJECT_ID,
+                    sideseat_ports::types::StagedSignal::Traces,
+                    &body.staged(),
+                    body.received_at,
+                    crate::traces::confirmation_records(request),
+                    crate::staging::StagedWrite {
+                        partition_key: DEFAULT_PROJECT_ID.to_string(),
+                        raw_id: None,
+                    },
+                )
+                .await
+                .expect("stage");
+            staged.push(
+                self.staging
+                    .registration(&reference.id)
+                    .await
+                    .expect("registration"),
+            );
+        }
+        self.run_waves(requests, &received, &staged, true)
+            .await
+            .into_iter()
+            .map(|answer| answer.outcome.is_final() && answer.settled)
             .collect()
     }
 
@@ -74,6 +122,39 @@ impl TracePipeline {
         &self,
         requests: &[ExportTraceServiceRequest],
         received: &[ReceivedPayload],
+    ) -> Vec<IngestOutcome> {
+        self.run_batch_vouched(requests, received)
+            .await
+            .into_iter()
+            .map(|answer| answer.outcome)
+            .collect()
+    }
+
+    /// [`Self::run_batch`], with what this execution can vouch for each export: [`BatchAnswer::written`].
+    pub(super) async fn run_batch_vouched(
+        &self,
+        requests: &[ExportTraceServiceRequest],
+        received: &[ReceivedPayload],
+    ) -> Vec<BatchAnswer> {
+        let mut written = vec![false; requests.len()];
+        let outcomes = self.run_batch_into(requests, received, &mut written).await;
+        outcomes
+            .into_iter()
+            .zip(written)
+            .map(|(outcome, written)| BatchAnswer {
+                written: written && outcome == IngestOutcome::Stored,
+                outcome,
+            })
+            .collect()
+    }
+
+    /// The batch itself. `vouched[i]` is set only on the path that stored the batch, for each export every span of
+    /// which this execution wrote, kept through compensation, and claimed its record for.
+    async fn run_batch_into(
+        &self,
+        requests: &[ExportTraceServiceRequest],
+        received: &[ReceivedPayload],
+        vouched: &mut [bool],
     ) -> Vec<IngestOutcome> {
         let failed = || vec![IngestOutcome::Failed; requests.len()];
         let t_batch_start = std::time::Instant::now();
@@ -685,8 +766,20 @@ impl TracePipeline {
             // redelivery claims above the decision. A claim before the rows, or an answer before the claim, would
             // let a record go under rows it already acknowledged (`RawRecordOwnership.tla`, `Confirm`, `Check`).
             let mut written_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
+            let mut surviving_by_slot = vec![0usize; requests.len()];
+            // A record is claimed in its draft's project only, so an export whose spans reached another project
+            // has rows there no record of that project holds: it settles by reading.
+            let draft_project: HashMap<usize, &str> = drafts
+                .iter()
+                .map(|(index, draft)| (*index, draft.project_id()))
+                .collect();
+            let mut elsewhere: HashSet<usize> = HashSet::new();
             for ((project, trace, span), slot) in written.iter().zip(&written_slots) {
+                if draft_project.get(slot) != Some(&project.as_str()) {
+                    elsewhere.insert(*slot);
+                }
                 if surviving.contains(&(project.as_str(), trace.as_str(), span.as_str())) {
+                    surviving_by_slot[*slot] += 1;
                     written_by_draft
                         .entry(*slot)
                         .or_default()
@@ -709,6 +802,15 @@ impl TracePipeline {
             if let Err(error) = self.own_raw_records(&repairs).await {
                 tracing::error!(%error, "Could not claim and check the raw records the rows name");
                 return failed();
+            }
+            // Every span the export arrived with is in a committed row of its record's project that survived
+            // compensation, and its record is claimed and holds them: what settling would read back. An export the batch partly dropped, or
+            // left as an exact redelivery, is not vouched for and settles by reading.
+            for (slot, surviving) in surviving_by_slot.iter().enumerate() {
+                vouched[slot] = *surviving > 0
+                    && *surviving == ledger.prepared[slot]
+                    && !failed_slots.contains(&slot)
+                    && !elsewhere.contains(&slot);
             }
         } else {
             // Release the associations this batch created whose rows are not there. Files are written before
@@ -746,6 +848,17 @@ impl TracePipeline {
         }
         outcomes
     }
+}
+
+/// One export's answer from a batch, and whether this execution stored it whole.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct BatchAnswer {
+    pub outcome: IngestOutcome,
+    /// Stored by this execution, every span of it written in a committed row, kept through compensation and held
+    /// by the record it claimed - so the batch can settle its staged payload without reading it back, where an
+    /// acknowledged write is durable (`AnalyticsMaintenance::acknowledged_writes_are_durable`). Never for an
+    /// exact redelivery, an export the batch dropped spans of, or one of a failed batch.
+    pub written: bool,
 }
 
 /// How many of each export's spans a batch dropped, and why, so each export is answered for its own spans.

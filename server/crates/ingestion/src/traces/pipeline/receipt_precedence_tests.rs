@@ -108,6 +108,7 @@ async fn a_copy_written_after_a_later_revision_settles_as_superseded() {
             std::slice::from_ref(&second),
             std::slice::from_ref(&second_body),
             &[Some(second_staged)],
+            false,
         )
         .await;
     assert!(
@@ -129,6 +130,7 @@ async fn a_copy_written_after_a_later_revision_settles_as_superseded() {
             std::slice::from_ref(&first),
             std::slice::from_ref(&first_body),
             &[Some(first_staged)],
+            false,
         )
         .await;
     assert!(

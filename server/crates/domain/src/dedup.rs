@@ -465,6 +465,10 @@ impl AnalyticsMaintenance for DedupAnalyticsRepository {
         self.inner.fatal_failure()
     }
 
+    fn acknowledged_writes_are_durable(&self) -> bool {
+        self.inner.acknowledged_writes_are_durable()
+    }
+
     // ==================== Project Data Operations (pass-through) ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

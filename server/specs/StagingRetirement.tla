@@ -57,11 +57,23 @@
 (* describe, so their exports' contents stay distinct. Receipts are totally *)
 (* ordered here; two in one microsecond, which a store orders by write and  *)
 (* settlement accepts either way, are left to the staging tests.            *)
+(*                                                                          *)
+(* SkipReread is the write path settling its own exports without reading   *)
+(* them back: a worker whose write of a payload on its first delivery      *)
+(* committed - its rows written and its record claimed - retires it on that *)
+(* knowledge alone. A write can fail. So the skip is taken only after this  *)
+(* worker's own successful write of a payload taken for the first time,     *)
+(* never on a redelivery, which settles by reading. With SkipGuard FALSE it *)
+(* is taken after any write of the worker's, and TLC finds                 *)
+(* RetiredWasWritten broken: a failed write's payload retired with nothing  *)
+(* stored. The skip rests on an acknowledged write being durable, which     *)
+(* this model takes as given, as every write here is; a store whose        *)
+(* acknowledgement is not (ClickHouse's, without fsync) never skips.        *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 CONSTANTS Payloads, Consumers, Contents, WithPowerLoss, ReceiptPrecedence, OwnRecord, SharedContent,
-    MaxWrites
+    MaxWrites, SkipReread, SkipGuard
 
 VARIABLES
     row,        \* payload -> registry state
@@ -77,11 +89,14 @@ VARIABLES
     retired,    \* payloads retired at some point
     dropped,    \* payloads whose project was deleted
     lost,       \* payloads whose registration a power loss rolled back
-    tail        \* the registrations committed since the last other commit, oldest first
+    tail,       \* the registrations committed since the last other commit, oldest first
+    taken       \* payloads a consumer has taken at least once: a later take is a redelivery
 
-vars == <<row, seq, hw, queue, pc, verdict, received, content, written, retired, dropped, lost, tail>>
+vars == <<row, seq, hw, queue, pc, verdict, received, content, written, retired, dropped, lost, tail, taken>>
 
-Idle == [p |-> "none", step |-> "idle"]
+\* `first`: the payload was taken for the first time; `own`: the worker settles after its own write; `ok`: that
+\* write committed.
+Idle == [p |-> "none", step |-> "idle", first |-> FALSE, own |-> FALSE, ok |-> FALSE]
 MaxSeq == Cardinality(Payloads) + 1
 
 TypeOK ==
@@ -90,7 +105,9 @@ TypeOK ==
     /\ hw \in 0..MaxSeq
     /\ queue \subseteq Payloads
     /\ \A c \in Consumers :
-        pc[c] = Idle \/ (pc[c].p \in Payloads /\ pc[c].step \in {"read", "write", "settle", "ack"})
+        pc[c] = Idle \/ (/\ pc[c].p \in Payloads /\ pc[c].step \in {"read", "write", "settle", "ack"}
+                         /\ {pc[c].first, pc[c].own, pc[c].ok} \subseteq BOOLEAN)
+    /\ taken \subseteq Payloads
     /\ verdict \in [Payloads -> {"none", "processed", "finished", "anomaly"}]
     /\ received \in [Payloads -> 0..Cardinality(Payloads)]
     /\ content \in [Payloads -> Contents \cup {"none"}]
@@ -108,6 +125,7 @@ Init ==
     /\ written = {}
     /\ retired = {} /\ dropped = {} /\ lost = {}
     /\ tail = <<>>
+    /\ taken = {}
 
 \* The live row holding a sequence value, if any.
 Holder(s) == {q \in Payloads : row[q] = "live" /\ seq[q] = s}
@@ -156,14 +174,14 @@ Stage(p) ==
         /\ SharedContent \/ \A q \in Payloads : content[q] # c
         /\ content' = [content EXCEPT ![p] = c]
     /\ tail' = Append(tail, p)
-    /\ UNCHANGED <<pc, verdict, written, retired, dropped, lost>>
+    /\ UNCHANGED <<pc, verdict, written, retired, dropped, lost, taken>>
 
 DeleteProject(p) ==
     /\ row[p] = "live"
     /\ row' = [row EXCEPT ![p] = "gone"]
     /\ dropped' = dropped \cup {p}
     /\ tail' = <<>>
-    /\ UNCHANGED <<seq, hw, queue, pc, verdict, received, content, written, retired, lost>>
+    /\ UNCHANGED <<seq, hw, queue, pc, verdict, received, content, written, retired, lost, taken>>
 
 \* The defect under detection: a WAL loses a suffix of its commits. Losing the newest registration of the
 \* trailing run models any such suffix, one commit at a time; a lost retirement only resurrects a live row,
@@ -177,11 +195,12 @@ PowerLoss ==
         /\ lost' = lost \cup {p}
         /\ tail' = SubSeq(tail, 1, Len(tail) - 1)
         \* The reference keeps the sequence it was published with, the exporter its answer.
-        /\ UNCHANGED <<seq, queue, pc, verdict, received, content, written, retired, dropped>>
+        /\ UNCHANGED <<seq, queue, pc, verdict, received, content, written, retired, dropped, taken>>
 
 Take(c, p) ==
     /\ pc[c] = Idle /\ p \in queue
-    /\ pc' = [pc EXCEPT ![c] = [p |-> p, step |-> "read"]]
+    /\ pc' = [pc EXCEPT ![c] = [p |-> p, step |-> "read", first |-> p \notin taken, own |-> FALSE, ok |-> FALSE]]
+    /\ taken' = taken \cup {p}
     /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, written, retired, dropped, lost, tail>>
 
 \* Reading decides. A live row is persisted, then settled - or settled first, as redrive reads a payload's
@@ -197,44 +216,57 @@ Read(c) ==
            ELSE /\ verdict' = [verdict EXCEPT ![p] =
                         IF s > hw \/ Holder(s) # {} THEN "anomaly" ELSE "finished"]
                 /\ pc' = [pc EXCEPT ![c].step = "ack"]
-    /\ UNCHANGED <<row, seq, hw, queue, received, content, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, queue, received, content, written, retired, dropped, lost, tail, taken>>
 
 CWrite(c) ==
     /\ pc[c].step = "write"
     /\ WriteRevision(pc[c].p)
-    /\ pc' = [pc EXCEPT ![c].step = "settle"]
-    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, retired, dropped, lost, tail>>
+    /\ pc' = [pc EXCEPT ![c].step = "settle", ![c].own = TRUE, ![c].ok = TRUE]
+    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, retired, dropped, lost, tail, taken>>
+
+\* A write that fails stores nothing the worker can vouch for; it still settles, by reading.
+CWriteFails(c) ==
+    /\ pc[c].step = "write"
+    /\ pc' = [pc EXCEPT ![c].step = "settle", ![c].own = TRUE, ![c].ok = FALSE]
+    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, written, retired, dropped, lost, tail, taken>>
+
+\* Settling without reading: guarded, after the worker's own committed write of a payload on its first delivery;
+\* unguarded, after any write of its own.
+Skips(c) ==
+    /\ SkipReread
+    /\ pc[c].own
+    /\ SkipGuard => (pc[c].ok /\ pc[c].first)
 
 \* Settled, the reference is acknowledged; still pending, it stays queued for another delivery.
 CSettle(c) ==
     /\ pc[c].step = "settle"
     /\ LET p == pc[c].p IN
-        IF row[p] = "live" /\ Confirmed(p)
+        IF row[p] = "live" /\ (Skips(c) \/ Confirmed(p))
         THEN /\ row' = [row EXCEPT ![p] = "gone"]
              /\ retired' = retired \cup {p}
              /\ verdict' = [verdict EXCEPT ![p] = "processed"]
              /\ tail' = <<>>
-             /\ pc' = [pc EXCEPT ![c].step = "ack"]
+             /\ pc' = [pc EXCEPT ![c].step = "ack", ![c].own = FALSE, ![c].ok = FALSE]
         ELSE /\ pc' = [pc EXCEPT ![c] = Idle]
-             /\ UNCHANGED <<row, retired, verdict, tail>>
-    /\ UNCHANGED <<seq, hw, queue, received, content, written, dropped, lost>>
+             /\ UNCHANGED <<row, retired, verdict, tail, taken>>
+    /\ UNCHANGED <<seq, hw, queue, received, content, written, dropped, lost, taken>>
 
 Ack(c) ==
     /\ pc[c].step = "ack"
     /\ queue' = queue \ {pc[c].p}
     /\ pc' = [pc EXCEPT ![c] = Idle]
-    /\ UNCHANGED <<row, seq, hw, verdict, received, content, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, verdict, received, content, written, retired, dropped, lost, tail, taken>>
 
 \* A crash loses a worker's place; an unacknowledged reference stays queued and is redelivered.
 Crash(c) ==
     /\ pc[c] # Idle
     /\ pc' = [pc EXCEPT ![c] = Idle]
-    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, written, retired, dropped, lost, tail>>
+    /\ UNCHANGED <<row, seq, hw, queue, verdict, received, content, written, retired, dropped, lost, tail, taken>>
 
 Next ==
     \/ PowerLoss
     \/ \E p \in Payloads : Stage(p) \/ DeleteProject(p)
-    \/ \E c \in Consumers : Read(c) \/ CWrite(c) \/ CSettle(c) \/ Ack(c) \/ Crash(c)
+    \/ \E c \in Consumers : Read(c) \/ CWrite(c) \/ CWriteFails(c) \/ CSettle(c) \/ Ack(c) \/ Crash(c)
     \/ \E c \in Consumers, p \in Payloads : Take(c, p)
 
 Spec == Init /\ [][Next]_vars

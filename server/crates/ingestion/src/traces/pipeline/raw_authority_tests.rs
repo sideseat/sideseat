@@ -337,7 +337,9 @@ async fn revisions_in_one_batch_are_each_settled_after_their_wave() {
         );
     }
 
-    let answers = pipeline.run_waves(&requests, &received, &staged).await;
+    let answers = pipeline
+        .run_waves(&requests, &received, &staged, false)
+        .await;
     assert!(
         answers
             .iter()

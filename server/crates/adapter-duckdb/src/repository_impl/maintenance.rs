@@ -6,6 +6,12 @@ impl AnalyticsMaintenance for DuckdbRepository {
         self.0.fatal_failure().map(|failure| failure.to_string())
     }
 
+    /// Always: a write commits to a WAL DuckDB syncs, and `DuckdbService::write` syncs a new WAL's directory entry
+    /// before it reports success.
+    fn acknowledged_writes_are_durable(&self) -> bool {
+        true
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

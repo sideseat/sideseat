@@ -187,7 +187,7 @@ async fn run(
                 });
             }
             batch
-                .run_waves(&requests, &received, &payloads)
+                .run_waves(&requests, &received, &payloads, true)
                 .await
                 .into_iter()
                 .map(|answer| answer.outcome)

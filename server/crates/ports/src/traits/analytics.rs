@@ -477,6 +477,11 @@ pub trait AnalyticsMaintenance: Send + Sync {
     /// the store serves, and while it is only unreachable, which a later attempt can outlast.
     fn fatal_failure(&self) -> Option<String>;
 
+    /// Whether a write this store acknowledged survives a crash of the store that took it: only then may the write
+    /// path settle the exports it stored itself without reading them back (`StagingRetirement.tla`, `Skips`, which
+    /// takes the acknowledgement as durable). Every other settlement reads, whatever this says.
+    fn acknowledged_writes_are_durable(&self) -> bool;
+
     /// Distinct projects represented by any analytics signal.
     ///
     /// Restore repair cannot seed its traversal only from the transactional store: an analytics backup may

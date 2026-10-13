@@ -772,6 +772,12 @@ impl AnalyticsMaintenance for ClickhouseRepository {
         None
     }
 
+    /// Never: an insert is acknowledged once its part is written, not synced (`fsync_after_insert` is off), so a
+    /// node that crashes can lose it, quorum or not - a settlement reads what is stored instead.
+    fn acknowledged_writes_are_durable(&self) -> bool {
+        false
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
