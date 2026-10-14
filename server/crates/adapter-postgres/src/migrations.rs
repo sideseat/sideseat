@@ -145,8 +145,18 @@ async fn layout(
     .bind(schema)
     .fetch_all(&mut **tx)
     .await?;
+    // Sequences a statement draws from by name, which no column default names, so column metadata alone would
+    // pass a store that lacks one - and every statement drawing from it would then fail.
+    let sequences: Vec<String> = sqlx::query_scalar(
+        "SELECT 'sequence ' || sequence_name || ' ' || data_type \
+         FROM information_schema.sequences WHERE sequence_schema = $1",
+    )
+    .bind(schema)
+    .fetch_all(&mut **tx)
+    .await?;
     items.extend(columns);
     items.extend(indexes);
     items.extend(constraints);
+    items.extend(sequences);
     Ok(items)
 }

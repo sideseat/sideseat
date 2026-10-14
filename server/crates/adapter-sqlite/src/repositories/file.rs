@@ -7,7 +7,6 @@ use sqlx::SqlitePool;
 
 use crate::SqliteError;
 use sideseat_core::constants::FILE_CLEANUP_BATCH_SIZE;
-use sideseat_ports::traits::retention_cleanup_logical_bytes;
 use sideseat_ports::types::{FileClaim, FileRow};
 
 #[cfg(test)]
@@ -857,98 +856,6 @@ pub async fn confirm_trace_file_associations(
     }
     tx.commit().await?;
     Ok(confirmed)
-}
-
-/// Record cleanup intent for these traces. Idempotent: a trace already queued keeps its schedule.
-pub async fn record_retention_cleanup(
-    pool: &SqlitePool,
-    project_id: &str,
-    trace_ids: &[String],
-    now: i64,
-) -> Result<Vec<(String, i64)>, SqliteError> {
-    if trace_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut written = Vec::with_capacity(trace_ids.len());
-    for trace_id in trace_ids {
-        // The token moves on a re-record, so a claim an earlier worker still holds no longer matches: new work
-        // behind the same identity must not be discarded by a stale completion.
-        let token: i64 = sqlx::query_scalar(
-            "INSERT INTO retention_cleanup \
-             (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
-             VALUES (?, ?, ?, 0, 0, 1, ?) \
-             ON CONFLICT(project_id, trace_id) DO UPDATE SET \
-                 claim_token = claim_token + 1, next_attempt_at = 0 \
-             RETURNING claim_token",
-        )
-        .bind(project_id)
-        .bind(trace_id)
-        .bind(now)
-        .bind(
-            i64::try_from(retention_cleanup_logical_bytes(project_id, trace_id))
-                .unwrap_or(i64::MAX),
-        )
-        .fetch_one(pool)
-        .await?;
-        written.push((trace_id.clone(), token));
-    }
-    Ok(written)
-}
-
-/// Claim due candidates, pushing their next attempt out before returning them.
-///
-/// `WHERE (project_id, trace_id) IN (SELECT ... LIMIT n)` rather than a bare `LIMIT` on the update: the inner
-/// select fixes the set, and the update then leases exactly those. The backoff is geometric to a ceiling, so a
-/// candidate whose reconciliation keeps failing is retried more slowly rather than spinning - and it is
-/// **never dropped**, because the record is the only thing that knows the cleanup is owed.
-pub async fn claim_retention_cleanup(
-    pool: &SqlitePool,
-    limit: i64,
-    lease_secs: i64,
-    now: i64,
-) -> Result<Vec<(String, String, i64)>, SqliteError> {
-    // The token is **returned**, so completion can require it: without that a stale worker's completion deletes
-    // a newer intent. The claim does not bump it - bumping is what a *re-record* means - so a worker holding a
-    // token whose row was re-recorded finds no match and leaves the new work alone.
-    let rows: Vec<(String, String, i64)> = sqlx::query_as(
-        "UPDATE retention_cleanup \
-         SET attempts = attempts + 1, \
-             next_attempt_at = ? + ? * MIN(attempts + 1, 8) \
-         WHERE (project_id, trace_id) IN ( \
-             SELECT project_id, trace_id FROM retention_cleanup \
-             WHERE next_attempt_at <= ? ORDER BY next_attempt_at LIMIT ? \
-         ) \
-         RETURNING project_id, trace_id, claim_token",
-    )
-    .bind(now)
-    .bind(lease_secs)
-    .bind(now)
-    .bind(limit)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
-}
-
-/// Drop candidates whose cleanup completed.
-pub async fn complete_retention_cleanup(
-    pool: &SqlitePool,
-    project_id: &str,
-    completed: &[(String, i64)],
-) -> Result<(), SqliteError> {
-    // Per row, because the token is per row. A single statement would need a values list; the batch is at most
-    // one claim's worth.
-    for (trace_id, token) in completed {
-        sqlx::query(
-            "DELETE FROM retention_cleanup \
-             WHERE project_id = ? AND trace_id = ? AND claim_token = ?",
-        )
-        .bind(project_id)
-        .bind(trace_id)
-        .bind(token)
-        .execute(pool)
-        .await?;
-    }
-    Ok(())
 }
 
 /// Restore an association a survivor scan released, as **durable**.

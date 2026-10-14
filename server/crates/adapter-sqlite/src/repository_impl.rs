@@ -23,7 +23,7 @@ use sideseat_ports::types::{
 use super::SqliteService;
 use super::repositories::{
     api_key, auth_method, credential_permissions, credentials, favorite, file, governance, journal,
-    membership, organization, project, raw_arbiter, restore, staging, user,
+    membership, organization, project, raw_arbiter, restore, retention_cleanup, staging, user,
 };
 
 /// The port, implemented over the service.

@@ -476,22 +476,12 @@ async fn record_span_deletions_journalled(
     trace_ids.dedup();
     let mut written = Vec::with_capacity(trace_ids.len());
     for trace_id in trace_ids {
-        let token: i64 = sqlx::query_scalar(
-            "INSERT INTO retention_cleanup
-                 (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes)
-             VALUES ($1, $2, $3, 0, 0, 1, $4)
-             ON CONFLICT(project_id, trace_id) DO UPDATE SET
-                 claim_token = retention_cleanup.claim_token + 1, next_attempt_at = 0
-             RETURNING claim_token",
+        let token = crate::repositories::retention_cleanup::record_one(
+            &mut *connection,
+            project_id,
+            &trace_id,
+            now.timestamp(),
         )
-        .bind(project_id)
-        .bind(&trace_id)
-        .bind(now.timestamp())
-        .bind(
-            i64::try_from(retention_cleanup_logical_bytes(project_id, &trace_id))
-                .unwrap_or(i64::MAX),
-        )
-        .fetch_one(&mut *connection)
         .await?;
         written.push((trace_id, token));
     }

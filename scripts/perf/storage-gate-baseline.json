@@ -55,6 +55,7 @@
   "raw_owners": 442368,
   "raw_writers": 12288,
   "retention_cleanup": 12288,
+  "retention_cleanup_tokens": 4096,
   "schema_version": 4096,
   "sqlite_schema": 32768,
   "sqlite_sequence": 4096,

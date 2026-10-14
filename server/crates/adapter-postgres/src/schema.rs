@@ -300,6 +300,9 @@ CREATE TABLE IF NOT EXISTS retention_cleanup (
     PRIMARY KEY (project_id, trace_id)
 );
 CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
+-- Where claim tokens come from: one sequence for every row, so a row completed and recorded again never carries a
+-- token an earlier row did, and a stale completion can match only the row it claimed.
+CREATE SEQUENCE IF NOT EXISTS retention_cleanup_tokens AS BIGINT;
 -- Sessions whose deletion has to outlive the traces it knew about.
 --
 -- A session is deleted *by* deleting its traces, so the route resolves session ids to trace ids and

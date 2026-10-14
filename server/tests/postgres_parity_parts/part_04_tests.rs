@@ -356,3 +356,54 @@ async fn the_retention_cleanup_backlog_reads_identically_on_both_backends() {
         "SQLite (reference) and PostgreSQL account and report alike"
     );
 }
+
+/// A store at the current version created before the cleanup token sequence existed is refused at startup with
+/// the reset command named: a sequence no column default names is part of the layout too.
+#[tokio::test]
+async fn a_postgres_store_missing_the_cleanup_token_sequence_is_refused() {
+    let Some((_sqlite, _postgres)) = pair().await else {
+        return;
+    };
+    let owner = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&std::env::var(URL_ENV).expect("url"))
+        .await
+        .expect("owner connection");
+    sqlx::query("DROP SEQUENCE retention_cleanup_tokens")
+        .execute(&owner)
+        .await
+        .expect("drop the sequence");
+
+    let config = PostgresConfig {
+        url: std::env::var(URL_ENV).expect("url"),
+        max_connections: 2,
+        min_connections: 1,
+        acquire_timeout_secs: 10,
+        idle_timeout_secs: 60,
+        max_lifetime_secs: 600,
+        statement_timeout_secs: 30,
+    };
+    let refused = PostgresService::init(
+        &config,
+        Arc::new(sideseat_server::runtime::clock::SystemClock),
+    )
+    .await;
+    // Put the sequence back before asserting, so a failure here leaves the scenarios that follow a whole
+    // store: the schema script is idempotent, and the default privileges grant the roles their use of it.
+    sqlx::raw_sql(sideseat_adapter_postgres::schema::SCHEMA)
+        .execute(&owner)
+        .await
+        .expect("restore the sequence");
+    let message = match refused {
+        Ok(_) => panic!("a layout without the sequence must be refused"),
+        Err(error) => error.to_string(),
+    };
+    assert!(
+        message.contains("retention_cleanup_tokens"),
+        "names the sequence: {message}"
+    );
+    assert!(
+        message.contains("sideseat system prune"),
+        "names the reset command: {message}"
+    );
+}

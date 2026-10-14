@@ -314,3 +314,91 @@ async fn process_leases_behave_identically() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn retention_cleanup_tokens_are_never_reused_identically() {
+    assert_parity("retention_cleanup_tokens", |repo, mut t| async move {
+        let project = ProjectId::from("p1");
+        let t1 = ["t1".to_string()];
+
+        // Completed, recorded again: the old token completes nothing.
+        let first = repo
+            .record_retention_cleanup(&project, &t1)
+            .await
+            .expect("record");
+        repo.complete_retention_cleanup(&project, &first)
+            .await
+            .expect("complete");
+        let second = repo
+            .record_retention_cleanup(&project, &t1)
+            .await
+            .expect("record again");
+        t.note(&format!("a fresh token: {}", first != second));
+        repo.complete_retention_cleanup(&project, &first)
+            .await
+            .expect("stale completion");
+        let owed = repo.claim_retention_cleanup(10, 0).await.expect("claim");
+        t.note(&format!(
+            "the later intent survives the stale completion: {}",
+            owed.iter()
+                .any(|(_, trace, token)| trace == "t1" && *token == second[0].1)
+        ));
+
+        // Unique across traces and projects.
+        let mut tokens: Vec<i64> = second.iter().map(|(_, token)| *token).collect();
+        for project in ["p1", "p2"] {
+            let written = repo
+                .record_retention_cleanup(
+                    &ProjectId::from(project),
+                    &["t2".to_string(), "t3".to_string()],
+                )
+                .await
+                .expect("record more");
+            tokens.extend(written.iter().map(|(_, token)| *token));
+        }
+        let distinct: std::collections::HashSet<i64> = tokens.iter().copied().collect();
+        t.note(&format!(
+            "every token distinct: {}",
+            distinct.len() == tokens.len()
+        ));
+        t
+    })
+    .await;
+}
+
+/// Records and completions of overlapping traces in opposite orders, many at once, on PostgreSQL: both lock the
+/// cleanup rows in trace order, so none deadlocks and every one succeeds.
+#[tokio::test]
+async fn retention_cleanup_records_and_completions_do_not_deadlock() {
+    let Some((_, postgres)) = pair().await else {
+        return;
+    };
+    let repo = std::sync::Arc::new(postgres);
+    let project = ProjectId::from("p1");
+    let mut tasks = Vec::new();
+    for worker in 0..8 {
+        let (repo, project) = (repo.clone(), project.clone());
+        tasks.push(tokio::spawn(async move {
+            for round in 0..25 {
+                let mut traces = vec!["t1".to_string(), "t2".to_string(), "t3".to_string()];
+                if (worker + round) % 2 == 1 {
+                    traces.reverse();
+                }
+                let recorded = repo
+                    .record_retention_cleanup(&project, &traces)
+                    .await
+                    .expect("record");
+                let mut completing = recorded;
+                if worker % 2 == 1 {
+                    completing.reverse();
+                }
+                repo.complete_retention_cleanup(&project, &completing)
+                    .await
+                    .expect("complete");
+            }
+        }));
+    }
+    for task in tasks {
+        task.await.expect("no worker failed");
+    }
+}

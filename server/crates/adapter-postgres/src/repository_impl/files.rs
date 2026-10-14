@@ -320,7 +320,7 @@ impl FileMetaStore for PostgresRepository {
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError> {
         tenant_transaction!(self, project_id, |connection| {
-            file::record_retention_cleanup(
+            retention_cleanup::record_retention_cleanup(
                 connection,
                 project_id,
                 trace_ids,
@@ -334,12 +334,14 @@ impl FileMetaStore for PostgresRepository {
         limit: i64,
         lease_secs: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        maintenance_transaction!(self, |connection| file::claim_retention_cleanup(
-            connection,
-            limit,
-            lease_secs,
-            self.0.clock().now().timestamp(),
-        ))
+        maintenance_transaction!(self, |connection| {
+            retention_cleanup::claim_retention_cleanup(
+                connection,
+                limit,
+                lease_secs,
+                self.0.clock().now().timestamp(),
+            )
+        })
     }
 
     async fn complete_retention_cleanup(
@@ -348,7 +350,7 @@ impl FileMetaStore for PostgresRepository {
         completed: &[(String, i64)],
     ) -> Result<(), DataError> {
         tenant_transaction!(self, project_id, |connection| {
-            file::complete_retention_cleanup(connection, project_id, completed)
+            retention_cleanup::complete_retention_cleanup(connection, project_id, completed)
         })
     }
 

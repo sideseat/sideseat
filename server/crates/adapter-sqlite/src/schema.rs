@@ -247,6 +247,12 @@ CREATE TABLE IF NOT EXISTS retention_cleanup (
 -- On the due time itself, not on an input to it: an index on a column the eligibility expression merely reads
 -- bounds rows returned rather than rows examined.
 CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
+-- Where claim tokens come from: one sequence for every row, so a row completed and recorded again never carries a
+-- token an earlier row did, and a stale completion can match only the row it claimed.
+CREATE TABLE IF NOT EXISTS retention_cleanup_tokens (
+    id   INTEGER PRIMARY KEY CHECK (id = 1),
+    last INTEGER NOT NULL
+);
 -- Sessions whose deletion has to outlive the traces it knew about.
 --
 -- A session is deleted *by* deleting its traces, so the route resolves session ids to trace ids and

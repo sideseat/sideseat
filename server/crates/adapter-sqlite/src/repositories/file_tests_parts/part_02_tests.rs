@@ -114,6 +114,9 @@ async fn an_owed_retention_cleanup_shows_its_age_and_failed_passes() {
         sideseat_ports::types::RetentionCleanupBacklog::default()
     );
 
+    use crate::repositories::retention_cleanup::{
+        claim_retention_cleanup, complete_retention_cleanup, record_retention_cleanup,
+    };
     let tokens = record_retention_cleanup(&pool, "default", &["t1".to_string()], 1_000)
         .await
         .unwrap();

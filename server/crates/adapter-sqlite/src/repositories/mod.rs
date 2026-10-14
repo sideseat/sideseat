@@ -16,5 +16,6 @@ pub mod process_lease;
 pub mod project;
 pub mod raw_arbiter;
 pub mod restore;
+pub mod retention_cleanup;
 pub mod staging;
 pub mod user;

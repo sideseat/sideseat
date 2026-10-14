@@ -6,9 +6,7 @@
 use sqlx::{PgConnection, PgPool};
 
 use crate::PostgresError;
-use sideseat_ports::traits::{
-    DeletionCause, DeletionRecord, DeletionScope, retention_cleanup_logical_bytes,
-};
+use sideseat_ports::traits::{DeletionCause, DeletionRecord, DeletionScope};
 use sideseat_ports::types::{ProjectId, ProjectRow};
 
 /// Create a new project with a generated CUID2 ID.

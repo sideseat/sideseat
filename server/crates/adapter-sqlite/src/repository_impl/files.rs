@@ -313,7 +313,7 @@ impl FileMetaStore for SqliteRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        file::record_retention_cleanup(
+        retention_cleanup::record_retention_cleanup(
             self.0.pool(),
             project_id,
             trace_ids,
@@ -328,7 +328,7 @@ impl FileMetaStore for SqliteRepository {
         limit: i64,
         lease_secs: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        file::claim_retention_cleanup(
+        retention_cleanup::claim_retention_cleanup(
             self.0.pool(),
             limit,
             lease_secs,
@@ -343,7 +343,7 @@ impl FileMetaStore for SqliteRepository {
         project_id: &ProjectId,
         completed: &[(String, i64)],
     ) -> Result<(), DataError> {
-        file::complete_retention_cleanup(self.0.pool(), project_id, completed)
+        retention_cleanup::complete_retention_cleanup(self.0.pool(), project_id, completed)
             .await
             .map_err(Into::into)
     }
