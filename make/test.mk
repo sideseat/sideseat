@@ -3,9 +3,9 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-clickhouse-two-replica test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-marginal storage-gate-equivalence footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-clickhouse-two-replica test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-marginal storage-gate-equivalence footprint-storage-distributed test-storage-rebase test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
-test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
+test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet test-storage-rebase ## Run all regular test suites
 
 # Complete workspace, including the Rust SDK.
 test-rust: ## Test the complete Rust workspace
@@ -141,6 +141,11 @@ storage-gate-marginal: ## Hold the marginal stored bytes per item and the fixed 
 
 storage-gate-equivalence: ## Prove the storage gate's figures do not depend on the disk or the build profile
 	@./scripts/check/storage-gate.sh --equivalence
+
+# The distributed footprint brings the corpus to the present before ClickHouse's TTL sees it; this holds that the
+# move changes every export's instants and no other byte. Offline, a couple of seconds.
+test-storage-rebase: ## Check that moving the storage corpus in time changes nothing but its instants
+	@uv run --locked --script scripts/perf/storage-footprint.py self-test
 
 footprint-storage-distributed: ## Measure and gate stored bytes per signal (ClickHouse, in containers)
 	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py distributed --gate --metrics-load)
