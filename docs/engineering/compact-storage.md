@@ -299,14 +299,31 @@ corpus 223 to 20 ms, and at a million spans 81 ms within the limit; `span_terms`
 signal 829 to 784 B/span on the storage gate, the two columns adding nothing measurable to `otel_spans`. The terms
 have since moved onto the row as well (Span search terms).
 
-**Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
-most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
-load of about a million points from the captured *shapes* - every series keeps its resource, scope, instrument
-kind, unit, temporality and attribute set, from a fleet of replicas distinguished by `service.instance.id`,
-cumulative every interval, with values that only grow - and `--metrics-load` measures that instead. The parameters
-are committed (`metrics-load.json`), not the data, so the same parameters and the same corpus give the same exports
-byte for byte. On that load a point costs 162 B, against 581 B on the captured corpus, where almost all of the figure was one
-partly-filled block per column; the captured corpus stays as the correctness fixture.
+**Metrics are judged on a derived load.** 480 captured points cannot measure a store whose block is 256 KB: most of
+the figure is one partly-filled block per column, and even at thirty passes of the storage gate a block is 20 B a
+point - the gate's metric line is a regression check, not a rate. `scripts/perf/metrics-load.py` derives a
+deterministic load of about a million points from the captures, and `--metrics-load` measures that instead. Every
+series any captured export carried is kept - its resource, scope, metric and attribute set, 148 of them - and copied
+to a fleet of 50 replicas, each resource's captured `service.instance.id` giving way to the replica's, batched into
+one export per producer and interval as a collector sends them. Nothing a real fleet varies is repeated: every value
+is drawn anew at each point from seeded increments (counters and histogram buckets never fall, gauges wander), each
+replica started at its own instant up to a day before the load, which its cumulative points carry, and collects at
+its own phase of the interval, late by up to 50 ms each time, so no two replicas' timestamps agree and no interval
+repeats exactly. Each point carries one of the exemplar sets its series' captured points carried, chosen at random,
+each exemplar with a fresh trace, span, instant and value: 0.55 exemplars a point, where the captures' 480 points
+carry 0.59 between them because their series do not carry them equally. The parameters are committed
+(`metrics-load.json`), not the data, so the same parameters and the same corpus give the same exports byte for byte;
+`"exemplars": "densest"` gives every point its series' largest captured set instead, 1.15 a point, as a second
+figure. An earlier load copied only each metric's last export - 38 series of the 148, no exemplar, one clock for
+every replica - and measured 140 B a point where the same server stores this one at 185. Measured 2026-10-14 on the
+embedded backend:
+
+| Store | Sampled exemplars, 0.55 a point | Densest, 1.15 a point |
+| --- | ---: | ---: |
+| Flat exemplar columns and a JSON array, 64-hex content digest | 185 B/point | 222 B/point |
+
+The exemplars take 59.4 B a point at the sampled rate, the first of them stored twice, and the content digest 34.6:
+the metric target is not met on this load.
 
 **Arithmetic for media.** Media cannot be compressed losslessly: six generated PNGs, a JPEG, a PDF and encrypted
 reasoning signatures, 15.3 MB unique per project out of 74.6 MB. However well everything else is stored, traces
