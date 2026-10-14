@@ -348,6 +348,13 @@ print(f"\nCold read, empty reconstruction cache: {os.environ['COLD_MS']} ms\n")
 # while its p50 stayed at 20 ms and its p95 at 50-80 ms. Isolating it (same payload, `files.enabled` off)
 # showed the same tail, so it is DuckDB's own write amortisation rather than file extraction - inherent to
 # an embedded store absorbing 750 KB writes with no gap between them, which is not how an exporter behaves.
+#
+# The distributed figures were set on 2026-08-31 (b0c85b69) on a quieter state of the reference machine, and are a
+# gate on that reference box only. Measured 2026-10-14 on today's Mac - an idle load of about 8 from its endpoint
+# agents, ClickHouse in an 8-CPU VM - HEAD misses the distributed ingest ceilings by about half (small export p95
+# 122.7-133.4 ms against 80, large 161.3-182.7 against 120) with no regression across that day's commits, an A/B/A
+# of the branch against its base agreeing within those spreads. The harness at b0c85b69 could not be run there to
+# compare: its ClickHouse never answered on its port.
 SLO_MS = {
     "embedded": {
         "ingest-small.txt": 10,
