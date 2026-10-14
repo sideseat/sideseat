@@ -573,6 +573,31 @@ def measure_embedded(work: Path, config: dict | None = None) -> dict:
     }
 
 
+def cpu_seconds(pid: int, mode: str) -> dict:
+    """CPU seconds the server process has used, and in distributed mode the ClickHouse container's cgroup: what a
+    load costs beside the bytes it leaves."""
+    out = subprocess.run(
+        ["ps", "-o", "time=", "-p", str(pid)], capture_output=True, text=True
+    ).stdout.strip()
+    days, _, clock = out.rpartition("-")
+    parts = [float(x) for x in clock.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0.0)
+    seconds = (
+        (int(days) if days else 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+    )
+    cpu = {"server": seconds}
+    if mode == "distributed":
+        stat = docker("exec", CH_NAME, "cat", "/sys/fs/cgroup/cpu.stat").stdout
+        usage = next(
+            int(line.split()[1])
+            for line in stat.splitlines()
+            if line.startswith("usage_usec")
+        )
+        cpu["clickhouse"] = usage / 1e6
+    return cpu
+
+
 def measure_distributed() -> dict:
     tables = [
         t
@@ -580,6 +605,12 @@ def measure_distributed() -> dict:
         if t in ANALYTICS_OWNER
     ]
     for table in tables:
+        # Wide parts, whatever the table's size: a compact part reports no per-column sizes, which left a small
+        # table's columns at zero. A store at scale writes wide parts anyway.
+        clickhouse(
+            f"ALTER TABLE sideseat.{table} MODIFY SETTING min_bytes_for_wide_part = 0, "
+            "min_rows_for_wide_part = 0"
+        )
         clickhouse(f"OPTIMIZE TABLE sideseat.{table} FINAL")
     rows = clickhouse(
         "SELECT table, name, data_compressed_bytes, data_uncompressed_bytes FROM system.columns "
@@ -875,8 +906,10 @@ def main() -> int:
         if args.mode == "distributed":
             extra_env = start_distributed(work)
         server = storage_server.start_server(binary, work, extra_env, PORT)
+        cpu_before = cpu_seconds(server.pid, args.mode)
         projects = storage_server.load(exports, PORT, server, work, ROOT)
         storage_server.settle(projects, PORT, server, work)
+        cpu_after = cpu_seconds(server.pid, args.mode)
         storage_server.stop_server(server)
         server = None
         measured = (
@@ -888,6 +921,10 @@ def main() -> int:
             else 0
         )
         result = report(exports, measured, args.mode)
+        result["cpu_seconds"] = {
+            part: round(cpu_after[part] - cpu_before[part], 2) for part in cpu_after
+        }
+        log(f"CPU over the load and its settling: {result['cpu_seconds']}")
         if args.json:
             args.json.write_text(json.dumps(result, indent=1, default=str))
         outcome = max(gate(result, args.signal) if args.gate else 0, raw_failed)
