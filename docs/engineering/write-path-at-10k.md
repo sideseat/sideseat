@@ -81,6 +81,72 @@ is probably not the limit. The next measurement is where the time goes at one co
 
 That decides whether 10,000 is a harness, a configuration or a design problem.
 
+### 1.2 Where the time goes
+
+Measured on 2026-10-14 with image `a` (`4b73ebd3`), in the same pinned container, at 700 spans/s offered for 30 s.
+Each segment started with no build, test or model-checker process running and a 1-minute load below 9. The
+profile is `perf record -g` at 499 Hz inside the container.
+
+The load generator is not the limit. Run alone against a sink on the host, it sent 2,009, 4,989 and 9,991
+spans/s at offered rates of 2,000, 5,000 and 10,000, with a p99 lag of 10 to 16 ms and 0.63 of a core at 10,000.
+
+| Cores | achieved spans/s | p50 / p99 ms | server CPU | per allotted core |
+| ---: | ---: | --- | ---: | ---: |
+| 1 | 682 | 239 / 1,238 | 26.0 s | 0.87 |
+| 4 | 642 | 994 / 3,810 | 38.1 s | 0.32 |
+
+Four cores do less than one and spend half as much CPU again. Two causes show:
+
+- **DuckDB's own parallelism.** The connection runs `SET threads = available_parallelism`, so each small keyed
+  statement is split across DuckDB's task scheduler, and its workers are woken for it. At four cores
+  `duckdb::TaskScheduler::ExecuteForever` is 14.6 % of the samples, `futex` 10.4 % and `try_to_wake_up` 9.1 % of
+  them self time. The statements gain nothing from it, and every one still goes through the one connection.
+- **SQLite refusing file associations.** `associate_file` read the file's deletion claim and then wrote, in a
+  transaction that took the write lock only at its first write. A writer committing in between made SQLite answer
+  `database is locked` (codes 5 and 517) at once, without the busy timeout, and the batch was refused and its
+  payload redelivered: 118 refusals and 26 failed payloads in 30 s at one core, 45 and 7 at four.
+
+The pipeline's own timings (`Pipeline batch completed`): at one core 554 batches of 3.9 requests and 37 spans on
+average, prepare 3.1 ms and persist 26.0 ms each (p99 142), 16.5 s of the 30 busy; at four cores 698 batches of
+3.1 requests, persist 21.1 ms, 16.9 s busy. Persist is nearly all of a batch, and the batches stay small.
+
+At one core a span costs 1.3 ms of CPU. The profile's shares (inclusive):
+
+- DuckDB planning, about 30 %: `Planner::CreatePlan` 20.0 % and `Optimizer` 10.7 %. Every parameterised read is
+  planned twice (`compact-storage.md`, the `CanCachePlan` finding). `ClientContext::RebindPreparedStatement` alone
+  is 19.4 %.
+- `get_trace_session_pairs`, 19.7 %, almost all of it that rebinding.
+- the writes, `DuckdbService::write` 14.9 %, 12.5 % and 10.3 % across its three stacks, with
+  `DuckTransaction::WriteToWAL` 12.8 % and `UndoBuffer::WriteToWAL` 11.0 % within them;
+- `spans_with_matching_content` (exact redelivery) 13.1 %, `raw::get` 10.2 %, `keyed::span_revisions` 5.5 %,
+  `insert_spans` 4.3 %;
+- ZSTD decompression of the blocks keyed reads fetch, 7.6 to 9.5 % (5.5 % self);
+- decoding and extraction (`process_request`) 6.0 %, HTTP 2.5 %.
+
+So what is left after the configuration is per statement and per row inside DuckDB. The write path figures
+agree: the cost of an export does not fall with larger batches (1.1).
+
+**The session read.** `get_trace_session_pairs` is run twice for every batch. `fences_early` stamps each live (SSE)
+event with its trace's canonical session, the session of the trace's earliest winning span. `fences_late` checks
+the traces a deletion fence may have to drop against deleted sessions. Both read every winning span the trace has
+stored: `arg_min(session_id, (timestamp_start, span_id))` over the trace, so the read grows with the trace. The
+batch alone cannot answer it unless it holds the trace's earliest span. The deletion check is narrower, since it
+runs only for traces a fence names. The live-event stamp is for viewers, so it could be resolved where an event is
+delivered rather than for every span written, with the cost then following the viewers, not the writes.
+
+### 1.3 What each problem needs
+
+- **Four cores below one** is configuration plus one defect. The defect is the SQLite lock: a transaction that
+  writes takes the write lock at `BEGIN IMMEDIATE`. The configuration is DuckDB's parallelism on the ingest
+  connection, which is measured before it changes, because API reads share the connection. With both fixed, four
+  cores should at least match one. Beyond that the single connection bounds the rate: persist is about 55 % of the
+  wall time at one core. Rising further needs prepare, which is parallel, to overlap persist, which is serial. The
+  inline batcher awaits each batch before it cuts the next.
+- **1.3 ms of CPU a span** is design. The bulk is per-statement planning and per-row keyed reads and WAL writing in
+  DuckDB, not work a larger batch spreads. A three-fold cut needs the read shape of 2.1, one read per group rather
+  than per key, and fewer statements per wave, so that planning falls with them. Whether DuckDB offers a per-key
+  read cheap enough is still the open question there.
+
 ## 2. The protocol 10,000 would need
 
 10,000 spans/s on a core is 0.10 ms a span, everything included: a fifth of today's per-row cost alone. Three
