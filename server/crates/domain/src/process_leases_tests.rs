@@ -292,6 +292,11 @@ async fn a_lost_lease_closes_the_fence_until_it_is_taken_again() {
     let term = fence.term().expect("held");
     leases.failing.store(true, Ordering::SeqCst);
     until(&fence, false).await;
+    // Closed by its deadline, the lease is not yet lost: a renewal sent before the deadline and answered
+    // after it still holds the lease in the same term. Failing on past the deadline, every renewal fails and
+    // the renewer declares it lost, which is what this test is about.
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(!fence.is_open(), "still failing, still closed");
     assert!(!renewer.is_finished(), "a lost lease keeps being retried");
     leases.failing.store(false, Ordering::SeqCst);
     until(&fence, true).await;
