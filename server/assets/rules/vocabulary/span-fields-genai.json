@@ -436,6 +436,20 @@
           "doc": "A model call's serialised result with a top-level `finish_reason`. Only on an LLM span: `output.value` is any operation's output, and an application's own result may hold a member of that name."
         },
         {
+          "id": "output_value_choices_finish_reason",
+          "json": {
+            "attribute": "output.value",
+            "path": "$.choices[0:].finish_reason",
+            "reduce": "collect_all"
+          },
+          "where": {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "LLM"
+          },
+          "on_malformed": "continue",
+          "doc": "A model call's serialised response with its choices, where the instrumentation states no flat finish reason: OpenInference's OpenAI instrumentation before it wrote `llm.finish_reason` (0.1.45) leaves each choice's reason only in `output.value`. Every choice's, as for `gen_ai.completion`; a slice, so only a list of choices answers. Only on an LLM span, as above."
+        },
+        {
           "id": "output_value_generation_stop_reason",
           "json": {
             "attribute": "output.value",

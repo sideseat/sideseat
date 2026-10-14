@@ -530,3 +530,102 @@ fn a_stop_reason_merged_into_the_parameters_is_the_last_finish_source() {
         "a finish stated where it belongs wins"
     );
 }
+
+/// A model call's serialised response whose choices each state a finish (OpenInference's OpenAI instrumentation
+/// 0.1.45, before it wrote `llm.finish_reason`) is the call's finish - every choice's, on an LLM span only, and
+/// behind the flat spelling where both are present.
+#[test]
+fn a_serialised_response_s_choices_state_its_finish_where_no_flat_reason_does() {
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+
+    let kv = |key: &str, value: &str| KeyValue {
+        key: key.to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue(value.to_string())),
+        }),
+    };
+    let finish = |attrs: Vec<KeyValue>| {
+        let request = ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                scope_spans: vec![ScopeSpans {
+                    spans: vec![Span {
+                        trace_id: vec![1; 16],
+                        span_id: vec![2; 8],
+                        name: "bedrock.converse".to_string(),
+                        attributes: attrs,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+        crate::traces::extract::extract_attributes_batch(
+            &request,
+            sideseat_domain::rules::ruleset(),
+        )
+        .into_iter()
+        .next()
+        .expect("one span")
+        .gen_ai_finish_reasons
+    };
+    let llm = kv("openinference.span.kind", "LLM");
+    let response = kv(
+        "output.value",
+        r#"{"id":"chatcmpl-1","choices":[{"finish_reason":"tool_calls","index":0},{"finish_reason":"stop","index":1}]}"#,
+    );
+    assert_eq!(
+        finish(vec![llm.clone(), response.clone()]),
+        vec!["tool_calls".to_string(), "stop".to_string()]
+    );
+    assert!(
+        finish(vec![
+            kv("openinference.span.kind", "CHAIN"),
+            response.clone()
+        ])
+        .is_empty(),
+        "another operation's output states no model's finish"
+    );
+    assert!(
+        finish(vec![
+            llm.clone(),
+            kv(
+                "output.value",
+                r#"{"choices":{"0":{"finish_reason":"stop"}}}"#
+            )
+        ])
+        .is_empty(),
+        "a member named choices that is no list answers nothing"
+    );
+    assert_eq!(
+        finish(vec![
+            llm.clone(),
+            response.clone(),
+            kv("llm.finish_reason", "length")
+        ]),
+        vec!["length".to_string()],
+        "the flat spelling wins where it is written"
+    );
+    assert_eq!(
+        finish(vec![
+            llm.clone(),
+            kv(
+                "output.value",
+                r#"{"finish_reason":"length","choices":[{"finish_reason":"stop"}]}"#
+            )
+        ]),
+        vec!["length".to_string()],
+        "a top-level reason on the same output is read first"
+    );
+    assert_eq!(
+        finish(vec![
+            llm,
+            kv("output.value", r#"{"choices":[{"index":0}]}"#),
+            kv("llm.invocation_parameters", r#"{"stop_reason":"end_turn"}"#)
+        ]),
+        vec!["end_turn".to_string()],
+        "choices that state no reason fall through to the sources after"
+    );
+}
