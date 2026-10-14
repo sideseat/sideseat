@@ -176,6 +176,18 @@ three passes to thirty, where a block is 0.7 B a span, 3.6 B a record and 20 B a
 B/span against 480, logs at 200 B/record against 300 and metrics at 202 B/point against 150. With the span terms on
 the row the ten-pass marginal trace figure is 464.19 B/span (`storage-gate-marginal-baseline.json`), 2026-10-13.
 
+**The verdict, 2026-10-14**, thirty passes at 384d2019 against the three-pass gate, excluding media:
+
+| Signal | Marginal, three to thirty passes | Target | A block there | Met |
+| --- | ---: | ---: | ---: | --- |
+| Traces | 455.78 B/span | 480 | 0.7 B | yes |
+| Logs | 199.92 B/record | 300 | 3.6 B | yes |
+| Metrics | 242.72 B/point | 150 | 20 B | no |
+
+The metric figure moved from 202.27 on 2026-10-13 with no change to metrics: its table took 14 blocks at thirty
+passes where it took 12, none of them shared with another table, for the same rows. At 12,960 points a block is 20 B a point, so the metric rate is read on the derived load as well before a
+metric step is judged.
+
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
 `used_blocks`: the per-column attribution from the segment map plus the residue (indexes, headers, the unused tail
@@ -573,6 +585,16 @@ storage accounting sums, are 32 B smaller with it. On the storage gate the trace
 a span at three passes, and from 464.19 to 450.48 marginal from three passes to ten, five blocks where a block is
 2.7 B a span. Measured on 409,710 random digests, the column costs 34.55 B a span as 64 hex characters, 17.92 as 32
 and 18.56 as a 16-byte BLOB, so it stays text. A metric point's digest is its own function and keeps its width.
+
+### Not done: a numeric span key
+
+The `span_id` index is the largest left beside the columns, 49.9 B a span at 409,710 spans. An index on an 8-byte
+integer key costs 37.75 there and one on the same 8 bytes as a BLOB 46.07, but every answer still needs the span id
+as text, so the key would be a column beside it - about 8 B a span of random bits - for a net 4 B. Taking the key
+from a hash of the id would need no fallback for ids that are not 16 hex characters, and saves the same 4 B.
+Dropping the text column for the key saves about 15 B but needs a second stored form for the ids a client sends that
+are not hex, and a branch in every read that renders one. DuckDB 1.5.2 indexes an expression - `hash(span_id)`,
+46.07 B a row - but never scans through it. None is worth its column, index or second path, so none is done.
 
 ### Deferred: log records into the raw store
 
