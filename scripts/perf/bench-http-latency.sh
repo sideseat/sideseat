@@ -49,6 +49,10 @@ DOCKER_SCOPE="$(printf '%s' "$ROOT" | cksum | awk '{print $1}')"
 PG_NAME="sideseat-bench-pg-$DOCKER_SCOPE"
 CH_NAME="sideseat-bench-ch-$DOCKER_SCOPE"
 MINIO_NAME="sideseat-bench-minio-$DOCKER_SCOPE"
+# MinIO RELEASE.2025-04-22T22-12-26Z as Bitnami builds it, pinned by digest, with its own `mc`: quay.io's MinIO images
+# no longer pull without credentials. Bitnami's entrypoint configures through its own variables, so the server and the
+# client are run directly, as the upstream image runs them, as the image's unprivileged user.
+MINIO_IMAGE="bitnamilegacy/minio@sha256:50cec18ac4184af4671a78aedd5554942c8ae105d51a465fa82037949046da01"
 SERVER_PID=""
 
 bench_curl() {
@@ -117,14 +121,15 @@ if [ "$MODE" = "distributed" ]; then
   # object storage is what a scaled-out instance actually pays for a file.
   docker run -d --name "$MINIO_NAME" -p 9010:9000 \
     -e MINIO_ROOT_USER=sideseat -e MINIO_ROOT_PASSWORD=sideseat12345 \
-    quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data >/dev/null
+    --entrypoint /opt/bitnami/minio/bin/minio "$MINIO_IMAGE" server /bitnami/minio/data >/dev/null
   for _ in $(seq 1 60); do
     bench_curl -sf http://127.0.0.1:9010/minio/health/live >/dev/null && break
     sleep 1
   done
-  docker run --rm --network host --entrypoint sh quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z -c \
-    'mc alias set bench http://127.0.0.1:9010 sideseat sideseat12345 >/dev/null &&
-     mc mb --ignore-existing bench/sideseat-bench >/dev/null' >/dev/null
+  docker run --rm --network host -e MC_CONFIG_DIR=/tmp/mc --entrypoint sh "$MINIO_IMAGE" -c \
+    'mc=/opt/bitnami/minio-client/bin/mc &&
+     $mc alias set bench http://127.0.0.1:9010 sideseat sideseat12345 >/dev/null &&
+     $mc mb --ignore-existing bench/sideseat-bench >/dev/null' >/dev/null
 
   cat > "$WORK/sideseat.json" <<'JSON'
 {

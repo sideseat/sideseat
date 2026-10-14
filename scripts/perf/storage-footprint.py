@@ -105,6 +105,12 @@ CH_NAME, PG_NAME, MINIO_NAME = (
     f"sideseat-storage-{n}-{SCOPE}" for n in ("ch", "pg", "minio")
 )
 CH_IMAGE = os.environ.get("CH_IMAGE_TAG", "26.4.3.37")
+# MinIO RELEASE.2025-04-22T22-12-26Z as Bitnami builds it, pinned by digest, with its own `mc`: quay.io's MinIO images
+# no longer pull without credentials. Bitnami's entrypoint configures through its own variables, so the server and the
+# client are run directly, as the upstream image runs them, as the image's unprivileged user.
+MINIO_IMAGE = "bitnamilegacy/minio@sha256:50cec18ac4184af4671a78aedd5554942c8ae105d51a465fa82037949046da01"
+# Where the server keeps its objects, which the measurement reads inside the container.
+MINIO_DATA = "/bitnami/minio/data"
 
 
 def log(message: str) -> None:
@@ -327,9 +333,11 @@ def start_distributed(work: Path) -> dict:
         "MINIO_ROOT_USER=sideseat",
         "-e",
         "MINIO_ROOT_PASSWORD=sideseat12345",
-        "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z",
+        "--entrypoint",
+        "/opt/bitnami/minio/bin/minio",
+        MINIO_IMAGE,
         "server",
-        "/data",
+        MINIO_DATA,
     )
     for _ in range(120):
         ready = (
@@ -338,12 +346,17 @@ def start_distributed(work: Path) -> dict:
             ).returncode
             == 0
         )
-        if ready and http("GET", "http://127.0.0.1:8141/ping")[0] == 200:
-            try:
-                if http("GET", "http://127.0.0.1:9020/minio/health/live")[0] == 200:
-                    break
-            except OSError:
-                pass
+        # A published port accepts before its server does, and the forwarder then closes the connection unanswered:
+        # an error is not ready yet, for either server.
+        try:
+            if (
+                ready
+                and http("GET", "http://127.0.0.1:8141/ping")[0] == 200
+                and http("GET", "http://127.0.0.1:9020/minio/health/live")[0] == 200
+            ):
+                break
+        except OSError:
+            pass
         time.sleep(1)
     else:
         sys.exit("[storage] the containers did not become ready")
@@ -355,12 +368,15 @@ def start_distributed(work: Path) -> dict:
             "--rm",
             "--network",
             "host",
+            "-e",
+            "MC_CONFIG_DIR=/tmp/mc",
             "--entrypoint",
             "sh",
-            "quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z",
+            MINIO_IMAGE,
             "-c",
-            "mc alias set s http://127.0.0.1:9020 sideseat sideseat12345 >/dev/null && "
-            "mc mb --ignore-existing s/sideseat-storage >/dev/null",
+            "mc=/opt/bitnami/minio-client/bin/mc && "
+            "$mc alias set s http://127.0.0.1:9020 sideseat sideseat12345 >/dev/null && "
+            "$mc mb --ignore-existing s/sideseat-storage >/dev/null",
         ],
         check=True,
         capture_output=True,
@@ -602,7 +618,8 @@ def measure_distributed() -> dict:
         MINIO_NAME,
         "sh",
         "-c",
-        "find /data/sideseat-storage -name xl.meta -exec stat -c '%s %n' {} +",
+        # GNU find's own size: the image carries no `stat`.
+        f"find {MINIO_DATA}/sideseat-storage -name xl.meta -printf '%s %p\\n'",
     ).stdout
     blobs = collections.Counter()
     for line in listing.splitlines():
