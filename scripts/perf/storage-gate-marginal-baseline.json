@@ -7,9 +7,9 @@
  "signals": {
   "traces": {
    "items": 95599,
-   "stored_excluding_media": 44375648,
-   "per_item": 464.19,
-   "fixed_blocks": 15.7
+   "stored_excluding_media": 43064976,
+   "per_item": 450.48,
+   "fixed_blocks": 14.84
   },
   "logs": {
    "items": 18697,
@@ -39,15 +39,15 @@
   },
   "otel_raw": {
    "columns": 0.57,
-   "indexes": 0.86
+   "indexes": 0.43
   },
   "otel_raw_traces": {
    "columns": 1.14,
-   "indexes": 1.86
+   "indexes": 1.43
   },
   "otel_spans": {
-   "columns": 5.57,
-   "indexes": 5.43
+   "columns": 5.14,
+   "indexes": 5.86
   },
   "schema_version": {
    "columns": 1.0,

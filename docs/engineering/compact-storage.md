@@ -560,6 +560,20 @@ DuckDB's span search went from 134.0 to 170.2 ms through the API and from 116.5 
 bench, scanning 2.0 million rows where it scanned 34.6 million, against ClickHouse's 333.5 and 325.5 ms; log search
 did not move. Ingest appends about 32 fewer rows a span, which the throughput profile has yet to measure.
 
+### Span content digest
+
+A span revision's content digest is the first 128 bits of BLAKE3 over its producer-owned resource, scope and span,
+as 32 hex characters, where it was all 256 as 64. No API answer, export or cursor holds it; a backup copies it as
+the store's own state. It tells one revision of a span identity from another - a staged payload's confirmation, the
+search backfill's check that the winner is unchanged, a search source's revision - and nothing outside the identity
+is compared with it. Two revisions of one identity agreeing by chance is 2^-128 a pair; a producer choosing both
+revisions to agree needs about 2^64 BLAKE3 evaluations, one matching an already stored revision about 2^128, and
+either gains only that its own span's earlier revision is taken for its later one. New rows' logical bytes, which
+storage accounting sums, are 32 B smaller with it. On the storage gate the trace signal went from 564.64 to 545.45 B
+a span at three passes, and from 464.19 to 450.48 marginal from three passes to ten, five blocks where a block is
+2.7 B a span. Measured on 409,710 random digests, the column costs 34.55 B a span as 64 hex characters, 17.92 as 32
+and 18.56 as a 16-byte BLOB, so it stays text. A metric point's digest is its own function and keeps its width.
+
 ### Deferred: log records into the raw store
 
 Log records are their own raw form, `otel_logs.raw_log`: the OTLP/JSON of the record, media held by reference and

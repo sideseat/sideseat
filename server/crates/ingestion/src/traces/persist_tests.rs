@@ -297,3 +297,35 @@ fn flattening_keeps_the_derived_span_columns() {
     assert_eq!(result[0].span_marks, 0b101);
     assert_eq!(result[0].request_thread, "thread-1");
 }
+
+/// A span's content digest is 128 bits, as 32 hex characters: the same for a byte-identical retry and for the
+/// tenant attribute the transport adds, and different for any change to the span.
+#[test]
+fn a_span_content_digest_is_128_bits_of_its_content() {
+    let resource = ResourceSpans::default();
+    let scope = ScopeSpans::default();
+    let span = make_otlp_span("span1");
+    let digest = span_content_digest(&resource, &scope, &span);
+    assert_eq!(digest.len(), 32, "{digest}");
+    assert!(
+        digest.bytes().all(|byte| byte.is_ascii_hexdigit()),
+        "{digest}"
+    );
+    assert_eq!(digest, span_content_digest(&resource, &scope, &span));
+    let tenanted = ResourceSpans {
+        resource: Some(opentelemetry_proto::tonic::resource::v1::Resource {
+            attributes: vec![opentelemetry_proto::tonic::common::v1::KeyValue {
+                key: crate::otlp::PROJECT_ID_ATTR.to_string(),
+                value: None,
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(digest, span_content_digest(&tenanted, &scope, &span));
+    let renamed = Span {
+        name: "renamed".to_string(),
+        ..span
+    };
+    assert_ne!(digest, span_content_digest(&resource, &scope, &renamed));
+}

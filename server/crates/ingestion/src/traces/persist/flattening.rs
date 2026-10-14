@@ -311,6 +311,15 @@ fn to_normalized_span(
 /// resource so a byte-identical retry has the same digest and a system-managed tenant field can never
 /// masquerade as producer content. Receipt time, legal hold and accounting fields do not exist in these
 /// protobuf messages and therefore cannot enter the digest.
+///
+/// The digest is the first 128 bits of BLAKE3, as 32 hex characters, stored on every span row. No API answer,
+/// export or cursor holds it - a backup copies it as the store's own state: it tells one revision of a span
+/// identity from another - for a staged payload's confirmation, the search backfill's check that the winner is
+/// unchanged, and a search source's revision - and nothing outside the identity is compared with it. Two revisions
+/// of one identity agreeing by chance is 2^-128 a pair; a producer choosing both revisions to agree needs about
+/// 2^64 BLAKE3 evaluations, one matching an already stored revision about 2^128, and either gains only that its own
+/// span's earlier revision is taken for its later one. The full 256 bits cost 16.6 B a span more
+/// (docs/engineering/compact-storage.md).
 pub(crate) fn span_content_digest(
     resource_spans: &ResourceSpans,
     scope_spans: &ScopeSpans,
@@ -341,8 +350,13 @@ pub(crate) fn span_content_digest(
         hasher.update(&(bytes.len() as u64).to_le_bytes());
         hasher.update(&bytes);
     }
-    hasher.finalize().to_hex().to_string()
+    let mut digest = hasher.finalize().to_hex().to_string();
+    digest.truncate(SPAN_CONTENT_DIGEST_HEX);
+    digest
 }
+
+/// The span content digest's length in hex characters: 128 bits.
+const SPAN_CONTENT_DIGEST_HEX: usize = 32;
 
 // ============================================================================
 // RAW SPAN JSON BUILDING

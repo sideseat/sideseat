@@ -22,7 +22,7 @@
    "indexes": 1048576
   },
   "otel_spans": {
-   "columns": 12582688,
+   "columns": 11796280,
    "indexes": 3670016
   },
   "schema_version": {
@@ -30,8 +30,8 @@
    "indexes": 0
   }
  },
- "residual": 524624,
- "analytics_used": 27000832,
+ "residual": 524600,
+ "analytics_used": 26214400,
  "transactional": {
   "api_keys": 20480,
   "auth_methods": 20480,
@@ -66,8 +66,8 @@
  "signals": {
   "traces": {
    "items": 40971,
-   "stored_excluding_media": 23133952,
-   "per_item": 564.64
+   "stored_excluding_media": 22347544,
+   "per_item": 545.45
   },
   "logs": {
    "items": 8013,
