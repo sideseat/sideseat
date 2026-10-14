@@ -186,7 +186,7 @@ pub async fn associate_existing_file(
     file_hash: &str,
     now: i64,
 ) -> Result<bool, SqliteError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = super::begin_write(pool).await?;
 
     let row: Option<(Option<i64>,)> =
         sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = ? AND file_hash = ?")
@@ -485,15 +485,15 @@ pub async fn associate_file(
     hash_algo: &str,
     now: i64,
 ) -> Result<bool, SqliteError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = super::begin_write(pool).await?;
 
     // Refuse through the fence. A claimed file is mid-deletion and its bytes may already be gone, so
     // associating with it would commit a reference to nothing. Refusing fails the batch, and the retry
     // finds the file either deleted - and writes it again, with the bytes in hand - or released.
     //
-    // SQLite has one writer, and a transaction that reads and then writes fails with a busy error if
-    // another connection wrote in between - so the read-then-check pattern fails *safe* here, refusing
-    // the batch. Postgres needs `FOR UPDATE` to get the same guarantee; see the twin.
+    // The transaction holds the write lock from its start (`begin_write`), so no claim can commit between
+    // this read and the writes that rely on it. Postgres needs `FOR UPDATE` for the same guarantee; see the
+    // twin.
     let claimed: Option<(Option<i64>,)> =
         sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = ? AND file_hash = ?")
             .bind(project_id)

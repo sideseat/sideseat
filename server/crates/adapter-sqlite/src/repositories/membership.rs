@@ -35,7 +35,7 @@ pub async fn add_member(
 ) -> Result<MembershipRow, SqliteError> {
     // The liveness check and the write are one transaction: separately they are a read-then-write that a
     // deletion committing in between defeats.
-    let mut tx = pool.begin().await?;
+    let mut tx = super::begin_write(pool).await?;
     if !organization_is_live(&mut tx, org_id).await? {
         return Err(SqliteError::Conflict(format!(
             "organization {org_id} does not exist or is being deleted"
@@ -206,7 +206,7 @@ pub async fn remove_member_atomic(
     org_id: &str,
     user_id: &str,
 ) -> Result<LastOwnerResult<()>, SqliteError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = super::begin_write(pool).await?;
     // Inside the transaction that writes, not before it: a deletion committing in between would otherwise
     // let this succeed against an organization no read can see.
     if !organization_is_live(&mut tx, org_id).await? {
@@ -262,7 +262,7 @@ pub async fn update_role_atomic(
     new_role: &str,
     now: i64,
 ) -> Result<LastOwnerResult<MembershipRow>, SqliteError> {
-    let mut tx = pool.begin().await?;
+    let mut tx = super::begin_write(pool).await?;
     // Inside the transaction that writes, not before it: a deletion committing in between would otherwise
     // let this succeed against an organization no read can see.
     if !organization_is_live(&mut tx, org_id).await? {

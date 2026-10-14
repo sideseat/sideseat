@@ -211,3 +211,129 @@ async fn a_superseded_claim_neither_releases_nor_deletes_the_row() {
         "nor delete it"
     );
 }
+
+/// The store the server runs: file-backed, pooled, WAL.
+async fn served_store() -> (tempfile::TempDir, crate::SqliteService) {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let storage = sideseat_core::storage::AppStorage::init_for_test(root.path().to_path_buf());
+    let service = crate::SqliteService::init(&storage, std::sync::Arc::new(crate::TestClock))
+        .await
+        .expect("sqlite");
+    (root, service)
+}
+
+/// A file association whose fence read meets a writer committing before the association writes is not refused.
+/// It read the file's deletion claim and then wrote, in a transaction that took the write lock only at its first
+/// write, so the commit in between made SQLite answer `database is locked` at once, busy timeout or not - and the
+/// ingest batch carrying the association was refused and redelivered.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_association_is_not_refused_by_a_commit_after_its_fence_read() {
+    let (_root, service) = served_store().await;
+    let pool = service.pool().clone();
+    for existing in [false, true] {
+        let hash = format!("{:064x}", u64::from(existing));
+        if existing {
+            super::associate_file(
+                &pool, "first", "default", &hash, None, 128, "sha256", TEST_NOW,
+            )
+            .await
+            .expect("the file exists");
+        }
+        // Another writer holds the lock, then commits while the association waits.
+        let mut writer = pool.begin().await.expect("writer");
+        sqlx::query("UPDATE files SET updated_at = updated_at")
+            .execute(&mut *writer)
+            .await
+            .expect("lock");
+        let association = {
+            let pool = pool.clone();
+            let hash = hash.clone();
+            tokio::spawn(async move {
+                if existing {
+                    super::associate_existing_file(&pool, "second", "default", &hash, TEST_NOW)
+                        .await
+                } else {
+                    super::associate_file(
+                        &pool, "second", "default", &hash, None, 128, "sha256", TEST_NOW,
+                    )
+                    .await
+                }
+            })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        sqlx::query("INSERT INTO retention_cleanup_tokens (id, last) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET last = last + 1")
+            .execute(&mut *writer)
+            .await
+            .expect("a write");
+        writer.commit().await.expect("commit");
+        assert!(
+            association.await.expect("task").expect("not refused"),
+            "associated (existing file: {existing})"
+        );
+    }
+}
+
+/// File associations racing other writers: none is refused, and each records its reference.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn associations_racing_other_writers_are_never_refused_as_locked() {
+    let (_root, service) = served_store().await;
+    let pool = service.pool().clone();
+    for n in 0..4u64 {
+        super::associate_file(
+            &pool,
+            "seed",
+            "default",
+            &format!("{n:064x}"),
+            None,
+            128,
+            "sha256",
+            TEST_NOW,
+        )
+        .await
+        .expect("seed");
+    }
+    let mut tasks = Vec::new();
+    for worker in 0..8u8 {
+        let pool = pool.clone();
+        tasks.push(tokio::spawn(async move {
+            let mut refused = Vec::new();
+            for round in 0..20u8 {
+                let hash = format!("{:064x}", u64::from(round % 4));
+                let trace = format!("trace-{worker}-{round}");
+                let result = if worker % 2 == 0 {
+                    super::associate_file(
+                        &pool, &trace, "default", &hash, None, 128, "sha256", TEST_NOW,
+                    )
+                    .await
+                } else {
+                    super::associate_existing_file(&pool, &trace, "default", &hash, TEST_NOW).await
+                };
+                match result {
+                    Ok(true) => {}
+                    Ok(false) => refused.push("not associated".to_string()),
+                    Err(error) => refused.push(error.to_string()),
+                }
+                // Another writer, as staging's registrations and the confirms are.
+                crate::repositories::retention_cleanup::record_retention_cleanup(
+                    &pool,
+                    "default",
+                    &[trace],
+                    TEST_NOW,
+                )
+                .await
+                .expect("a plain writer");
+            }
+            refused
+        }));
+    }
+    let mut refused = Vec::new();
+    for task in tasks {
+        refused.extend(task.await.expect("worker"));
+    }
+    assert!(
+        refused.is_empty(),
+        "{} refused: {:?}",
+        refused.len(),
+        refused.first()
+    );
+}
