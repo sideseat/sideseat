@@ -20,10 +20,10 @@ This is what distinguishes SideSeat. Every change is judged on all three, and no
   baseline was 13,230 bytes per span); and sustained ingest of at least 10,000 spans per second on one four-core
   Ampere A1 machine (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM, with the
   throughput curve over 1, 2, 4 and 8 cores measured, and identical receipts giving identical rows and answers
-  whatever the core count, the stored bytes held by the storage gate's deterministic replay. Each figure has a regression gate, and each release should improve on it. Redundancy is a defect:
-  repeated attributes, re-sent message history, JSON text, and inline media are encoded once, by reference,
-  with dictionaries and compact binary encodings. Prefer the simplest change that reaches a target over a
-  redesign.
+  whatever the core count, the stored bytes held by the storage gate's deterministic replay. Each figure has a
+  regression gate, and each release should improve on it. Redundancy is a defect: repeated attributes, re-sent
+  message history, JSON text, and inline media are encoded once, by reference, with dictionaries and compact
+  binary encodings. Prefer the simplest change that reaches a target over a redesign.
 - **Correctness.** 100 %, proven rather than assumed. Raw telemetry round-trips byte for byte, every
   reconstructed conversation matches its truth, and an optimisation that changes any golden, truth, or parity
   answer is wrong until shown otherwise.
