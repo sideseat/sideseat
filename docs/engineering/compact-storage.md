@@ -517,6 +517,51 @@ project's held transactional bytes are also computed there, as a sum over the ar
 journal, on every storage read and quota admission - work in proportion to what is stored; that slice replaces the
 sum with a per-project counter kept in the transactions that touch those rows, if admission runs it per batch.
 
+**Pruning `raw_collections`, decided order.** After its purge a row's only job is its high-water mark, which hides
+the record's versions keyed at or below it - landed late, or still to land from an execution that read its epoch
+before the decision - and makes the confirm fence refuse them. A missing row reads as never collected, so a row
+may go only once no such version can land or be seen: the purge is done, nothing owns or writes the record, no
+hold is active, no version is stored on any replica, and no execution that read an epoch at or below the mark can
+still land. The last condition is the one that needs a mechanism, and the order is:
+
+1. a time-to-live read predicate on ClickHouse - a raw version past `greatest(signal_until + 90 days, hold_until)`
+   reads as absent and the confirm fence refuses it - which also fixes a record that lands already past its TTL:
+   visible until a merge, or removed before the age pass records it;
+2. the landing fence (`INSERT ... SELECT FROM input()`), designed in TLA+ first;
+3. pruning on top of it, by one rule on both backends: the lowest epoch any execution that can still land has
+   read.
+
+Rejected: a project-wide floor in place of the rows, which hides an old record never collected and keyed below it
+- the `PerRecord = FALSE` counterexample of `RawRecordCutoff.tla`; and, before the landing fence exists, a
+process-local watermark on the embedded backend alone, sound there because DuckDB admits one process but a second
+scheme for one invariant, and an exception to process-local state not worth spending for 124 B a collected record.
+
+**A raw rewrite's file cleanup: derived, not held.** A rewrite that removes deleted spans from a raw record owes
+their traces a file reconciliation once its version lands, because the record stops referencing the removed spans'
+media. Today a failed reconciliation is only logged, and once the reconciler's entry settles nothing finds those
+traces again. The decided fix makes the owed cleanup derivable: the sweep recomputes from the stores which
+associations no live row and no latest raw version references, rather than trusting a recorded intent. It is
+designed in TLA+ first, and may share the landing fence's re-derivation cursor.
+
+Rejected after five review rounds: a recorded intent that a rewrite **holds** from the retention sweep until its
+append lands. Each round found a way to lose the cleanup, and each fix needed a new fence:
+
+1. completing the intent inline cancelled unrelated cleanup debt of the trace; and the sweep could complete the
+   intent before the append, against the content the rewrite was removing;
+2. one rewrite's release ended another's hold; and a recorder completing its own work inline deleted a held
+   intent on its current token;
+3. a token handed out while the hold stood completed the intent after the release; and expired holds piled up
+   behind live ones;
+4. a hold that lapsed by time took with it the only record that the cleanup was owed - a rewrite stalled past
+   its hold landed after the sweep had completed, then died;
+5. with holds bound to the record and released by the reconciler on finding no deleted content: a **stale
+   observation** - a pass saw no deleted content, stalled, and then ended the hold of a rewrite of a later
+   deletion still in flight; and a **stranded hold** - a hold committed late, after another reconciler had
+   settled the record and cleared every entry, so nothing read the record again.
+
+The fresh-token rule survived: tokens come from one sequence, so no row carries a token an earlier one did. The
+parked hold code and model are kept outside the tree, so nobody rebuilds them.
+
 **Deferred to the trace-index slice, right after it:** the retention release is bounded per call by traces (64 at
 a time), not within a trace. It reads every owner of those traces and every record their rows still name, so one
 long-lived trace costs memory and work in proportion to its own rows. On DuckDB the presence of a trace's rows is
