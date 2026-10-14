@@ -163,6 +163,13 @@ pub async fn finish_organization_deletion(
 ) -> Result<(), CleanupError> {
     let repo = database.as_ref();
     let mut errors: Vec<String> = Vec::new();
+    // Each step only while this process holds its store lease; refused, the organization stays tombstoned for
+    // the sweep, as an incomplete one does.
+    let fence = file_service.collection_fence();
+    let fenced = || CleanupError::OrganizationIncomplete {
+        org_id: org_id.to_string(),
+        details: "collection is fenced: this process does not hold its store lease".to_string(),
+    };
 
     // Every project fenced first. A project that is not fenced can still be written to while its data
     // is being deleted, and nothing later in this function would notice.
@@ -175,6 +182,9 @@ pub async fn finish_organization_deletion(
         // Fenced and journalled in one transaction, and the entry only if this call won the claim - see
         // `cleanup_organization` for why. The returned bool is discarded here deliberately: losing the claim means
         // another caller owns this project's deletion, which is fine, and the entry was written by whoever won.
+        if !fence.is_open() {
+            return Err(fenced());
+        }
         if let Err(source) = repo
             .claim_project_for_deletion_journalled(&project_id)
             .await
@@ -215,6 +225,9 @@ pub async fn finish_organization_deletion(
         return Ok(());
     }
 
+    if !fence.is_open() {
+        return Err(fenced());
+    }
     repo.delete_organization(org_id)
         .await
         .map_err(|source| CleanupError::DeleteOrganizationRow { source })?;
@@ -297,7 +310,18 @@ pub async fn finish_project_deletion(
     let repo = database.as_ref();
     let analytics_repo = analytics.as_ref();
     let mut errors: Vec<String> = Vec::new();
+    // Each step only while this process holds its store lease; a step refused leaves the project tombstoned for
+    // the sweep, as a failed one does.
+    let fence = file_service.collection_fence();
+    let fenced = |project_id: &ProjectId| CleanupError::ProjectIncomplete {
+        project_id: project_id.clone(),
+        failures: 1,
+        details: "collection is fenced: this process does not hold its store lease".to_string(),
+    };
 
+    if !fence.is_open() {
+        return Err(fenced(project_id));
+    }
     if let Err(e) = analytics_repo.delete_project_data(project_id).await {
         errors.push(format!("Analytics delete failed: {}", e));
     }
@@ -307,6 +331,9 @@ pub async fn finish_project_deletion(
     // reference whose row is gone is finished, as a retired one is (`server/specs/StagingRetirement.tla`). So the
     // files wait for the rows: a failure keeps both for the sweep's retry. A request that stored its blob before
     // the fence can register after this; the rows it leaves count as data found, like a late writer's spans.
+    if !fence.is_open() {
+        return Err(fenced(project_id));
+    }
     let staged = repo.delete_project_staged_payloads(project_id).await;
     if let Err(e) = &staged {
         errors.push(format!("Staged payload delete failed: {}", e));
@@ -401,6 +428,8 @@ pub async fn advance_pending_deletions(
 ) -> Result<usize, CleanupError> {
     let repo = database.as_ref();
     let mut advanced = 0;
+    // Checked immediately before each step that deletes: a pass that outlived the lease stops at the next one.
+    let fenced = || !file_service.collection_fence().is_open();
 
     let projects = repo
         .get_stale_claimed_projects(stale_after_secs)
@@ -418,6 +447,9 @@ pub async fn advance_pending_deletions(
                 tracing::warn!(project_id = %project_id, error = %e, "Could not lease a project deletion");
                 continue;
             }
+        }
+        if fenced() {
+            return Ok(advanced);
         }
         match finish_project_deletion(database, analytics, file_service, &project_id).await {
             Ok(()) => advanced += 1,
@@ -463,11 +495,17 @@ pub async fn advance_pending_deletions(
                         // during deletion could include a newer trace that has no trace tombstone; deleting after
                         // a failed transactional write would leave no durable evidence for any of these traces.
                         // On failure the rows remain for the next session sweep.
+                        if fenced() {
+                            return Ok(advanced);
+                        }
                         match repo
                             .record_deleted_traces_journalled(&project_id, &ids)
                             .await
                         {
                             Ok(()) => {
+                                if fenced() {
+                                    return Ok(advanced);
+                                }
                                 if let Err(ref e) =
                                     analytics.as_ref().delete_traces(&project_id, &ids).await
                                 {
@@ -524,6 +562,9 @@ pub async fn advance_pending_deletions(
         Ok(claimed) => {
             for (project_id, trace_id, claim_token) in claimed {
                 let project_id = ProjectId::from(project_id);
+                if fenced() {
+                    return Ok(advanced);
+                }
                 let delete_result = analytics
                     .as_ref()
                     .delete_traces(&project_id, std::slice::from_ref(&trace_id))
@@ -540,6 +581,9 @@ pub async fn advance_pending_deletions(
                         remaining_read.as_ref().map(|spans| spans.is_empty()),
                         Ok(true)
                     );
+                if fenced() {
+                    return Ok(advanced);
+                }
                 let files_reconciled = if rows_gone {
                     let outcome = file_service
                         .cleanup_traces(&project_id, std::slice::from_ref(&trace_id))
@@ -602,6 +646,9 @@ pub async fn advance_pending_deletions(
                 continue;
             }
         }
+        if fenced() {
+            return Ok(advanced);
+        }
         match finish_organization_deletion(database, analytics, file_service, org_id).await {
             Ok(()) => advanced += 1,
             Err(e) => {
@@ -624,6 +671,9 @@ pub async fn advance_pending_deletions(
                 let project_id = ProjectId::from(project_id);
                 // A payload registered after the tombstone went - its blob stored before the fence - is removed
                 // registry row first, then with the files, as `finish_project_deletion` removes them.
+                if fenced() {
+                    return Ok(advanced);
+                }
                 let staged_result = repo.delete_project_staged_payloads(&project_id).await;
                 if let Err(ref e) = staged_result {
                     tracing::warn!(project_id = %project_id, error = %e, "Could not collect a deleted project's staged payloads");
@@ -653,6 +703,9 @@ pub async fn advance_pending_deletions(
                         rows = count,
                         "Found rows that arrived after the project row was deleted"
                     );
+                    if fenced() {
+                        return Ok(advanced);
+                    }
                     if let Err(e) = analytics.as_ref().delete_project_data(&project_id).await {
                         tracing::warn!(project_id = %project_id, error = %e, "Could not collect them");
                     } else {
@@ -730,6 +783,12 @@ pub fn start_claim_recovery_task(
                     }
                 }
                 _ = ticker.tick() => {
+                    // Every step below deletes; none runs while this process's store lease is lost, and a lease lost
+                    // while they run is not opened again until they are done.
+                    let Some(_pass) = file_service.collection_fence().enter("claim recovery") else {
+                        tracing::debug!("Collection is fenced; pending deletions wait");
+                        continue;
+                    };
                     match advance_pending_deletions(
                         &database,
                         &analytics,
@@ -746,6 +805,7 @@ pub fn start_claim_recovery_task(
                         file_service.database(),
                         FILE_DELETION_CLAIM_STALE_SECS,
                         file_service.governance(),
+                        file_service.collection_fence(),
                     )
                     .await
                     {

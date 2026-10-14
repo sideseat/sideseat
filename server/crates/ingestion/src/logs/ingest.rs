@@ -513,6 +513,11 @@ async fn compensate_deleted_traces(
     created: &mut Vec<(String, String, String)>,
     in_doubt: &HashSet<String>,
 ) {
+    // The look and the delete in one pass; without the lease, the deletion sweep collects the rows.
+    let fence = file_service.collection_fence().clone();
+    let Some(_pass) = fence.enter("log compensation") else {
+        return;
+    };
     let mut by_project: std::collections::BTreeMap<String, Vec<String>> = Default::default();
     for (project, trace, _) in created.iter() {
         by_project
@@ -539,6 +544,9 @@ async fn compensate_deleted_traces(
             continue;
         }
         let doomed: Vec<String> = tombstoned.iter().cloned().collect();
+        if !fence.is_open() {
+            return;
+        }
         if let Err(error) = analytics.delete_traces(&typed, &doomed).await {
             tracing::error!(%error, project, "Could not remove logs written for a deleted trace, so their associations are kept; the deletion sweep retries both");
             continue;
@@ -553,6 +561,11 @@ async fn compensate_deleted_traces(
             .filter(|(p, t, _)| p == &project && tombstoned.contains(t))
             .cloned()
             .collect();
+        // Kept while fenced: confirmed, they hold the files of rows the deletion sweep removes, and it reconciles
+        // them then.
+        if !fence.is_open() {
+            return;
+        }
         created.retain(|(p, t, _)| !(p == &project && tombstoned.contains(t)));
         crate::media::release_created_associations(file_service, &orphaned).await;
     }

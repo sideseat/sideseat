@@ -93,7 +93,7 @@ pub fn staged_metrics(
 ) -> Result<ExportMetricsServiceRequest, String> {
     let mut request = decode_staged::<ExportMetricsServiceRequest>(bytes)?;
     inject_project_id_metrics(&mut request, project_id);
-    crate::signals::strip_unstorable_metrics(&mut request);
+    crate::signals::storable::strip_unstorable_metrics(&mut request);
     Ok(request)
 }
 
@@ -101,7 +101,7 @@ pub fn staged_metrics(
 pub fn staged_logs(bytes: &[u8], project_id: &str) -> Result<ExportLogsServiceRequest, String> {
     let mut request = decode_staged::<ExportLogsServiceRequest>(bytes)?;
     inject_project_id_logs(&mut request, project_id);
-    crate::signals::strip_unstorable_logs(&mut request);
+    crate::signals::storable::strip_unstorable_logs(&mut request);
     Ok(request)
 }
 

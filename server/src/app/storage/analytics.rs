@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use sideseat_adapter_clickhouse::{ClickhouseRepository, ClickhouseService};
 use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
+use sideseat_core::utils::collection_fence::CollectionFence;
 use sideseat_domain::dedup::DedupAnalyticsRepository;
 use sideseat_ports::blobs::RetentionFileReconciler;
 use sideseat_ports::clock::Clock;
@@ -111,6 +112,7 @@ impl AnalyticsService {
     }
 
     /// Start the retention cleanup task
+    #[allow(clippy::too_many_arguments)]
     pub fn start_retention_task(
         &self,
         config: RetentionConfig,
@@ -119,6 +121,7 @@ impl AnalyticsService {
         file_service: Option<Arc<sideseat_domain::files::FileService>>,
         database: Arc<TransactionalService>,
         governance: Arc<dyn StorageGovernance + Send + Sync>,
+        fence: CollectionFence,
     ) -> Option<JoinHandle<()>> {
         match self {
             Self::Duckdb(d) => Arc::clone(d).start_retention_task(
@@ -128,6 +131,7 @@ impl AnalyticsService {
                 file_service.map(|service| service as Arc<dyn RetentionFileReconciler>),
                 Arc::from(database.repository()),
                 Arc::clone(&governance),
+                fence,
             ),
             Self::Clickhouse(c) => Arc::clone(c).start_retention_task(
                 config,
@@ -136,6 +140,7 @@ impl AnalyticsService {
                 file_service.map(|service| service as Arc<dyn RetentionFileReconciler>),
                 Arc::from(database.repository()),
                 governance,
+                fence,
             ),
         }
     }
@@ -273,6 +278,7 @@ mod tests {
                 Arc::clone(&database),
                 cache,
                 Arc::clone(&governance),
+                CollectionFence::open(),
             )
             .await
             .expect("files"),

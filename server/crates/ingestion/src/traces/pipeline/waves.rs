@@ -37,6 +37,9 @@ use sideseat_ports::types::StagedPayload;
 pub(super) struct WaveAnswer {
     pub outcome: IngestOutcome,
     pub settled: bool,
+    /// Its wave ran without this process's store lease, so it settled nothing: not a failed attempt, and not
+    /// counted against its payload.
+    pub fenced: bool,
 }
 
 /// Whether an export's body names a stored file. A byte search over the body as received, before it is decoded:
@@ -110,7 +113,14 @@ impl TracePipeline {
         let mut outcomes = vec![IngestOutcome::Failed; requests.len()];
         let mut settled = vec![false; requests.len()];
         let mut written = vec![false; requests.len()];
+        let mut fenced = vec![false; requests.len()];
         for wave in conflict_free_waves(requests, received) {
+            // The write and the settlement that relies on it in one pass: a payload is retired on the batch's
+            // word only if the lease was held from before the write, not lost and taken again in between.
+            let pass = self.staging.collection_fence().enter("trace wave");
+            for &index in &wave {
+                fenced[index] = pass.is_none();
+            }
             let batch: Vec<ExportTraceServiceRequest> =
                 wave.iter().map(|&index| requests[index].clone()).collect();
             let bodies: Vec<ReceivedPayload> =
@@ -146,20 +156,24 @@ impl TracePipeline {
             }
             // The wave's payloads are settled together, and an export this execution stored whole is retired
             // without reading it back where the store's acknowledged writes are durable (`crate::staging::settlement`).
+            // A wave that began without the lease settles nothing: what it wrote may predate a restore that took
+            // some of it back - an image's file - and no read below would see that. Its payloads stay staged, and
+            // their messages pending, for a pass that holds the lease.
             let finals: Vec<usize> = wave
                 .iter()
                 .copied()
                 .filter(|&index| {
-                    outcomes[index].is_final() && matches!(staged.get(index), Some(Some(_)))
+                    pass.is_some()
+                        && outcomes[index].is_final()
+                        && matches!(staged.get(index), Some(Some(_)))
                 })
                 .collect();
             let payloads: Vec<(&StagedPayload, bool)> = finals
                 .iter()
                 .filter_map(|&index| {
-                    staged
-                        .get(index)
-                        .and_then(Option::as_ref)
-                        .map(|payload| (payload, first_delivery && written[index]))
+                    staged.get(index).and_then(Option::as_ref).map(|payload| {
+                        (payload, first_delivery && written[index] && pass.is_some())
+                    })
                 })
                 .collect();
             for (index, done) in finals
@@ -168,11 +182,17 @@ impl TracePipeline {
             {
                 settled[index] = done;
             }
+            drop(pass);
         }
         outcomes
             .into_iter()
             .zip(settled)
-            .map(|(outcome, settled)| WaveAnswer { outcome, settled })
+            .zip(fenced)
+            .map(|((outcome, settled), fenced)| WaveAnswer {
+                outcome,
+                settled,
+                fenced,
+            })
             .collect()
     }
 }

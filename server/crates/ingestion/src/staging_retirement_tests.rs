@@ -241,7 +241,10 @@ async fn a_deleted_projects_payloads_go_with_it_and_their_references_finish() {
     assert!(
         !fixture
             .storage
-            .exists(&fixture.project, &payload.blob_hash)
+            .exists(
+                &fixture.project,
+                sideseat_ports::blobs::ObjectName::new(&payload.blob_hash, 0)
+            )
             .await
             .expect("exists"),
         "the payload's blob outlived its project"
@@ -312,7 +315,10 @@ async fn a_failed_row_delete_keeps_the_blob_for_the_retry() {
     assert!(
         !fixture
             .storage
-            .exists(&fixture.project, &payload.blob_hash)
+            .exists(
+                &fixture.project,
+                sideseat_ports::blobs::ObjectName::new(&payload.blob_hash, 0)
+            )
             .await
             .expect("exists")
     );
@@ -371,7 +377,10 @@ async fn a_payload_registered_after_the_project_went_is_collected() {
     assert!(
         !fixture
             .storage
-            .exists(&fixture.project, &payload.blob_hash)
+            .exists(
+                &fixture.project,
+                sideseat_ports::blobs::ObjectName::new(&payload.blob_hash, 0)
+            )
             .await
             .expect("exists")
     );
@@ -557,7 +566,11 @@ async fn bench_staging_fixed_cost() {
         fixture
             .service
             .storage
-            .store(&fixture.project, &format!("{index:064x}"), &body)
+            .store(
+                &fixture.project,
+                sideseat_ports::blobs::ObjectName::new(&format!("{index:064x}"), 0),
+                &body,
+            )
             .await
             .expect("blob");
     }

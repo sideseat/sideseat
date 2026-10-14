@@ -59,7 +59,10 @@ pub(super) fn refuse_pending_restore() -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn run_restore_repair(app: CoreApp, report_path: Option<&Path>) -> Result<()> {
+/// Repair independently restored stores. `CoreApp::init` took the repair's lease first: every other process
+/// stopped, and none started while this runs, since a process that outlives the restore acts on what the restore
+/// took back.
+pub(super) async fn run_restore_repair(mut app: CoreApp, report_path: Option<&Path>) -> Result<()> {
     // Before anything reclaims a file: the journal and retention release a deleted trace's files, and a live
     // trace the backup lost the association of may name the same one.
     let ownership_rebuilt_before_journal =
@@ -91,6 +94,9 @@ pub(super) async fn run_restore_repair(app: CoreApp, report_path: Option<&Path>)
 
     app.database.checkpoint().await?;
     app.analytics.checkpoint().await?;
+    if let Some(lease) = app.lease.take() {
+        lease.end().await;
+    }
 
     let report = RestoreRepairCommandReport {
         ownership_rebuilt_before_journal,

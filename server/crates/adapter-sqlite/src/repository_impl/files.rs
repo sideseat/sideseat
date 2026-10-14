@@ -1,4 +1,5 @@
 use super::*;
+use sideseat_ports::types::FileClaim;
 
 #[async_trait]
 impl FileMetaStore for SqliteRepository {
@@ -155,7 +156,7 @@ impl FileMetaStore for SqliteRepository {
         project_id: &ProjectId,
         file_hash: &str,
         observed_deleting_at: i64,
-    ) -> Result<bool, DataError> {
+    ) -> Result<Option<FileClaim>, DataError> {
         file::reclaim_stale_file(
             self.0.pool(),
             project_id,
@@ -171,7 +172,7 @@ impl FileMetaStore for SqliteRepository {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
-    ) -> Result<bool, DataError> {
+    ) -> Result<Option<FileClaim>, DataError> {
         file::claim_file_for_deletion(
             self.0.pool(),
             project_id,
@@ -186,8 +187,25 @@ impl FileMetaStore for SqliteRepository {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
+        claim: &FileClaim,
     ) -> Result<(), DataError> {
-        file::release_deletion_claim(self.0.pool(), project_id, file_hash)
+        file::release_deletion_claim(self.0.pool(), project_id, file_hash, claim)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn restore_clear_deletion_claim(
+        &self,
+        project_id: &ProjectId,
+        file_hash: &str,
+    ) -> Result<(), DataError> {
+        restore::clear_deletion_claim(self.0.pool(), project_id, file_hash)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn advance_file_incarnations(&self, above: i64) -> Result<(), DataError> {
+        restore::advance_file_incarnations(self.0.pool(), above)
             .await
             .map_err(Into::into)
     }
@@ -199,7 +217,7 @@ impl FileMetaStore for SqliteRepository {
         media_type: Option<&str>,
         size_bytes: i64,
         hash_algo: &str,
-    ) -> Result<(), DataError> {
+    ) -> Result<i64, DataError> {
         file::restore_orphan_metadata(
             self.0.pool(),
             project_id,
@@ -217,8 +235,9 @@ impl FileMetaStore for SqliteRepository {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
+        claim: &FileClaim,
     ) -> Result<bool, DataError> {
-        file::delete_file_if_unreferenced(self.0.pool(), project_id, file_hash)
+        file::delete_file_if_unreferenced(self.0.pool(), project_id, file_hash, claim)
             .await
             .map_err(Into::into)
     }

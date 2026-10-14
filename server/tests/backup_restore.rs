@@ -1,4 +1,5 @@
-//! Gated proof that the embedded backup procedure can be restored and repaired.
+//! Gated proof that the embedded backup procedure can be restored and repaired, and the check that repair runs
+//! only with every server stopped.
 
 use std::fs;
 use std::path::Path;
@@ -97,7 +98,11 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
         .expect("files");
 
         blob_storage
-            .store(&ProjectId::from("default"), &present, b"surviving bytes")
+            .store(
+                &ProjectId::from("default"),
+                sideseat_ports::blobs::ObjectName::new(&present, 1),
+                b"surviving bytes",
+            )
             .await
             .expect("present blob");
         database
@@ -235,6 +240,11 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
         first["association_repair_before_quota"]["files"]["associations_rebuilt"],
         0
     );
+    // The surviving blob's incarnation, which the rebuilt row is named past.
+    assert_eq!(
+        first["ownership_rebuilt_before_journal"]["file_incarnations_advanced_past"],
+        1
+    );
     assert_eq!(
         first["association_repair_before_quota"]["files"]["missing_content"][0]["hash"],
         missing
@@ -322,6 +332,16 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
             .expect("surviving file")
             .data,
         b"surviving bytes"
+    );
+    assert!(
+        database
+            .get_file(&ProjectId::from("default"), &present)
+            .await
+            .expect("surviving row")
+            .expect("rebuilt")
+            .id
+            > 1,
+        "the rebuilt row is named past the incarnation the blob store held"
     );
     assert!(matches!(
         files.get_file(&ProjectId::from("default"), &missing).await,
@@ -461,11 +481,12 @@ fn message_log(
     }
 }
 
-fn run_repair(data_dir: &Path, report: &Path) {
+fn repair_command(data_dir: &Path, report: &Path) -> Command {
     let binary = std::env::var("CARGO_BIN_EXE_sideseat")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_BIN_EXE_sideseat")));
-    let output = Command::new(binary)
+    let mut command = Command::new(binary);
+    command
         .env("SIDESEAT_DATA_DIR", data_dir)
         .env("SIDESEAT_SECRETS_BACKEND", "file")
         .args([
@@ -476,7 +497,12 @@ fn run_repair(data_dir: &Path, report: &Path) {
             "restore-repair",
             "--report",
         ])
-        .arg(report)
+        .arg(report);
+    command
+}
+
+fn run_repair(data_dir: &Path, report: &Path) {
+    let output = repair_command(data_dir, report)
         .output()
         .expect("run restore repair");
     assert!(
@@ -502,4 +528,75 @@ fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Restore repair is an offline command, and the store says so: it refuses while a server holds a live lease,
+/// before it changes anything, and leaves no lease of its own that would keep that server's restart out.
+#[tokio::test]
+async fn restore_repair_refuses_while_a_server_lease_is_live() {
+    use sideseat_ports::traits::{ProcessLeases, ProcessRole};
+
+    let root = TempDir::new().expect("temp root");
+    let data = root.path().join("data");
+    let storage = AppStorage::init_for_test(data.clone());
+    let sqlite = Arc::new(
+        SqliteService::init(&storage, Arc::new(SystemClock))
+            .await
+            .expect("sqlite"),
+    );
+    let leases = SqliteRepository(Arc::clone(&sqlite));
+    leases
+        .renew_process_lease("server-running", ProcessRole::Server, 600)
+        .await
+        .expect("a running server's lease");
+    sqlite.close().await;
+    fs::write(
+        storage.data_path(RESTORE_PENDING_MARKER),
+        "restore pending\n",
+    )
+    .expect("restore marker");
+    // An object no row names, which a repair that ran would collect: beside a live server, it could be one whose
+    // row that server is about to create.
+    let blobs = FilesystemStorage::new(storage.subdir(DataSubdir::Files));
+    let unnamed = sideseat_ports::blobs::ObjectName::new(
+        "f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0",
+        7,
+    );
+    blobs
+        .store(&ProjectId::from("default"), unnamed, b"bytes")
+        .await
+        .expect("unnamed object");
+
+    let output = repair_command(&data, &root.path().join("report.json"))
+        .output()
+        .expect("run restore repair");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "repaired beside a live server");
+    assert!(
+        stderr.contains("Restore repair refused") && stderr.contains("server-running"),
+        "{stderr}"
+    );
+    assert!(
+        storage.data_path(RESTORE_PENDING_MARKER).exists(),
+        "a refused repair cleared the restore marker"
+    );
+    assert!(
+        blobs
+            .exists(&ProjectId::from("default"), unnamed)
+            .await
+            .expect("blob lookup"),
+        "a refused repair collected an object"
+    );
+    let sqlite = SqliteService::init(&storage, Arc::new(SystemClock))
+        .await
+        .expect("sqlite");
+    let leases = SqliteRepository(Arc::new(sqlite));
+    assert!(
+        leases
+            .live_process_leases(ProcessRole::RestoreRepair, "")
+            .await
+            .expect("leases")
+            .is_empty(),
+        "the refused repair left its lease"
+    );
 }

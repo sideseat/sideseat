@@ -163,6 +163,11 @@ impl TracePipeline {
         if written.is_empty() {
             return affected;
         }
+        // The reads and the tombstones they decide in one pass; without the lease, the session sweep collects them.
+        let fence = self.file_service.collection_fence().clone();
+        let Some(_pass) = fence.enter("session compensation") else {
+            return affected;
+        };
 
         // Which session each written trace belongs to, **from the store**, not from the batch.
         //
@@ -272,6 +277,9 @@ impl TracePipeline {
             //
             // So the trace gets its own entry, in the same transaction as its tombstone. The duplication is real
             // and is the cheaper error: an id and an instant per trace, against a resurrected trace.
+            if !fence.is_open() {
+                break;
+            }
             if let Err(e) = repo
                 .record_deleted_traces_journalled(&typed_project, &doomed)
                 .await
@@ -309,6 +317,13 @@ impl TracePipeline {
         if written.is_empty() {
             return removed;
         }
+        // The look and the delete in one pass: a tombstone read before a restore never deletes the spans the
+        // restore brought back. Without the lease the spans stay, and the deleted-trace sweep collects them
+        // once it is held again.
+        let fence = self.file_service.collection_fence().clone();
+        let Some(_pass) = fence.enter("write compensation") else {
+            return removed;
+        };
         // In order: what each project finds is deleted and its files released, writes made in the order met.
         let mut by_project: BTreeMap<&str, Vec<(String, String)>> = BTreeMap::new();
         for (project, trace, span) in written {
@@ -376,6 +391,9 @@ impl TracePipeline {
             // eligible for collection - a dangling reference, which is the one outcome the whole
             // write-files-before-rows ordering exists to make impossible. Leaving the association instead
             // leaves a file held by a row that is about to be swept, which the sweep then reconciles.
+            if !fence.is_open() {
+                break;
+            }
             if let Err(e) = self
                 .analytics
                 .as_ref()
@@ -411,6 +429,11 @@ impl TracePipeline {
                 .collect();
             // Remove them from the set as well, so the caller's confirm does not then mark a
             // just-released association durable. This runs *before* confirm for that reason.
+            // Kept in the set while fenced: confirmed, they hold the files of rows the deletion sweep removes, and
+            // it reconciles them then.
+            if !fence.is_open() {
+                break;
+            }
             created_associations.retain(|(p, t, _)| !(p == project && tombstoned.contains(t)));
             self.release_created_associations(&orphaned).await;
         }

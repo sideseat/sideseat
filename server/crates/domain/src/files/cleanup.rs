@@ -22,7 +22,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::error::FileServiceError;
-use sideseat_ports::blobs::FileStorage;
+use sideseat_core::utils::collection_fence::CollectionFence;
+use sideseat_ports::blobs::{FileStorage, FileStorageError, ObjectName};
 use sideseat_ports::traits::TransactionalRepository;
 use sideseat_ports::types::ProjectId;
 
@@ -155,19 +156,25 @@ pub async fn cleanup_orphan_temp_files(
         };
         let project_id = ProjectId::from(project_id);
 
-        // Check if database has metadata for this file
+        // Check if database has metadata for this file: its row names the incarnation the bytes belong under.
         let repo = database.as_ref();
-        let has_metadata = repo.file_exists(&project_id, &hash).await.unwrap_or(false);
+        let incarnation = repo
+            .get_file(&project_id, &hash)
+            .await
+            .ok()
+            .flatten()
+            .map(|row| row.id);
 
-        if has_metadata {
+        if let Some(incarnation) = incarnation {
+            let object = ObjectName::new(&hash, incarnation);
             // Scenario A: Complete the interrupted write
-            let permanent_exists = storage.exists(&project_id, &hash).await.unwrap_or(false);
+            let permanent_exists = storage.exists(&project_id, object).await.unwrap_or(false);
 
             if !permanent_exists {
                 // Read temp and write to permanent storage
                 match tokio::fs::read(&path).await {
                     Ok(data) => {
-                        if let Err(e) = storage.store(&project_id, &hash, &data).await {
+                        if let Err(e) = storage.store(&project_id, object, &data).await {
                             tracing::warn!(
                                 error = %e,
                                 project_id = %project_id,
@@ -237,7 +244,14 @@ pub async fn cleanup_zero_ref_files(
     database: &Arc<dyn TransactionalRepository + Send + Sync>,
     stale_claim_secs: i64,
 ) -> Result<u64, FileServiceError> {
-    cleanup_zero_ref_files_governed(storage, database, stale_claim_secs, None).await
+    cleanup_zero_ref_files_governed(
+        storage,
+        database,
+        stale_claim_secs,
+        None,
+        &CollectionFence::open(),
+    )
+    .await
 }
 
 pub async fn cleanup_zero_ref_files_governed(
@@ -245,7 +259,13 @@ pub async fn cleanup_zero_ref_files_governed(
     database: &Arc<dyn TransactionalRepository + Send + Sync>,
     stale_claim_secs: i64,
     governance: Option<&Arc<crate::storage_governance::StorageGovernanceService>>,
+    collection: &CollectionFence,
 ) -> Result<u64, FileServiceError> {
+    // Every claim this sweep takes and acts on is inside one pass: a lease lost while it runs is not opened
+    // again before it is done, so no claim it read before the loss is acted on after.
+    let Some(_pass) = collection.enter("zero-reference sweep") else {
+        return Ok(0);
+    };
     let repo = database.as_ref();
 
     // Get files with ref_count = 0
@@ -254,6 +274,11 @@ pub async fn cleanup_zero_ref_files_governed(
     let mut deleted = 0u64;
 
     for (project_id, hash) in orphan_files {
+        // Before each claim: a sweep in flight when the lease is lost stops at the next file.
+        if !collection.is_open() {
+            tracing::debug!("Collection is fenced; the zero-reference sweep stops");
+            break;
+        }
         let project_id = ProjectId::from(project_id);
         let fence = acquire_gc_fence(governance, &project_id).await;
         if matches!(fence, GcFence::Skip) {
@@ -270,9 +295,9 @@ pub async fn cleanup_zero_ref_files_governed(
         // stored `ref_count`, which is a cached count, so a stale zero would otherwise delete live
         // content - and without the claim, ingestion could recreate and finalise between the row delete
         // and the byte delete.
-        match repo.claim_file_for_deletion(&project_id, &hash).await {
-            Ok(true) => {}
-            Ok(false) => {
+        let claim = match repo.claim_file_for_deletion(&project_id, &hash).await {
+            Ok(Some(claim)) => claim,
+            Ok(None) => {
                 tracing::debug!(
                     project_id = %project_id,
                     hash,
@@ -289,10 +314,23 @@ pub async fn cleanup_zero_ref_files_governed(
                 );
                 return false;
             }
-        }
+        };
 
-        if let Err(e) = storage.delete(&project_id, &hash).await {
-            if let Err(release_error) = repo.release_deletion_claim(&project_id, &hash).await {
+        // Only the claimed incarnation's bytes: a later one is a row created since, which this claim is not.
+        if let Err(e) = storage
+            .delete(&project_id, ObjectName::new(&hash, claim.incarnation))
+            .await
+        {
+            // The delete may still land: released, the claim would let an ingest find these bytes and count on
+            // them. Kept, the claim is taken over and the deletion finished once it is abandoned.
+            if matches!(e, FileStorageError::Abandoned) {
+                tracing::warn!(project_id = %project_id, hash, "Abandoned deleting orphan bytes; the claim stays");
+                return false;
+            }
+            if let Err(release_error) = repo
+                .release_deletion_claim(&project_id, &hash, &claim)
+                .await
+            {
                 tracing::error!(
                     error = %e,
                     release_error = %release_error,
@@ -312,7 +350,10 @@ pub async fn cleanup_zero_ref_files_governed(
             return false;
         }
 
-        match repo.delete_file_if_unreferenced(&project_id, &hash).await {
+        match repo
+            .delete_file_if_unreferenced(&project_id, &hash, &claim)
+            .await
+        {
             Ok(true) => {}
             // Referenced again while its bytes were being deleted. Counting this as a success was
             // wrong twice over: nothing was cleaned, and the row now points at content that is gone.
@@ -368,15 +409,19 @@ pub async fn cleanup_zero_ref_files_governed(
     match repo.get_stale_claimed_files(stale_claim_secs).await {
         Ok(stale) => {
             for (project_id, hash, observed) in stale {
+                if !collection.is_open() {
+                    tracing::debug!("Collection is fenced; abandoned claims wait");
+                    return Ok(deleted);
+                }
                 let project_id = ProjectId::from(project_id);
                 let fence = acquire_gc_fence(governance, &project_id).await;
                 if matches!(fence, GcFence::Skip) {
                     continue;
                 }
                 let removed = async {
-                match repo.reclaim_stale_file(&project_id, &hash, observed).await {
-                    Ok(true) => {}
-                    Ok(false) => {
+                let claim = match repo.reclaim_stale_file(&project_id, &hash, observed).await {
+                    Ok(Some(claim)) => claim,
+                    Ok(None) => {
                         tracing::debug!(
                             project_id = %project_id,
                             hash,
@@ -393,8 +438,11 @@ pub async fn cleanup_zero_ref_files_governed(
                         );
                         return false;
                     }
-                }
-                if let Err(e) = storage.delete(&project_id, &hash).await {
+                };
+                if let Err(e) = storage
+                    .delete(&project_id, ObjectName::new(&hash, claim.incarnation))
+                    .await
+                {
                     tracing::warn!(
                         error = %e,
                         project_id = %project_id,
@@ -403,7 +451,10 @@ pub async fn cleanup_zero_ref_files_governed(
                     );
                     return false;
                 }
-                match repo.delete_file_if_unreferenced(&project_id, &hash).await {
+                match repo
+                    .delete_file_if_unreferenced(&project_id, &hash, &claim)
+                    .await
+                {
                     Ok(true) => {
                         tracing::debug!(project_id = %project_id, hash, "Finished an abandoned file deletion");
                         true
@@ -505,454 +556,5 @@ impl CleanupStats {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::{TimeZone, Utc};
-    use sideseat_adapter_blob_storage::FilesystemStorage;
-    use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
-    use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS;
-    use sideseat_core::storage::AppStorage;
-    use sideseat_ports::clock::Clock;
-    use sideseat_ports::traits::{AnalyticsRepository, StorageGovernance};
-    use tempfile::TempDir;
-    use tokio::fs;
-
-    #[derive(Debug)]
-    struct TestClock;
-
-    impl Clock for TestClock {
-        fn now(&self) -> chrono::DateTime<Utc> {
-            Utc.timestamp_opt(1_700_000_000, 0).single().unwrap()
-        }
-    }
-
-    fn test_hash() -> String {
-        "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string()
-    }
-
-    async fn setup_test() -> (
-        TempDir,
-        Arc<dyn TransactionalRepository + Send + Sync>,
-        Arc<dyn FileStorage>,
-    ) {
-        let temp_dir = TempDir::new().unwrap();
-
-        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
-        let sqlite_service = SqliteService::init(&app_storage, Arc::new(TestClock))
-            .await
-            .unwrap();
-        let database: Arc<dyn TransactionalRepository + Send + Sync> =
-            Arc::new(SqliteRepository(Arc::new(sqlite_service)));
-
-        // Create filesystem storage
-        let storage_path = temp_dir.path().join("files");
-        fs::create_dir_all(&storage_path).await.unwrap();
-        let storage: Arc<dyn FileStorage> = Arc::new(FilesystemStorage::new(storage_path));
-
-        (temp_dir, database, storage)
-    }
-
-    #[test]
-    fn test_parse_temp_filename_valid() {
-        let hash = test_hash();
-        let filename = format!("my-project_{}", hash);
-
-        let result = parse_temp_filename(&filename);
-        assert!(result.is_some());
-
-        let (project_id, parsed_hash) = result.unwrap();
-        assert_eq!(project_id, "my-project");
-        assert_eq!(parsed_hash, hash);
-    }
-
-    #[test]
-    fn test_parse_temp_filename_project_with_underscore() {
-        let hash = test_hash();
-        let filename = format!("my_project_{}", hash);
-
-        let result = parse_temp_filename(&filename);
-        assert!(result.is_some());
-
-        let (project_id, parsed_hash) = result.unwrap();
-        assert_eq!(project_id, "my_project");
-        assert_eq!(parsed_hash, hash);
-    }
-
-    #[test]
-    fn test_parse_temp_filename_invalid_too_short() {
-        let result = parse_temp_filename("short_abc");
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_temp_filename_invalid_hash() {
-        // Hash with invalid chars
-        let filename = "project_g1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
-        let result = parse_temp_filename(filename);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_temp_filename_no_separator() {
-        let hash = test_hash();
-        let result = parse_temp_filename(&hash);
-        assert!(result.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_empty_dir() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let temp_path = temp_dir.path().join("temp");
-        fs::create_dir_all(&temp_path).await.unwrap();
-
-        let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
-            .await
-            .unwrap();
-
-        assert_eq!(stats.total_processed(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_nonexistent_dir() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let temp_path = temp_dir.path().join("nonexistent");
-
-        let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
-            .await
-            .unwrap();
-
-        assert_eq!(stats.total_processed(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_orphan_temp_no_metadata() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let temp_path = temp_dir.path().join("temp");
-        fs::create_dir_all(&temp_path).await.unwrap();
-
-        // Create temp file without database record
-        let hash = test_hash();
-        let filename = format!("project1_{}", hash);
-        let file_path = temp_path.join(&filename);
-        fs::write(&file_path, b"test content").await.unwrap();
-
-        let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
-            .await
-            .unwrap();
-
-        assert_eq!(stats.orphaned_deleted, 1);
-        assert!(!file_path.exists());
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_temp_with_metadata_finalize() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let temp_path = temp_dir.path().join("temp");
-        fs::create_dir_all(&temp_path).await.unwrap();
-
-        let hash = test_hash();
-        let filename = format!("project1_{}", hash);
-        let file_path = temp_path.join(&filename);
-        fs::write(&file_path, b"test content").await.unwrap();
-
-        // Create database record via repository trait
-        let repo = database.as_ref();
-        repo.upsert_file(
-            &ProjectId::from("project1"),
-            &hash,
-            Some("text/plain"),
-            12,
-            "sha256",
-        )
-        .await
-        .unwrap();
-
-        let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
-            .await
-            .unwrap();
-
-        assert_eq!(stats.finalized, 1);
-        assert!(!file_path.exists());
-
-        // Verify file was moved to permanent storage
-        let data = storage
-            .get(&ProjectId::from("project1"), &hash)
-            .await
-            .unwrap();
-        assert_eq!(data, b"test content");
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_temp_already_in_storage() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let temp_path = temp_dir.path().join("temp");
-        fs::create_dir_all(&temp_path).await.unwrap();
-
-        let hash = test_hash();
-        let filename = format!("project1_{}", hash);
-        let file_path = temp_path.join(&filename);
-        fs::write(&file_path, b"test content").await.unwrap();
-
-        // Create database record and store in permanent storage
-        let repo = database.as_ref();
-        repo.upsert_file(
-            &ProjectId::from("project1"),
-            &hash,
-            Some("text/plain"),
-            12,
-            "sha256",
-        )
-        .await
-        .unwrap();
-        storage
-            .store(&ProjectId::from("project1"), &hash, b"test content")
-            .await
-            .unwrap();
-
-        let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
-            .await
-            .unwrap();
-
-        assert_eq!(stats.already_exists, 1);
-        assert!(!file_path.exists());
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_invalid_filename() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let temp_path = temp_dir.path().join("temp");
-        fs::create_dir_all(&temp_path).await.unwrap();
-
-        // Create temp file with invalid format
-        let file_path = temp_path.join("invalid_filename.txt");
-        fs::write(&file_path, b"test content").await.unwrap();
-
-        let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
-            .await
-            .unwrap();
-
-        assert_eq!(stats.invalid_deleted, 1);
-        assert!(!file_path.exists());
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_zero_ref_files() {
-        let (temp_dir, database, storage) = setup_test().await;
-
-        let hash = test_hash();
-
-        // Store file
-        storage
-            .store(&ProjectId::from("project1"), &hash, b"test content")
-            .await
-            .unwrap();
-
-        // Create database record with ref_count=0 via repository trait
-        let repo = database.as_ref();
-        repo.upsert_file(
-            &ProjectId::from("project1"),
-            &hash,
-            Some("text/plain"),
-            12,
-            "sha256",
-        )
-        .await
-        .unwrap();
-
-        // Decrement to 0
-        repo.decrement_ref_count(&ProjectId::from("project1"), &hash)
-            .await
-            .unwrap();
-
-        // Run cleanup
-        let deleted = cleanup_zero_ref_files(&storage, &database, FILE_DELETION_CLAIM_STALE_SECS)
-            .await
-            .unwrap();
-
-        assert_eq!(deleted, 1);
-
-        // File should be gone
-        assert!(
-            !storage
-                .exists(&ProjectId::from("project1"), &hash)
-                .await
-                .unwrap()
-        );
-
-        // Cleanup temp_dir to avoid unused warning
-        drop(temp_dir);
-    }
-
-    #[tokio::test]
-    async fn project_hold_exempts_orphan_files_from_gc_until_the_hold_expires() {
-        let temp_dir = TempDir::new().unwrap();
-        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
-        let clock: Arc<dyn Clock> = Arc::new(TestClock);
-        let sqlite = Arc::new(
-            SqliteService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .unwrap(),
-        );
-        let repository = Arc::new(SqliteRepository(sqlite));
-        let database: Arc<dyn TransactionalRepository + Send + Sync> = repository.clone();
-        let governance_port: Arc<dyn StorageGovernance + Send + Sync> = repository;
-        let duck = Arc::new(
-            DuckdbService::init(&app_storage, Arc::clone(&clock))
-                .await
-                .unwrap(),
-        );
-        let analytics: Arc<dyn AnalyticsRepository + Send + Sync> =
-            Arc::new(DuckdbRepository(duck));
-        let governance = Arc::new(crate::storage_governance::StorageGovernanceService::new(
-            Arc::clone(&database),
-            Arc::clone(&governance_port),
-            analytics,
-            Arc::clone(&clock),
-            u64::MAX,
-        ));
-        let storage_path = temp_dir.path().join("held-files");
-        fs::create_dir_all(&storage_path).await.unwrap();
-        let storage: Arc<dyn FileStorage> = Arc::new(FilesystemStorage::new(storage_path));
-        let project_id = ProjectId::from("project1");
-        let hash = test_hash();
-        storage
-            .store(&project_id, &hash, b"held content")
-            .await
-            .unwrap();
-        database
-            .upsert_file(&project_id, &hash, Some("text/plain"), 12, "sha256")
-            .await
-            .unwrap();
-        database
-            .decrement_ref_count(&project_id, &hash)
-            .await
-            .unwrap();
-        assert_eq!(
-            governance
-                .reconcile_project(&project_id)
-                .await
-                .unwrap()
-                .logical_bytes,
-            12
-        );
-        governance_port
-            .set_project_hold(
-                &project_id,
-                Utc.with_ymd_and_hms(2030, 1, 1, 0, 0, 0).single().unwrap(),
-                clock.now(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(
-            cleanup_zero_ref_files_governed(
-                &storage,
-                &database,
-                FILE_DELETION_CLAIM_STALE_SECS,
-                Some(&governance),
-            )
-            .await
-            .unwrap(),
-            0
-        );
-        assert!(storage.exists(&project_id, &hash).await.unwrap());
-
-        governance_port
-            .clear_project_hold(&project_id)
-            .await
-            .unwrap();
-        assert_eq!(
-            cleanup_zero_ref_files_governed(
-                &storage,
-                &database,
-                FILE_DELETION_CLAIM_STALE_SECS,
-                Some(&governance),
-            )
-            .await
-            .unwrap(),
-            1
-        );
-        assert!(!storage.exists(&project_id, &hash).await.unwrap());
-        assert_eq!(
-            governance_port
-                .project_storage_usage(&project_id)
-                .await
-                .unwrap()
-                .logical_bytes,
-            0,
-            "governed file GC reconciles quota before releasing its project fence"
-        );
-    }
-
-    /// A deletion abandoned mid-way is finished by the next sweep, not stranded.
-    ///
-    /// This is the crash the fence makes possible: the claim is durable, so nothing releases it, and the
-    /// ordinary zero-reference path cannot pick the file up because claiming it fails. Without resumption
-    /// the bytes stay on disk forever and every ingestion naming that file keeps failing its batch on a
-    /// claim nobody holds.
-    #[tokio::test]
-    async fn a_deletion_abandoned_by_a_crash_is_finished_by_the_next_sweep() {
-        let (temp_dir, database, storage) = setup_test().await;
-        let hash = test_hash();
-        storage
-            .store(&ProjectId::from("project1"), &hash, b"test content")
-            .await
-            .unwrap();
-        let repo = database.as_ref();
-        repo.upsert_file(
-            &ProjectId::from("project1"),
-            &hash,
-            Some("text/plain"),
-            12,
-            "sha256",
-        )
-        .await
-        .unwrap();
-        repo.decrement_ref_count(&ProjectId::from("project1"), &hash)
-            .await
-            .unwrap();
-
-        // The crash: claimed, then nothing further.
-        assert!(
-            repo.claim_file_for_deletion(&ProjectId::from("project1"), &hash)
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            cleanup_zero_ref_files(&storage, &database, FILE_DELETION_CLAIM_STALE_SECS)
-                .await
-                .unwrap(),
-            0,
-            "a fresh claim is a deletion in progress; the sweep must leave it alone"
-        );
-        assert!(
-            storage
-                .exists(&ProjectId::from("project1"), &hash)
-                .await
-                .unwrap(),
-            "and must not touch its bytes"
-        );
-
-        // Treated as abandoned, the same sweep finishes it.
-        assert_eq!(
-            cleanup_zero_ref_files(&storage, &database, 0)
-                .await
-                .unwrap(),
-            1,
-            "an abandoned claim is resumed"
-        );
-        assert!(
-            !storage
-                .exists(&ProjectId::from("project1"), &hash)
-                .await
-                .unwrap()
-        );
-        assert!(
-            repo.get_stale_claimed_files(0).await.unwrap().is_empty(),
-            "and nothing is left claimed"
-        );
-
-        drop(temp_dir);
-    }
-}
+#[path = "cleanup_tests.rs"]
+mod tests;

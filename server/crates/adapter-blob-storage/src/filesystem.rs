@@ -27,8 +27,8 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use tokio::fs;
 
-use sideseat_ports::blobs::FileStorage;
 use sideseat_ports::blobs::FileStorageError;
+use sideseat_ports::blobs::{FileStorage, ObjectName, ObjectVisitor, StoredObject};
 use sideseat_ports::types::ProjectId;
 
 /// Directories remembered as durable, at most: past it the set starts again, which costs a sync per directory
@@ -90,17 +90,18 @@ impl FilesystemStorage {
             .retain(|known| !known.starts_with(dir));
     }
 
-    /// Get the full path for a file
-    ///
-    /// Returns path like: `{base}/{project}/{hash[0:2]}/{hash[2:4]}/{hash}`
-    fn file_path(&self, project_id: &ProjectId, hash: &str) -> PathBuf {
-        let shard1 = &hash[0..2];
-        let shard2 = &hash[2..4];
+    /// The directory a hash's objects are in: `{base}/{project}/{hash[0:2]}/{hash[2:4]}`.
+    fn shard_path(&self, project_id: &ProjectId, hash: &str) -> PathBuf {
         self.base_path
             .join(project_id)
-            .join(shard1)
-            .join(shard2)
-            .join(hash)
+            .join(&hash[0..2])
+            .join(&hash[2..4])
+    }
+
+    /// An object's path: `{shard}/{hash}.{incarnation}`.
+    fn file_path(&self, project_id: &ProjectId, object: ObjectName<'_>) -> PathBuf {
+        self.shard_path(project_id, object.hash)
+            .join(object.to_string())
     }
 
     /// Get the project directory path
@@ -148,8 +149,12 @@ impl FilesystemStorage {
     ///
     /// Unique per call, so concurrent writers of the same content-addressed hash never share a file.
     fn temp_sibling(dest: &Path) -> PathBuf {
-        dest.with_extension(format!(
-            "{}.{}.tmp",
+        let name = dest
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        dest.with_file_name(format!(
+            "{name}.{}.{}.tmp",
             std::process::id(),
             uuid::Uuid::new_v4()
         ))
@@ -204,12 +209,13 @@ impl FileStorage for FilesystemStorage {
     async fn store(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         data: &[u8],
     ) -> Result<(), FileStorageError> {
-        Self::validate_hash(hash)?;
+        Self::validate_hash(object.hash)?;
+        let hash = object.hash;
 
-        let path = self.file_path(project_id, hash);
+        let path = self.file_path(project_id, object);
         match self.store_at(&path, data).await {
             // A directory remembered as durable was removed under the store - an emptied shard a delete took -
             // so it is forgotten and the store made once more, creating it again.
@@ -231,10 +237,15 @@ impl FileStorage for FilesystemStorage {
         Ok(())
     }
 
-    async fn get(&self, project_id: &ProjectId, hash: &str) -> Result<Vec<u8>, FileStorageError> {
-        Self::validate_hash(hash)?;
+    async fn get(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<Vec<u8>, FileStorageError> {
+        Self::validate_hash(object.hash)?;
+        let hash = object.hash;
 
-        let path = self.file_path(project_id, hash);
+        let path = self.file_path(project_id, object);
 
         // Read directly; map ENOENT to NotFound instead of a separate exists() check
         // which would be a TOCTOU race (file could vanish between check and read).
@@ -250,16 +261,25 @@ impl FileStorage for FilesystemStorage {
         })
     }
 
-    async fn exists(&self, project_id: &ProjectId, hash: &str) -> Result<bool, FileStorageError> {
-        Self::validate_hash(hash)?;
-        let path = self.file_path(project_id, hash);
+    async fn exists(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<bool, FileStorageError> {
+        Self::validate_hash(object.hash)?;
+        let path = self.file_path(project_id, object);
         Ok(path.exists())
     }
 
-    async fn delete(&self, project_id: &ProjectId, hash: &str) -> Result<(), FileStorageError> {
-        Self::validate_hash(hash)?;
+    async fn delete(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<(), FileStorageError> {
+        Self::validate_hash(object.hash)?;
+        let hash = object.hash;
 
-        let path = self.file_path(project_id, hash);
+        let path = self.file_path(project_id, object);
 
         if path.exists() {
             fs::remove_file(&path).await?;
@@ -269,6 +289,62 @@ impl FileStorage for FilesystemStorage {
             self.cleanup_empty_parents(&path).await;
         }
 
+        Ok(())
+    }
+
+    async fn incarnations(
+        &self,
+        project_id: &ProjectId,
+        hash: &str,
+    ) -> Result<Vec<i64>, FileStorageError> {
+        Self::validate_hash(hash)?;
+        let mut found = Vec::new();
+        let mut entries = match fs::read_dir(self.shard_path(project_id, hash)).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(found),
+            Err(error) => return Err(error.into()),
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if let Some(object) = ObjectName::parse(&name).filter(|object| object.hash == hash) {
+                found.push(object.incarnation);
+            }
+        }
+        found.sort_unstable();
+        Ok(found)
+    }
+
+    async fn scan_objects(&self, visitor: &mut dyn ObjectVisitor) -> Result<(), FileStorageError> {
+        // `{base}/{project}/{aa}/{bb}/{name}`: every level read, the objects at the fourth, one shard directory a
+        // batch. A level missing - nothing stored yet, or a directory removed while the walk ran - holds no object.
+        // A symlinked directory is followed, as every read through it is: an object served there is an object
+        // stored. The depth is fixed, so a link cycle cannot run away.
+        for (project, project_dir) in subdirectories(&self.base_path).await? {
+            let project_id = ProjectId::from(project.as_str());
+            for (_, outer) in subdirectories(&project_dir).await? {
+                for (_, shard) in subdirectories(&outer).await? {
+                    let mut entries = match fs::read_dir(&shard).await {
+                        Ok(entries) => entries,
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(error) => return Err(error.into()),
+                    };
+                    let mut objects = Vec::new();
+                    while let Some(entry) = entries.next_entry().await? {
+                        let name = entry.file_name().to_string_lossy().into_owned();
+                        if let Some(object) = ObjectName::parse(&name) {
+                            objects.push(StoredObject {
+                                project_id: project_id.clone(),
+                                hash: object.hash.to_string(),
+                                incarnation: object.incarnation,
+                            });
+                        }
+                    }
+                    if !objects.is_empty() {
+                        visitor.visit(objects).await?;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
@@ -294,13 +370,21 @@ impl FileStorage for FilesystemStorage {
     async fn finalize_temp(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         temp_path: &Path,
     ) -> Result<(), FileStorageError> {
-        Self::validate_hash(hash)?;
+        Self::validate_hash(object.hash)?;
+        let hash = object.hash;
 
-        let dest_path = self.file_path(project_id, hash);
+        let dest_path = self.file_path(project_id, object);
 
+        // A directory remembered as durable can have been removed under the store - an emptied shard another
+        // store's delete took - so it is forgotten and made again, as `store` does.
+        if let Some(parent) = dest_path.parent()
+            && !fs::try_exists(parent).await.unwrap_or(false)
+        {
+            self.forget_path(&dest_path);
+        }
         self.ensure_parent_dirs(&dest_path).await?;
         // Content-addressed: an object already there is this content; made durable as `store` makes it.
         if fs::try_exists(&dest_path).await.unwrap_or(false) {
@@ -456,6 +540,28 @@ async fn create_dir_all_durably(dir: &Path) -> Result<(), FileStorageError> {
 }
 
 /// The directories synced, in order, for the tests to read: the only way to see a sync from inside the process.
+/// The directories in `dir`, with their names, following symlinks; none when `dir` is not there.
+async fn subdirectories(dir: &Path) -> Result<Vec<(String, PathBuf)>, FileStorageError> {
+    let mut entries = match fs::read_dir(dir).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+    let mut found = Vec::new();
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        match fs::metadata(&path).await {
+            Ok(metadata) if metadata.is_dir() => {
+                found.push((entry.file_name().to_string_lossy().into_owned(), path));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(found)
+}
+
 #[cfg(test)]
 static SYNCED_DIRECTORIES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
@@ -493,392 +599,4 @@ fn sync_handle(file: &std::fs::File) -> std::io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    fn test_hash() -> &'static str {
-        "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
-    }
-
-    #[tokio::test]
-    async fn test_store_and_get() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        let data = b"test content";
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), data)
-            .await
-            .unwrap();
-
-        let retrieved = storage
-            .get(&ProjectId::from("project1"), test_hash())
-            .await
-            .unwrap();
-        assert_eq!(retrieved, data);
-    }
-
-    /// Publication goes through a temporary sibling; none may be left behind, and two writers racing on one
-    /// content-addressed hash must both succeed with one complete object.
-    #[tokio::test]
-    async fn store_publishes_atomically_and_leaves_no_temporary_files() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-        let project = ProjectId::from("project1");
-        let data = vec![7u8; 256 * 1024];
-        let (a, b) = tokio::join!(
-            storage.store(&project, test_hash(), &data),
-            storage.store(&project, test_hash(), &data)
-        );
-        a.unwrap();
-        b.unwrap();
-        assert_eq!(storage.get(&project, test_hash()).await.unwrap(), data);
-        let dir = storage
-            .file_path(&project, test_hash())
-            .parent()
-            .unwrap()
-            .to_path_buf();
-        let names: Vec<String> = std::fs::read_dir(dir)
-            .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-            .collect();
-        assert_eq!(names, vec![test_hash().to_string()]);
-    }
-
-    /// A reader that sees the object must see all of it: the existence check is what content addressing
-    /// trusts, so a partially written object at the final path would be accepted as complete.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn an_object_is_never_visible_partially_written() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-        let project = ProjectId::from("project1");
-        let data = vec![9u8; 64 * 1024 * 1024];
-        let path = storage.file_path(&project, test_hash());
-        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        // A plain thread polling the final path as fast as it can: every size it observes must be complete.
-        let poller = {
-            let stop = stop.clone();
-            let expected = data.len() as u64;
-            std::thread::spawn(move || {
-                let mut partial = 0u32;
-                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
-                    if std::fs::metadata(&path).is_ok_and(|meta| meta.len() != expected) {
-                        partial += 1;
-                    }
-                }
-                partial
-            })
-        };
-        storage.store(&project, test_hash(), &data).await.unwrap();
-        stop.store(true, std::sync::atomic::Ordering::Relaxed);
-        assert_eq!(
-            poller.join().unwrap(),
-            0,
-            "a reader saw a partially written object"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_content_addressed_dedup() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        let data = b"test content";
-
-        // Store twice with same hash
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), data)
-            .await
-            .unwrap();
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), data)
-            .await
-            .unwrap();
-
-        // Should still work
-        let retrieved = storage
-            .get(&ProjectId::from("project1"), test_hash())
-            .await
-            .unwrap();
-        assert_eq!(retrieved, data);
-    }
-
-    #[tokio::test]
-    async fn test_exists() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        assert!(
-            !storage
-                .exists(&ProjectId::from("project1"), test_hash())
-                .await
-                .unwrap()
-        );
-
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), b"data")
-            .await
-            .unwrap();
-
-        assert!(
-            storage
-                .exists(&ProjectId::from("project1"), test_hash())
-                .await
-                .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_delete() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), b"data")
-            .await
-            .unwrap();
-        assert!(
-            storage
-                .exists(&ProjectId::from("project1"), test_hash())
-                .await
-                .unwrap()
-        );
-
-        storage
-            .delete(&ProjectId::from("project1"), test_hash())
-            .await
-            .unwrap();
-        assert!(
-            !storage
-                .exists(&ProjectId::from("project1"), test_hash())
-                .await
-                .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_delete_nonexistent() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        // Should not fail
-        storage
-            .delete(&ProjectId::from("project1"), test_hash())
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_get_not_found() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        let result = storage.get(&ProjectId::from("project1"), test_hash()).await;
-        assert!(matches!(result, Err(FileStorageError::NotFound { .. })));
-    }
-
-    #[tokio::test]
-    async fn test_invalid_hash() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        let result = storage
-            .store(&ProjectId::from("project1"), "invalid", b"data")
-            .await;
-        assert!(matches!(result, Err(FileStorageError::Backend(_))));
-    }
-
-    #[tokio::test]
-    async fn test_file_path_sharding() {
-        let storage = FilesystemStorage::new(PathBuf::from("/base"));
-        let path = storage.file_path(&ProjectId::from("project1"), test_hash());
-
-        // Should be sharded: /base/project1/a1/b2/full_hash
-        assert!(path.to_string_lossy().contains("/project1/a1/b2/"));
-        assert!(path.to_string_lossy().ends_with(test_hash()));
-    }
-
-    #[tokio::test]
-    async fn test_delete_project() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        // Store multiple files
-        let hash1 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
-        let hash2 = "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3";
-
-        storage
-            .store(&ProjectId::from("project1"), hash1, b"data1")
-            .await
-            .unwrap();
-        storage
-            .store(&ProjectId::from("project1"), hash2, b"data2")
-            .await
-            .unwrap();
-
-        let deleted = storage
-            .delete_project(&ProjectId::from("project1"))
-            .await
-            .unwrap();
-        assert_eq!(deleted, 2);
-
-        // Verify files are gone
-        assert!(
-            !storage
-                .exists(&ProjectId::from("project1"), hash1)
-                .await
-                .unwrap()
-        );
-        assert!(
-            !storage
-                .exists(&ProjectId::from("project1"), hash2)
-                .await
-                .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_finalize_temp() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        // Create a temp file
-        let temp_file = temp_dir.path().join("temp_file");
-        fs::write(&temp_file, b"temp content").await.unwrap();
-
-        // Finalize it
-        storage
-            .finalize_temp(&ProjectId::from("project1"), test_hash(), &temp_file)
-            .await
-            .unwrap();
-
-        // Temp file should be gone
-        assert!(!temp_file.exists());
-
-        // File should be in permanent storage
-        let data = storage
-            .get(&ProjectId::from("project1"), test_hash())
-            .await
-            .unwrap();
-        assert_eq!(data, b"temp content");
-    }
-
-    #[tokio::test]
-    async fn test_project_isolation() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-
-        // Store same hash in different projects
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), b"data1")
-            .await
-            .unwrap();
-        storage
-            .store(&ProjectId::from("project2"), test_hash(), b"data2")
-            .await
-            .unwrap();
-
-        // Each project should have its own copy
-        let data1 = storage
-            .get(&ProjectId::from("project1"), test_hash())
-            .await
-            .unwrap();
-        let data2 = storage
-            .get(&ProjectId::from("project2"), test_hash())
-            .await
-            .unwrap();
-
-        assert_eq!(data1, b"data1");
-        assert_eq!(data2, b"data2");
-    }
-
-    /// The directories synced under `root` since the test began, in order.
-    fn synced_under(root: &Path, from: usize) -> Vec<PathBuf> {
-        SYNCED_DIRECTORIES.lock().unwrap()[from..]
-            .iter()
-            .filter(|dir| dir.starts_with(root))
-            .cloned()
-            .collect()
-    }
-
-    fn synced_so_far() -> usize {
-        SYNCED_DIRECTORIES.lock().unwrap().len()
-    }
-
-    /// A project directory another writer has created but not yet made durable is synced into its holder by a
-    /// store beneath it, before the store returns: trusted because it existed, a power loss could take it and
-    /// the acknowledged object with it.
-    #[tokio::test]
-    async fn a_directory_another_writer_created_is_made_durable_before_the_store_returns() {
-        let temp_dir = TempDir::new().unwrap();
-        let base = temp_dir.path().canonicalize().unwrap();
-        let storage = FilesystemStorage::new(base.clone());
-        // Another writer's directory, created and not synced.
-        std::fs::create_dir_all(base.join("project1")).unwrap();
-        let from = synced_so_far();
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), b"bytes")
-            .await
-            .unwrap();
-        let synced = synced_under(&base, from);
-        assert!(
-            synced.contains(&base),
-            "the project directory's entry was never synced into the base: {synced:?}"
-        );
-        let shard = base.join("project1").join("a1");
-        assert!(synced.contains(&base.join("project1")), "{synced:?}");
-        assert!(synced.contains(&shard), "{synced:?}");
-        assert!(
-            synced.contains(&shard.join("b2")),
-            "the object's own entry: {synced:?}"
-        );
-
-        // Once durable, a directory is not synced again for the next object beneath it.
-        let from = synced_so_far();
-        let other = "a1b2ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        storage
-            .store(&ProjectId::from("project1"), other, b"more")
-            .await
-            .unwrap();
-        assert_eq!(synced_under(&base, from), vec![shard.join("b2")]);
-    }
-
-    /// An object already in place - another writer's rename whose directory sync has not returned - is made
-    /// durable before a store of the same content answers.
-    #[tokio::test]
-    async fn an_object_another_writer_renamed_is_made_durable_before_the_store_returns() {
-        let temp_dir = TempDir::new().unwrap();
-        let base = temp_dir.path().canonicalize().unwrap();
-        let storage = FilesystemStorage::new(base.clone());
-        let directory = base.join("project1").join("a1").join("b2");
-        std::fs::create_dir_all(&directory).unwrap();
-        std::fs::write(directory.join(test_hash()), b"bytes").unwrap();
-        let from = synced_so_far();
-        storage
-            .store(&ProjectId::from("project1"), test_hash(), b"bytes")
-            .await
-            .unwrap();
-        assert!(
-            synced_under(&base, from).contains(&directory),
-            "the existing object's entry was not synced"
-        );
-    }
-
-    /// A directory remembered as durable and then removed outside a delete - the tree gone under the store - is
-    /// created again, not trusted into a failure on every later store.
-    #[tokio::test]
-    async fn a_directory_removed_under_the_store_is_created_again() {
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
-        let project = ProjectId::from("project1");
-        storage
-            .store(&project, test_hash(), b"first")
-            .await
-            .unwrap();
-        std::fs::remove_dir_all(temp_dir.path().join("project1")).unwrap();
-        let other = "a1b2ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-        storage.store(&project, other, b"second").await.unwrap();
-        assert_eq!(storage.get(&project, other).await.unwrap(), b"second");
-    }
-}
+mod tests;

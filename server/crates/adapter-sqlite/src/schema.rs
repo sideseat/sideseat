@@ -578,6 +578,15 @@ CREATE TABLE IF NOT EXISTS project_storage_usage (
     updated_at INTEGER NOT NULL
 );
 
+-- The processes holding this store, each until its lease runs out: a server's and a restore repair's exclude each
+-- other (`sideseat_ports::traits::ProcessLeases`). Not project-scoped, and not data: a restored copy's leases have
+-- all run out.
+CREATE TABLE IF NOT EXISTS process_leases (
+    process_id TEXT PRIMARY KEY,
+    role TEXT NOT NULL CHECK(role IN ('server', 'restore_repair')),
+    lease_until INTEGER NOT NULL
+);
+
 "#;
 
 #[cfg(test)]
@@ -600,6 +609,7 @@ mod tests {
             "credentials",
             "credential_project_permissions",
             "staged_payloads",
+            "process_leases",
         ];
 
         for table in required_tables {

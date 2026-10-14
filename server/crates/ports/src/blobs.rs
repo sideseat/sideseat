@@ -24,6 +24,15 @@ pub enum FileStorageError {
 
     #[error("Storage backend error: {0}")]
     Backend(String),
+
+    /// Not attempted: this process does not hold its store lease, so it deletes nothing.
+    #[error("Not attempted: this process does not hold its store lease")]
+    Fenced,
+
+    /// Given up at the store lease's deadline: whether the store applied it is unknown, so whatever it guarded -
+    /// a deletion claim - stays in place.
+    #[error("Abandoned at the store lease's deadline; whether it was applied is unknown")]
+    Abandoned,
 }
 
 /// File content with metadata
@@ -35,78 +44,142 @@ pub struct FileContent {
     pub media_type: Option<String>,
 }
 
+/// The name one incarnation of a file's bytes is stored under: its content hash and its row's incarnation.
+///
+/// A file's row is created once per incarnation and takes a number its store never gives again (the row's id) -
+/// a restore's repair moves the sequence past every incarnation still stored - and its bytes are stored under that
+/// number as well as the hash. So a collector that claimed one incarnation and
+/// paused - its claim taken over, the file collected, the same content ingested again under a new row - deletes
+/// only the name it claimed when it wakes, never the bytes the new row names (`server/specs/MediaIncarnation.tla`).
+/// An object no row reuses, a staged payload's, is stored under incarnation 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ObjectName<'a> {
+    pub hash: &'a str,
+    pub incarnation: i64,
+}
+
+impl<'a> ObjectName<'a> {
+    pub const fn new(hash: &'a str, incarnation: i64) -> Self {
+        Self { hash, incarnation }
+    }
+
+    /// The object a stored name is, when it is exactly `{64 hex digits}.{decimal incarnation}` - not a temporary
+    /// sibling, which has more after it.
+    pub fn parse(name: &'a str) -> Option<Self> {
+        let (hash, incarnation) = name.split_once('.')?;
+        let is_hash = hash.len() == 64 && hash.bytes().all(|b| b.is_ascii_hexdigit());
+        let is_number = !incarnation.is_empty() && incarnation.bytes().all(|b| b.is_ascii_digit());
+        if !(is_hash && is_number) {
+            return None;
+        }
+        Some(Self::new(hash, incarnation.parse().ok()?))
+    }
+}
+
+impl std::fmt::Display for ObjectName<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.hash, self.incarnation)
+    }
+}
+
+/// One stored object, as a scan of the whole store finds it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredObject {
+    pub project_id: ProjectId,
+    pub hash: String,
+    pub incarnation: i64,
+}
+
+impl StoredObject {
+    pub fn name(&self) -> ObjectName<'_> {
+        ObjectName::new(&self.hash, self.incarnation)
+    }
+}
+
+/// What a scan of every stored object hands its batches to ([`FileStorage::scan_objects`]).
+#[async_trait]
+pub trait ObjectVisitor: Send {
+    async fn visit(&mut self, objects: Vec<StoredObject>) -> Result<(), FileStorageError>;
+}
+
 /// Trait for file storage backends
 ///
-/// All implementations must be thread-safe (Send + Sync) for use in async contexts.
-/// Files are organized per-project with content-addressed storage using content hashes.
+/// All implementations must be thread-safe (Send + Sync) for use in async contexts. Files are organized per
+/// project, each object under its [`ObjectName`].
 #[async_trait]
 pub trait FileStorage: Send + Sync {
-    /// Store a file
-    ///
-    /// # Arguments
-    /// * `project_id` - Project identifier for isolation
-    /// * `hash` - Content hash of the file (64 hex chars)
-    /// * `data` - File bytes to store
-    ///
-    /// # Notes
-    /// If a file with the same hash already exists, this is a no-op (content-addressed).
+    /// Store an object. Storing one already there is a no-op: an object's bytes are its hash's.
     async fn store(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         data: &[u8],
     ) -> Result<(), FileStorageError>;
 
-    /// Retrieve a file
-    ///
-    /// # Arguments
-    /// * `project_id` - Project identifier
-    /// * `hash` - Content hash of the file
-    ///
-    /// # Returns
-    /// File bytes or NotFound error
-    async fn get(&self, project_id: &ProjectId, hash: &str) -> Result<Vec<u8>, FileStorageError>;
+    /// An object's bytes, or `NotFound`.
+    async fn get(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<Vec<u8>, FileStorageError>;
 
-    /// Check if a file exists
-    ///
-    /// # Arguments
-    /// * `project_id` - Project identifier
-    /// * `hash` - Content hash of the file
-    async fn exists(&self, project_id: &ProjectId, hash: &str) -> Result<bool, FileStorageError>;
+    /// Whether an object is stored.
+    async fn exists(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<bool, FileStorageError>;
 
-    /// Delete a file
-    ///
-    /// # Arguments
-    /// * `project_id` - Project identifier
-    /// * `hash` - Content hash of the file
-    ///
-    /// # Notes
-    /// Does not fail if file doesn't exist.
-    async fn delete(&self, project_id: &ProjectId, hash: &str) -> Result<(), FileStorageError>;
+    /// Delete an object; one that is not there is not an error. Other incarnations of the same hash are untouched.
+    async fn delete(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<(), FileStorageError>;
 
-    /// Delete all files for a project
-    ///
-    /// # Arguments
-    /// * `project_id` - Project identifier
-    ///
-    /// # Returns
-    /// Number of files deleted
-    async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileStorageError>;
-
-    /// Move a file from temp storage to permanent storage
-    ///
-    /// # Arguments
-    /// * `project_id` - Project identifier
-    /// * `hash` - Content hash (used as filename)
-    /// * `temp_path` - Path to the temporary file
-    ///
-    /// # Notes
-    /// This is an atomic operation on local filesystem (rename).
-    /// For S3, this uploads from temp and deletes temp.
-    async fn finalize_temp(
+    /// The incarnations stored for `hash`, ascending: how a restore repair finds the bytes of a file whose row it
+    /// lost, under whichever incarnation they were written.
+    async fn incarnations(
         &self,
         project_id: &ProjectId,
         hash: &str,
+    ) -> Result<Vec<i64>, FileStorageError>;
+
+    /// Hand every stored object of every project to `visitor`, a batch at a time - a directory's or a listing
+    /// page's - so the walk holds one batch, not the store. Temporary siblings are not objects.
+    async fn scan_objects(&self, visitor: &mut dyn ObjectVisitor) -> Result<(), FileStorageError>;
+
+    /// The highest incarnation any object of any project is named with, 0 when there is none.
+    ///
+    /// A restore takes the transactional store's incarnation sequence back to the backup's, while the blob store
+    /// can hold objects named by incarnations issued after it; the repair moves the sequence past this, so no row
+    /// created afterwards is named like an object of the lost timeline.
+    async fn max_incarnation(&self) -> Result<i64, FileStorageError> {
+        struct Highest(i64);
+        #[async_trait]
+        impl ObjectVisitor for Highest {
+            async fn visit(&mut self, objects: Vec<StoredObject>) -> Result<(), FileStorageError> {
+                self.0 = objects
+                    .iter()
+                    .map(|object| object.incarnation)
+                    .fold(self.0, i64::max);
+                Ok(())
+            }
+        }
+        let mut highest = Highest(0);
+        self.scan_objects(&mut highest).await?;
+        Ok(highest.0)
+    }
+
+    /// Delete every object of a project, returning how many.
+    async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileStorageError>;
+
+    /// Move a temporary file into place as `object`: a rename on a local filesystem, an upload and a delete of
+    /// the temporary file on S3.
+    async fn finalize_temp(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
         temp_path: &std::path::Path,
     ) -> Result<(), FileStorageError>;
 }
@@ -127,6 +200,28 @@ pub trait RetentionFileReconciler: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stored_name_parses_only_as_exactly_a_hash_and_an_incarnation() {
+        let hash = "a".repeat(64);
+        let name = format!("{hash}.42");
+        assert_eq!(ObjectName::parse(&name), Some(ObjectName::new(&hash, 42)));
+        assert_eq!(
+            ObjectName::parse(&format!("{hash}.0")),
+            Some(ObjectName::new(&hash, 0))
+        );
+        for other in [
+            format!("{hash}.42.1234.5f0c.tmp"),
+            format!("{hash}."),
+            hash.clone(),
+            format!("{}.42", "a".repeat(63)),
+            format!("{}.42", "g".repeat(64)),
+            format!("{hash}.-1"),
+            format!("{hash}.99999999999999999999"),
+        ] {
+            assert_eq!(ObjectName::parse(&other), None, "{other}");
+        }
+    }
 
     #[test]
     fn test_file_content_debug() {

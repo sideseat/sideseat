@@ -16,6 +16,7 @@ pub mod maintenance;
 pub mod message_events;
 pub mod observations;
 pub mod pricing;
+pub mod process_leases;
 pub mod providers;
 pub mod rate_limit;
 pub mod raw_payload;

@@ -141,3 +141,70 @@ async fn an_owed_retention_cleanup_shows_its_age_and_failed_passes() {
         .unwrap();
     assert_eq!(done.pending, 0);
 }
+
+/// A claim that is no longer the row's - taken over by another collector, or held on an incarnation that was
+/// collected and created again - neither releases nor deletes the row, so a collector that paused past its
+/// claim cannot clear another's claim or take a row created after its own.
+#[tokio::test]
+async fn a_superseded_claim_neither_releases_nor_deletes_the_row() {
+    let pool = setup_test_pool().await;
+    upsert_file(&pool, "default", test_hash(), None, 1, "sha256")
+        .await
+        .unwrap();
+    let first = super::claim_file_for_deletion(&pool, "default", test_hash(), TEST_NOW)
+        .await
+        .unwrap()
+        .expect("an unreferenced row is claimable");
+    let taken_over =
+        super::reclaim_stale_file(&pool, "default", test_hash(), TEST_NOW, TEST_NOW + 5)
+            .await
+            .unwrap()
+            .expect("the claim as observed is taken over");
+
+    release_deletion_claim(&pool, "default", test_hash(), &first)
+        .await
+        .unwrap();
+    assert!(
+        !delete_file_if_unreferenced(&pool, "default", test_hash(), &first)
+            .await
+            .unwrap(),
+        "the taken-over claim must not delete the row"
+    );
+    assert_eq!(
+        held_claim(&pool, test_hash()).await,
+        taken_over,
+        "nor release the claim that replaced it"
+    );
+
+    assert!(
+        delete_file_if_unreferenced(&pool, "default", test_hash(), &taken_over)
+            .await
+            .unwrap()
+    );
+    upsert_file(&pool, "default", test_hash(), None, 1, "sha256")
+        .await
+        .unwrap();
+    let again = super::claim_file_for_deletion(&pool, "default", test_hash(), TEST_NOW + 5)
+        .await
+        .unwrap()
+        .expect("the row created again is claimable");
+    assert_ne!(again.incarnation, taken_over.incarnation);
+    assert_eq!(
+        again.claimed_at, taken_over.claimed_at,
+        "claimed in the same second, so only the incarnation tells the claims apart"
+    );
+    release_deletion_claim(&pool, "default", test_hash(), &taken_over)
+        .await
+        .unwrap();
+    assert_eq!(
+        held_claim(&pool, test_hash()).await,
+        again,
+        "a claim on the collected incarnation must not release the row created after it"
+    );
+    assert!(
+        !delete_file_if_unreferenced(&pool, "default", test_hash(), &taken_over)
+            .await
+            .unwrap(),
+        "nor delete it"
+    );
+}

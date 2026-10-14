@@ -1,5 +1,6 @@
 //! Per-project storage admission and project-wide legal holds.
 
+use sideseat_core::utils::collection_fence::CollectionFence;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -85,6 +86,8 @@ pub struct StorageGovernanceService {
     clock: Arc<dyn Clock>,
     quota_bytes: u64,
     maintenance_reserve_bytes: u64,
+    /// Closed while this process's store lease is lost: no data is evicted under quota pressure then.
+    fence: CollectionFence,
 }
 
 impl StorageGovernanceService {
@@ -103,7 +106,19 @@ impl StorageGovernanceService {
             clock,
             quota_bytes,
             maintenance_reserve_bytes,
+            fence: CollectionFence::open(),
         }
+    }
+
+    /// Whether this instance collects, and what it waits for when it does not.
+    pub fn collection_status(&self) -> sideseat_core::utils::collection_fence::FenceStatus {
+        self.fence.status()
+    }
+
+    /// Evict under quota pressure only while `fence` is open: while this process holds its store lease.
+    pub fn with_collection_fence(mut self, fence: CollectionFence) -> Self {
+        self.fence = fence;
+        self
     }
 
     pub fn quota_bytes(&self) -> u64 {
@@ -196,6 +211,12 @@ impl StorageGovernanceService {
         project_id: &ProjectId,
         target_bytes: u64,
     ) -> Result<u64, GovernanceError> {
+        // Eviction deletes; while the lease is lost nothing is reclaimed, and an admission that needed it is
+        // refused as over quota. In a pass, so a lease lost while it runs is not opened again until it is done.
+        let Some(_pass) = self.fence.enter("pressure eviction") else {
+            tracing::debug!(project_id = %project_id, "Collection is fenced; no pressure eviction");
+            return Ok(0);
+        };
         let candidates = self
             .analytics
             .oldest_reclaimable_spans(
@@ -237,6 +258,11 @@ impl StorageGovernanceService {
         )
         .await?;
 
+        // Again just before the deletion: the reads and the reservation above can have outlasted the lease.
+        if !self.fence.is_open() {
+            tracing::debug!(project_id = %project_id, "Collection is fenced; no pressure eviction");
+            return Ok(0);
+        }
         let span_keys = candidates
             .iter()
             .map(|candidate| (candidate.trace_id.clone(), candidate.span_id.clone()))
@@ -245,6 +271,10 @@ impl StorageGovernanceService {
             .record_pressure_eviction(project_id, &span_keys)
             .await
             .map_err(unavailable)?;
+        if !self.fence.is_open() {
+            // Recorded and not yet deleted: replaying the journal finishes it, as it does a crash here.
+            return Ok(0);
+        }
         self.analytics
             .delete_spans(project_id, &span_keys)
             .await

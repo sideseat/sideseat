@@ -8,6 +8,7 @@ mod system_commands;
 mod update;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 
@@ -27,6 +28,7 @@ use sideseat_core::constants::{APP_NAME_LOWER, ENV_LOG};
 use sideseat_core::storage::AppStorage;
 use sideseat_domain::files::FileService;
 use sideseat_domain::pricing::PricingService;
+use sideseat_domain::process_leases::{ProcessLease, RESTORE_SETTLE};
 use sideseat_domain::providers::CredentialService;
 use sideseat_domain::rate_limit::RateLimiter;
 use sideseat_domain::storage_governance::StorageGovernanceService;
@@ -37,6 +39,7 @@ use sideseat_ports::clock::Clock;
 use sideseat_ports::pricing::PricingCatalogueSource;
 use sideseat_ports::registrations::RegistrationStore;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
+use sideseat_ports::traits::{ProcessLeases, ProcessRole};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InitMode {
@@ -63,6 +66,8 @@ pub struct CoreApp {
     rate_limiter: Arc<RateLimiter>,
     credentials: Arc<CredentialService>,
     clock: Arc<dyn Clock>,
+    /// This process's lease on the transactional store, taken before anything else touches stored state.
+    lease: Option<ProcessLease>,
 }
 
 impl CoreApp {
@@ -143,7 +148,37 @@ impl CoreApp {
 
         let database = Arc::new(database);
         let analytics = Arc::new(analytics);
-        let database_port = Arc::from(database.repository());
+        let database_port: Arc<dyn TransactionalRepository + Send + Sync> =
+            Arc::from(database.repository());
+        // Before this process reads or changes stored state on its own account - the file service collects as
+        // it starts: no server runs beside a restore repair, and no repair beside another.
+        let lease = match mode {
+            InitMode::Server => ProcessLease::acquire(
+                Arc::clone(&database_port) as Arc<dyn ProcessLeases>,
+                ProcessRole::Server,
+                Duration::ZERO,
+            )
+            .await
+            .map_err(|error| {
+                anyhow::anyhow!("Server refused: {error}; start it once the restore repair has finished")
+            })?,
+            InitMode::RestoreRepair => ProcessLease::acquire(
+                Arc::clone(&database_port) as Arc<dyn ProcessLeases>,
+                ProcessRole::RestoreRepair,
+                RESTORE_SETTLE,
+            )
+            .await
+            .map_err(|error| {
+                anyhow::anyhow!(
+                    "Restore repair refused: {error}; stop every SideSeat process using these stores, then run \
+                     it again"
+                )
+            })?,
+        };
+        if mode == InitMode::RestoreRepair {
+            exit_when_lost(&lease);
+        }
+        let collection_fence = lease.collection_fence();
         let governance_port = Arc::from(database.governance_repository());
         let analytics_port = Arc::from(analytics.repository());
         let cache_port: Arc<dyn CacheStore> = cache.clone();
@@ -168,13 +203,16 @@ impl CoreApp {
         let topics = Arc::new(TopicService::new(topic_backend));
 
         tracing::debug!(backend = topics.backend_name(), "Topics initialized");
-        let storage_governance = Arc::new(StorageGovernanceService::new(
-            Arc::clone(&database_port),
-            governance_port,
-            Arc::clone(&analytics_port),
-            Arc::clone(&clock),
-            config.files.quota_bytes,
-        ));
+        let storage_governance = Arc::new(
+            StorageGovernanceService::new(
+                Arc::clone(&database_port),
+                governance_port,
+                Arc::clone(&analytics_port),
+                Arc::clone(&clock),
+                config.files.quota_bytes,
+            )
+            .with_collection_fence(collection_fence.clone()),
+        );
         storage_governance
             .validate_startup()
             .await
@@ -187,6 +225,7 @@ impl CoreApp {
                     database.clone(),
                     cache.clone(),
                     Arc::clone(&storage_governance),
+                    collection_fence.clone(),
                 )
                 .await
             } else {
@@ -196,19 +235,23 @@ impl CoreApp {
                     database.clone(),
                     cache.clone(),
                     Arc::clone(&storage_governance),
+                    collection_fence,
                 )
                 .await
             }
             .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
         );
-        let staging = Arc::new(StagingService::new(
-            Arc::clone(files.storage()),
-            Arc::clone(&database_port),
-            Arc::clone(&analytics_port),
-            Arc::clone(&clock),
-            config.otel.retention.clone(),
-            config.otel.staging_redrive_cap,
-        ));
+        let staging = Arc::new(
+            StagingService::new(
+                Arc::clone(files.storage()),
+                Arc::clone(&database_port),
+                Arc::clone(&analytics_port),
+                Arc::clone(&clock),
+                config.otel.retention.clone(),
+                config.otel.staging_redrive_cap,
+            )
+            .with_collection_fence(files.collection_fence().clone()),
+        );
 
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
@@ -238,6 +281,7 @@ impl CoreApp {
             rate_limiter,
             credentials,
             clock,
+            lease: Some(lease),
         })
     }
 
@@ -258,7 +302,7 @@ impl CoreApp {
             .init();
     }
 
-    async fn start_server(app: Self) -> Result<()> {
+    async fn start_server(mut app: Self) -> Result<()> {
         // Install signal handlers before spawning services or background tasks.
         app.shutdown.install_signal_handlers();
 
@@ -272,6 +316,9 @@ impl CoreApp {
             tracing::debug!("Update check disabled by config");
         }
 
+        if let Some(lease) = app.lease.take() {
+            app.shutdown.hold_lease(lease).await;
+        }
         app.start_background_tasks().await?;
         // Detached: it outlives shutdown, to end a drain that does not.
         drop(app.shutdown.stop_on_fatal_failure());
@@ -410,4 +457,20 @@ impl CoreApp {
         }
         Ok(())
     }
+}
+
+/// End a restore repair the moment its lease is lost: a server could then start while it still writes. A server
+/// does not exit - every instance would go down together on one store failover - but stops collecting at its
+/// lease's fence until it holds the lease again (`sideseat_domain::process_leases`).
+fn exit_when_lost(lease: &ProcessLease) {
+    let mut held_until = lease.held_until();
+    let process = lease.id().to_string();
+    tokio::spawn(async move {
+        while held_until.changed().await.is_ok() {
+            if held_until.borrow().is_none() {
+                tracing::error!(%process, "Lost the lease on the transactional store; exiting at once");
+                std::process::exit(1);
+            }
+        }
+    });
 }

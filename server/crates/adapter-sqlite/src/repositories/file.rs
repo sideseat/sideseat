@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use crate::SqliteError;
 use sideseat_core::constants::FILE_CLEANUP_BATCH_SIZE;
 use sideseat_ports::traits::retention_cleanup_logical_bytes;
-use sideseat_ports::types::FileRow;
+use sideseat_ports::types::{FileClaim, FileRow};
 
 #[cfg(test)]
 async fn setup_test_pool() -> SqlitePool {
@@ -276,12 +276,12 @@ pub async fn reclaim_stale_file(
     file_hash: &str,
     observed_deleting_at: i64,
     now: i64,
-) -> Result<bool, SqliteError> {
+) -> Result<Option<FileClaim>, SqliteError> {
     // The refreshed claim must be strictly newer than the observed value so the same snapshot authorizes at
     // most one worker. Because timestamps have one-second resolution, `now` alone may equal the old claim.
     // Advancing by one can delay expiry slightly but can never make it expire early.
     let now = now.max(observed_deleting_at + 1);
-    let result = sqlx::query(
+    let claim: Option<(i64, i64)> = sqlx::query_as(
         r#"
         UPDATE files SET deleting_at = ?
         WHERE project_id = ? AND file_hash = ? AND deleting_at = ?
@@ -289,15 +289,19 @@ pub async fn reclaim_stale_file(
               SELECT 1 FROM trace_files
               WHERE project_id = files.project_id AND file_hash = files.file_hash
           )
+        RETURNING id, deleting_at
         "#,
     )
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
     .bind(observed_deleting_at)
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
-    Ok(result.rows_affected() > 0)
+    Ok(claim.map(|(incarnation, claimed_at)| FileClaim {
+        incarnation,
+        claimed_at,
+    }))
 }
 
 /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
@@ -311,8 +315,8 @@ pub async fn claim_file_for_deletion(
     project_id: &str,
     file_hash: &str,
     now: i64,
-) -> Result<bool, SqliteError> {
-    let result = sqlx::query(
+) -> Result<Option<FileClaim>, SqliteError> {
+    let claim: Option<(i64, i64)> = sqlx::query_as(
         r#"
         UPDATE files SET deleting_at = ?
         WHERE project_id = ? AND file_hash = ? AND deleting_at IS NULL
@@ -320,27 +324,38 @@ pub async fn claim_file_for_deletion(
               SELECT 1 FROM trace_files
               WHERE project_id = files.project_id AND file_hash = files.file_hash
           )
+        RETURNING id, deleting_at
         "#,
     )
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
-    Ok(result.rows_affected() > 0)
+    Ok(claim.map(|(incarnation, claimed_at)| FileClaim {
+        incarnation,
+        claimed_at,
+    }))
 }
 
-/// Give up a deletion claim, leaving the file in place.
+/// Give up a deletion claim, leaving the file in place - only while `claim` is still the row's: a claim taken
+/// over, or a row collected and created again, is someone else's.
 pub async fn release_deletion_claim(
     pool: &SqlitePool,
     project_id: &str,
     file_hash: &str,
+    claim: &FileClaim,
 ) -> Result<(), SqliteError> {
-    sqlx::query("UPDATE files SET deleting_at = NULL WHERE project_id = ? AND file_hash = ?")
-        .bind(project_id)
-        .bind(file_hash)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "UPDATE files SET deleting_at = NULL \
+         WHERE project_id = ? AND file_hash = ? AND id = ? AND deleting_at = ?",
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(claim.incarnation)
+    .bind(claim.claimed_at)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -358,12 +373,13 @@ pub async fn restore_orphan_metadata(
     size_bytes: i64,
     hash_algo: &str,
     now: i64,
-) -> Result<(), SqliteError> {
-    sqlx::query(
+) -> Result<i64, SqliteError> {
+    Ok(sqlx::query_scalar(
         r#"
         INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, 0, ?, ?)
         ON CONFLICT(project_id, file_hash) DO UPDATE SET updated_at = ?
+        RETURNING id
         "#,
     )
     .bind(project_id)
@@ -374,9 +390,8 @@ pub async fn restore_orphan_metadata(
     .bind(now)
     .bind(now)
     .bind(now)
-    .execute(pool)
-    .await?;
-    Ok(())
+    .fetch_one(pool)
+    .await?)
 }
 
 /// Delete a file's metadata **only if nothing references it**, and say whether it was deleted.
@@ -386,15 +401,19 @@ pub async fn restore_orphan_metadata(
 /// ingestion can associate a new trace, and the delete still fires - taking the bytes out from under a
 /// span that was just committed. Here the association makes the delete match nothing, cleanup sees
 /// that it deleted nothing, and the file stays.
+///
+/// And only while `claim` is still the row's claim: a collector whose claim was taken over, or whose file was
+/// collected and created again since, deletes nothing.
 pub async fn delete_file_if_unreferenced(
     pool: &SqlitePool,
     project_id: &str,
     file_hash: &str,
+    claim: &FileClaim,
 ) -> Result<bool, SqliteError> {
     let result = sqlx::query(
         r#"
         DELETE FROM files
-        WHERE project_id = ? AND file_hash = ?
+        WHERE project_id = ? AND file_hash = ? AND id = ? AND deleting_at = ?
           AND NOT EXISTS (
               SELECT 1 FROM trace_files
               WHERE project_id = files.project_id AND file_hash = files.file_hash
@@ -403,6 +422,8 @@ pub async fn delete_file_if_unreferenced(
     )
     .bind(project_id)
     .bind(file_hash)
+    .bind(claim.incarnation)
+    .bind(claim.claimed_at)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)

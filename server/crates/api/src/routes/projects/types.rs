@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sideseat_core::utils::collection_fence::FenceStatus;
 use utoipa::ToSchema;
 use validator::Validate;
 
@@ -84,6 +85,43 @@ pub struct ProjectStorageUsageDto {
     pub ordinary_write_limit_bytes: u64,
     pub updated_at: DateTime<Utc>,
     pub retention_cleanup: RetentionCleanupDto,
+    pub collection: CollectionStatusDto,
+}
+
+/// Whether the serving instance deletes and collects. It stops while it cannot renew its lease on the
+/// transactional store, and once it holds the lease again it waits for `waiting_for` - the passes begun before the
+/// loss - before it resumes. A long-running pass there is collection stalled, not storage growing.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CollectionStatusDto {
+    pub collecting: bool,
+    pub waiting_for: Vec<RunningPassDto>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RunningPassDto {
+    pub pass: String,
+    pub running_secs: u64,
+}
+
+impl From<FenceStatus> for CollectionStatusDto {
+    fn from(status: FenceStatus) -> Self {
+        Self {
+            collecting: status.open,
+            // While collecting, the passes running are ordinary work, not what anything waits for.
+            waiting_for: if status.open {
+                Vec::new()
+            } else {
+                status
+                    .running
+                    .into_iter()
+                    .map(|pass| RunningPassDto {
+                        pass: pass.name.to_string(),
+                        running_secs: pass.running_for.as_secs(),
+                    })
+                    .collect()
+            },
+        }
+    }
 }
 
 /// Retention cleanups still owed: each releases the files, favourites and raw-record ownership of one trace
@@ -117,6 +155,7 @@ impl ProjectStorageUsageDto {
         maintenance_reserve_bytes: u64,
         ordinary_write_limit_bytes: u64,
         retention_cleanup: RetentionCleanupDto,
+        collection: CollectionStatusDto,
     ) -> Self {
         Self {
             logical_bytes: usage.logical_bytes,
@@ -125,6 +164,7 @@ impl ProjectStorageUsageDto {
             ordinary_write_limit_bytes,
             updated_at: usage.updated_at,
             retention_cleanup,
+            collection,
         }
     }
 }
@@ -142,4 +182,34 @@ pub struct ListProjectsQuery {
 
     /// Optional organization ID filter
     pub org_id: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sideseat_core::utils::collection_fence::RunningPass;
+    use std::time::Duration;
+
+    /// Stopped, the status names what collection waits for and how long it has run; collecting, it names none.
+    #[test]
+    fn collection_status_names_what_a_stopped_collection_waits_for() {
+        let running = vec![RunningPass {
+            name: "retention",
+            running_for: Duration::from_secs(95),
+        }];
+        let stalled = CollectionStatusDto::from(FenceStatus {
+            open: false,
+            running: running.clone(),
+        });
+        assert!(!stalled.collecting);
+        assert_eq!(stalled.waiting_for.len(), 1);
+        assert_eq!(stalled.waiting_for[0].pass, "retention");
+        assert_eq!(stalled.waiting_for[0].running_secs, 95);
+        let collecting = CollectionStatusDto::from(FenceStatus {
+            open: true,
+            running,
+        });
+        assert!(collecting.collecting);
+        assert!(collecting.waiting_for.is_empty());
+    }
 }

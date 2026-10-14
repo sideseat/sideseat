@@ -103,7 +103,10 @@ async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
         );
         assert!(
             !storage
-                .exists(&project_id, &payload.blob_hash)
+                .exists(
+                    &project_id,
+                    sideseat_ports::blobs::ObjectName::new(&payload.blob_hash, 0)
+                )
                 .await
                 .unwrap()
         );
@@ -136,7 +139,15 @@ async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
         .unwrap();
     assert!(held.unconfirmed);
     assert_eq!(held.redrive_attempts, 2);
-    assert!(storage.exists(&project_id, &held.blob_hash).await.unwrap());
+    assert!(
+        storage
+            .exists(
+                &project_id,
+                sideseat_ports::blobs::ObjectName::new(&held.blob_hash, 0)
+            )
+            .await
+            .unwrap()
+    );
     assert!(
         database
             .pending_staged_payloads(10)
@@ -228,4 +239,109 @@ async fn attempts_failed_by_a_failed_store_are_not_counted() {
         (0, false),
         "the attempt was counted"
     );
+}
+
+/// While this process's store lease is lost a confirmed payload is not released - its bytes are under a name a
+/// restore brings back with the row that names them - and no attempt is counted against it. Once the lease is held
+/// again, it is released.
+#[tokio::test]
+async fn a_closed_fence_keeps_a_confirmed_payload_staged_until_it_opens() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let app_storage = AppStorage::init_for_test(temp.path().to_path_buf());
+    tokio::fs::create_dir_all(temp.path().join("duckdb"))
+        .await
+        .unwrap();
+    let clock: Arc<dyn Clock> = Arc::new(TestClock);
+    let sqlite = Arc::new(
+        SqliteService::init(&app_storage, Arc::clone(&clock))
+            .await
+            .unwrap(),
+    );
+    let database: Arc<dyn TransactionalRepository + Send + Sync> =
+        Arc::new(SqliteRepository(sqlite));
+    let duck = Arc::new(
+        DuckdbService::init(&app_storage, Arc::clone(&clock))
+            .await
+            .unwrap(),
+    );
+    let analytics: Arc<dyn AnalyticsRepository + Send + Sync> = Arc::new(DuckdbRepository(duck));
+    let storage: Arc<dyn FileStorage> =
+        Arc::new(FilesystemStorage::new(temp.path().join("staging")));
+    let (held, receiver) = tokio::sync::watch::channel(None);
+    let service = StagingService::new(
+        Arc::clone(&storage),
+        Arc::clone(&database),
+        Arc::clone(&analytics),
+        Arc::clone(&clock),
+        RetentionConfig::default(),
+        2,
+    )
+    .with_collection_fence(CollectionFence::following(receiver));
+    let user = database
+        .create_user("fence@example.test", None)
+        .await
+        .unwrap();
+    let org = database
+        .create_organization_with_owner("Fence", "fence", &user.id)
+        .await
+        .unwrap();
+    let project = database.create_project(&org.id, "Fence").await.unwrap();
+    let project_id = ProjectId::from(project.id.as_str());
+    let reference = service
+        .stage(
+            &project.id,
+            StagedSignal::Metrics,
+            b"export",
+            clock.now(),
+            Vec::new(),
+            crate::staging::StagedWrite {
+                partition_key: String::new(),
+                raw_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    let (payload, _) = service.load(&reference.id).await.unwrap().unwrap();
+    let name = sideseat_ports::blobs::ObjectName::new(&payload.blob_hash, 0);
+
+    service.release(&payload).await.unwrap();
+    assert!(
+        database
+            .get_staged_payload(&reference.id)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(storage.exists(&project_id, name).await.unwrap());
+    // Nor is an attempt counted against it: a long outage would quarantine it.
+    assert!(matches!(
+        service.note_failed_attempt(&reference.id).await,
+        Err(StagingError::Fenced)
+    ));
+    assert_eq!(
+        database
+            .get_staged_payload(&reference.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .redrive_attempts,
+        0
+    );
+
+    held.send(Some(
+        sideseat_core::utils::collection_fence::HeldUntil::new(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(60),
+            0,
+        ),
+    ))
+    .unwrap();
+    service.release(&payload).await.unwrap();
+    assert!(
+        database
+            .get_staged_payload(&reference.id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(!storage.exists(&project_id, name).await.unwrap());
 }

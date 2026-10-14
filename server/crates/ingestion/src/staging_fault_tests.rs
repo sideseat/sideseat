@@ -21,7 +21,7 @@ use sideseat_adapter_sqlite::test_support::{
 use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
 use sideseat_core::config::RetentionConfig;
 use sideseat_core::storage::AppStorage;
-use sideseat_ports::blobs::{FileStorage, FileStorageError};
+use sideseat_ports::blobs::{FileStorage, FileStorageError, ObjectName};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::{ProjectId, StagedSignal};
@@ -53,28 +53,55 @@ impl FileStorage for FaultyStorage {
     async fn store(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         data: &[u8],
     ) -> Result<(), FileStorageError> {
         if self.fail_store.load(Ordering::SeqCst) {
             return Err(injected());
         }
-        self.inner.store(project_id, hash, data).await
+        self.inner.store(project_id, object, data).await
     }
 
-    async fn get(&self, project_id: &ProjectId, hash: &str) -> Result<Vec<u8>, FileStorageError> {
-        self.inner.get(project_id, hash).await
+    async fn get(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<Vec<u8>, FileStorageError> {
+        self.inner.get(project_id, object).await
     }
 
-    async fn exists(&self, project_id: &ProjectId, hash: &str) -> Result<bool, FileStorageError> {
-        self.inner.exists(project_id, hash).await
+    async fn exists(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<bool, FileStorageError> {
+        self.inner.exists(project_id, object).await
     }
 
-    async fn delete(&self, project_id: &ProjectId, hash: &str) -> Result<(), FileStorageError> {
+    async fn delete(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<(), FileStorageError> {
         if self.fail_delete.load(Ordering::SeqCst) {
             return Err(injected());
         }
-        self.inner.delete(project_id, hash).await
+        self.inner.delete(project_id, object).await
+    }
+
+    async fn incarnations(
+        &self,
+        project_id: &ProjectId,
+        hash: &str,
+    ) -> Result<Vec<i64>, FileStorageError> {
+        self.inner.incarnations(project_id, hash).await
+    }
+
+    async fn scan_objects(
+        &self,
+        visitor: &mut dyn sideseat_ports::blobs::ObjectVisitor,
+    ) -> Result<(), FileStorageError> {
+        self.inner.scan_objects(visitor).await
     }
 
     async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileStorageError> {
@@ -84,10 +111,12 @@ impl FileStorage for FaultyStorage {
     async fn finalize_temp(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         temp_path: &std::path::Path,
     ) -> Result<(), FileStorageError> {
-        self.inner.finalize_temp(project_id, hash, temp_path).await
+        self.inner
+            .finalize_temp(project_id, object, temp_path)
+            .await
     }
 }
 

@@ -60,13 +60,23 @@ async fn a_file_a_log_still_names_survives_span_retention_until_the_log_expires(
     let project = ProjectId::from("default");
     let hash = "c".repeat(64);
     let uri = format!("#!B64!#image/png::{hash}");
-    service
-        .storage
-        .store(&project, &hash, b"bytes")
-        .await
-        .unwrap();
     database
         .upsert_file(&project, &hash, Some("image/png"), 5, "sha256")
+        .await
+        .unwrap();
+    let incarnation = database
+        .get_file(&project, &hash)
+        .await
+        .unwrap()
+        .unwrap()
+        .id;
+    service
+        .storage
+        .store(
+            &project,
+            sideseat_ports::blobs::ObjectName::new(&hash, incarnation),
+            b"bytes",
+        )
         .await
         .unwrap();
     database

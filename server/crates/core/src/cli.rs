@@ -299,6 +299,9 @@ pub enum SystemCommands {
         yes: bool,
     },
     /// Replay durable deletions and reconcile independently restored stores before serving.
+    ///
+    /// An offline command: stop every SideSeat server using these stores first. It refuses while a server holds a
+    /// live lease on the transactional store, and no server starts while it runs.
     RestoreRepair {
         /// Write the JSON repair report to this file instead of stdout.
         #[arg(long)]

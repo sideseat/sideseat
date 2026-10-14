@@ -26,6 +26,10 @@ impl TracePipeline {
         if by_project.is_empty() {
             return Ok(0);
         }
+        // The session reads and the tombstones they decide in one pass: a deletion read before a restore never
+        // tombstones a trace the restore brought back.
+        let fence = self.file_service.collection_fence().clone();
+        let pass = fence.enter("session fence");
         let repo = self.file_service.database().as_ref();
         let mut deleted: HashSet<(String, String)> = HashSet::new();
         #[expect(
@@ -219,8 +223,15 @@ impl TracePipeline {
                     .or_default()
                     .push(trace.clone());
             }
+            // Without the lease, refused as an unwritable tombstone is: the message stays pending.
+            if pass.is_none() || !fence.is_open() {
+                return Err(());
+            }
             let repo = self.file_service.database().as_ref();
             for (project, mut trace_ids) in by_project {
+                if !fence.is_open() {
+                    return Err(());
+                }
                 trace_ids.sort_unstable();
                 let typed_project = ProjectId::from(project);
                 // Journalled with the tombstone, in one transaction - see the compensation path above for why a

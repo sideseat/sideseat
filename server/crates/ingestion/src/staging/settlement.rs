@@ -46,7 +46,8 @@ impl StagingService {
         {
             return self.settle(payload).await;
         }
-        self.release(payload).await?;
+        let pass = self.fence.enter("staging settlement");
+        self.release_in(pass.as_ref(), payload).await?;
         Ok(StagingDisposition::Confirmed)
     }
 
@@ -56,6 +57,7 @@ impl StagingService {
         &self,
         payloads: &[&StagedPayload],
     ) -> Vec<Result<StagingDisposition, StagingError>> {
+        let pass = self.fence.enter("staging settlement");
         let mut by_project: BTreeMap<&ProjectId, Vec<usize>> = BTreeMap::new();
         for (index, payload) in payloads.iter().enumerate() {
             by_project
@@ -108,7 +110,7 @@ impl StagingService {
         let mut answers = Vec::with_capacity(payloads.len());
         for (payload, together) in payloads.iter().zip(settled_together) {
             answers.push(if together {
-                self.release(payload)
+                self.release_in(pass.as_ref(), payload)
                     .await
                     .map(|()| StagingDisposition::Confirmed)
             } else {

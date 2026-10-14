@@ -19,6 +19,25 @@ impl Clock for TestClock {
     }
 }
 
+/// Store `bytes` for `hash` under the incarnation of its row, which must exist (`ObjectName`).
+async fn store_for_row(
+    storage: &Arc<dyn FileStorage>,
+    database: &(dyn TransactionalRepository + Send + Sync),
+    project: &ProjectId,
+    hash: &str,
+    bytes: &[u8],
+) {
+    let row = database
+        .get_file(project, hash)
+        .await
+        .unwrap()
+        .expect("the file's row");
+    storage
+        .store(project, ObjectName::new(hash, row.id), bytes)
+        .await
+        .unwrap();
+}
+
 fn test_hash() -> String {
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string()
 }
@@ -110,13 +129,6 @@ async fn test_file_service_get_file() {
         .await
         .unwrap();
 
-    // Store a file directly
-    service
-        .storage
-        .store(&ProjectId::from("default"), &test_hash(), b"test content")
-        .await
-        .unwrap();
-
     // Insert metadata via repository trait
     let repo = database.as_ref();
     repo.upsert_file(
@@ -128,6 +140,14 @@ async fn test_file_service_get_file() {
     )
     .await
     .unwrap();
+    store_for_row(
+        &service.storage,
+        repo,
+        &ProjectId::from("default"),
+        &test_hash(),
+        b"test content",
+    )
+    .await;
 
     // Get file through service
     let content = service
@@ -205,7 +225,11 @@ async fn restore_repair_rebuilds_associations_before_orphan_gc_and_reports_missi
     let missing = "d".repeat(64);
     service
         .storage
-        .store(&ProjectId::from("default"), &present, b"restored bytes")
+        .store(
+            &ProjectId::from("default"),
+            ObjectName::new(&present, 7),
+            b"restored bytes",
+        )
         .await
         .expect("restore blob bytes");
 
@@ -335,11 +359,6 @@ async fn colliding_client_ids_remain_isolated_across_analytics_metadata_and_blob
 
         for (project_id, tenant_label) in &projects {
             let payload = format!("{tenant_label}-payload-{case}");
-            files
-                .storage
-                .store(project_id, &hash, payload.as_bytes())
-                .await
-                .expect("store tenant blob");
             database
                 .upsert_file(
                     project_id,
@@ -350,6 +369,14 @@ async fn colliding_client_ids_remain_isolated_across_analytics_metadata_and_blob
                 )
                 .await
                 .expect("store tenant metadata");
+            store_for_row(
+                &files.storage,
+                database.as_ref(),
+                project_id,
+                &hash,
+                payload.as_bytes(),
+            )
+            .await;
             database
                 .insert_trace_file(&trace_id, project_id, &hash)
                 .await
@@ -484,14 +511,17 @@ async fn reconciliation_keeps_a_surviving_spans_file_and_releases_the_expired_on
     let surviving_hash = "b".repeat(64);
     let repo = database.as_ref();
     for hash in [&expired_hash, &surviving_hash] {
-        service
-            .storage
-            .store(&ProjectId::from("default"), hash, b"bytes")
-            .await
-            .unwrap();
         repo.upsert_file(&ProjectId::from("default"), hash, None, 5, "sha256")
             .await
             .unwrap();
+        store_for_row(
+            &service.storage,
+            repo,
+            &ProjectId::from("default"),
+            hash,
+            b"bytes",
+        )
+        .await;
         repo.insert_trace_file("trace1", &ProjectId::from("default"), hash)
             .await
             .unwrap();
@@ -582,14 +612,17 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
     // when the first scan runs.
     let racing = "d".repeat(64);
     let repo = database.as_ref();
-    service
-        .storage
-        .store(&ProjectId::from("default"), &racing, b"bytes")
-        .await
-        .unwrap();
     repo.upsert_file(&ProjectId::from("default"), &racing, None, 5, "sha256")
         .await
         .unwrap();
+    store_for_row(
+        &service.storage,
+        repo,
+        &ProjectId::from("default"),
+        &racing,
+        b"bytes",
+    )
+    .await;
     repo.insert_trace_file("trace1", &ProjectId::from("default"), &racing)
         .await
         .unwrap();
@@ -695,14 +728,17 @@ async fn a_failed_recheck_reclaims_nothing_it_released() {
         .unwrap();
     let racing = "e".repeat(64);
     let repo = database.as_ref();
-    service
-        .storage
-        .store(&ProjectId::from("default"), &racing, b"bytes")
-        .await
-        .unwrap();
     repo.upsert_file(&ProjectId::from("default"), &racing, None, 5, "sha256")
         .await
         .unwrap();
+    store_for_row(
+        &service.storage,
+        repo,
+        &ProjectId::from("default"),
+        &racing,
+        b"bytes",
+    )
+    .await;
     repo.insert_trace_file("trace1", &ProjectId::from("default"), &racing)
         .await
         .unwrap();
@@ -828,11 +864,6 @@ async fn reconciliation_leaves_an_association_a_batch_still_holds() {
     // which is what the first version of this test did.
     let in_flight = "c".repeat(64);
     let repo = database.as_ref();
-    service
-        .storage
-        .store(&ProjectId::from("default"), &in_flight, b"bytes")
-        .await
-        .unwrap();
     repo.associate_file(
         "trace1",
         &ProjectId::from("default"),
@@ -843,6 +874,14 @@ async fn reconciliation_leaves_an_association_a_batch_still_holds() {
     )
     .await
     .unwrap();
+    store_for_row(
+        &service.storage,
+        repo,
+        &ProjectId::from("default"),
+        &in_flight,
+        b"bytes",
+    )
+    .await;
 
     // No spans at all for this trace, so the survivor set is empty - the worst case for the in-flight batch.
     service
@@ -890,13 +929,6 @@ async fn test_file_service_cleanup_traces() {
         .await
         .unwrap();
 
-    // Store a file
-    service
-        .storage
-        .store(&ProjectId::from("default"), &test_hash(), b"test content")
-        .await
-        .unwrap();
-
     // Insert metadata with ref_count = 1 via repository trait
     let repo = database.as_ref();
     repo.upsert_file(
@@ -908,6 +940,14 @@ async fn test_file_service_cleanup_traces() {
     )
     .await
     .unwrap();
+    store_for_row(
+        &service.storage,
+        repo,
+        &ProjectId::from("default"),
+        &test_hash(),
+        b"test content",
+    )
+    .await;
 
     // Associate with trace
     repo.insert_trace_file("trace1", &ProjectId::from("default"), &test_hash())

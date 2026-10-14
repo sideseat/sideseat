@@ -45,6 +45,7 @@
   "files": 45056,
   "organization_members": 16384,
   "organizations": 16384,
+  "process_leases": 8192,
   "project_holds": 12288,
   "project_maintenance_leases": 12288,
   "project_storage_usage": 8192,

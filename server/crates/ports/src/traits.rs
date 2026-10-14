@@ -11,23 +11,26 @@ use std::collections::{HashMap, HashSet};
 use crate::error::DataError;
 use crate::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
-    CredentialRow, FeedMessagesParams, FeedSpansParams, FileRow, LastOwnerResult, ListLogsParams,
-    ListMetricsParams, ListSessionsParams, ListSpansParams, ListTracesParams, LogRow,
-    MemberWithUser, MembershipRow, MessageQueryParams, MessageQueryResult, MetricAggregateRow,
-    MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow,
-    PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawCollection,
-    RawConfirmOutcome, RawCutoff, RawOwnerClaim, RawPending, RawRecordRow, RetentionCleanupBacklog,
-    SearchBackfillDocument, SearchBackfillSource, SearchCursor, SearchPage, SearchQuery,
-    SearchSignal, SessionRow, SpanCounts, SpanRow, StagedPayload, StagedSequenceState, TraceRow,
-    UserRow, WinningRevision, raw_record_key, raw_trace_key,
+    CredentialRow, FeedMessagesParams, FeedSpansParams, FileClaim, FileRow, LastOwnerResult,
+    ListLogsParams, ListMetricsParams, ListSessionsParams, ListSpansParams, ListTracesParams,
+    LogRow, MemberWithUser, MembershipRow, MessageQueryParams, MessageQueryResult,
+    MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, OrgWithRole,
+    OrganizationRow, PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow,
+    ProjectStorageUsage, RawCollection, RawConfirmOutcome, RawCutoff, RawOwnerClaim, RawPending,
+    RawRecordRow, RetentionCleanupBacklog, SearchBackfillDocument, SearchBackfillSource,
+    SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
+    StagedPayload, StagedSequenceState, TraceRow, UserRow, WinningRevision, raw_record_key,
+    raw_trace_key,
 };
 
 mod analytics;
 mod governance;
+mod process_leases;
 mod transactional;
 
 pub use analytics::*;
 pub use governance::*;
+pub use process_leases::*;
 pub use transactional::*;
 
 /// Everything an analytics adapter provides, as one bound.
@@ -67,7 +70,7 @@ impl<T> AnalyticsRepository for T where
 }
 
 /// Everything a transactional adapter provides, as one bound. See [`AnalyticsRepository`] for why this is a
-/// bundle rather than a trait of its own: it was 95 methods, and the seven cohesive ports above are what a
+/// bundle rather than a trait of its own: it was 95 methods, and the cohesive ports it lists are what a
 /// caller can actually name.
 pub trait TransactionalRepository:
     IdentityStore
@@ -79,6 +82,7 @@ pub trait TransactionalRepository:
     + DeletionJournal
     + StagedPayloadStore
     + RawArbiter
+    + ProcessLeases
 {
 }
 
@@ -92,5 +96,6 @@ impl<T> TransactionalRepository for T where
         + DeletionJournal
         + StagedPayloadStore
         + RawArbiter
+        + ProcessLeases
 {
 }

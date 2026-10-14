@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use sideseat_core::config::RetentionConfig;
+use sideseat_core::utils::collection_fence::CollectionFence;
 use sideseat_ports::blobs::RetentionFileReconciler;
 use sideseat_ports::traits::{StorageGovernance, TransactionalRepository};
 
@@ -81,6 +82,7 @@ impl ClickhouseService {
                         project_id.as_str(),
                         cutoff,
                         now,
+                        &CollectionFence::open(),
                     )
                     .await?;
                 }
@@ -95,6 +97,8 @@ impl ClickhouseService {
                             &governance,
                             file_service.as_ref(),
                             &project_id,
+                            // The restore repair runs alone, under its own lease, which it exits on losing.
+                            &CollectionFence::open(),
                         )
                         .await
                         .map_err(ClickhouseError::Connection)?;

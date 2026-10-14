@@ -26,6 +26,10 @@ struct Harness {
 }
 
 async fn harness(ordinary_bytes: u64) -> Harness {
+    harness_fenced(ordinary_bytes, CollectionFence::open()).await
+}
+
+async fn harness_fenced(ordinary_bytes: u64, fence: CollectionFence) -> Harness {
     let temp = tempfile::TempDir::new().unwrap();
     let storage = AppStorage::init_for_test(temp.path().to_path_buf());
     let clock: Arc<dyn Clock> = Arc::new(TestClock);
@@ -54,13 +58,16 @@ async fn harness(ordinary_bytes: u64) -> Harness {
         .unwrap();
     let project = database.create_project(&org.id, "Quota").await.unwrap();
     let project_id = ProjectId::from(project.id.as_str());
-    let service = Arc::new(StorageGovernanceService::new(
-        database,
-        governance,
-        Arc::clone(&analytics),
-        clock,
-        REQUIRED_MAINTENANCE_RESERVE + ordinary_bytes,
-    ));
+    let service = Arc::new(
+        StorageGovernanceService::new(
+            database,
+            governance,
+            Arc::clone(&analytics),
+            clock,
+            REQUIRED_MAINTENANCE_RESERVE + ordinary_bytes,
+        )
+        .with_collection_fence(fence),
+    );
     Harness {
         _temp: temp,
         service,
@@ -98,6 +105,34 @@ fn span(project_id: &ProjectId, id: &str, bytes: u64) -> NormalizedSpan {
         logical_bytes: bytes,
         ..Default::default()
     }
+}
+
+/// While this process's store lease is lost nothing is evicted under quota pressure: the admission that needed the
+/// room is refused instead, and the data stays.
+#[tokio::test]
+async fn a_closed_fence_refuses_rather_than_evicts() {
+    let (_held, receiver) = tokio::sync::watch::channel(None);
+    let fenced = harness_fenced(1_050, CollectionFence::following(receiver)).await;
+    fenced
+        .analytics
+        .insert_spans(vec![span(&fenced.project_id, "reclaimable", 1_000)])
+        .await
+        .unwrap();
+    fenced
+        .service
+        .reconcile_project(&fenced.project_id)
+        .await
+        .unwrap();
+
+    assert!(fenced.service.admit(&fenced.project_id, 80).await.is_err());
+    assert_eq!(
+        fenced
+            .analytics
+            .project_logical_bytes(&fenced.project_id)
+            .await
+            .unwrap(),
+        1_000
+    );
 }
 
 #[tokio::test]

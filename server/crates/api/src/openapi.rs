@@ -179,6 +179,8 @@ use sideseat_ports::types::ApiKeyScope;
         projects::types::ProjectHoldDto,
         projects::types::ProjectStorageUsageDto,
         projects::types::RetentionCleanupDto,
+        projects::types::CollectionStatusDto,
+        projects::types::RunningPassDto,
         // OTEL types
         otel::types::TraceSummaryDto,
         otel::types::TraceDetailDto,

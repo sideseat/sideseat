@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use clickhouse::Client;
+use sideseat_core::utils::collection_fence::CollectionFence;
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::dml::{self, MutationTarget};
 
@@ -101,6 +102,7 @@ pub async fn run_retention(
     project_id: &str,
     cutoff: DateTime<Utc>,
     now: DateTime<Utc>,
+    fence: &CollectionFence,
 ) -> Result<(), ClickhouseError> {
     let statement = dml::retention::retention_delete_expired_clickhouse(
         MutationTarget::clickhouse(spans_table, on_cluster),
@@ -123,6 +125,12 @@ pub async fn run_retention(
     // The records the expiring rows name, enqueued first with the same predicate.
     let enqueue = dml::raw::enqueue_raw_for_expired_clickhouse(project_id, cutoff, now);
     for statement in [&enqueue, &statement, &metrics, &logs] {
+        // Each statement only while this process holds its store lease: a pass that outlived it stops here.
+        if !fence.is_open() {
+            return Err(ClickhouseError::Connection(
+                "collection is fenced: this process does not hold its store lease".to_string(),
+            ));
+        }
         let mut query = client.query(statement.sql());
         for value in statement.params() {
             query = match value {

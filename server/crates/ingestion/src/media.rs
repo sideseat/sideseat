@@ -13,6 +13,7 @@ use futures::stream::StreamExt;
 use sideseat_core::constants::{FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION};
 use sideseat_core::utils::file_uri::is_valid_file_hash;
 use sideseat_domain::files::FileService;
+use sideseat_ports::blobs::ObjectName;
 use sideseat_ports::types::ProjectId;
 
 use crate::traces::extract::files::ExtractedFile;
@@ -71,6 +72,8 @@ struct PendingFinalization {
     project_id: ProjectId,
     hash: String,
     temp_path: std::path::PathBuf,
+    /// The row's incarnation the bytes are stored under, once the file is associated (`ObjectName`).
+    incarnation: i64,
 }
 
 /// Finalize pending files to permanent storage with bounded concurrency.
@@ -94,7 +97,11 @@ async fn finalize_pending_files(
         let storage = Arc::clone(storage);
         async move {
             let result = storage
-                .finalize_temp(&pf.project_id, &pf.hash, &pf.temp_path)
+                .finalize_temp(
+                    &pf.project_id,
+                    ObjectName::new(&pf.hash, pf.incarnation),
+                    &pf.temp_path,
+                )
                 .await;
             (pf, result)
         }
@@ -107,7 +114,10 @@ async fn finalize_pending_files(
     let mut failure_count = 0usize;
     for (pf, result) in results {
         match result {
-            Ok(()) => success_count += 1,
+            Ok(()) => {
+                success_count += 1;
+                retire_if_unnamed(file_service, &pf).await;
+            }
             Err(e) => {
                 failure_count += 1;
                 tracing::warn!(
@@ -137,6 +147,56 @@ async fn finalize_pending_files(
     }
 
     failure_count
+}
+
+/// Delete bytes just stored under an incarnation whose row went while they were being stored - the trace that
+/// associated them was deleted and the file collected. No row will name that incarnation again, so nothing else
+/// would find them; a later ingest stores the content under its own row's. A row still there, claimed or not,
+/// keeps them: its collector deletes them, or its released claim leaves them named.
+async fn retire_if_unnamed(file_service: &FileService, pf: &PendingFinalization) {
+    let row = match file_service
+        .database()
+        .get_file(&pf.project_id, &pf.hash)
+        .await
+    {
+        Ok(row) => row,
+        Err(error) => {
+            tracing::debug!(%error, hash = %pf.hash, "Could not check the row of finalized bytes; they stay");
+            return;
+        }
+    };
+    if row.is_some_and(|row| row.id == pf.incarnation) {
+        return;
+    }
+    if let Err(error) = file_service
+        .storage()
+        .delete(&pf.project_id, ObjectName::new(&pf.hash, pf.incarnation))
+        .await
+    {
+        tracing::warn!(%error, hash = %pf.hash, "Could not delete bytes finalized under a collected row");
+    }
+}
+
+/// Whether a reference to `hash` in a project is backed: its row is there, and so are the bytes the row's
+/// incarnation names. Bytes no row names are no file - a restore leftover, or a collection in progress.
+async fn backed(
+    file_service: &FileService,
+    project_id: &ProjectId,
+    hash: &str,
+) -> Result<bool, String> {
+    let row = file_service
+        .database()
+        .get_file(project_id, hash)
+        .await
+        .map_err(|error| error.to_string())?;
+    let Some(row) = row else {
+        return Ok(false);
+    };
+    file_service
+        .storage()
+        .exists(project_id, ObjectName::new(hash, row.id))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 /// Convert extracted files to pending writes for a given project/trace.
@@ -223,6 +283,8 @@ async fn write_and_record_files(
     let mut failures = 0usize;
     // Associations this batch created, so a failed analytics write can release exactly its own.
     let mut created: Vec<(String, String, String)> = Vec::new();
+    // The files this batch holds an association with, whose bytes it may store.
+    let mut associated: HashSet<(String, String)> = HashSet::new();
 
     let mut cache_hits = 0usize;
     let mut fresh_ok = 0usize;
@@ -298,6 +360,7 @@ async fn write_and_record_files(
                     project_id: file.project_id.clone().into(),
                     hash: file.hash.clone(),
                     temp_path,
+                    incarnation: 0,
                 });
             }
         } else {
@@ -334,8 +397,13 @@ async fn write_and_record_files(
                 // success) or release (on failure) - a batch that merely *shares* an existing association is
                 // now one of its owners, and the release only deletes a non-durable row once the last owner
                 // is gone, so tracking a shared one can no longer orphan the batch that created it.
-                Ok(true) => created.push(trace_key),
-                Ok(false) => {}
+                Ok(true) => {
+                    associated.insert((file.project_id.clone(), file.hash.clone()));
+                    created.push(trace_key);
+                }
+                Ok(false) => {
+                    associated.insert((file.project_id.clone(), file.hash.clone()));
+                }
                 Err(e) => {
                     failures += 1;
                     tracing::warn!(
@@ -349,16 +417,47 @@ async fn write_and_record_files(
         }
     }
 
+    // Bytes are stored under the incarnation of the row this batch associated them with, read now that the
+    // association holds the row: a pending writer keeps it from being claimed. Bytes whose association failed
+    // are not stored - that batch fails - so they cannot land under a row being collected.
+    let mut finalizations = Vec::with_capacity(pending_finalizations.len());
+    for mut pending in pending_finalizations {
+        let key = (pending.project_id.to_string(), pending.hash.clone());
+        let row = if associated.contains(&key) {
+            repo.get_file(&pending.project_id, &pending.hash).await
+        } else {
+            Ok(None)
+        };
+        match row {
+            Ok(Some(row)) => {
+                pending.incarnation = row.id;
+                finalizations.push(pending);
+            }
+            outcome => {
+                if let Err(error) = &outcome {
+                    tracing::warn!(
+                        error = %error,
+                        hash = %pending.hash,
+                        project_id = %pending.project_id,
+                        "Could not read the file row its bytes belong under"
+                    );
+                }
+                failures += 1;
+                tokio::fs::remove_file(&pending.temp_path).await.ok();
+            }
+        }
+    }
+
     tracing::debug!(
         total = files.len(),
         unique = written_hashes.len(),
         fresh = fresh_ok,
         cached = cache_hits,
-        pending = pending_finalizations.len(),
+        pending = finalizations.len(),
         "File write summary"
     );
 
-    (pending_finalizations, failures, created)
+    (finalizations, failures, created)
 }
 
 /// Mark this batch's associations durable, reporting a confirmation that matched fewer rows than it had.
@@ -590,7 +689,6 @@ pub(crate) async fn reconcile_incoming_references(
     if incoming.is_empty() {
         return (unbacked, failed, created);
     }
-    let storage = file_service.storage();
     let repo = file_service.database().as_ref();
     let mut checked: HashMap<(String, String), bool> = HashMap::new();
     // One association per `(project, trace, hash)` per batch, even when two references name the same content
@@ -631,7 +729,8 @@ pub(crate) async fn reconcile_incoming_references(
         let key = (project_id.clone(), parsed.hash.to_string());
         let exists = match checked.get(&key) {
             Some(known) => *known,
-            None => match storage.exists(&typed_project_id, parsed.hash).await {
+            // Backed when this project's row for the hash is there and so are the bytes its incarnation names.
+            None => match backed(file_service, &typed_project_id, parsed.hash).await {
                 Ok(found) => {
                     checked.insert(key, found);
                     found
@@ -683,11 +782,36 @@ pub(crate) async fn reconcile_incoming_references(
             .associate_existing_file(trace_id, &typed_project_id, parsed.hash)
             .await
         {
-            Ok(true) => created.push((
-                project_id.clone(),
-                trace_id.clone(),
-                parsed.hash.to_string(),
-            )),
+            Ok(true) => {
+                created.push((
+                    project_id.clone(),
+                    trace_id.clone(),
+                    parsed.hash.to_string(),
+                ));
+                // Checked again under the association, which is what keeps the bytes from being collected: the
+                // check above can have seen an incarnation collected since, and the row associated be a new one
+                // whose bytes another writer has not finished - or will fail to - store.
+                match backed(file_service, &typed_project_id, parsed.hash).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        failed += 1;
+                        tracing::warn!(
+                            project_id,
+                            hash = parsed.hash,
+                            "An incoming file reference's bytes went while it was associated"
+                        );
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        tracing::warn!(
+                            error = %e,
+                            project_id,
+                            hash = parsed.hash,
+                            "Could not confirm an associated incoming file reference is backed"
+                        );
+                    }
+                }
+            }
             // Bytes without metadata, or a file mid-deletion. Not something to resolve either way here:
             // rewriting would be wrong if it is only being deleted, and committing would be wrong if the
             // bytes are about to go.
@@ -718,3 +842,7 @@ pub(crate) async fn reconcile_incoming_references(
     unbacked.dedup();
     (unbacked, failed, created)
 }
+
+#[cfg(test)]
+#[path = "media_tests.rs"]
+mod tests;

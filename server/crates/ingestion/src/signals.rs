@@ -163,7 +163,41 @@ pub trait Signal: Send + Sync {
 }
 
 /// Process one decoded OTLP request through the signal's declared lifecycle.
+///
+/// Acknowledged only if this process held its store lease throughout: a server that lost it may be writing beside
+/// a restore repair, and an export written across the restore can confirm a file association the restore and a
+/// later export re-created under another incarnation, so that its image reads as missing. Its payload stays
+/// staged - nothing is released while the lease is lost - and the client's retry, or the sweep once the lease is
+/// held again, stores it under the store as it is then.
 pub async fn export_signal<S: Signal>(
+    signal: &S,
+    request: S::Request,
+    context: SignalContext<'_>,
+) -> Result<S::Response, SignalExportError> {
+    let fence = context.staging.collection_fence().clone();
+    let project_id = context.project_id;
+    // Held from before the export is staged until it is answered, in one term: a lease lost and taken again
+    // while the export ran is a later one, and what the export wrote before may be what a restore took back.
+    let Some(term) = fence.term() else {
+        return Err(SignalExportError::StoreUnavailable);
+    };
+    // And in a pass, so a lease lost while the export runs is not opened again until it is answered.
+    let Some(_pass) = fence.enter("export") else {
+        return Err(SignalExportError::StoreUnavailable);
+    };
+    let answer = export_signal_unfenced(signal, request, context).await?;
+    if !fence.held_through(term) {
+        tracing::warn!(
+            signal = signal.descriptor().name,
+            project_id,
+            "The store lease is lost; the export is not acknowledged, and its retry is"
+        );
+        return Err(SignalExportError::StoreUnavailable);
+    }
+    Ok(answer)
+}
+
+async fn export_signal_unfenced<S: Signal>(
     signal: &S,
     mut request: S::Request,
     context: SignalContext<'_>,
@@ -615,7 +649,7 @@ impl Signal for MetricsSignal {
     }
 
     fn strip_unstorable(&self, request: &mut Self::Request) -> usize {
-        strip_unstorable_metrics(request)
+        storable::strip_unstorable_metrics(request)
     }
 
     fn record_count(&self, request: &Self::Request) -> usize {
@@ -796,7 +830,7 @@ impl Signal for LogSignal {
     }
 
     fn strip_unstorable(&self, request: &mut Self::Request) -> usize {
-        strip_unstorable_logs(request)
+        storable::strip_unstorable_logs(request)
     }
 
     fn record_count(&self, request: &Self::Request) -> usize {
@@ -914,80 +948,8 @@ impl Signal for LogSignal {
     }
 }
 
-fn storable_nanos(value: u64) -> bool {
-    value == 0
-        || sideseat_core::utils::time::is_storable(sideseat_core::utils::time::nanos_to_datetime(
-            value,
-        ))
-}
+pub(crate) mod storable;
 
-pub(crate) fn strip_unstorable_metrics(request: &mut ExportMetricsServiceRequest) -> usize {
-    let mut removed = 0usize;
-    for resource in &mut request.resource_metrics {
-        for scope in &mut resource.scope_metrics {
-            for metric in &mut scope.metrics {
-                let keep = |time: u64, start: u64| storable_nanos(time) && storable_nanos(start);
-                match metric.data.as_mut() {
-                    Some(metric::Data::Gauge(data)) => {
-                        let before = data.data_points.len();
-                        data.data_points
-                            .retain(|point| keep(point.time_unix_nano, point.start_time_unix_nano));
-                        removed += before - data.data_points.len();
-                    }
-                    Some(metric::Data::Sum(data)) => {
-                        let before = data.data_points.len();
-                        data.data_points
-                            .retain(|point| keep(point.time_unix_nano, point.start_time_unix_nano));
-                        removed += before - data.data_points.len();
-                    }
-                    Some(metric::Data::Histogram(data)) => {
-                        let before = data.data_points.len();
-                        data.data_points
-                            .retain(|point| keep(point.time_unix_nano, point.start_time_unix_nano));
-                        removed += before - data.data_points.len();
-                    }
-                    Some(metric::Data::ExponentialHistogram(data)) => {
-                        let before = data.data_points.len();
-                        data.data_points
-                            .retain(|point| keep(point.time_unix_nano, point.start_time_unix_nano));
-                        removed += before - data.data_points.len();
-                    }
-                    Some(metric::Data::Summary(data)) => {
-                        let before = data.data_points.len();
-                        data.data_points
-                            .retain(|point| keep(point.time_unix_nano, point.start_time_unix_nano));
-                        removed += before - data.data_points.len();
-                    }
-                    None => {}
-                }
-            }
-            scope.metrics.retain(|metric| match metric.data.as_ref() {
-                Some(metric::Data::Gauge(data)) => !data.data_points.is_empty(),
-                Some(metric::Data::Sum(data)) => !data.data_points.is_empty(),
-                Some(metric::Data::Histogram(data)) => !data.data_points.is_empty(),
-                Some(metric::Data::ExponentialHistogram(data)) => !data.data_points.is_empty(),
-                Some(metric::Data::Summary(data)) => !data.data_points.is_empty(),
-                None => false,
-            });
-        }
-    }
-    removed
-}
-
-pub(crate) fn strip_unstorable_logs(request: &mut ExportLogsServiceRequest) -> usize {
-    let mut removed = 0usize;
-    for resource in &mut request.resource_logs {
-        for scope in &mut resource.scope_logs {
-            let before = scope.log_records.len();
-            scope.log_records.retain(|record| {
-                storable_nanos(record.time_unix_nano)
-                    && storable_nanos(record.observed_time_unix_nano)
-            });
-            removed += before - scope.log_records.len();
-        }
-    }
-    removed
-}
 #[cfg(test)]
 #[path = "signals_tests.rs"]
 mod tests;

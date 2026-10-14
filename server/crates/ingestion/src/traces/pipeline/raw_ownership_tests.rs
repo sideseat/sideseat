@@ -404,6 +404,7 @@ async fn retention_releases_ownership_and_the_record_is_collected() {
         store.analytics.as_ref(),
         &project,
         &[trace_hex(34)],
+        &sideseat_core::utils::collection_fence::CollectionFence::open(),
     )
     .await
     .unwrap();
@@ -468,6 +469,7 @@ async fn a_retried_retention_release_queues_records_already_released() {
         store.analytics.as_ref(),
         &project,
         &[trace_hex(38)],
+        &sideseat_core::utils::collection_fence::CollectionFence::open(),
     )
     .await
     .unwrap();
@@ -750,6 +752,7 @@ async fn a_release_that_keeps_a_later_grant_is_not_complete() {
         store.analytics.as_ref(),
         &project,
         &[trace_hex(43)],
+        &sideseat_core::utils::collection_fence::CollectionFence::open(),
     )
     .await
     .unwrap();
@@ -770,6 +773,7 @@ async fn a_release_that_keeps_a_later_grant_is_not_complete() {
         store.analytics.as_ref(),
         &project,
         &[trace_hex(43)],
+        &sideseat_core::utils::collection_fence::CollectionFence::open(),
     )
     .await
     .unwrap();

@@ -8,6 +8,7 @@
 //! The same holds for deliveries that race: the client gave up waiting and sent again while the first was still
 //! being written.
 
+use sideseat_core::utils::collection_fence::{CollectionFence, HeldUntil};
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
@@ -144,8 +145,13 @@ struct Harness {
 }
 
 async fn harness() -> Harness {
+    harness_fenced(CollectionFence::open()).await
+}
+
+/// [`harness`] for a server whose store lease is `fence`.
+async fn harness_fenced(fence: CollectionFence) -> Harness {
     let dir = tempfile::TempDir::new().expect("temp dir");
-    let stores = stack::stores(dir.path(), Arc::new(FixedClock)).await;
+    let stores = stack::stores(dir.path(), Arc::new(FixedClock), fence).await;
     stores.create_project(PROJECT, PROJECT, start()).await;
     Harness { _dir: dir, stores }
 }
@@ -560,7 +566,7 @@ fn files_under(directory: &std::path::Path) -> Vec<Vec<String>> {
 }
 
 /// Two exports that carry one image, each delivered several times and all at once, store the image once: one
-/// object in the blob store, at the image's address and holding its bytes, one file row, an association per trace,
+/// object in the blob store, at the image's address under its row's incarnation and holding its bytes, one file row, an association per trace,
 /// and nothing left of the staging blobs or of any write's temporary files.
 ///
 /// The deliveries overlap while they wait on the stores; the inline batcher then writes their media one batch at a
@@ -603,16 +609,24 @@ async fn exports_sharing_an_image_delivered_at_once_store_it_once() {
         .try_into()
         .expect("the image is one media object");
     let hash = media.hash_hex();
+    let TransactionalService::Sqlite(sqlite) = stores.database.as_ref() else {
+        panic!("embedded stores");
+    };
+    let (incarnation,): (i64,) = sqlx::query_as("SELECT id FROM files WHERE project_id = ?")
+        .bind(PROJECT)
+        .fetch_one(sqlite.pool())
+        .await
+        .expect("the file row");
     let address = vec![
         PROJECT.to_string(),
         hash[..2].to_string(),
         hash[2..4].to_string(),
-        hash.clone(),
+        format!("{hash}.{incarnation}"),
     ];
     assert_eq!(
         files_under(&files),
         vec![address.clone()],
-        "one object, at the image's address"
+        "one object, at the image's address under its row's incarnation"
     );
     assert_eq!(
         std::fs::read(address.iter().fold(files, |path, part| path.join(part)))
@@ -625,9 +639,6 @@ async fn exports_sharing_an_image_delivered_at_once_store_it_once() {
         Vec::<Vec<String>>::new(),
         "a write left a temporary file"
     );
-    let TransactionalService::Sqlite(sqlite) = stores.database.as_ref() else {
-        panic!("embedded stores");
-    };
     let rows: Vec<(String, i64)> =
         sqlx::query_as("SELECT file_hash, size_bytes FROM files WHERE project_id = ?")
             .bind(PROJECT)
@@ -650,3 +661,205 @@ async fn exports_sharing_an_image_delivered_at_once_store_it_once() {
         "one settled, durable association per trace that carries the image"
     );
 }
+
+/// A collector that claimed an image for deletion and paused, its claim taken over as stale and the deletion
+/// finished by another sweep, the same image ingested again and acknowledged, and then the first collector's byte
+/// delete - the step after its claim - must not remove what the new export's row now names. Stored under the hash
+/// alone, the late delete removed the new export's bytes; under its claimed incarnation, it removes nothing that is
+/// still named (`server/specs/MediaIncarnation.tla`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_late_byte_delete_after_a_stale_claim_was_taken_over_keeps_a_reingested_image() {
+    use sideseat_ports::blobs::{FileStorage, ObjectName};
+    use sideseat_ports::traits::TransactionalRepository;
+
+    let harness = harness().await;
+    let stores = &harness.stores;
+    let ingest = |trace: u8, second: i64| {
+        let export = media_export(trace);
+        let body = export.encode_to_vec();
+        async move {
+            let received = received(&body, second);
+            export_signal(&stores.traces, export, stores.context(PROJECT, &received))
+                .await
+                .expect("stored");
+        }
+    };
+    ingest(0x61, 0).await;
+    let [media] = sideseat_domain::raw_payload::media_in(image_text().as_bytes())
+        .try_into()
+        .expect("one image");
+    let hash = media.hash_hex();
+    let project = sideseat_ports::types::ProjectId::from(PROJECT);
+    let TransactionalService::Sqlite(sqlite) = stores.database.as_ref() else {
+        panic!("embedded stores");
+    };
+    let database: Arc<dyn TransactionalRepository + Send + Sync> =
+        Arc::from(stores.database.repository());
+    let storage: Arc<dyn FileStorage> =
+        Arc::new(sideseat_adapter_blob_storage::FilesystemStorage::new(
+            sideseat_core::storage::AppStorage::init_for_test(harness._dir.path().to_path_buf())
+                .subdir(sideseat_core::storage::DataSubdir::Files),
+        ));
+    let stored = |storage: Arc<dyn FileStorage>,
+                  database: Arc<dyn TransactionalRepository + Send + Sync>| {
+        let project = project.clone();
+        let hash = hash.clone();
+        async move {
+            match database.get_file(&project, &hash).await.unwrap() {
+                Some(row) => storage
+                    .exists(&project, ObjectName::new(&hash, row.id))
+                    .await
+                    .unwrap(),
+                None => false,
+            }
+        }
+    };
+
+    // The first trace is gone, and with it the image's only reference.
+    sqlx::query("DELETE FROM trace_files WHERE project_id = ?")
+        .bind(PROJECT)
+        .execute(sqlite.pool())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE files SET ref_count = 0 WHERE project_id = ?")
+        .bind(PROJECT)
+        .execute(sqlite.pool())
+        .await
+        .unwrap();
+    // Collector one claims it - and pauses.
+    let first = database
+        .claim_file_for_deletion(&project, &hash)
+        .await
+        .unwrap()
+        .expect("the first collector's claim");
+    // Long enough for its claim to look abandoned.
+    sqlx::query("UPDATE files SET deleting_at = deleting_at - 100000 WHERE project_id = ?")
+        .bind(PROJECT)
+        .execute(sqlite.pool())
+        .await
+        .unwrap();
+    // Collector two takes the claim over and finishes the deletion.
+    sideseat_domain::files::cleanup::cleanup_zero_ref_files_governed(
+        &storage,
+        &database,
+        60,
+        Some(&stores.governance),
+        &sideseat_core::utils::collection_fence::CollectionFence::open(),
+    )
+    .await
+    .unwrap();
+    assert!(
+        database.get_file(&project, &hash).await.unwrap().is_none()
+            && storage
+                .incarnations(&project, &hash)
+                .await
+                .unwrap()
+                .is_empty(),
+        "collected"
+    );
+    // The same image again, in a new export, stored and acknowledged.
+    ingest(0x62, 1).await;
+    assert!(
+        stored(Arc::clone(&storage), Arc::clone(&database)).await,
+        "re-ingested"
+    );
+    // Collector one resumes with the step after its claim.
+    storage
+        .delete(&project, ObjectName::new(&hash, first.incarnation))
+        .await
+        .unwrap();
+
+    assert!(
+        stored(Arc::clone(&storage), Arc::clone(&database)).await,
+        "the acknowledged export's image was deleted by a collector whose claim had been taken over"
+    );
+    assert_eq!(
+        stores
+            .pipeline
+            .file_service()
+            .get_file(&project, &hash)
+            .await
+            .expect("the image reads")
+            .data,
+        image(),
+        "and it reads as the image"
+    );
+}
+
+/// A restore takes the transactional store's file sequence back to the backup's, while the blob store, restored
+/// to its own later point, still holds the image under an incarnation issued after the backup and lost with its
+/// row. The same image ingested after the repair must be named past it: issued that incarnation again, its bytes
+/// were the lost timeline's object, and a delete meant for that object removed the acknowledged export's image.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_image_ingested_again_after_a_restore_is_not_named_like_the_lost_timelines() {
+    use sideseat_ports::blobs::{FileStorage, ObjectName};
+    use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
+
+    let harness = harness().await;
+    let stores = &harness.stores;
+    let [media] = sideseat_domain::raw_payload::media_in(image_text().as_bytes())
+        .try_into()
+        .expect("one image");
+    let hash = media.hash_hex();
+    let project = sideseat_ports::types::ProjectId::from(PROJECT);
+    let database: Arc<dyn TransactionalRepository + Send + Sync> =
+        Arc::from(stores.database.repository());
+    let analytics: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::from(stores.analytics.repository());
+    let storage: Arc<dyn FileStorage> =
+        Arc::new(sideseat_adapter_blob_storage::FilesystemStorage::new(
+            sideseat_core::storage::AppStorage::init_for_test(harness._dir.path().to_path_buf())
+                .subdir(sideseat_core::storage::DataSubdir::Files),
+        ));
+
+    // Restored: no file row, and a sequence that issues 1 next - while the blob store kept the lost timeline's
+    // object of the image, under the 1 it was issued after the backup.
+    let lost = 1;
+    assert!(database.get_file(&project, &hash).await.unwrap().is_none());
+    storage
+        .store(&project, ObjectName::new(&hash, lost), &image())
+        .await
+        .unwrap();
+    let repair = sideseat_domain::restore::rebuild_restored_ownership(
+        &database,
+        &analytics,
+        stores.pipeline.file_service(),
+    )
+    .await
+    .expect("the repair's first step");
+    assert_eq!(repair.file_incarnations_advanced_past, lost);
+
+    let export = media_export(0x61);
+    let body = export.encode_to_vec();
+    export_signal(
+        &stores.traces,
+        export,
+        stores.context(PROJECT, &received(&body, 0)),
+    )
+    .await
+    .expect("stored");
+    storage
+        .delete(&project, ObjectName::new(&hash, lost))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        stores
+            .pipeline
+            .file_service()
+            .get_file(&project, &hash)
+            .await
+            .expect("the acknowledged export's image was deleted as the lost timeline's object")
+            .data,
+        image(),
+        "and it reads as the image"
+    );
+    let row = database
+        .get_file(&project, &hash)
+        .await
+        .unwrap()
+        .expect("the row");
+    assert!(row.id > lost, "named past the lost timeline: {}", row.id);
+}
+
+include!("ingest_redelivery_parts/lease_tests.rs");

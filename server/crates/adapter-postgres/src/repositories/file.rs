@@ -7,7 +7,7 @@ use sqlx::PgConnection;
 use crate::PostgresError;
 use sideseat_core::constants::FILE_CLEANUP_BATCH_SIZE;
 use sideseat_ports::traits::retention_cleanup_logical_bytes;
-use sideseat_ports::types::FileRow;
+use sideseat_ports::types::{FileClaim, FileRow};
 
 /// Upsert a file record (insert or increment ref_count)
 ///
@@ -260,7 +260,7 @@ pub async fn reclaim_stale_file(
     file_hash: &str,
     observed_deleting_at: i64,
     now: i64,
-) -> Result<bool, PostgresError> {
+) -> Result<Option<FileClaim>, PostgresError> {
     // The refresh must land **strictly above** the observed value, or the compare-and-set does not refuse a
     // second attempt on the same reading. `deleting_at` is a second-resolution timestamp, so `now` equals the
     // observed value whenever the claim and the reclaim happen in the same second - which is the ordinary case
@@ -272,7 +272,7 @@ pub async fn reclaim_stale_file(
     // guaranteeing the value changes. In a burst it can run a few seconds ahead of the wall clock, which only
     // makes the claim expire later, never sooner.
     let now = now.max(observed_deleting_at + 1);
-    let result = sqlx::query(
+    let claim: Option<(i64, i64)> = sqlx::query_as(
         r#"
         UPDATE files SET deleting_at = $1
         WHERE project_id = $2 AND file_hash = $3 AND deleting_at = $4
@@ -280,15 +280,19 @@ pub async fn reclaim_stale_file(
               SELECT 1 FROM trace_files
               WHERE project_id = files.project_id AND file_hash = files.file_hash
           )
+        RETURNING id, deleting_at
         "#,
     )
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
     .bind(observed_deleting_at)
-    .execute(&mut *connection)
+    .fetch_optional(&mut *connection)
     .await?;
-    Ok(result.rows_affected() > 0)
+    Ok(claim.map(|(incarnation, claimed_at)| FileClaim {
+        incarnation,
+        claimed_at,
+    }))
 }
 
 /// Claim a file for deletion - see the SQLite twin for why a count cannot replace this.
@@ -297,7 +301,7 @@ pub async fn claim_file_for_deletion(
     project_id: &str,
     file_hash: &str,
     now: i64,
-) -> Result<bool, PostgresError> {
+) -> Result<Option<FileClaim>, PostgresError> {
     // Lock the row *before* asking whether anything references it, in a statement of its own.
     //
     // As one UPDATE with `NOT EXISTS (SELECT ... FROM trace_files ...)` this was unsound in a way only a
@@ -318,12 +322,12 @@ pub async fn claim_file_for_deletion(
     .fetch_optional(&mut *connection)
     .await?;
     match existing {
-        None => return Ok(false),             // no such file
-        Some((Some(_),)) => return Ok(false), // already claimed
+        None => return Ok(None),             // no such file
+        Some((Some(_),)) => return Ok(None), // already claimed
         Some((None,)) => {}
     }
 
-    let result = sqlx::query(
+    let claim: Option<(i64, i64)> = sqlx::query_as(
         r#"
         UPDATE files SET deleting_at = $1
         WHERE project_id = $2 AND file_hash = $3 AND deleting_at IS NULL
@@ -331,28 +335,37 @@ pub async fn claim_file_for_deletion(
               SELECT 1 FROM trace_files
               WHERE project_id = files.project_id AND file_hash = files.file_hash
           )
+        RETURNING id, deleting_at
         "#,
     )
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .execute(&mut *connection)
+    .fetch_optional(&mut *connection)
     .await?;
-    let claimed = result.rows_affected() > 0;
-    Ok(claimed)
+    Ok(claim.map(|(incarnation, claimed_at)| FileClaim {
+        incarnation,
+        claimed_at,
+    }))
 }
 
-/// Give up a deletion claim, leaving the file in place.
+/// Give up a deletion claim, leaving the file in place - only while `claim` is still the row's (the SQLite twin).
 pub async fn release_deletion_claim(
     connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
+    claim: &FileClaim,
 ) -> Result<(), PostgresError> {
-    sqlx::query("UPDATE files SET deleting_at = NULL WHERE project_id = $1 AND file_hash = $2")
-        .bind(project_id)
-        .bind(file_hash)
-        .execute(&mut *connection)
-        .await?;
+    sqlx::query(
+        "UPDATE files SET deleting_at = NULL \
+         WHERE project_id = $1 AND file_hash = $2 AND id = $3 AND deleting_at = $4",
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(claim.incarnation)
+    .bind(claim.claimed_at)
+    .execute(&mut *connection)
+    .await?;
     Ok(())
 }
 
@@ -365,12 +378,13 @@ pub async fn restore_orphan_metadata(
     size_bytes: i64,
     hash_algo: &str,
     now: i64,
-) -> Result<(), PostgresError> {
-    sqlx::query(
+) -> Result<i64, PostgresError> {
+    Ok(sqlx::query_scalar(
         r#"
         INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, 0, $6, $6)
         ON CONFLICT(project_id, file_hash) DO UPDATE SET updated_at = $6
+        RETURNING id
         "#,
     )
     .bind(project_id)
@@ -379,9 +393,8 @@ pub async fn restore_orphan_metadata(
     .bind(size_bytes)
     .bind(hash_algo)
     .bind(now)
-    .execute(&mut *connection)
-    .await?;
-    Ok(())
+    .fetch_one(&mut *connection)
+    .await?)
 }
 
 /// Delete a file's metadata only if nothing references it - see the SQLite twin for why the condition
@@ -390,11 +403,12 @@ pub async fn delete_file_if_unreferenced(
     connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
+    claim: &FileClaim,
 ) -> Result<bool, PostgresError> {
     let result = sqlx::query(
         r#"
         DELETE FROM files
-        WHERE project_id = $1 AND file_hash = $2
+        WHERE project_id = $1 AND file_hash = $2 AND id = $3 AND deleting_at = $4
           AND NOT EXISTS (
               SELECT 1 FROM trace_files
               WHERE project_id = files.project_id AND file_hash = files.file_hash
@@ -403,6 +417,8 @@ pub async fn delete_file_if_unreferenced(
     )
     .bind(project_id)
     .bind(file_hash)
+    .bind(claim.incarnation)
+    .bind(claim.claimed_at)
     .execute(&mut *connection)
     .await?;
     Ok(result.rows_affected() > 0)

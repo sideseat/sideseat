@@ -149,7 +149,7 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
         observed_deleting_at: i64,
-    ) -> Result<bool, DataError> {
+    ) -> Result<Option<sideseat_ports::types::FileClaim>, DataError> {
         tenant_transaction!(self, project_id, |connection| file::reclaim_stale_file(
             connection,
             project_id,
@@ -163,7 +163,7 @@ impl FileMetaStore for PostgresRepository {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
-    ) -> Result<bool, DataError> {
+    ) -> Result<Option<sideseat_ports::types::FileClaim>, DataError> {
         tenant_transaction!(
             self,
             project_id,
@@ -180,10 +180,27 @@ impl FileMetaStore for PostgresRepository {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
+        claim: &sideseat_ports::types::FileClaim,
     ) -> Result<(), DataError> {
         tenant_transaction!(self, project_id, |connection| {
-            file::release_deletion_claim(connection, project_id, file_hash)
+            file::release_deletion_claim(connection, project_id, file_hash, claim)
         })
+    }
+
+    async fn restore_clear_deletion_claim(
+        &self,
+        project_id: &ProjectId,
+        file_hash: &str,
+    ) -> Result<(), DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            restore::clear_deletion_claim(connection, project_id, file_hash)
+        })
+    }
+
+    async fn advance_file_incarnations(&self, above: i64) -> Result<(), DataError> {
+        maintenance_transaction!(self, |connection| restore::advance_file_incarnations(
+            connection, above
+        ))
     }
 
     async fn restore_orphan_metadata(
@@ -193,7 +210,7 @@ impl FileMetaStore for PostgresRepository {
         media_type: Option<&str>,
         size_bytes: i64,
         hash_algo: &str,
-    ) -> Result<(), DataError> {
+    ) -> Result<i64, DataError> {
         tenant_transaction!(
             self,
             project_id,
@@ -213,9 +230,10 @@ impl FileMetaStore for PostgresRepository {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
+        claim: &sideseat_ports::types::FileClaim,
     ) -> Result<bool, DataError> {
         tenant_transaction!(self, project_id, |connection| {
-            file::delete_file_if_unreferenced(connection, project_id, file_hash)
+            file::delete_file_if_unreferenced(connection, project_id, file_hash, claim)
         })
     }
 

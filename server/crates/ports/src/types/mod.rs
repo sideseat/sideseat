@@ -78,7 +78,7 @@ pub use stats::{
 // Re-export transactional types (SQLite/PostgreSQL)
 pub use transactional::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
-    CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
+    CredentialRow, FileClaim, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
     OrganizationRow, ProjectHold, ProjectRow, ProjectStorageUsage, RetentionCleanupBacklog,
     UserRow,
 };

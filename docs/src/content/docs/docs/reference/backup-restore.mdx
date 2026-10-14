@@ -22,6 +22,42 @@ Repair can rebuild a missing file association when both the analytics reference 
 whose analytics row no longer exists, and reclaim an orphan blob. It cannot reconstruct absent bytes. Those references
 remain in metadata, reads return `FILE_CONTENT_UNAVAILABLE`, and the repair report lists each missing object.
 
+Repair is an offline command. Every SideSeat process using the stores must have exited first, not only stopped
+serving: a process that outlives the restore acts on state the restore took back, and can delete the bytes of a file
+the restore brought back. Every server holds a lease on the transactional store while it runs. Repair refuses while
+any lease is live, waits 20 seconds and checks again, so a server that is still running and renews its lease after
+the restore is also caught. No server starts while repair holds its own lease. A server that died without shutting
+down holds its lease for up to 30 seconds.
+
+A server that cannot renew its lease for 12 seconds, for example during a database failover, keeps serving reads but
+stops deleting. Retention, file collection, quota eviction, staged-payload release and every blob deletion wait until
+it holds the lease again, and a blob deletion already in progress is abandoned once the lease runs out. Once the
+server takes the lease again, it resumes deleting only after every deletion pass that began before the loss has
+finished, so no decision made before a restore is acted on after it. While it waits,
+`GET /api/v1/projects/{id}/storage` reports `collection.collecting: false` and lists the passes in
+`collection.waiting_for` with how long each has run, and the log says the same after 30 seconds. A
+repair that starts during the outage therefore has no running collector to race. Staged-payload release is fenced
+too: a staged payload's bytes are stored under a fixed name, and a restore can bring back the registry row that names
+them. The server also stops acknowledging exports. An export written during the outage answers `503`, or
+`UNAVAILABLE` over gRPC, and stays staged. The exporter's retry, or the staging sweep once the lease is held again,
+stores it. So ingest during a transactional-store outage longer than 12 seconds is retried, not acknowledged. Without
+this, an export in flight across a restore could confirm a file association that the restore and a later export
+recreated under another incarnation, and then read as missing its image.
+
+Three things a lease cannot detect remain the operator's responsibility. A process that was paused rather than
+exited takes its next step when it wakes. A request a remote store such as S3 received before the client gave up
+may still be applied. And a single store operation already under way, such as a ClickHouse delete that first
+queues its records' raw payloads and then deletes them, finishes its own steps. A project deletion a user requested while the stores were being restored is part of the same
+precondition: stop every process first, and repeat the deletion after the repair if it is still wanted.
+
+Before it changes anything, repair lists the whole blob store to find the highest file incarnation stored there. It
+then moves the file sequence past that value, so no new file reuses the name of an object from after the backup. At
+the end it lists the store again and deletes every object no file row names. These are bytes whose row and every
+reference the other backups lost; staged payloads are left to the staging registry. Each listing costs time
+proportional to the number of stored objects: seconds on a filesystem, and minutes on a large S3 bucket at a thousand
+keys per list request. The report records the highest incarnation as `file_incarnations_advanced_past` and the
+deleted objects as `unnamed_objects_deleted`.
+
 ## Embedded SQLite, DuckDB, and filesystem blobs
 
 Stop SideSeat and prevent exporters or operators from writing to it. The backup helper opens both databases, checkpoints

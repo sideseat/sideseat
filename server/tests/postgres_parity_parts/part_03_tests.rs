@@ -271,3 +271,46 @@ async fn a_server_that_does_not_flush_its_commits_is_refused() {
     }
     panic!("the restored server was still refused");
 }
+
+/// The leases that keep a restore repair and serving apart: live until they run out or end, by role, never the
+/// asker's own.
+#[tokio::test]
+async fn process_leases_behave_identically() {
+    use sideseat_ports::traits::ProcessRole;
+
+    assert_parity("process_leases", |repo, mut t| async move {
+        repo.renew_process_lease("server-a", ProcessRole::Server, 30)
+            .await
+            .unwrap();
+        repo.renew_process_lease("server-b", ProcessRole::Server, -1)
+            .await
+            .unwrap();
+        repo.renew_process_lease("repair-a", ProcessRole::RestoreRepair, 30)
+            .await
+            .unwrap();
+        for (role, except) in [
+            (ProcessRole::Server, ""),
+            (ProcessRole::Server, "server-a"),
+            (ProcessRole::RestoreRepair, ""),
+        ] {
+            t.note(&format!(
+                "live_{}_except_{except}={:?}",
+                role.as_str(),
+                repo.live_process_leases(role, except).await.unwrap()
+            ));
+        }
+        repo.renew_process_lease("server-b", ProcessRole::Server, 30)
+            .await
+            .unwrap();
+        repo.end_process_lease("server-a").await.unwrap();
+        repo.end_process_lease("not-held").await.unwrap();
+        t.note(&format!(
+            "live_after_renew_and_end={:?}",
+            repo.live_process_leases(ProcessRole::Server, "")
+                .await
+                .unwrap()
+        ));
+        t
+    })
+    .await;
+}

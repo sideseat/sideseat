@@ -1,7 +1,7 @@
 //! S3-backed implementation of the blob-storage port.
 //!
 //! Stores files in AWS S3 (or S3-compatible services like MinIO) with a sharded key structure:
-//! `{prefix}/{project_id}/{hash[0:2]}/{hash[2:4]}/{hash}`
+//! `{prefix}/{project_id}/{hash[0:2]}/{hash[2:4]}/{hash}.{incarnation}`
 //!
 //! This module is only available when the `s3` feature is enabled.
 
@@ -13,8 +13,8 @@ use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::head_object::HeadObjectError;
 use aws_sdk_s3::primitives::ByteStream;
 
-use sideseat_ports::blobs::FileStorage;
 use sideseat_ports::blobs::FileStorageError;
+use sideseat_ports::blobs::{FileStorage, ObjectName, ObjectVisitor, StoredObject};
 use sideseat_ports::types::ProjectId;
 
 /// Format an SDK error with HTTP status and error code for diagnostics.
@@ -98,16 +98,12 @@ impl S3Storage {
         })
     }
 
-    /// Get the full S3 key for a file
-    ///
-    /// Returns key like: `{prefix}/{project}/{hash[0:2]}/{hash[2:4]}/{hash}`
-    fn object_key(&self, project_id: &ProjectId, hash: &str) -> String {
-        let shard1 = &hash[0..2];
-        let shard2 = &hash[2..4];
-        format!(
-            "{}/{}/{}/{}/{}",
-            self.prefix, project_id, shard1, shard2, hash
-        )
+    fn hash_prefix(&self, project_id: &ProjectId, hash: &str) -> String {
+        hash_prefix(&self.prefix, project_id, hash)
+    }
+
+    fn object_key(&self, project_id: &ProjectId, object: ObjectName<'_>) -> String {
+        object_key(&self.prefix, project_id, object)
     }
 
     /// Get the prefix for a project
@@ -132,12 +128,13 @@ impl FileStorage for S3Storage {
     async fn store(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         data: &[u8],
     ) -> Result<(), FileStorageError> {
+        let hash = object.hash;
         Self::validate_hash(hash)?;
 
-        let key = self.object_key(project_id, hash);
+        let key = self.object_key(project_id, object);
 
         // Check if object already exists (content-addressed deduplication).
         // On any HeadObject error, proceed to upload — PutObject is idempotent
@@ -194,10 +191,15 @@ impl FileStorage for S3Storage {
         Ok(())
     }
 
-    async fn get(&self, project_id: &ProjectId, hash: &str) -> Result<Vec<u8>, FileStorageError> {
+    async fn get(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<Vec<u8>, FileStorageError> {
+        let hash = object.hash;
         Self::validate_hash(hash)?;
 
-        let key = self.object_key(project_id, hash);
+        let key = self.object_key(project_id, object);
 
         let response = self
             .client
@@ -229,10 +231,15 @@ impl FileStorage for S3Storage {
         Ok(data)
     }
 
-    async fn exists(&self, project_id: &ProjectId, hash: &str) -> Result<bool, FileStorageError> {
+    async fn exists(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<bool, FileStorageError> {
+        let hash = object.hash;
         Self::validate_hash(hash)?;
 
-        let key = self.object_key(project_id, hash);
+        let key = self.object_key(project_id, object);
 
         match self
             .client
@@ -256,10 +263,15 @@ impl FileStorage for S3Storage {
         }
     }
 
-    async fn delete(&self, project_id: &ProjectId, hash: &str) -> Result<(), FileStorageError> {
+    async fn delete(
+        &self,
+        project_id: &ProjectId,
+        object: ObjectName<'_>,
+    ) -> Result<(), FileStorageError> {
+        let hash = object.hash;
         Self::validate_hash(hash)?;
 
-        let key = self.object_key(project_id, hash);
+        let key = self.object_key(project_id, object);
 
         // S3 delete_object doesn't fail if object doesn't exist
         self.client
@@ -272,6 +284,76 @@ impl FileStorage for S3Storage {
 
         tracing::debug!(project_id = %project_id, hash, "File deleted from S3");
 
+        Ok(())
+    }
+
+    async fn incarnations(
+        &self,
+        project_id: &ProjectId,
+        hash: &str,
+    ) -> Result<Vec<i64>, FileStorageError> {
+        Self::validate_hash(hash)?;
+        let prefix = self.hash_prefix(project_id, hash);
+        let mut found = Vec::new();
+        let mut continuation_token: Option<String> = None;
+        loop {
+            let mut request = self
+                .client
+                .list_objects_v2()
+                .bucket(&self.bucket)
+                .prefix(&prefix);
+            if let Some(token) = continuation_token {
+                request = request.continuation_token(token);
+            }
+            let response = request.send().await.map_err(|e| {
+                FileStorageError::Backend(format!("S3 list_objects_v2 error: {}", e))
+            })?;
+            found.extend(response.contents().iter().filter_map(|object| {
+                object
+                    .key()?
+                    .strip_prefix(&prefix)
+                    .filter(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))?
+                    .parse::<i64>()
+                    .ok()
+            }));
+            match response.next_continuation_token() {
+                Some(token) => continuation_token = Some(token.to_string()),
+                None => break,
+            }
+        }
+        found.sort_unstable();
+        Ok(found)
+    }
+
+    async fn scan_objects(&self, visitor: &mut dyn ObjectVisitor) -> Result<(), FileStorageError> {
+        // `{prefix}/{project}/{aa}/{bb}/{hash}.{incarnation}`, a listing page a batch.
+        let prefix = format!("{}/", self.prefix);
+        let mut continuation_token: Option<String> = None;
+        loop {
+            let mut request = self
+                .client
+                .list_objects_v2()
+                .bucket(&self.bucket)
+                .prefix(&prefix);
+            if let Some(token) = continuation_token {
+                request = request.continuation_token(token);
+            }
+            let response = request.send().await.map_err(|e| {
+                FileStorageError::Backend(format!("S3 list_objects_v2 error: {}", e))
+            })?;
+            let objects: Vec<StoredObject> = response
+                .contents()
+                .iter()
+                .filter_map(|object| stored_object(object.key()?.strip_prefix(&prefix)?))
+                .collect();
+            if !objects.is_empty() {
+                visitor.visit(objects).await?;
+            }
+            match response.next_continuation_token() {
+                Some(token) => continuation_token = Some(token.to_string()),
+                None => break,
+            }
+        }
         Ok(())
     }
 
@@ -358,12 +440,13 @@ impl FileStorage for S3Storage {
     async fn finalize_temp(
         &self,
         project_id: &ProjectId,
-        hash: &str,
+        object: ObjectName<'_>,
         temp_path: &Path,
     ) -> Result<(), FileStorageError> {
+        let hash = object.hash;
         Self::validate_hash(hash)?;
 
-        let key = self.object_key(project_id, hash);
+        let key = self.object_key(project_id, object);
 
         // Check if object already exists (content-addressed deduplication).
         // On any HeadObject error, proceed to upload — PutObject is idempotent.
@@ -428,34 +511,87 @@ impl FileStorage for S3Storage {
     }
 }
 
+/// The key prefix a hash's objects share: `{prefix}/{project}/{hash[0:2]}/{hash[2:4]}/{hash}.`.
+fn hash_prefix(prefix: &str, project_id: &ProjectId, hash: &str) -> String {
+    format!(
+        "{}/{}/{}/{}/{}.",
+        prefix,
+        project_id,
+        &hash[0..2],
+        &hash[2..4],
+        hash
+    )
+}
+
+/// An object's key: the hash's prefix and its incarnation.
+fn object_key(prefix: &str, project_id: &ProjectId, object: ObjectName<'_>) -> String {
+    format!(
+        "{}{}",
+        hash_prefix(prefix, project_id, object.hash),
+        object.incarnation
+    )
+}
+
+/// The object a key below the store's prefix names: `{project}/{aa}/{bb}/{hash}.{incarnation}`.
+fn stored_object(key: &str) -> Option<StoredObject> {
+    let mut parts = key.split('/');
+    let (project, _, _, name) = (parts.next()?, parts.next()?, parts.next()?, parts.next()?);
+    if parts.next().is_some() {
+        return None;
+    }
+    let object = ObjectName::parse(name)?;
+    Some(StoredObject {
+        project_id: ProjectId::from(project),
+        hash: object.hash.to_string(),
+        incarnation: object.incarnation,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Helper function to compute object key (same logic as S3Storage::object_key)
-    fn compute_object_key(prefix: &str, project_id: &ProjectId, hash: &str) -> String {
-        let shard1 = &hash[0..2];
-        let shard2 = &hash[2..4];
-        format!("{}/{}/{}/{}/{}", prefix, project_id, shard1, shard2, hash)
-    }
 
     // Helper function to compute project prefix (same logic as S3Storage::project_prefix)
     fn compute_project_prefix(prefix: &str, project_id: &ProjectId) -> String {
         format!("{}/{}/", prefix, project_id)
     }
 
+    /// An object's key names its incarnation, and the hash's prefix - what `incarnations` lists - covers every
+    /// incarnation of that hash and no other hash's: one hash is never another's prefix, the dot ends it.
     #[test]
-    fn test_object_key() {
-        let key = compute_object_key(
-            "sideseat/files",
-            &ProjectId::from("project1"),
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-        );
-
+    fn an_object_key_is_its_hash_prefix_and_incarnation() {
+        let hash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+        let project = ProjectId::from("project1");
+        let key = object_key("sideseat/files", &project, ObjectName::new(hash, 12));
+        assert_eq!(key, format!("sideseat/files/project1/a1/b2/{hash}.12"));
+        let prefix = hash_prefix("sideseat/files", &project, hash);
+        assert!(key.starts_with(&prefix));
         assert_eq!(
-            key,
-            "sideseat/files/project1/a1/b2/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+            ObjectName::parse(key.rsplit('/').next().unwrap()),
+            Some(ObjectName::new(hash, 12))
         );
+    }
+
+    /// A scan reads each key below the store's prefix back as the object it names, and skips what is not one.
+    #[test]
+    fn a_listed_key_is_read_back_as_its_object() {
+        let hash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+        let project = ProjectId::from("project1");
+        let key = object_key("sideseat/files", &project, ObjectName::new(hash, 12));
+        assert_eq!(
+            stored_object(key.strip_prefix("sideseat/files/").unwrap()),
+            Some(StoredObject {
+                project_id: project,
+                hash: hash.to_string(),
+                incarnation: 12,
+            })
+        );
+        assert_eq!(
+            stored_object(&format!("project1/a1/b2/{hash}.12.tmp")),
+            None
+        );
+        assert_eq!(stored_object(&format!("project1/a1/{hash}.12")), None);
+        assert_eq!(stored_object(&format!("project1/a1/b2/x/{hash}.12")), None);
     }
 
     #[test]

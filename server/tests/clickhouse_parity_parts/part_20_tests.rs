@@ -158,6 +158,7 @@ async fn retention_releases_expired_raw_ownership_across_a_two_shard_cluster_wit
             &store,
             &project,
             &["trace-stalled".to_string()],
+            &sideseat_core::utils::collection_fence::CollectionFence::open(),
         )
         .await;
         docker(&["start", &container]);
@@ -196,7 +197,14 @@ async fn retention_releases_expired_raw_ownership_across_a_two_shard_cluster_wit
     let traces = ["trace-expired", "trace-kept", "trace-stalled"].map(str::to_string);
     let mut released = None;
     for _ in 0..60 {
-        let attempt = release_retained_raw_owners(sqlite.as_ref(), &store, &project, &traces).await;
+        let attempt = release_retained_raw_owners(
+            sqlite.as_ref(),
+            &store,
+            &project,
+            &traces,
+            &sideseat_core::utils::collection_fence::CollectionFence::open(),
+        )
+        .await;
         let done = attempt.is_ok();
         released = Some(attempt);
         if done {
@@ -357,9 +365,14 @@ async fn two_replica_release_keeps_an_owner_whose_row_a_lagging_replica_lacks() 
         "the fixture must lag: the second replica already holds the row"
     );
 
-    let released =
-        release_retained_raw_owners(sqlite.as_ref(), &second, &project, &["trace-l".to_string()])
-            .await;
+    let released = release_retained_raw_owners(
+        sqlite.as_ref(),
+        &second,
+        &project,
+        &["trace-l".to_string()],
+        &sideseat_core::utils::collection_fence::CollectionFence::open(),
+    )
+    .await;
     lagging
         .query("SYSTEM START FETCHES otel_spans_local")
         .execute()

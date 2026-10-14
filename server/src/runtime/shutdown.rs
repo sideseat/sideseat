@@ -8,6 +8,7 @@ use tokio::task::JoinHandle;
 
 use crate::app::storage::{AnalyticsService, TransactionalService};
 use sideseat_core::constants::SHUTDOWN_TIMEOUT_SECS;
+use sideseat_domain::process_leases::ProcessLease;
 use sideseat_messaging::TopicService;
 
 /// How long a server whose analytics store failed for good may drain before it exits anyway.
@@ -22,6 +23,7 @@ pub struct ShutdownService {
     topics: Arc<TopicService>,
     database: Arc<TransactionalService>,
     analytics: Arc<AnalyticsService>,
+    lease: Arc<Mutex<Option<ProcessLease>>>,
 }
 
 impl ShutdownService {
@@ -38,7 +40,14 @@ impl ShutdownService {
             topics,
             database,
             analytics,
+            lease: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Hold the server's lease on the transactional store until shutdown has drained every task: given up
+    /// earlier, a restore repair could start while a task still writes.
+    pub async fn hold_lease(&self, lease: ProcessLease) {
+        *self.lease.lock().await = Some(lease);
     }
 
     /// Register a background task handle to be awaited during shutdown.
@@ -117,6 +126,12 @@ impl ShutdownService {
         // Shutdown topic dispatchers AFTER tasks have finished
         tracing::debug!("Shutting down topic dispatchers...");
         self.topics.shutdown().await;
+
+        // Nothing writes any more, and the store is still open to record it.
+        let lease = self.lease.lock().await.take();
+        if let Some(lease) = lease {
+            lease.end().await;
+        }
 
         // Checkpoint and close databases in parallel
         tracing::debug!("Closing database connections...");
@@ -203,10 +218,12 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     async fn make_shutdown() -> ShutdownService {
+        make_shutdown_in(tempfile::tempdir().unwrap().keep()).await
+    }
+
+    async fn make_shutdown_in(data_dir: std::path::PathBuf) -> ShutdownService {
         use sideseat_core::config::{AnalyticsBackend, TransactionalBackend};
 
-        let temp_dir = tempfile::tempdir().unwrap();
-        let data_dir = temp_dir.keep();
         // Create subdirectories needed by services
         std::fs::create_dir_all(data_dir.join("sqlite")).unwrap();
         std::fs::create_dir_all(data_dir.join("duckdb")).unwrap();
@@ -308,6 +325,60 @@ mod tests {
             .expect("the deadline passes")
             .expect("the watcher");
         assert!(exited.load(Ordering::SeqCst), "the process is ended");
+    }
+
+    /// The server's lease outlasts the drain - a task still writing keeps a restore repair out - and is ended
+    /// before the store closes, so a repair run right after a clean stop is not refused for it.
+    #[tokio::test]
+    async fn the_server_lease_is_held_through_the_drain_and_ended_after_it() {
+        use sideseat_domain::process_leases::ProcessLease;
+        use sideseat_ports::traits::{ProcessLeases, ProcessRole, TransactionalRepository};
+
+        let data_dir = tempfile::tempdir().unwrap().keep();
+        let shutdown = make_shutdown_in(data_dir.clone()).await;
+        let repository: Arc<dyn TransactionalRepository + Send + Sync> =
+            Arc::from(shutdown.database.repository());
+        let leases: Arc<dyn ProcessLeases> = repository;
+        let lease = ProcessLease::acquire(Arc::clone(&leases), ProcessRole::Server, Duration::ZERO)
+            .await
+            .unwrap();
+        shutdown.hold_lease(lease).await;
+        let held_while_draining = Arc::new(AtomicBool::new(false));
+        let held = Arc::clone(&held_while_draining);
+        let mut stopping = shutdown.subscribe();
+        let drained_leases = Arc::clone(&leases);
+        shutdown
+            .register(tokio::spawn(async move {
+                stopping.changed().await.unwrap();
+                // Still draining a while after the signal.
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                let live = drained_leases
+                    .live_process_leases(ProcessRole::Server, "")
+                    .await
+                    .unwrap();
+                held.store(live.len() == 1, Ordering::SeqCst);
+            }))
+            .await;
+        drop(leases);
+
+        shutdown.shutdown().await;
+
+        assert!(
+            held_while_draining.load(Ordering::SeqCst),
+            "the lease was gone while a task drained"
+        );
+        let reopened = make_shutdown_in(data_dir).await;
+        let repository: Arc<dyn TransactionalRepository + Send + Sync> =
+            Arc::from(reopened.database.repository());
+        let leases: Arc<dyn ProcessLeases> = repository;
+        assert!(
+            leases
+                .live_process_leases(ProcessRole::Server, "")
+                .await
+                .unwrap()
+                .is_empty(),
+            "a cleanly stopped server left its lease"
+        );
     }
 
     #[tokio::test]

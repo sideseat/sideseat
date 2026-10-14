@@ -12,6 +12,7 @@ use sideseat_core::config::{
     StorageBackend, TransactionalBackend,
 };
 use sideseat_core::storage::{AppStorage, DataSubdir};
+use sideseat_core::utils::collection_fence::CollectionFence;
 use sideseat_domain::files::FileService;
 use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_ingestion::received::ReceivedPayload;
@@ -73,7 +74,9 @@ impl Stores {
 
 /// The stores in `root`, on `clock`, with a storage quota far above anything a harness sends, so everything sent is
 /// stored.
-pub async fn stores(root: &Path, clock: Arc<dyn Clock>) -> Stores {
+///
+/// The stores delete, collect and acknowledge only while `fence` is open, as a server holding its lease does.
+pub async fn stores(root: &Path, clock: Arc<dyn Clock>, fence: CollectionFence) -> Stores {
     let app_storage = AppStorage::init_for_test(root.to_path_buf());
     std::fs::create_dir_all(app_storage.subdir(DataSubdir::FilesTemp)).expect("files temp dir");
     let cache = Arc::new(
@@ -114,13 +117,16 @@ pub async fn stores(root: &Path, clock: Arc<dyn Clock>) -> Stores {
     let governance_port: Arc<dyn StorageGovernance + Send + Sync> =
         Arc::from(database.governance_repository());
     let quota = 1_u64 << 40;
-    let governance = Arc::new(StorageGovernanceService::new(
-        Arc::clone(&database_port),
-        governance_port,
-        Arc::clone(&analytics_port),
-        Arc::clone(&clock),
-        quota,
-    ));
+    let governance = Arc::new(
+        StorageGovernanceService::new(
+            Arc::clone(&database_port),
+            governance_port,
+            Arc::clone(&analytics_port),
+            Arc::clone(&clock),
+            quota,
+        )
+        .with_collection_fence(fence.clone()),
+    );
     let files = Arc::new(
         FileService::new_governed(
             FilesConfig {
@@ -137,6 +143,7 @@ pub async fn stores(root: &Path, clock: Arc<dyn Clock>) -> Stores {
             Arc::clone(&database_port),
             cache.clone(),
             Arc::clone(&governance),
+            fence.clone(),
         )
         .await
         .expect("files"),
@@ -144,14 +151,17 @@ pub async fn stores(root: &Path, clock: Arc<dyn Clock>) -> Stores {
     let topics = Arc::new(sideseat_messaging::TopicService::new(
         sideseat_adapter_topics::memory_backend(),
     ));
-    let staging = Arc::new(StagingService::new(
-        Arc::clone(files.storage()),
-        Arc::clone(&database_port),
-        Arc::clone(&analytics_port),
-        Arc::clone(&clock),
-        RetentionConfig::default(),
-        5,
-    ));
+    let staging = Arc::new(
+        StagingService::new(
+            Arc::clone(files.storage()),
+            Arc::clone(&database_port),
+            Arc::clone(&analytics_port),
+            Arc::clone(&clock),
+            RetentionConfig::default(),
+            5,
+        )
+        .with_collection_fence(fence),
+    );
     let pipeline = Arc::new(
         TracePipeline::new(
             Arc::clone(&analytics_port),

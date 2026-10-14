@@ -127,12 +127,18 @@ impl TracePipeline {
                     _ = interval.tick() => {}
                     _ = shutdown.changed() => break,
                 }
+                // Collection deletes raw records; none is collected while this process's store lease is lost.
+                let fence = self.file_service.collection_fence().clone();
+                let Some(_pass) = fence.enter("raw reconciler") else {
+                    tracing::debug!("Collection is fenced; raw reconciliation waits");
+                    continue;
+                };
                 // Decisions a collector left unpurged - it died, or is slow - are purged again by age.
                 if let Err(error) = self.resume_stale_raw_collections().await {
                     tracing::warn!(%error, "Could not resume stale raw collections; retrying next interval");
                 }
                 // Drain what is queued, a batch at a time, without starving shutdown.
-                loop {
+                while fence.is_open() {
                     let due = Utc::now() - RAW_LANDING_HORIZON;
                     match self
                         .reconcile_raw_records_before(RAW_RECONCILE_BATCH, Some(due))
@@ -241,6 +247,8 @@ impl TracePipeline {
         raw_id: &str,
         read: Option<&RawRecordRow>,
     ) -> Result<(), String> {
+        // Every branch below deletes; checked here, after the reads, rather than only before the pass.
+        self.unfenced()?;
         let database = self.file_service.database();
         let Some(read) = read else {
             // Whatever the record's cutoff covers - a late landing's bytes. No reader sees them and the fence never
@@ -251,6 +259,7 @@ impl TracePipeline {
                 .await
                 .map_err(|error| error.to_string())?;
             if let Some(cutoff) = cutoffs.get(raw_id) {
+                self.unfenced()?;
                 self.analytics
                     .purge_raw_versions(project_id, raw_id, cutoff.epoch())
                     .await
@@ -267,9 +276,11 @@ impl TracePipeline {
                 .purge_raw_collection(project_id, raw_id, decision.epoch)
                 .await;
         }
+        self.unfenced()?;
         if self.rewrite_without_deleted(project_id, read).await? {
             return Ok(());
         }
+        self.unfenced()?;
         self.analytics
             .delete_superseded_raw_versions(project_id, raw_id, read.version)
             .await
@@ -287,6 +298,7 @@ impl TracePipeline {
         raw_id: &str,
         epoch: i64,
     ) -> Result<(), String> {
+        self.unfenced()?;
         self.analytics
             .purge_raw_versions(project_id, raw_id, epoch)
             .await
@@ -296,6 +308,16 @@ impl TracePipeline {
             .drop_raw_collection(project_id, raw_id, epoch)
             .await
             .map_err(|error| error.to_string())
+    }
+
+    /// Refuse while this process's store lease is lost: a raw record a restore brought back is not purged on
+    /// the strength of a decision or a read from before it.
+    fn unfenced(&self) -> Result<(), String> {
+        if self.file_service.collection_fence().is_open() {
+            Ok(())
+        } else {
+            Err("collection is fenced: this process does not hold its store lease".to_string())
+        }
     }
 
     /// Purge again every decision older than the takeover age (`RResume`).
@@ -461,6 +483,7 @@ impl TracePipeline {
             record: encoded,
             ..read.clone()
         };
+        self.unfenced()?;
         let appended = self
             .analytics
             .append_raw_rewrites(std::slice::from_ref(&row))

@@ -23,6 +23,7 @@ pub use error::ClickhouseError;
 pub use repository_impl::ClickhouseRepository;
 pub mod schema;
 
+use sideseat_core::utils::collection_fence::CollectionFence;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -67,13 +68,19 @@ impl ClickhouseService {
         project_id: &ProjectId,
         trace_ids: &[String],
         completed: &[(String, i64)],
+        fence: &CollectionFence,
     ) {
+        // Every step deletes or releases; each only while this process holds its store lease, and refused, the
+        // cleanup stays recorded for the next pass.
         let mut clean = true;
         match database
             .journaled_span_deletions_for_traces(project_id, trace_ids)
             .await
         {
             Ok(spans) if !spans.is_empty() => {
+                if !fence.is_open() {
+                    return;
+                }
                 if let Err(error) = SpanStore::delete_spans(analytics, project_id, &spans).await {
                     clean = false;
                     tracing::warn!(
@@ -95,6 +102,10 @@ impl ClickhouseService {
             }
         }
 
+        if !fence.is_open() {
+            tracing::debug!(project_id = %project_id, "Collection is fenced; the cleanup stays recorded");
+            return;
+        }
         match file_service {
             Some(files) if files.is_enabled() => {
                 if let Err(error) = files
@@ -112,6 +123,10 @@ impl ClickhouseService {
             _ => clean = false,
         }
 
+        if !fence.is_open() {
+            tracing::debug!(project_id = %project_id, "Collection is fenced; the cleanup stays recorded");
+            return;
+        }
         // The rows are gone, so their traces' ownership of the records they named goes too - and the records are
         // queued after the release, so a reconciliation pass sees them unowned and collects them.
         match sideseat_ports::traits::release_retained_raw_owners(
@@ -119,6 +134,7 @@ impl ClickhouseService {
             analytics,
             project_id,
             trace_ids,
+            fence,
         )
         .await
         {
@@ -142,6 +158,9 @@ impl ClickhouseService {
 
         match EntityQuery::traces_without_spans(analytics, project_id, trace_ids).await {
             Ok(emptied) if !emptied.is_empty() => {
+                if !fence.is_open() {
+                    return;
+                }
                 if let Err(error) = database
                     .delete_favorites_by_entity("trace", &emptied, project_id)
                     .await
@@ -166,6 +185,7 @@ impl ClickhouseService {
         }
 
         if clean
+            && fence.is_open()
             && let Err(error) = database
                 .complete_retention_cleanup(project_id, completed)
                 .await
@@ -178,6 +198,7 @@ impl ClickhouseService {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn trim_project_to_span_limit(
         service: &Arc<Self>,
         max_spans: u64,
@@ -186,7 +207,13 @@ impl ClickhouseService {
         governance: &Arc<dyn StorageGovernance + Send + Sync>,
         file_service: Option<&Arc<dyn RetentionFileReconciler>>,
         project_id: &ProjectId,
+        fence: &CollectionFence,
     ) -> Result<usize, String> {
+        let fenced = || {
+            (!fence.is_open()).then(|| {
+                "collection is fenced: this process does not hold its store lease".to_string()
+            })
+        };
         let analytics = ClickhouseRepository(Arc::clone(service));
         let counts = AnalyticsMaintenance::count_spans_by_project(
             &analytics,
@@ -257,10 +284,16 @@ impl ClickhouseService {
                 .iter()
                 .map(|candidate| (candidate.trace_id.clone(), candidate.span_id.clone()))
                 .collect::<Vec<_>>();
+            if let Some(error) = fenced() {
+                return Err(error);
+            }
             let tokens = database
                 .record_pressure_eviction(project_id, &spans)
                 .await
                 .map_err(|error| error.to_string())?;
+            if let Some(error) = fenced() {
+                return Err(error);
+            }
             SpanStore::delete_spans(&analytics, project_id, &spans)
                 .await
                 .map_err(|error| error.to_string())?;
@@ -271,6 +304,7 @@ impl ClickhouseService {
                 project_id,
                 &trace_ids,
                 &tokens,
+                fence,
             )
             .await;
             deleted = deleted.saturating_add(candidates.len());
@@ -676,6 +710,7 @@ impl ClickhouseService {
     const AGE_AHEAD_OF_TTL_MINUTES: u64 = 89 * 24 * 60;
 
     /// Start retention cleanup task
+    #[allow(clippy::too_many_arguments)]
     pub fn start_retention_task(
         self: &Arc<Self>,
         config: RetentionConfig,
@@ -684,6 +719,7 @@ impl ClickhouseService {
         file_service: Option<Arc<dyn RetentionFileReconciler>>,
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         governance: Arc<dyn StorageGovernance + Send + Sync>,
+        fence: CollectionFence,
     ) -> Option<JoinHandle<()>> {
         // Always started, limits or not: the schema's own 90-day TTL removes rows too, and the age pass below
         // runs ahead of it so that what the TTL reaps has its cleanup recorded first - the files and raw-record
@@ -716,6 +752,11 @@ impl ClickhouseService {
                         }
                     }
                     _ = interval.tick() => {
+                        // Retention deletes; none of it runs while this process's store lease is lost.
+                        let Some(_pass) = fence.enter("retention") else {
+                            tracing::debug!("Collection is fenced; retention waits");
+                            continue;
+                        };
                         match database
                             .claim_retention_cleanup(
                                 Self::RETENTION_CLEANUP_CLAIM,
@@ -738,6 +779,9 @@ impl ClickhouseService {
                                 }
                                 let analytics = ClickhouseRepository(Arc::clone(&service));
                                 for (project, tokens) in by_project {
+                                    if !fence.is_open() {
+                                        break;
+                                    }
                                     let project_id = ProjectId::from(project);
                                     let cleanup_owner = format!(
                                         "clickhouse-cleanup:{}:{}",
@@ -774,6 +818,7 @@ impl ClickhouseService {
                                             &project_id,
                                             &trace_ids,
                                             &tokens,
+                                            &fence,
                                         )
                                         .await;
                                     }
@@ -809,6 +854,9 @@ impl ClickhouseService {
                             }
                         };
                         for project_id in projects {
+                            if !fence.is_open() {
+                                break;
+                            }
                             let lock_now = service.clock.now();
                             let lease_until = lock_now + chrono::TimeDelta::hours(2);
                             let acquired = match governance
@@ -872,6 +920,8 @@ impl ClickhouseService {
                                             "Could not record the traces ClickHouse age retention expires; \
                                              the delete waits for the next pass"
                                         );
+                                    } else if !fence.is_open() {
+                                        tracing::debug!(project_id = %project_id, "Collection is fenced; retention waits");
                                     } else if let Err(error) = retention::run_retention(
                                         &client,
                                         &delete_table,
@@ -881,6 +931,7 @@ impl ClickhouseService {
                                         project_id.as_str(),
                                         cutoff,
                                         now,
+                                        &fence,
                                     )
                                     .await
                                     {
@@ -892,6 +943,7 @@ impl ClickhouseService {
                                     }
                                 }
                                 if let Some(max_spans) = config.max_spans
+                                    && fence.is_open()
                                     && let Err(error) = Self::trim_project_to_span_limit(
                                         &service,
                                         max_spans,
@@ -900,6 +952,7 @@ impl ClickhouseService {
                                         &governance,
                                         file_service.as_ref(),
                                         &project_id,
+                                        &fence,
                                     )
                                     .await
                                 {

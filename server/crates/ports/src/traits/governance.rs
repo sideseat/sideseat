@@ -544,6 +544,7 @@ pub async fn release_retained_raw_owners(
     analytics: &(dyn RawStore + Sync),
     project_id: &ProjectId,
     trace_ids: &[String],
+    fence: &sideseat_core::utils::collection_fence::CollectionFence,
 ) -> Result<bool, DataError> {
     let mut complete = true;
     for traces in trace_ids.chunks(RAW_RELEASE_TRACES) {
@@ -562,6 +563,11 @@ pub async fn release_retained_raw_owners(
                 .filter(|owner| !still_named.contains(owner))
                 .collect();
             if !gone.is_empty() {
+                // Released only while this process holds its store lease: the reads above may predate a restore
+                // that brought the owner back. Refused, the cleanup stays recorded and is retried.
+                if !fence.is_open() {
+                    return Ok(false);
+                }
                 database
                     .release_raw_owners(project_id, &gone, granted_up_to)
                     .await?;

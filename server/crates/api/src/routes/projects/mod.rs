@@ -202,6 +202,7 @@ pub async fn get_project_storage(
         state.storage_governance.maintenance_reserve_bytes(),
         state.storage_governance.ordinary_limit_bytes(),
         RetentionCleanupDto::new(backlog, chrono::Utc::now()),
+        state.storage_governance.collection_status().into(),
     )))
 }
 

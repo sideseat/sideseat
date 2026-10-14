@@ -290,6 +290,8 @@ impl TracePipeline {
                     for ((msg_id, payload, _, _), answer) in ready.into_iter().zip(answers) {
                         if answer.outcome.is_final() && answer.settled {
                             ack_ids.push(msg_id);
+                        } else if answer.fenced {
+                            // Left pending, uncounted, for a consumer that holds the lease.
                         } else if self.note_staging_failure(&payload.id).await {
                             // Cap exhaustion quarantines the blob/registry row. Stop queue churn,
                             // but never release its bytes.

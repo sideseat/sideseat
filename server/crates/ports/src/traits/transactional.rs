@@ -467,9 +467,10 @@ pub trait FileMetaStore: Send + Sync {
         project_id: &ProjectId,
         file_hash: &str,
         observed_deleting_at: i64,
-    ) -> Result<bool, DataError>;
+    ) -> Result<Option<FileClaim>, DataError>;
 
-    /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
+    /// Claim a file for deletion, if nothing references it and nobody else has claimed it, returning the claim:
+    /// the incarnation whose bytes the claimant may delete.
     ///
     /// The fence that closes the delete-then-recreate window: association refuses while a claim is set,
     /// because a claimed file's bytes may already be gone.
@@ -477,16 +478,32 @@ pub trait FileMetaStore: Send + Sync {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
-    ) -> Result<bool, DataError>;
+    ) -> Result<Option<FileClaim>, DataError>;
 
-    /// Give up a deletion claim, leaving the file in place.
+    /// Give up a deletion claim, leaving the file in place - only while `claim` is still the row's claim.
     async fn release_deletion_claim(
+        &self,
+        project_id: &ProjectId,
+        file_hash: &str,
+        claim: &FileClaim,
+    ) -> Result<(), DataError>;
+
+    /// Clear any deletion claim on a file a restore repair found surviving rows name. A backup taken while a
+    /// collector held the claim restores it, and nothing could release it: ingestion refuses a claimed file, and a
+    /// stale claim is reclaimed only for a file nothing references. Restore-only: no collector runs beside a repair.
+    async fn restore_clear_deletion_claim(
         &self,
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<(), DataError>;
 
-    /// Put back a metadata row whose bytes could not be deleted, as an orphan for a later sweep.
+    /// Move the file incarnation sequence past `above` and past every row's incarnation, so the next file row's
+    /// incarnation is greater than both. It never moves the sequence back. A restore repair calls it before any
+    /// row is created: the sequence a backup restores can issue again incarnations it issued after the backup.
+    async fn advance_file_incarnations(&self, above: i64) -> Result<(), DataError>;
+
+    /// Put back a metadata row whose bytes are stored but whose row was lost, as an orphan for a later sweep,
+    /// returning the row's incarnation - its bytes are then stored under it.
     async fn restore_orphan_metadata(
         &self,
         project_id: &ProjectId,
@@ -494,9 +511,10 @@ pub trait FileMetaStore: Send + Sync {
         media_type: Option<&str>,
         size_bytes: i64,
         hash_algo: &str,
-    ) -> Result<(), DataError>;
+    ) -> Result<i64, DataError>;
 
-    /// Delete a file's metadata only if nothing references it, and say whether it was deleted.
+    /// Delete a file's metadata only if nothing references it and `claim` is still its claim, and say whether it
+    /// was deleted.
     ///
     /// The condition belongs inside the statement: reading a count of zero and then deleting races with
     /// a concurrent association, and loses.
@@ -504,6 +522,7 @@ pub trait FileMetaStore: Send + Sync {
         &self,
         project_id: &ProjectId,
         file_hash: &str,
+        claim: &FileClaim,
     ) -> Result<bool, DataError>;
 
     /// Recompute a file's reference count from the associations that exist, and return it.

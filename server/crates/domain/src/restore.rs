@@ -13,6 +13,7 @@ use thiserror::Error;
 use crate::files::cleanup::{cleanup_orphan_temp_files, cleanup_zero_ref_files_governed};
 use crate::files::{FileRestoreRepairReport, FileService, FileServiceError, MissingFileReference};
 use sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS;
+use sideseat_ports::blobs::{FileStorageError, ObjectVisitor, StoredObject};
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
     AnalyticsRepository, DeletionRecord, DeletionScope, SurvivorReferences, TransactionalRepository,
@@ -55,6 +56,10 @@ pub struct AssociationRepairReport {
     pub unreachable_blobs_deleted: u64,
     pub temp_files_processed: u64,
     pub orphan_files_deleted: u64,
+    /// Objects of the blob store that no file row names: bytes whose row and every reference the restore lost.
+    pub unnamed_objects_deleted: u64,
+    /// The highest incarnation the blob store held, which every file row created from here on is above.
+    pub file_incarnations_advanced_past: i64,
     pub files: FileRestoreRepairReport,
 }
 
@@ -175,8 +180,61 @@ async fn sweep_restored_orphans(
         files.database(),
         FILE_DELETION_CLAIM_STALE_SECS,
         files.governance(),
+        files.collection_fence(),
     )
     .await?)
+}
+
+/// Delete every object of the blob store no file row names, once every trace was found and repaired.
+///
+/// The blob store is restored to its own point, so it can hold bytes whose row and every reference the other
+/// backups lost - nothing names them, no sweep of the rows finds them, and an ingest of the same content stores a
+/// second copy beside them. Ownership repair has rebuilt the row of every file a surviving span or record names,
+/// under the incarnation it stored the bytes as, so an object whose incarnation is not its row's is a copy no row
+/// accounts for. Safe only because nothing else runs - the lease keeps a repair from running beside a server -
+/// since a row and its bytes change apart, never together. Incarnation 0 is the staging area's, whose registry rows name its objects instead.
+async fn sweep_unnamed_objects(
+    _discovered: &DiscoveryComplete,
+    files: &FileService,
+) -> Result<u64, RestoreRepairError> {
+    struct Unnamed<'a> {
+        files: &'a FileService,
+        deleted: u64,
+    }
+
+    #[async_trait::async_trait]
+    impl ObjectVisitor for Unnamed<'_> {
+        async fn visit(&mut self, objects: Vec<StoredObject>) -> Result<(), FileStorageError> {
+            for object in objects.iter().filter(|object| object.incarnation > 0) {
+                let row = self
+                    .files
+                    .database()
+                    .get_file(&object.project_id, &object.hash)
+                    .await
+                    .map_err(|error| FileStorageError::Backend(error.to_string()))?;
+                if row.is_some_and(|row| row.id == object.incarnation) {
+                    continue;
+                }
+                self.files
+                    .storage()
+                    .delete(&object.project_id, object.name())
+                    .await?;
+                self.deleted += 1;
+            }
+            Ok(())
+        }
+    }
+
+    if !files.is_enabled() {
+        return Ok(0);
+    }
+    let mut unnamed = Unnamed { files, deleted: 0 };
+    files
+        .storage()
+        .scan_objects(&mut unnamed)
+        .await
+        .map_err(FileServiceError::from)?;
+    Ok(unnamed.deleted)
 }
 
 /// `reconcile_restored_associations`, with the reads that find and repair each trace's ownership taken from
@@ -229,7 +287,9 @@ async fn reconcile_restored_associations_with(
         .await?;
     }
 
-    report.orphan_files_deleted = sweep_restored_orphans(DiscoveryComplete(()), files).await?;
+    let discovered = DiscoveryComplete(());
+    report.unnamed_objects_deleted = sweep_unnamed_objects(&discovered, files).await?;
+    report.orphan_files_deleted = sweep_restored_orphans(discovered, files).await?;
     normalize_missing_content(&mut report.files.missing_content);
     Ok(report)
 }
@@ -241,12 +301,17 @@ async fn reconcile_restored_associations_with(
 /// transactional backup can lack the association a live trace holds on the same file, so without this the file
 /// was reclaimed by a deleted trace's cleanup while the live trace still named it. Rebuilt first, the live
 /// trace's association keeps the file counted through both.
+///
+/// It begins by moving the file incarnation sequence past the blob store's, before it creates any row.
 pub async fn rebuild_restored_ownership(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
     files: &FileService,
 ) -> Result<AssociationRepairReport, RestoreRepairError> {
-    let mut report = AssociationRepairReport::default();
+    let mut report = AssociationRepairReport {
+        file_incarnations_advanced_past: advance_file_incarnations(database, files).await?,
+        ..AssociationRepairReport::default()
+    };
     let mut projects = database
         .restore_project_ids(usize::MAX)
         .await?
@@ -269,6 +334,29 @@ pub async fn rebuild_restored_ownership(
     }
     normalize_missing_content(&mut report.files.missing_content);
     Ok(report)
+}
+
+/// Move the file incarnation sequence past every incarnation the blob store holds, returning the highest.
+///
+/// The restored transactional store's sequence is the backup's, and the blob store can hold objects named by
+/// incarnations it issued after the backup - its recovery point is its own. Issued again, such an incarnation names
+/// a new row's bytes like an object of the lost timeline, and a delete meant for that one removes the new row's.
+/// So this runs before anything in the repair creates a row (`server/specs/MediaIncarnation.tla`, `Restore`).
+async fn advance_file_incarnations(
+    database: &Arc<TransactionalStore>,
+    files: &FileService,
+) -> Result<i64, RestoreRepairError> {
+    let above = if files.is_enabled() {
+        files
+            .storage()
+            .max_incarnation()
+            .await
+            .map_err(FileServiceError::from)?
+    } else {
+        0
+    };
+    database.advance_file_incarnations(above).await?;
+    Ok(above)
 }
 
 /// Rebuild one project's ownership from both traversals: the traces its stored rows name, read from every

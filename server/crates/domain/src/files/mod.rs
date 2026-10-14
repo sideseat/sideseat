@@ -34,9 +34,11 @@
 
 pub mod cleanup;
 pub mod error;
+mod fenced_storage;
 mod references;
+mod restore_repair;
 
-use sideseat_ports::blobs::{FileContent, FileStorage, FileStorageError};
+use sideseat_ports::blobs::{FileContent, FileStorage, FileStorageError, ObjectName};
 use sideseat_ports::cache::{CacheStore, TypedCache};
 use sideseat_ports::traits::TransactionalRepository;
 use sideseat_ports::types::ProjectId;
@@ -47,6 +49,7 @@ use std::time::Duration;
 use serde::Serialize;
 use sideseat_core::config::FilesConfig;
 use sideseat_core::constants::CACHE_TTL_FILE_QUOTA;
+use sideseat_core::utils::collection_fence::CollectionFence;
 use sideseat_core::utils::file_uri::parse_file_uri;
 use sideseat_ports::cache::CacheKey;
 
@@ -98,6 +101,8 @@ pub struct FileService {
     cache: Arc<dyn CacheStore>,
     /// Shared project fence for legal hold and destructive maintenance.
     governance: Option<Arc<crate::storage_governance::StorageGovernanceService>>,
+    /// Closed while this process's store lease is lost: no file is collected then.
+    fence: CollectionFence,
 }
 
 impl FileService {
@@ -109,7 +114,17 @@ impl FileService {
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         cache: Arc<dyn CacheStore>,
     ) -> Result<Self, FileServiceError> {
-        Self::new_inner(config, temp_dir, storage, database, cache, None, true).await
+        Self::new_inner(
+            config,
+            temp_dir,
+            storage,
+            database,
+            cache,
+            None,
+            CollectionFence::open(),
+        )
+        .with_startup_cleanup()
+        .await
     }
 
     pub async fn new_governed(
@@ -119,6 +134,7 @@ impl FileService {
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         cache: Arc<dyn CacheStore>,
         governance: Arc<crate::storage_governance::StorageGovernanceService>,
+        fence: CollectionFence,
     ) -> Result<Self, FileServiceError> {
         Self::new_inner(
             config,
@@ -127,8 +143,9 @@ impl FileService {
             database,
             cache,
             Some(governance),
-            true,
+            fence,
         )
+        .with_startup_cleanup()
         .await
     }
 
@@ -144,49 +161,50 @@ impl FileService {
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         cache: Arc<dyn CacheStore>,
         governance: Arc<crate::storage_governance::StorageGovernanceService>,
+        fence: CollectionFence,
     ) -> Result<Self, FileServiceError> {
-        Self::new_inner(
+        Ok(Self::new_inner(
             config,
             temp_dir,
             storage,
             database,
             cache,
             Some(governance),
-            false,
-        )
-        .await
+            fence,
+        ))
     }
 
-    async fn new_inner(
+    fn new_inner(
         config: FilesConfig,
         temp_dir: PathBuf,
         storage: Arc<dyn FileStorage>,
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         cache: Arc<dyn CacheStore>,
         governance: Option<Arc<crate::storage_governance::StorageGovernanceService>>,
-        run_cleanup: bool,
-    ) -> Result<Self, FileServiceError> {
+        fence: CollectionFence,
+    ) -> Self {
         tracing::debug!(
             enabled = config.enabled,
             storage = %config.storage,
             quota_bytes = config.quota_bytes,
             "File service initialized"
         );
-
-        let service = Self {
-            storage,
+        Self {
+            // Every deletion of stored bytes this service, its collectors and the staging that shares its store
+            // make stops at the fence.
+            storage: Arc::new(fenced_storage::FencedStorage::new(storage, fence.clone())),
             database,
             config,
             temp_dir,
             cache,
             governance,
-        };
-
-        if run_cleanup {
-            service.run_startup_cleanup().await;
+            fence,
         }
+    }
 
-        Ok(service)
+    async fn with_startup_cleanup(self) -> Result<Self, FileServiceError> {
+        self.run_startup_cleanup().await;
+        Ok(self)
     }
 
     /// Run the ordinary startup cleanup after any restore repair has rebuilt ownership.
@@ -204,11 +222,17 @@ impl FileService {
             &self.database,
             sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS,
             self.governance.as_ref(),
+            &self.fence,
         )
         .await
         {
             tracing::warn!(%error, "Failed to cleanup zero-ref files on startup");
         }
+    }
+
+    /// The fence this service's collection stops at, which every other collector of the process checks too.
+    pub fn collection_fence(&self) -> &CollectionFence {
+        &self.fence
     }
 
     /// Check if file storage is enabled
@@ -235,31 +259,30 @@ impl FileService {
             return Err(FileServiceError::Disabled);
         }
 
-        // Get metadata for media_type via repository trait
+        // The row names the incarnation the bytes are stored under; bytes no row names are no file.
         let repo = self.database.as_ref();
-        let metadata = repo.get_file(project_id, hash).await?;
-        let media_type = metadata.as_ref().and_then(|file| file.media_type.clone());
-
-        // Get data from storage
+        let Some(metadata) = repo.get_file(project_id, hash).await? else {
+            return Err(FileServiceError::NotFound {
+                project_id: project_id.to_string(),
+                hash: hash.to_string(),
+            });
+        };
         let data = self
             .storage
-            .get(project_id, hash)
+            .get(project_id, ObjectName::new(hash, metadata.id))
             .await
             .map_err(|e| match e {
-                FileStorageError::NotFound { .. } if metadata.is_some() => {
-                    FileServiceError::ContentUnavailable {
-                        project_id: project_id.to_string(),
-                        hash: hash.to_string(),
-                    }
-                }
-                FileStorageError::NotFound { .. } => FileServiceError::NotFound {
+                FileStorageError::NotFound { .. } => FileServiceError::ContentUnavailable {
                     project_id: project_id.to_string(),
                     hash: hash.to_string(),
                 },
                 e => FileServiceError::Storage(e),
             })?;
 
-        Ok(FileContent { data, media_type })
+        Ok(FileContent {
+            data,
+            media_type: metadata.media_type,
+        })
     }
 
     /// Check if a file exists
@@ -272,7 +295,13 @@ impl FileService {
             return Ok(false);
         }
 
-        Ok(self.storage.exists(project_id, hash).await?)
+        let Some(row) = self.database.get_file(project_id, hash).await? else {
+            return Ok(false);
+        };
+        Ok(self
+            .storage
+            .exists(project_id, ObjectName::new(hash, row.id))
+            .await?)
     }
 
     /// Get file metadata without loading content
@@ -297,8 +326,12 @@ impl FileService {
                     hash: hash.to_string(),
                 })?;
 
-        // Verify file exists in storage
-        if !self.storage.exists(project_id, hash).await? {
+        // Verify file exists in storage, under the row's incarnation
+        if !self
+            .storage
+            .exists(project_id, ObjectName::new(hash, file_row.id))
+            .await?
+        {
             return Err(FileServiceError::ContentUnavailable {
                 project_id: project_id.to_string(),
                 hash: hash.to_string(),
@@ -346,6 +379,10 @@ impl FileService {
         let repo = self.database.as_ref();
         let mut reconcile: Vec<String> = Vec::new();
         let mut first_error: Option<FileServiceError> = None;
+        // The scans and the releases they decide in one pass, refused while this process's store lease is lost.
+        let Some(_pass) = self.fence.enter("survivor reconciliation") else {
+            return Err(FileStorageError::Fenced.into());
+        };
 
         // Per trace, because `keep` is per trace: a file a survivor of trace A references says nothing about
         // trace B's associations, and unioning the survivor sets across traces would keep B's alive on A's
@@ -385,113 +422,6 @@ impl FileService {
         }
     }
 
-    /// Rebuild uploaded-file ownership from the references in surviving analytics rows.
-    ///
-    /// This is the restore-specific direction of reconciliation: ordinary retention starts from
-    /// transactional associations and releases those no survivor needs, while a mismatched restore can
-    /// have the survivor and the bytes but have lost the association itself. The association is restored
-    /// as durable and the cached count is derived from the resulting rows before any orphan GC may run.
-    ///
-    /// A surviving row whose bytes are absent is not fabricated. Its hash is returned in
-    /// [`FileRestoreRepairReport::missing_content`] so an operator and the API can distinguish corruption
-    /// from a reference that never existed.
-    pub async fn repair_trace_associations_after_restore(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
-    ) -> Result<FileRestoreRepairReport, FileServiceError> {
-        let mut report = FileRestoreRepairReport::default();
-        if !self.config.enabled {
-            return Ok(report);
-        }
-
-        for trace_id in trace_ids {
-            report.traces_scanned += 1;
-            let fields = analytics
-                .file_reference_fields_for_traces(project_id, std::slice::from_ref(trace_id))
-                .await?;
-            let mut uris = Vec::new();
-            for field in &fields {
-                collect_file_references_in_str(field, &mut uris);
-            }
-
-            let mut references = std::collections::BTreeMap::<String, Option<String>>::new();
-            for uri in uris {
-                if let Some(parsed) = parse_file_uri(&uri) {
-                    references
-                        .entry(parsed.hash.to_owned())
-                        .or_insert_with(|| parsed.media_type.map(str::to_owned));
-                }
-            }
-            for hash in raw_media_of_survivors(project_id, trace_id, analytics).await? {
-                references.entry(hash).or_insert(None);
-            }
-            report.references_scanned += references.len() as u64;
-
-            let associated = self
-                .database
-                .get_file_hashes_for_traces(project_id, std::slice::from_ref(trace_id))
-                .await?
-                .into_iter()
-                .collect::<std::collections::HashSet<_>>();
-
-            for (hash, media_type) in references {
-                if !self.storage.exists(project_id, &hash).await? {
-                    report.missing_content.push(MissingFileReference {
-                        project_id: project_id.clone(),
-                        trace_id: trace_id.clone(),
-                        hash,
-                    });
-                    continue;
-                }
-
-                if self.database.get_file(project_id, &hash).await?.is_none() {
-                    let bytes = match self.storage.get(project_id, &hash).await {
-                        Ok(bytes) => bytes,
-                        Err(FileStorageError::NotFound { .. }) => {
-                            report.missing_content.push(MissingFileReference {
-                                project_id: project_id.clone(),
-                                trace_id: trace_id.clone(),
-                                hash,
-                            });
-                            continue;
-                        }
-                        Err(error) => return Err(error.into()),
-                    };
-                    self.database
-                        .restore_orphan_metadata(
-                            project_id,
-                            &hash,
-                            media_type.as_deref(),
-                            i64::try_from(bytes.len()).unwrap_or(i64::MAX),
-                            "sha256",
-                        )
-                        .await?;
-                    report.metadata_rebuilt += 1;
-                }
-
-                self.database
-                    .restore_durable_trace_file(project_id, trace_id, &hash)
-                    .await?;
-                if !associated.contains(&hash) {
-                    report.associations_rebuilt += 1;
-                }
-                self.database.sync_ref_count(project_id, &hash).await?;
-            }
-        }
-
-        report.missing_content.sort_by(|left, right| {
-            (&left.project_id, &left.trace_id, &left.hash).cmp(&(
-                &right.project_id,
-                &right.trace_id,
-                &right.hash,
-            ))
-        });
-        report.missing_content.dedup();
-        Ok(report)
-    }
-
     /// One trace's release, with the **re-check** that closes the commit-after-scan window.
     ///
     /// The survivor scan is a snapshot, and the release happens after it. In between, an ingestion can
@@ -517,6 +447,9 @@ impl FileService {
         repo: &(dyn sideseat_ports::traits::TransactionalRepository + Send + Sync),
     ) -> Result<Vec<String>, FileServiceError> {
         let keep = Self::referenced_hashes(project_id, trace_id, analytics).await?;
+        if !self.fence.is_open() {
+            return Err(FileStorageError::Fenced.into());
+        }
 
         let removed = repo
             .release_trace_files_except(project_id, trace_id, &keep)
@@ -654,6 +587,11 @@ impl FileService {
         }
 
         let repo = self.database.as_ref();
+        // The read and the release it decides in one pass, refused while this process's store lease is lost: a
+        // trace a restore brought back keeps its files. The caller retries, as on a failed delete.
+        let Some(_pass) = self.fence.enter("trace file cleanup") else {
+            return Err(FileStorageError::Fenced.into());
+        };
 
         // How many references these traces hold per file, not just which files.
         //
@@ -671,6 +609,9 @@ impl FileService {
         // its file's stored count would never be recomputed - and the orphan sweeper selects on that count,
         // so nothing would ever reclaim it. Unioning both sets covers the association that arrived late and
         // the one whose row was already gone.
+        if !self.fence.is_open() {
+            return Err(FileStorageError::Fenced.into());
+        }
         let removed = repo.delete_trace_files(project_id, trace_ids).await?;
         let mut hashes: Vec<String> = references.into_iter().map(|(hash, _)| hash).collect();
         hashes.extend(removed);
@@ -690,6 +631,9 @@ impl FileService {
         project_id: &ProjectId,
         hashes: Vec<String>,
     ) -> Result<(), FileServiceError> {
+        // Counted in every case, so the zero-reference sweep finds what is unreferenced; claimed and collected only
+        // in a pass - the rest is left for that sweep, which collects it once the lease is held.
+        let pass = self.fence.enter("file reclaim");
         let repo = self.database.as_ref();
 
         // Recompute each count from the associations that remain, and delete when none do.
@@ -719,19 +663,37 @@ impl FileService {
             // would then delete content a committed row references. `associate_file` refuses through a
             // claim, so that ingestion fails its batch and retries - by which time the file is either
             // gone, and the retry writes it again with the bytes in hand, or the claim was released.
-            if !repo.claim_file_for_deletion(project_id, &hash).await? {
+            // Unreferenced and left for the zero-reference sweep, which collects it once the lease is held.
+            if pass.is_none() || !self.fence.is_open() {
+                tracing::debug!(project_id = %project_id, hash, "Collection is fenced; leaving the file");
+                continue;
+            }
+            let Some(claim) = repo.claim_file_for_deletion(project_id, &hash).await? else {
                 tracing::debug!(
                     project_id = %project_id,
                     hash,
                     "File is referenced or already being deleted; leaving it"
                 );
                 continue;
-            }
+            };
 
-            if let Err(e) = self.storage.delete(project_id, &hash).await {
+            // The claimed incarnation's bytes only (`ObjectName`).
+            if let Err(e) = self
+                .storage
+                .delete(project_id, ObjectName::new(&hash, claim.incarnation))
+                .await
+            {
+                // The delete may still land: released, the claim would let an ingest find these bytes and
+                // count on them. Kept, the claim is taken over and the deletion finished once it is abandoned.
+                if matches!(e, FileStorageError::Abandoned) {
+                    tracing::warn!(project_id = %project_id, hash, "Abandoned deleting file bytes; the claim stays");
+                    continue;
+                }
                 // The row is still there, holding the claim, so nothing has been lost - but the claim
                 // has to go or the file becomes permanently unassociable.
-                if let Err(release_error) = repo.release_deletion_claim(project_id, &hash).await {
+                if let Err(release_error) =
+                    repo.release_deletion_claim(project_id, &hash, &claim).await
+                {
                     tracing::error!(
                         project_id = %project_id,
                         hash,
@@ -752,7 +714,10 @@ impl FileService {
             }
 
             // Bytes gone, so the row must go too - it is the only thing that could still be found.
-            if !repo.delete_file_if_unreferenced(project_id, &hash).await? {
+            if !repo
+                .delete_file_if_unreferenced(project_id, &hash, &claim)
+                .await?
+            {
                 tracing::error!(
                     project_id = %project_id,
                     hash,

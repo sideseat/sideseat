@@ -37,7 +37,9 @@ async fn reclaim_stale_file(
     file_hash: &str,
     observed_deleting_at: i64,
 ) -> Result<bool, SqliteError> {
-    super::reclaim_stale_file(pool, project_id, file_hash, observed_deleting_at, TEST_NOW).await
+    super::reclaim_stale_file(pool, project_id, file_hash, observed_deleting_at, TEST_NOW)
+        .await
+        .map(|claim| claim.is_some())
 }
 
 async fn claim_file_for_deletion(
@@ -45,7 +47,26 @@ async fn claim_file_for_deletion(
     project_id: &str,
     file_hash: &str,
 ) -> Result<bool, SqliteError> {
-    super::claim_file_for_deletion(pool, project_id, file_hash, TEST_NOW).await
+    super::claim_file_for_deletion(pool, project_id, file_hash, TEST_NOW)
+        .await
+        .map(|claim| claim.is_some())
+}
+
+/// The claim the row holds now, taking one at `TEST_NOW` if it holds none - as a claim the caller would hold.
+async fn held_claim(pool: &SqlitePool, file_hash: &str) -> sideseat_ports::types::FileClaim {
+    let (incarnation, claimed_at): (i64, i64) = sqlx::query_as(
+        "UPDATE files SET deleting_at = COALESCE(deleting_at, ?) \
+         WHERE project_id = 'default' AND file_hash = ? RETURNING id, deleting_at",
+    )
+    .bind(TEST_NOW)
+    .bind(file_hash)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    sideseat_ports::types::FileClaim {
+        incarnation,
+        claimed_at,
+    }
 }
 
 async fn sync_ref_count(
@@ -510,9 +531,14 @@ async fn a_claimed_file_refuses_association() {
     );
 
     // Released, it is available again.
-    release_deletion_claim(&pool, "default", test_hash())
-        .await
-        .unwrap();
+    release_deletion_claim(
+        &pool,
+        "default",
+        test_hash(),
+        &held_claim(&pool, test_hash()).await,
+    )
+    .await
+    .unwrap();
     assert!(
         associate_file(
             &pool,
@@ -610,9 +636,14 @@ async fn an_abandoned_claim_is_found_by_age_and_a_fresh_one_is_not() {
         let stale = get_stale_claimed_files(&pool, 0).await.unwrap();
         let observed = stale[0].2;
 
-        release_deletion_claim(&pool, "default", test_hash())
-            .await
-            .expect("release the claim");
+        release_deletion_claim(
+            &pool,
+            "default",
+            test_hash(),
+            &held_claim(&pool, test_hash()).await,
+        )
+        .await
+        .expect("release the claim");
         associate_file(
             &pool,
             "trace-again",
@@ -646,9 +677,14 @@ async fn an_abandoned_claim_is_found_by_age_and_a_fresh_one_is_not() {
 
     // And finishing it is exactly the normal path: the row goes, nothing is left claimed.
     assert!(
-        delete_file_if_unreferenced(&pool, "default", test_hash())
-            .await
-            .unwrap()
+        delete_file_if_unreferenced(
+            &pool,
+            "default",
+            test_hash(),
+            &held_claim(&pool, test_hash()).await,
+        )
+        .await
+        .unwrap()
     );
     assert!(
         get_stale_claimed_files(&pool, 900)
@@ -701,9 +737,14 @@ async fn a_file_referenced_again_before_deletion_survives() {
     .unwrap();
 
     // The delete must now refuse.
-    let deleted = delete_file_if_unreferenced(&pool, "default", test_hash())
-        .await
-        .unwrap();
+    let deleted = delete_file_if_unreferenced(
+        &pool,
+        "default",
+        test_hash(),
+        &held_claim(&pool, test_hash()).await,
+    )
+    .await
+    .unwrap();
     assert!(
         !deleted,
         "the file is referenced by new-trace, so it must not be deleted"

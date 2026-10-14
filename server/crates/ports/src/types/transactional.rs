@@ -157,6 +157,8 @@ pub struct AuthMethodRow {
 /// File metadata row from database
 #[derive(Debug, Clone)]
 pub struct FileRow {
+    /// Also the row's incarnation: a number its store never gives again, which its bytes are stored under
+    /// (`blobs::ObjectName`).
     pub id: i64,
     pub project_id: String,
     pub file_hash: String,
@@ -166,6 +168,16 @@ pub struct FileRow {
     pub ref_count: i64,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// A collector's claim on one incarnation of a file: the incarnation whose bytes it may delete, and the claim's
+/// own value, which a takeover replaces. Releasing the claim or deleting the row is conditional on both, so a
+/// collector whose claim was taken over, or whose file was collected and created again, changes nothing that is
+/// no longer its own (`server/specs/MediaIncarnation.tla`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileClaim {
+    pub incarnation: i64,
+    pub claimed_at: i64,
 }
 
 // ============================================================================

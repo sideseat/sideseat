@@ -6,13 +6,14 @@
 //! after every absent record is explained by the same deletion/retention rules
 //! as ingestion.
 
+use sideseat_core::utils::collection_fence::{CollectionFence, Pass};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use chrono::TimeDelta;
 use prost::Message;
 use sideseat_core::config::RetentionConfig;
-use sideseat_ports::blobs::{FileStorage, FileStorageError};
+use sideseat_ports::blobs::{FileStorage, FileStorageError, ObjectName};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, DeletionScope, TransactionalRepository};
 use sideseat_ports::types::{
@@ -96,10 +97,20 @@ pub enum StagingError {
     /// that replaces this one can write it.
     #[error("the analytics store has failed and the server must restart: {0}")]
     StoreFailed(String),
+    /// This process does not hold its store lease: the attempt said nothing about the payload either, and is
+    /// not counted against it.
+    #[error("this process does not hold its store lease")]
+    Fenced,
 }
 
 /// Owns the blob/registry lifecycle and the signal-specific confirmation
 /// predicates. It deliberately has no time-to-live.
+/// The name a staged payload's bytes are stored under. A payload's blob hash covers its own id, so no two
+/// payloads share one and no name is reincarnated: incarnation 0.
+fn staged_object(blob_hash: &str) -> ObjectName<'_> {
+    ObjectName::new(blob_hash, 0)
+}
+
 pub struct StagingService {
     storage: Arc<dyn FileStorage>,
     database: Arc<dyn TransactionalRepository + Send + Sync>,
@@ -107,6 +118,7 @@ pub struct StagingService {
     clock: Arc<dyn Clock>,
     retention: RetentionConfig,
     redrive_cap: u32,
+    fence: CollectionFence,
 }
 
 impl StagingService {
@@ -125,7 +137,19 @@ impl StagingService {
             clock,
             retention,
             redrive_cap: redrive_cap.max(1),
+            fence: CollectionFence::open(),
         }
+    }
+
+    /// Retire payloads only while `fence` is open: while this process holds its store lease.
+    pub fn with_collection_fence(mut self, fence: CollectionFence) -> Self {
+        self.fence = fence;
+        self
+    }
+
+    /// The fence of this process's store lease, which exports are acknowledged under too.
+    pub fn collection_fence(&self) -> &CollectionFence {
+        &self.fence
     }
 
     /// Stage `bytes`, received at `received_at`: the registration keeps the receipt, which every later write of the
@@ -150,7 +174,7 @@ impl StagingService {
         let blob_hash = hasher.finalize().to_hex().to_string();
 
         self.storage
-            .store(&project_id, &blob_hash, bytes)
+            .store(&project_id, staged_object(&blob_hash), bytes)
             .await
             .map_err(blob_error)?;
 
@@ -171,7 +195,7 @@ impl StagingService {
             Err(error) => {
                 if let Err(cleanup_error) = self
                     .storage
-                    .delete(&payload.project_id, &payload.blob_hash)
+                    .delete(&payload.project_id, staged_object(&payload.blob_hash))
                     .await
                 {
                     tracing::error!(
@@ -252,7 +276,7 @@ impl StagingService {
         };
         let bytes = match self
             .storage
-            .get(&payload.project_id, &payload.blob_hash)
+            .get(&payload.project_id, staged_object(&payload.blob_hash))
             .await
         {
             Ok(bytes) => bytes,
@@ -489,7 +513,7 @@ impl StagingService {
         }
         let bytes = match self
             .storage
-            .get(&payload.project_id, &payload.blob_hash)
+            .get(&payload.project_id, staged_object(&payload.blob_hash))
             .await
         {
             Ok(bytes) => bytes,
@@ -553,9 +577,11 @@ impl StagingService {
         &self,
         payload: &StagedPayload,
     ) -> Result<StagingDisposition, StagingError> {
+        // The reads and the release in one pass: a lease lost between them is not opened again until it is done.
+        let pass = self.fence.enter("staging settlement");
         let disposition = self.disposition(payload).await?;
         if disposition != StagingDisposition::Pending {
-            self.release(payload).await?;
+            self.release_in(pass.as_ref(), payload).await?;
         }
         Ok(disposition)
     }
@@ -570,12 +596,22 @@ impl StagingService {
         if let Some(failure) = self.analytics.fatal_failure() {
             return Err(StagingError::StoreFailed(failure));
         }
+        // An attempt the fence refused - a closed session fence, a settlement left staged - is no evidence
+        // against the payload; counted, a long outage would quarantine exports the next pass stores.
+        if !self.fence.is_open() {
+            return Err(StagingError::Fenced);
+        }
         let attempts = self
             .database
             .increment_staged_redrive_attempts(id)
             .await
             .map_err(|error| StagingError::Registry(error.to_string()))?;
         if attempts >= self.redrive_cap {
+            // Again before the quarantine: the count may have been read from a store a restore has since
+            // taken back.
+            if !self.fence.is_open() {
+                return Err(StagingError::Fenced);
+            }
             self.database
                 .mark_staged_unconfirmed(id)
                 .await
@@ -590,7 +626,25 @@ impl StagingService {
         Ok(false)
     }
 
+    /// Release a terminal payload, in a pass of its own.
     pub async fn release(&self, payload: &StagedPayload) -> Result<(), StagingError> {
+        let pass = self.fence.enter("staging release");
+        self.release_in(pass.as_ref(), payload).await
+    }
+
+    /// Release a payload a pass found terminal. A staged payload's bytes are under a name a restore brings back
+    /// with the registry row that names them: released on a decision from before the restore, the restored row
+    /// would name nothing. So without a pass - the fence was closed when the decision began - or with the fence
+    /// closed now, the payload stays staged, and the sweep releases it once the lease is held again.
+    async fn release_in(
+        &self,
+        pass: Option<&Pass>,
+        payload: &StagedPayload,
+    ) -> Result<(), StagingError> {
+        if pass.is_none() || !self.fence.is_open() {
+            tracing::debug!(staged_payload_id = %payload.id, "Collection is fenced; the payload stays staged");
+            return Ok(());
+        }
         // Registry first: a crash after it leaves an unreferenced blob, while
         // the opposite order leaves a live registry row pointing at no bytes.
         self.database
@@ -599,7 +653,7 @@ impl StagingService {
             .map_err(|error| StagingError::Registry(error.to_string()))?;
         if let Err(error) = self
             .storage
-            .delete(&payload.project_id, &payload.blob_hash)
+            .delete(&payload.project_id, staged_object(&payload.blob_hash))
             .await
         {
             // The terminal fact is the registry deletion. A failed physical
@@ -621,12 +675,16 @@ impl StagingService {
         trace_pipeline: &TracePipeline,
         limit: usize,
     ) -> Result<usize, StagingError> {
+        // Nothing is redriven while this process's store lease is lost: no attempt then can settle, or count.
+        let Some(pass) = self.fence.enter("staging sweep") else {
+            return Ok(0);
+        };
         let payloads = self.pending(limit).await?;
         let count = payloads.len();
         for payload in payloads {
             match self.disposition(&payload).await? {
                 StagingDisposition::Confirmed | StagingDisposition::DeliberatelyAbsent => {
-                    self.release(&payload).await?;
+                    self.release_in(Some(&pass), &payload).await?;
                     continue;
                 }
                 StagingDisposition::Pending => {}

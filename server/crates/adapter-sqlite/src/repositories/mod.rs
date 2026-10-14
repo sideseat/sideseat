@@ -12,6 +12,7 @@ pub mod governance;
 pub mod journal;
 pub mod membership;
 pub mod organization;
+pub mod process_lease;
 pub mod project;
 pub mod raw_arbiter;
 pub mod restore;

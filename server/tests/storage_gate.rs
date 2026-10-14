@@ -292,7 +292,12 @@ async fn the_pinned_corpus_replays_into_the_same_stores() {
         std::fs::remove_dir_all(&root).expect("a fresh directory");
     }
     let exports = corpus();
-    let stores = stack::stores(&root, Arc::new(GateClock)).await;
+    let stores = stack::stores(
+        &root,
+        Arc::new(GateClock),
+        sideseat_core::utils::collection_fence::CollectionFence::open(),
+    )
+    .await;
     // One engine thread and the default checkpoint threshold, set rather than assumed, as
     // `scripts/perf/storage_gate_figures.py` uses: DuckDB lays a checkpoint's segments out in the order its threads
     // finish them, so a store checkpointed by several can differ between two runs of one input, and the server

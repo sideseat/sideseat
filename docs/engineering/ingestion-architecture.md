@@ -228,6 +228,47 @@ survivor reconciliation reads the trace's log references too - DuckDB from `log_
 media-bearing log written and deleted with it, ClickHouse from the trace's log rows - and the log age pass
 records a media-bearing log's trace for release before it deletes, at the bound the span pass uses.
 
+A file's bytes are stored under `{hash}.{incarnation}`, the incarnation being its row's id, a sequence neither
+SQLite's `AUTOINCREMENT` nor PostgreSQL's `BIGSERIAL` reuses; readers resolve the name through the row. The
+collector of an unreferenced file claims the row, deletes the bytes, then the row, and a claim that looks
+abandoned is taken over by another collector. Nothing stops the first from waking afterwards and deleting
+what it was about to delete: under the hash alone that removed the bytes of the same content ingested again,
+and acknowledged, since. Under the incarnation it names a name that is gone, and its row release and delete are
+conditional on the row's id and claim time. `server/specs/MediaIncarnation.tla` models it. There is one row
+per hash at a time, so the content is still stored once; a restore adopts the bytes it finds under any
+incarnation of the hash into the restored row's.
+
+A restore takes the sequence back to the backup's, while the blob store, restored to its own point, can hold
+objects named by incarnations issued after it. So the repair's first step, before it creates any row, lists the
+blob store's highest incarnation and moves the sequence past it and past every row (`file_incarnations_advanced_past`
+in the report); the restored sequence then never issues a lost timeline's name again. The procedure stops every
+process first, and that is load-bearing rather than something naming could provide: a collector paused before
+the restore deletes, when it wakes, the bytes of the row the restore brought back, under the very incarnation the
+backup holds. The model shows both: `Advance` FALSE breaks `StoredNamesBelowNext`, `CollectorsStopped` FALSE breaks
+`AckedReadable`. So the procedure is enforced: each server holds a lease in `process_leases` while it runs, the repair
+refuses while one is live and looks again after a renewal, and no server starts while the repair holds its own
+(`domain::process_leases`). A server whose renewals stop landing does not exit, which would take every instance down on
+one store failover. Instead it closes its `CollectionFence`. The fence holds a deadline 12 s past the last renewal
+that landed and compares it with the clock itself. Retention, the claim and zero-reference sweeps, file reclaim,
+quota eviction, the raw reconciler and staged-payload release check it before each pass, claim or release. Every blob
+deletion goes through `FencedStorage`, which refuses while the fence is closed and abandons a delete at the deadline.
+The fence opens again once the server has taken the lease back, which it cannot do while a repair holds one, and
+then only once every pass entered before the loss has left (`CollectionFence::enter`, the drain): retention, the
+sweeps, eviction, settlement, the trace wave and the export each run inside a pass and check the fence immediately
+before each statement that deletes, so a decision taken before a restore never acts after it. The model holds this
+claim: `MediaIncarnation.tla` with `Lease` and `Drain` keeps `AckedReadable`, and breaks it with `Drain` FALSE. What
+no fence closes is one statement already in flight, and the boundary is drawn at the port: every destructive port
+call is preceded by a check with no await in between, and what happens inside one call is that call's statement.
+ClickHouse's `delete_spans`, which enqueues the spans' raw records and then submits the delete, is one such call: the
+two statements are not checked apart. In the same class are a process paused rather than exited, and a request a
+remote store received before its client gave up. A pass that hangs stalls collection on that instance, which the
+log and `collection.waiting_for` in the project storage report show. The
+fence closes before the repair's second look 20 s after its first, so at that look every server either holds a lease
+the repair sees or has stopped deleting. Exports are not acknowledged while the fence is closed (`export_signal`).
+An export written across the restore could confirm the association the restore and a later export recreated under
+another incarnation. A reused name alone is harmless, because `{hash}.{id}` holds the same bytes whatever timeline
+issued it; the model's `AckedReadable` holds with `Advance` FALSE.
+
 A record without a trace keeps its media inline: there is no trace to own the file under. No captured
 record does this. The planned extension is the log's own identity in the trace position of the owner key.
 

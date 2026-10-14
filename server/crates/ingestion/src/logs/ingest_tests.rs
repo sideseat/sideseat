@@ -207,7 +207,11 @@ async fn a_reference_to_another_project_s_media_becomes_the_note() {
     stores
         .files
         .storage()
-        .store(&ProjectId::from("another-project"), &hash, &bytes)
+        .store(
+            &ProjectId::from("another-project"),
+            sideseat_ports::blobs::ObjectName::new(&hash, 1),
+            &bytes,
+        )
         .await
         .unwrap();
     let uri = format!("#!B64!#image/png::{hash}");
@@ -268,12 +272,6 @@ async fn a_verified_producer_reference_is_seen_by_the_release() {
     let hash = hash_of(&bytes);
     let project = default_project();
     stores
-        .files
-        .storage()
-        .store(&project, &hash, &bytes)
-        .await
-        .unwrap();
-    stores
         .database
         .upsert_file(
             &project,
@@ -281,6 +279,23 @@ async fn a_verified_producer_reference_is_seen_by_the_release() {
             Some("image/png"),
             bytes.len() as i64,
             "sha256",
+        )
+        .await
+        .unwrap();
+    let incarnation = stores
+        .database
+        .get_file(&project, &hash)
+        .await
+        .unwrap()
+        .expect("the row")
+        .id;
+    stores
+        .files
+        .storage()
+        .store(
+            &project,
+            sideseat_ports::blobs::ObjectName::new(&hash, incarnation),
+            &bytes,
         )
         .await
         .unwrap();

@@ -9,6 +9,7 @@ use sideseat_core::config::{
 };
 use sideseat_core::storage::{AppStorage, DataSubdir};
 use sideseat_ports::blobs::FileStorage;
+use sideseat_ports::blobs::ObjectName;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::types::{NormalizedSpan, StagedPayload, StagedSignal};
 use tempfile::TempDir;
@@ -129,28 +130,54 @@ async fn journal_replay_removes_a_trace_resurrected_by_the_analytics_restore() {
     );
 }
 
+/// The incarnation a restored blob store holds the bytes of a file under when no restored row names one.
+const BACKED_UP: i64 = 7;
+
+/// Store `bytes` for `hash` as a restored blob store holds them: under its restored row's incarnation, or
+/// under another when the transactional backup has no row for it.
+async fn restored_blob(stores: &TestStores, project: &ProjectId, hash: &str, bytes: &[u8]) {
+    let incarnation = stores
+        .database
+        .get_file(project, hash)
+        .await
+        .expect("row lookup")
+        .map_or(BACKED_UP, |row| row.id);
+    stores
+        .files
+        .storage()
+        .store(project, ObjectName::new(hash, incarnation), bytes)
+        .await
+        .expect("restored blob");
+}
+
+/// Whether any incarnation of `hash`'s bytes is stored.
+async fn stored(stores: &TestStores, project: &ProjectId, hash: &str) -> bool {
+    !stores
+        .files
+        .storage()
+        .incarnations(project, hash)
+        .await
+        .expect("blob lookup")
+        .is_empty()
+}
+
 #[tokio::test]
 async fn association_repair_reaches_a_fixed_point_before_gc() {
     let stores = stores().await;
     let present = "c".repeat(64);
     let missing = "d".repeat(64);
     let stale = "e".repeat(64);
-    for (hash, bytes) in [
-        (&present, b"live".as_slice()),
-        (&stale, b"stale".as_slice()),
-    ] {
-        stores
-            .files
-            .storage()
-            .store(&ProjectId::from("default"), hash, bytes)
-            .await
-            .expect("restored blob");
-    }
     stores
         .database
         .restore_orphan_metadata(&ProjectId::from("default"), &stale, None, 5, "sha256")
         .await
         .expect("stale metadata");
+    for (hash, bytes) in [
+        (&present, b"live".as_slice()),
+        (&stale, b"stale".as_slice()),
+    ] {
+        restored_blob(&stores, &ProjectId::from("default"), hash, bytes).await;
+    }
     stores
         .database
         .restore_durable_trace_file(&ProjectId::from("default"), "gone", &stale)
@@ -186,22 +213,8 @@ async fn association_repair_reaches_a_fixed_point_before_gc() {
             hash: missing.clone(),
         }]
     );
-    assert!(
-        stores
-            .files
-            .storage()
-            .exists(&ProjectId::from("default"), &present)
-            .await
-            .expect("live blob lookup")
-    );
-    assert!(
-        !stores
-            .files
-            .storage()
-            .exists(&ProjectId::from("default"), &stale)
-            .await
-            .expect("stale blob lookup")
-    );
+    assert!(stored(&stores, &ProjectId::from("default"), &present).await);
+    assert!(!stored(&stores, &ProjectId::from("default"), &stale).await);
     assert!(
         stores
             .database
@@ -231,23 +244,18 @@ async fn association_repair_removes_projects_missing_from_transactional_restore(
     let metadata_blob = "b".repeat(64);
     let staged_blob = "f".repeat(64);
 
-    for (project_id, hash) in [
-        (&analytics_only, &analytics_blob),
-        (&metadata_only, &metadata_blob),
-        (&staged_only, &staged_blob),
-    ] {
-        stores
-            .files
-            .storage()
-            .store(project_id, hash, b"unreachable")
-            .await
-            .expect("unreachable blob");
-    }
     stores
         .database
         .restore_orphan_metadata(&metadata_only, &metadata_blob, None, 11, "sha256")
         .await
         .expect("metadata without project");
+    for (project_id, hash) in [
+        (&analytics_only, &analytics_blob),
+        (&metadata_only, &metadata_blob),
+        (&staged_only, &staged_blob),
+    ] {
+        restored_blob(&stores, project_id, hash, b"unreachable").await;
+    }
     let mut unreachable = span(
         "unreachable-trace",
         "span",
@@ -306,14 +314,7 @@ async fn association_repair_removes_projects_missing_from_transactional_restore(
         (&metadata_only, &metadata_blob),
         (&staged_only, &staged_blob),
     ] {
-        assert!(
-            !stores
-                .files
-                .storage()
-                .exists(project_id, hash)
-                .await
-                .expect("unreachable blob lookup")
-        );
+        assert!(!stored(&stores, project_id, hash).await);
     }
     assert!(
         stores
@@ -417,20 +418,17 @@ async fn a_restore_whose_discovery_is_partial_collects_no_orphan() {
         let project = ProjectId::from("default");
         let orphan = "9".repeat(64);
         stores
-            .files
-            .storage()
-            .store(
-                &project,
-                &orphan,
-                b"named by a trace the restore never reached",
-            )
-            .await
-            .expect("blob");
-        stores
             .database
             .restore_orphan_metadata(&project, &orphan, None, 5, "sha256")
             .await
             .expect("metadata");
+        restored_blob(
+            &stores,
+            &project,
+            &orphan,
+            b"named by a trace the restore never reached",
+        )
+        .await;
         stores
             .database
             .sync_ref_count(&project, &orphan)
@@ -457,12 +455,7 @@ async fn a_restore_whose_discovery_is_partial_collects_no_orphan() {
 
         assert!(outcome.is_err(), "a partial discovery fails the restore");
         assert!(
-            stores
-                .files
-                .storage()
-                .exists(&project, &orphan)
-                .await
-                .expect("blob lookup"),
+            stored(&stores, &project, &orphan).await,
             "the sweep did not run, so the orphan's bytes remain"
         );
         assert!(
@@ -485,16 +478,11 @@ async fn a_file_a_later_page_names_survives_an_earlier_pages_release() {
     let project = ProjectId::from("default");
     let shared = "8".repeat(64);
     stores
-        .files
-        .storage()
-        .store(&project, &shared, b"named by the last trace")
-        .await
-        .expect("blob");
-    stores
         .database
         .restore_orphan_metadata(&project, &shared, None, 5, "sha256")
         .await
         .expect("metadata");
+    restored_blob(&stores, &project, &shared, b"named by the last trace").await;
     stores
         .database
         .restore_durable_trace_file(&project, "a-stale", &shared)
@@ -527,12 +515,7 @@ async fn a_file_a_later_page_names_survives_an_earlier_pages_release() {
 
     assert!(report.files.missing_content.is_empty(), "{report:?}");
     assert!(
-        stores
-            .files
-            .storage()
-            .exists(&project, &shared)
-            .await
-            .expect("blob lookup"),
+        stored(&stores, &project, &shared).await,
         "the live trace's file kept its bytes"
     );
     let owners = stores
@@ -560,16 +543,11 @@ async fn ownership_rebuilt_before_the_journal_keeps_a_file_a_live_trace_names() 
         let project = ProjectId::from("default");
         let shared = "7".repeat(64);
         stores
-            .files
-            .storage()
-            .store(&project, &shared, b"named by the live trace")
-            .await
-            .expect("blob");
-        stores
             .database
             .restore_orphan_metadata(&project, &shared, None, 5, "sha256")
             .await
             .expect("metadata");
+        restored_blob(&stores, &project, &shared, b"named by the live trace").await;
         stores
             .database
             .restore_durable_trace_file(&project, "deleted", &shared)
@@ -614,12 +592,7 @@ async fn ownership_rebuilt_before_the_journal_keeps_a_file_a_live_trace_names() 
             .await
             .expect("replay");
 
-        let kept = stores
-            .files
-            .storage()
-            .exists(&project, &shared)
-            .await
-            .expect("blob lookup");
+        let kept = stored(&stores, &project, &shared).await;
         assert_eq!(
             kept, rebuild_first,
             "rebuilt first: {rebuild_first}; the live trace's file kept its bytes: {kept}"
@@ -636,16 +609,11 @@ async fn association_repair_reaches_a_trace_whose_only_rows_are_logs() {
     let hash = "f".repeat(64);
     let uri = format!("#!B64!#image/png::{hash}");
     stores
-        .files
-        .storage()
-        .store(&project, &hash, b"log-media")
-        .await
-        .expect("restored blob");
-    stores
         .database
         .restore_orphan_metadata(&project, &hash, Some("image/png"), 9, "sha256")
         .await
         .expect("metadata with no owner");
+    restored_blob(&stores, &project, &hash, b"log-media").await;
     stores
         .analytics
         .insert_logs(&[sideseat_ports::types::NormalizedLog {
@@ -671,5 +639,145 @@ async fn association_repair_reaches_a_trace_whose_only_rows_are_logs() {
             .await
             .expect("lookup"),
         "the orphan sweep collected media a surviving log names"
+    );
+}
+
+/// A transactional backup taken while a collector held a file's claim, and a blob store holding the file under
+/// its row's incarnation and another: once the repair finds surviving rows naming it, the file takes new
+/// references again - the claim the backup caught is void - and the other incarnation is gone, not left as a copy
+/// nothing accounts for or collects.
+#[tokio::test]
+async fn a_surviving_file_restored_mid_collection_is_unclaimed_and_kept_once() {
+    let stores = stores().await;
+    let project = ProjectId::from("default");
+    let hash = "e".repeat(64);
+    let row = stores
+        .database
+        .restore_orphan_metadata(&project, &hash, Some("image/png"), 5, "sha256")
+        .await
+        .expect("restored row");
+    stores
+        .database
+        .claim_file_for_deletion(&project, &hash)
+        .await
+        .expect("claim")
+        .expect("the backup caught the collector's claim");
+    for incarnation in [row, row + 5] {
+        stores
+            .files
+            .storage()
+            .store(&project, ObjectName::new(&hash, incarnation), b"bytes")
+            .await
+            .expect("restored blob");
+    }
+    stores
+        .analytics
+        .insert_spans(vec![span(
+            "survivor",
+            "span",
+            Some(format!(r##"[{{"image":"#!B64!#image/png::{hash}"}}]"##)),
+        )])
+        .await
+        .expect("surviving row");
+
+    stores
+        .files
+        .repair_trace_associations_after_restore(
+            &project,
+            &["survivor".to_owned()],
+            stores.analytics.as_ref(),
+        )
+        .await
+        .expect("repair");
+
+    assert!(
+        stores
+            .database
+            .associate_existing_file("later-trace", &project, &hash)
+            .await
+            .expect("association"),
+        "the restored claim still refuses new references"
+    );
+    assert_eq!(
+        stores
+            .files
+            .storage()
+            .incarnations(&project, &hash)
+            .await
+            .expect("incarnations"),
+        [row],
+        "only the row's incarnation is kept"
+    );
+}
+
+/// Bytes whose row and every reference the restore lost are collected, as is a stale incarnation beside a row's
+/// own; the bytes a surviving span names are kept under their row, and the staging area's objects are not files.
+#[tokio::test]
+async fn objects_no_row_names_are_collected_and_named_ones_kept() {
+    let stores = stores().await;
+    let project = ProjectId::from("default");
+    let named = "c".repeat(64);
+    let unnamed = "f".repeat(64);
+    let staged = "9".repeat(64);
+    restored_blob(&stores, &project, &named, b"live").await;
+    let storage = stores.files.storage();
+    storage
+        .store(&project, ObjectName::new(&unnamed, 7), b"lost")
+        .await
+        .unwrap();
+    storage
+        .store(&project, ObjectName::new(&staged, 0), b"staged export")
+        .await
+        .unwrap();
+    stores
+        .analytics
+        .insert_spans(vec![span(
+            "survivor",
+            "span",
+            Some(format!(r##"[{{"image":"#!B64!#image/png::{named}"}}]"##)),
+        )])
+        .await
+        .unwrap();
+
+    let first = reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
+        .await
+        .expect("repair");
+    let row = stores
+        .database
+        .get_file(&project, &named)
+        .await
+        .unwrap()
+        .expect("the named file's row is rebuilt");
+    // A stale incarnation beside the row's own, as a lost timeline's later ingest leaves one.
+    storage
+        .store(&project, ObjectName::new(&named, row.id + 50), b"live")
+        .await
+        .unwrap();
+    reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
+        .await
+        .expect("repair again");
+    let fixed = reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
+        .await
+        .expect("fixed point");
+
+    assert_eq!(first.unnamed_objects_deleted, 1);
+    assert_eq!(fixed.unnamed_objects_deleted, 0);
+    assert!(!stored(&stores, &project, &unnamed).await);
+    assert_eq!(
+        storage.incarnations(&project, &named).await.unwrap(),
+        [row.id]
+    );
+    assert_eq!(
+        storage
+            .get(&project, ObjectName::new(&named, row.id))
+            .await
+            .unwrap(),
+        b"live"
+    );
+    assert!(
+        storage
+            .exists(&project, ObjectName::new(&staged, 0))
+            .await
+            .unwrap()
     );
 }

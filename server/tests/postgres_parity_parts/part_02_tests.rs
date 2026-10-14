@@ -132,6 +132,7 @@ async fn files_and_references_behave_identically() {
             repo.claim_file_for_deletion(&ProjectId::from("default"), &a)
                 .await
                 .unwrap()
+                .is_some()
         ));
         repo.delete_trace_files(&ProjectId::from("default"), &["trace-2".to_string()])
             .await
@@ -141,12 +142,14 @@ async fn files_and_references_behave_identically() {
             repo.claim_file_for_deletion(&ProjectId::from("default"), &a)
                 .await
                 .unwrap()
+                .is_some()
         ));
         t.note(&format!(
             "claim_again={}",
             repo.claim_file_for_deletion(&ProjectId::from("default"), &a)
                 .await
                 .unwrap()
+                .is_some()
         ));
         t.note(&format!(
             "associate_through_fence_is_err={}",
@@ -184,22 +187,37 @@ async fn files_and_references_behave_identically() {
             repo.reclaim_stale_file(&ProjectId::from("default"), &a, observed + 1)
                 .await
                 .unwrap()
+                .is_some()
         ));
-        t.note(&format!(
-            "reclaim_as_observed={}",
-            repo.reclaim_stale_file(&ProjectId::from("default"), &a, observed)
-                .await
-                .unwrap()
-        ));
+        let reclaimed = repo
+            .reclaim_stale_file(&ProjectId::from("default"), &a, observed)
+            .await
+            .unwrap();
+        t.note(&format!("reclaim_as_observed={}", reclaimed.is_some()));
         t.note(&format!(
             "reclaim_twice_on_one_reading={}",
             repo.reclaim_stale_file(&ProjectId::from("default"), &a, observed)
                 .await
                 .unwrap()
+                .is_some()
+        ));
+        let reclaimed = reclaimed.expect("the reclaim");
+        t.note(&format!(
+            "delete_with_a_superseded_claim={}",
+            repo.delete_file_if_unreferenced(
+                &ProjectId::from("default"),
+                &a,
+                &sideseat_ports::types::FileClaim {
+                    claimed_at: reclaimed.claimed_at - 1,
+                    ..reclaimed
+                }
+            )
+            .await
+            .unwrap()
         ));
         t.note(&format!(
             "delete_if_unreferenced={}",
-            repo.delete_file_if_unreferenced(&ProjectId::from("default"), &a)
+            repo.delete_file_if_unreferenced(&ProjectId::from("default"), &a, &reclaimed)
                 .await
                 .unwrap()
         ));
@@ -212,15 +230,18 @@ async fn files_and_references_behave_identically() {
         ));
 
         // The release path, on the file that is still there.
-        t.note(&format!(
-            "claim_b={}",
-            repo.claim_file_for_deletion(&ProjectId::from("default"), &b)
-                .await
-                .unwrap()
-        ));
-        repo.release_deletion_claim(&ProjectId::from("default"), &b)
+        let claim_b = repo
+            .claim_file_for_deletion(&ProjectId::from("default"), &b)
             .await
             .unwrap();
+        t.note(&format!("claim_b={}", claim_b.is_some()));
+        repo.release_deletion_claim(
+            &ProjectId::from("default"),
+            &b,
+            &claim_b.expect("the claim on b"),
+        )
+        .await
+        .unwrap();
         t.note(&format!(
             "associate_after_release_ok={}",
             repo.associate_file(
@@ -265,6 +286,24 @@ async fn files_and_references_behave_identically() {
         let mut orphans = repo.get_orphan_files().await.unwrap();
         orphans.sort();
         t.note(&format!("orphans={}", orphans.len()));
+
+        // A restore repair moves the incarnation sequence past the blob store's, and never back.
+        for (above, byte) in [(1000, 0xc3), (5, 0xd4)] {
+            repo.advance_file_incarnations(above).await.unwrap();
+            let incarnation = repo
+                .restore_orphan_metadata(
+                    &ProjectId::from("default"),
+                    &hash(byte),
+                    None,
+                    1,
+                    "sha256",
+                )
+                .await
+                .unwrap();
+            t.note(&format!(
+                "incarnation_after_advance_past_{above}={incarnation}"
+            ));
+        }
         t
     })
     .await;
@@ -463,7 +502,7 @@ async fn the_file_fence_holds_against_a_concurrent_association() {
     let claimed = claim.await.unwrap().unwrap();
 
     assert!(
-        !claimed,
+        claimed.is_none(),
         "a file with a committed reference was claimed for deletion, so cleanup is about to delete \
          bytes that a span still points at"
     );

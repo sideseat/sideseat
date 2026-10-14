@@ -47,6 +47,7 @@ impl CoreApp {
             Some(Arc::clone(&self.files)),
             Arc::clone(&self.database),
             Arc::from(self.database.governance_repository()),
+            self.files.collection_fence().clone(),
         ) {
             self.shutdown.register(handle).await;
         }
