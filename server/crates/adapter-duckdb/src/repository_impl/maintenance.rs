@@ -12,6 +12,10 @@ impl AnalyticsMaintenance for DuckdbRepository {
         true
     }
 
+    fn expiry_horizon(&self) -> Option<chrono::TimeDelta> {
+        None
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

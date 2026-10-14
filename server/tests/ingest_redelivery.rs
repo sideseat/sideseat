@@ -151,7 +151,7 @@ async fn harness() -> Harness {
 /// [`harness`] for a server whose store lease is `fence`.
 async fn harness_fenced(fence: CollectionFence) -> Harness {
     let dir = tempfile::TempDir::new().expect("temp dir");
-    let stores = stack::stores(dir.path(), Arc::new(FixedClock), fence).await;
+    let stores = stack::stores(dir.path(), Arc::new(FixedClock), fence, None).await;
     stores.create_project(PROJECT, PROJECT, start()).await;
     Harness { _dir: dir, stores }
 }

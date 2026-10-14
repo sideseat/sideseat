@@ -309,6 +309,16 @@ Storage is managed with optional retention limits:
 
 - **Time-based**: If `retention.max_age_minutes` is set, data older than that is deleted. No default (disabled unless configured).
 - **Volume-based**: `retention.max_spans` limits the number of stored spans. Default: 5,000,000. Oldest spans are deleted first.
+- **ClickHouse horizon**: with the ClickHouse analytics backend, every table expires a row 90 days after its own
+  timestamp (a span's start time, a log record's or data point's time). Telemetry already older than that when
+  it arrives is rejected at ingest: the export is answered `200` with `partial_success` counting the rejected
+  spans, data points or log records, and a message naming the 90-day retention horizon. The count is advisory:
+  it is taken when the export is answered, so a legal hold set or cleared at that moment can make it miss or add
+  records, while what is stored always follows the hold in force when each record was written. A project under a legal
+  hold keeps such records, because the hold extends every row's expiry, so they are stored rather than
+  rejected. The 90 days is fixed in the table definitions; changing it means altering every table's `TTL`, and
+  SideSeat does not do that for you. The embedded DuckDB backend has no such horizon and stores old telemetry
+  until retention deletes it, so the two backends answer differently for telemetry older than 90 days.
 
 ## Real-time Streaming
 

@@ -491,6 +491,10 @@ impl AnalyticsMaintenance for DedupAnalyticsRepository {
         self.inner.acknowledged_writes_are_durable()
     }
 
+    fn expiry_horizon(&self) -> Option<chrono::TimeDelta> {
+        self.inner.expiry_horizon()
+    }
+
     // ==================== Project Data Operations (pass-through) ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

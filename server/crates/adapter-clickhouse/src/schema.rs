@@ -17,6 +17,11 @@ use sideseat_core::config::ClickhouseConfig;
 pub const SCHEMA_VERSION: i32 = 2;
 
 pub const TENANT_PROJECT_SETTING: &str = "SQL_sideseat_project_id";
+
+/// How many days a row is kept past its own timestamp, unless a hold keeps it longer: every table's `TTL ...
+/// INTERVAL 90 DAY` clause, which `schema_tests` holds to this. Fixed in the DDL, so a store created with another
+/// value would need its tables altered; the ingest path rejects what is older (`expiry_horizon`).
+pub const TTL_DAYS: i64 = 90;
 pub const TENANT_MAINTENANCE_SETTING: &str = "SQL_sideseat_maintenance";
 
 const TENANT_POLICY_EXPRESSION: &str = "project_id = \

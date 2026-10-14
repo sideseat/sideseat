@@ -167,8 +167,9 @@ fn test_schema_has_ttl() {
             .iter()
             .find(|statement| statement.contains(&format!("CREATE TABLE IF NOT EXISTS {table} ")))
             .unwrap_or_else(|| panic!("{table} schema"));
+        // The horizon the ingest path rejects older records by is the one these tables expire them at.
         assert!(schema.contains(&format!(
-            "TTL greatest({timestamp} + INTERVAL 90 DAY, coalesce(hold_until, \
+            "TTL greatest({timestamp} + INTERVAL {TTL_DAYS} DAY, coalesce(hold_until, \
                  toDateTime64(0, 6, 'UTC'))) DELETE"
         )));
         assert!(

@@ -250,7 +250,8 @@ impl CoreApp {
                 config.otel.retention.clone(),
                 config.otel.staging_redrive_cap,
             )
-            .with_collection_fence(files.collection_fence().clone()),
+            .with_collection_fence(files.collection_fence().clone())
+            .with_storage_governance(Arc::clone(&storage_governance)),
         );
 
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());

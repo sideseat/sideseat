@@ -494,6 +494,10 @@ pub trait AnalyticsMaintenance: Send + Sync {
     /// takes the acknowledgement as durable). Every other settlement reads, whatever this says.
     fn acknowledged_writes_are_durable(&self) -> bool;
 
+    /// How old, by its own timestamp, a record may be and still be kept: one older is dropped soon after it is written,
+    /// unless a legal hold keeps it. `None` where the store keeps every record until retention deletes it.
+    fn expiry_horizon(&self) -> Option<chrono::TimeDelta>;
+
     /// Distinct projects represented by any analytics signal.
     ///
     /// Restore repair cannot seed its traversal only from the transactional store: an analytics backup may

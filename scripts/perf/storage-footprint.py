@@ -218,6 +218,118 @@ def corpus() -> list[dict]:
     return exports
 
 
+def rebased(exports: list[dict], now_ns: int) -> list[dict]:
+    """`exports` moved in time, a tenant at a time: each tenant's latest instant becomes a day before `now_ns`,
+    and every instant of that tenant moves by the same amount, so the offsets within and between its exports -
+    the redeliveries and repeated spans a project's storage depends on - are kept.
+
+    ClickHouse drops, in a merge soon after it writes them, rows older than its tables' TTL by their own timestamp, and the server
+    reports such records rejected; the corpus is captured over months and the synthetic fixtures are dated
+    2025-01-01, so without this the distributed footprint would measure only the exports young enough to keep.
+    The distributed run alone: the embedded gate's bytes are held to the corpus as committed.
+    """
+    day = 86_400 * 10**9
+    parsed = [(export, decoded(export)) for export in exports]
+
+    def span_of(message, signal_name) -> tuple[int, int]:
+        values = [
+            getattr(holder, field)
+            for holder, field in instants(signal_name, message)
+            if getattr(holder, field)
+        ]
+        return (min(values), max(values)) if values else (0, 0)
+
+    spans = [span_of(message, export["signal"]) for export, message in parsed]
+    earliest: dict[str, int] = {}
+    latest: dict[str, int] = {}
+    for (export, _), (low, high) in zip(parsed, spans):
+        if high:
+            tenant = export["tenant"]
+            earliest[tenant] = min(earliest.get(tenant, high), low)
+            latest[tenant] = max(latest.get(tenant, 0), high)
+    out = []
+    for (export, message), (_, high) in zip(parsed, spans):
+        if not high:
+            out.append(export)
+            continue
+        tenant = export["tenant"]
+        # A tenant captured over longer than the horizon - the synthetic fixtures, two years of independent
+        # scenarios - moves an export at a time, or its oldest exports would still fall past it.
+        anchor = (
+            latest[tenant] if latest[tenant] - earliest[tenant] <= 80 * day else high
+        )
+        shift = now_ns - day - anchor
+        for holder, field in instants(export["signal"], message):
+            if getattr(holder, field):
+                setattr(holder, field, getattr(holder, field) + shift)
+        out.append({**export, "body": encoded(export, message)})
+    return out
+
+
+def decoded(export: dict):
+    from google.protobuf import json_format
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+        ExportLogsServiceRequest,
+    )
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
+        ExportMetricsServiceRequest,
+    )
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+        ExportTraceServiceRequest,
+    )
+
+    types = {
+        "traces": ExportTraceServiceRequest,
+        "logs": ExportLogsServiceRequest,
+        "metrics": ExportMetricsServiceRequest,
+    }
+    message = types[export["signal"]]()
+    if export["json"]:
+        json_format.Parse(export["body"], message)
+    else:
+        message.ParseFromString(export["body"])
+    return message
+
+
+def encoded(export: dict, message) -> bytes:
+    from google.protobuf import json_format
+
+    if export["json"]:
+        return json_format.MessageToJson(message).encode()
+    return message.SerializeToString()
+
+
+def instants(signal_name: str, message):
+    """Every (message, field) of `message` holding an instant in Unix nanoseconds."""
+    if signal_name == "traces":
+        for rs in message.resource_spans:
+            for ss in rs.scope_spans:
+                for span in ss.spans:
+                    yield span, "start_time_unix_nano"
+                    yield span, "end_time_unix_nano"
+                    for event in span.events:
+                        yield event, "time_unix_nano"
+    elif signal_name == "logs":
+        for rl in message.resource_logs:
+            for sl in rl.scope_logs:
+                for record in sl.log_records:
+                    yield record, "time_unix_nano"
+                    yield record, "observed_time_unix_nano"
+    else:
+        for rm in message.resource_metrics:
+            for sm in rm.scope_metrics:
+                for metric in sm.metrics:
+                    kind = metric.WhichOneof("data")
+                    if not kind:
+                        continue
+                    for point in getattr(metric, kind).data_points:
+                        yield point, "time_unix_nano"
+                        if point.DESCRIPTOR.fields_by_name.get("start_time_unix_nano"):
+                            yield point, "start_time_unix_nano"
+                        for exemplar in getattr(point, "exemplars", []):
+                            yield exemplar, "time_unix_nano"
+
+
 def derived_metrics(work: Path) -> list[dict]:
     """The deterministic metric load (`scripts/perf/metrics-load.py`), in place of the 480 captured points."""
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
@@ -841,6 +953,9 @@ def main() -> int:
         exports = [e for e in exports if e["signal"] != "metrics"] + derived_metrics(
             work
         )
+    if args.mode == "distributed":
+        now_ns = time.time_ns()
+        exports = rebased(exports, now_ns)
     log(f"corpus: {len(exports)} exports")
     extra_env = {}
     server = None

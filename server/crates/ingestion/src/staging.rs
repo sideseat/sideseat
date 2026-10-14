@@ -7,6 +7,7 @@
 //! as ingestion.
 
 use sideseat_core::utils::collection_fence::{CollectionFence, Pass};
+use sideseat_domain::storage_governance::StorageGovernanceService;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -15,7 +16,7 @@ use prost::Message;
 use sideseat_core::config::RetentionConfig;
 use sideseat_ports::blobs::{FileStorage, FileStorageError, ObjectName};
 use sideseat_ports::clock::Clock;
-use sideseat_ports::traits::{AnalyticsRepository, DeletionScope, TransactionalRepository};
+use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::{
     ProjectId, StagedPayload, StagedRecord, StagedSignal, WinningRevision,
 };
@@ -119,6 +120,9 @@ pub struct StagingService {
     retention: RetentionConfig,
     redrive_cap: u32,
     fence: CollectionFence,
+    /// The legal holds a record older than the backend's expiry horizon is kept under; without it, no record is
+    /// taken for expired.
+    governance: Option<Arc<StorageGovernanceService>>,
 }
 
 impl StagingService {
@@ -138,13 +142,26 @@ impl StagingService {
             retention,
             redrive_cap: redrive_cap.max(1),
             fence: CollectionFence::open(),
+            governance: None,
         }
+    }
+
+    /// Take a record older than the backend's expiry horizon for deliberately absent - the backend dropped it as
+    /// it was written - unless `governance` holds its project.
+    pub fn with_storage_governance(mut self, governance: Arc<StorageGovernanceService>) -> Self {
+        self.governance = Some(governance);
+        self
     }
 
     /// Retire payloads only while `fence` is open: while this process holds its store lease.
     pub fn with_collection_fence(mut self, fence: CollectionFence) -> Self {
         self.fence = fence;
         self
+    }
+
+    /// How old a record may be and still be kept by the analytics backend ([`AnalyticsMaintenance`]).
+    pub fn expiry_horizon(&self) -> Option<TimeDelta> {
+        self.analytics.expiry_horizon()
     }
 
     /// The fence of this process's store lease, which exports are acknowledged under too.
@@ -313,11 +330,23 @@ impl StagingService {
         payload: &StagedPayload,
     ) -> Result<StagingDisposition, StagingError> {
         if self.all_confirmed(payload).await? {
-            return Ok(if self.raw_covers(payload, &payload.records).await? {
-                StagingDisposition::Confirmed
-            } else {
-                StagingDisposition::Pending
-            });
+            if self.raw_covers(payload, &payload.records).await? {
+                return Ok(StagingDisposition::Confirmed);
+            }
+            // Rows still found whose raw record the backend has already expired: past every record's age, the
+            // record is not coming back, and writing it again would expire it again.
+            if payload.records.is_empty() {
+                return Ok(StagingDisposition::Pending);
+            }
+            for record in &payload.records {
+                if !self
+                    .expired(&payload.project_id, record.timestamp())
+                    .await?
+                {
+                    return Ok(StagingDisposition::Pending);
+                }
+            }
+            return Ok(StagingDisposition::DeliberatelyAbsent);
         }
 
         if !self
@@ -356,7 +385,17 @@ impl StagingService {
         }
 
         if !self.raw_covers(payload, &confirmed).await? {
-            return Ok(StagingDisposition::Pending);
+            // Its rows found but its raw record gone: past every one's age, the backend has expired the record,
+            // and a write would expire it again. Any other is still owed.
+            for record in &confirmed {
+                if !self
+                    .expired(&payload.project_id, record.timestamp())
+                    .await?
+                {
+                    return Ok(StagingDisposition::Pending);
+                }
+            }
+            saw_absence = true;
         }
         let held = self.held_by_own_record(payload, &superseded).await?;
         for record in superseded {
@@ -716,14 +755,26 @@ impl StagingService {
                 }
                 StagedSignal::Metrics => {
                     match crate::received::staged_metrics(&bytes, current.project_id.as_str()) {
-                        Ok(request) => crate::metrics::ingest(
-                            &request,
-                            self.analytics.as_ref(),
-                            self.database.as_ref(),
-                            current.created_at,
-                        )
-                        .await
-                        .is_ok(),
+                        // Governed as the export was: a hold stamps its rows, which the backend keeps by it.
+                        Ok(request) => match &self.governance {
+                            Some(governance) => crate::metrics::ingest_governed(
+                                &request,
+                                self.analytics.as_ref(),
+                                self.database.as_ref(),
+                                current.created_at,
+                                governance,
+                            )
+                            .await
+                            .is_ok(),
+                            None => crate::metrics::ingest(
+                                &request,
+                                self.analytics.as_ref(),
+                                self.database.as_ref(),
+                                current.created_at,
+                            )
+                            .await
+                            .is_ok(),
+                        },
                         Err(error) => {
                             tracing::error!(
                                 staged_payload_id = %current.id,
@@ -736,15 +787,27 @@ impl StagingService {
                 }
                 StagedSignal::Logs => {
                     match crate::received::staged_logs(&bytes, current.project_id.as_str()) {
-                        Ok(request) => crate::logs::ingest(
-                            &request,
-                            self.analytics.as_ref(),
-                            self.database.as_ref(),
-                            Some(trace_pipeline.file_service()),
-                            current.created_at,
-                        )
-                        .await
-                        .is_ok(),
+                        Ok(request) => match &self.governance {
+                            Some(governance) => crate::logs::ingest_governed(
+                                &request,
+                                self.analytics.as_ref(),
+                                self.database.as_ref(),
+                                Some(trace_pipeline.file_service()),
+                                current.created_at,
+                                governance,
+                            )
+                            .await
+                            .is_ok(),
+                            None => crate::logs::ingest(
+                                &request,
+                                self.analytics.as_ref(),
+                                self.database.as_ref(),
+                                Some(trace_pipeline.file_service()),
+                                current.created_at,
+                            )
+                            .await
+                            .is_ok(),
+                        },
                         Err(error) => {
                             tracing::error!(
                                 staged_payload_id = %current.id,
@@ -850,53 +913,6 @@ impl StagingService {
             )
             .await
             .map_err(|error| StagingError::Registry(error.to_string()))
-    }
-
-    async fn record_deliberately_absent(
-        &self,
-        project_id: &ProjectId,
-        record: &StagedRecord,
-    ) -> Result<bool, StagingError> {
-        if let Some(max_age) = self.retention.max_age_minutes {
-            let cutoff = self.clock.now()
-                - TimeDelta::try_minutes(i64::try_from(max_age).unwrap_or(i64::MAX))
-                    .unwrap_or(TimeDelta::MAX);
-            if record.timestamp() < cutoff {
-                return Ok(true);
-            }
-        }
-
-        let journaled = match record {
-            StagedRecord::Span {
-                trace_id, span_id, ..
-            } => {
-                self.database
-                    .deletion_is_journaled(project_id, DeletionScope::Span, trace_id, Some(span_id))
-                    .await
-            }
-            StagedRecord::Log {
-                trace_id: Some(trace_id),
-                span_id,
-                ..
-            } => {
-                self.database
-                    .deletion_is_journaled(
-                        project_id,
-                        if span_id.is_some() {
-                            DeletionScope::Span
-                        } else {
-                            DeletionScope::Trace
-                        },
-                        trace_id,
-                        span_id.as_deref(),
-                    )
-                    .await
-            }
-            StagedRecord::Metric { .. } | StagedRecord::Log { trace_id: None, .. } => {
-                return Ok(false);
-            }
-        };
-        journaled.map_err(|error| StagingError::Registry(error.to_string()))
     }
 }
 

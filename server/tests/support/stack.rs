@@ -76,7 +76,15 @@ impl Stores {
 /// stored.
 ///
 /// The stores delete, collect and acknowledge only while `fence` is open, as a server holding its lease does.
-pub async fn stores(root: &Path, clock: Arc<dyn Clock>, fence: CollectionFence) -> Stores {
+///
+/// The analytics store is DuckDB, or the ClickHouse `clickhouse` names - the distributed backend, with the
+/// transactional store still SQLite.
+pub async fn stores(
+    root: &Path,
+    clock: Arc<dyn Clock>,
+    fence: CollectionFence,
+    clickhouse: Option<&sideseat_core::config::ClickhouseConfig>,
+) -> Stores {
     let app_storage = AppStorage::init_for_test(root.to_path_buf());
     std::fs::create_dir_all(app_storage.subdir(DataSubdir::FilesTemp)).expect("files temp dir");
     let cache = Arc::new(
@@ -102,13 +110,17 @@ pub async fn stores(root: &Path, clock: Arc<dyn Clock>, fence: CollectionFence) 
     );
     let analytics = Arc::new(
         AnalyticsService::init(
-            AnalyticsBackend::Duckdb,
+            if clickhouse.is_some() {
+                AnalyticsBackend::Clickhouse
+            } else {
+                AnalyticsBackend::Duckdb
+            },
             &app_storage,
-            None,
+            clickhouse,
             Arc::clone(&clock),
         )
         .await
-        .expect("duckdb"),
+        .expect("analytics"),
     );
     let database_port: Arc<dyn TransactionalRepository + Send + Sync> =
         Arc::from(database.repository());
@@ -160,7 +172,8 @@ pub async fn stores(root: &Path, clock: Arc<dyn Clock>, fence: CollectionFence) 
             RetentionConfig::default(),
             5,
         )
-        .with_collection_fence(fence),
+        .with_collection_fence(fence)
+        .with_storage_governance(Arc::clone(&governance)),
     );
     let pipeline = Arc::new(
         TracePipeline::new(

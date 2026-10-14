@@ -786,6 +786,12 @@ impl AnalyticsMaintenance for ClickhouseRepository {
         false
     }
 
+    /// The tables' TTL: a row older than it, by its own timestamp and with no hold beyond, goes in a TTL merge soon
+    /// after it is written (`schema::TTL_DAYS`).
+    fn expiry_horizon(&self) -> Option<chrono::TimeDelta> {
+        chrono::TimeDelta::try_days(crate::schema::TTL_DAYS)
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

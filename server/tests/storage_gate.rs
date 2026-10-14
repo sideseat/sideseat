@@ -296,6 +296,7 @@ async fn the_pinned_corpus_replays_into_the_same_stores() {
         &root,
         Arc::new(GateClock),
         sideseat_core::utils::collection_fence::CollectionFence::open(),
+        None,
     )
     .await;
     // One engine thread and the default checkpoint threshold, set rather than assumed, as

@@ -175,7 +175,7 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `postgres.idle_timeout_secs` | number | Idle timeout (seconds) |
 | `postgres.max_lifetime_secs` | number | Max lifetime (seconds) |
 | `postgres.statement_timeout_secs` | number | Statement timeout (seconds) |
-| `clickhouse.url` | string | ClickHouse 26.4+ connection URL |
+| `clickhouse.url` | string | ClickHouse 26.4+ connection URL. Its tables keep a row for 90 days past the row's own timestamp (longer under a legal hold), and telemetry older than that is rejected at ingest; see [OpenTelemetry retention](/docs/reference/otel/#retention) |
 | `clickhouse.database` | string | Database name |
 | `clickhouse.user` | string | Username |
 | `clickhouse.password` | string | Password |

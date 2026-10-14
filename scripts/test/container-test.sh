@@ -127,7 +127,7 @@ case "$scenario" in
     SIDESEAT_TEST_CLICKHOUSE_URL="http://127.0.0.1:$CH_TEST_PORT" \
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-      cargo test --locked -p sideseat-server --test clickhouse_parity -- --test-threads=1
+      cargo test --locked -p sideseat-server --test clickhouse_parity --test distributed_ingest -- --test-threads=1
     ;;
 
   clickhouse-scale)

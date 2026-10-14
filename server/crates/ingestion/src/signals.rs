@@ -105,7 +105,20 @@ pub enum SignalExportError {
 pub enum SignalRejection {
     Gone,
     Unstorable,
+    /// Older, by its own timestamp, than the backend keeps a record: its expiry horizon, in days.
+    Expired(i64),
     Mixed,
+}
+
+impl SignalRejection {
+    /// The answer's wording for records the backend's expiry horizon of `days` days rejects.
+    fn expired_message(what: &str, days: i64, partial: bool) -> String {
+        format!(
+            "{}{what} older than the backend's {days}-day retention horizon were rejected; a legal hold on the \
+             project keeps such records",
+            if partial { "some " } else { "" }
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,6 +154,8 @@ pub trait Signal: Send + Sync {
     fn lifecycle(&self) -> LifecycleStrategy;
     fn inject_project_id(&self, request: &mut Self::Request, project_id: &str);
     fn strip_unstorable(&self, request: &mut Self::Request) -> usize;
+    /// Records timestamped before `cutoff` (Unix nanoseconds), counted.
+    fn expired(&self, request: &Self::Request, cutoff: u64) -> usize;
     fn record_count(&self, request: &Self::Request) -> usize;
     fn staged_signal(&self) -> StagedSignal;
     fn staged_records(
@@ -216,14 +231,13 @@ async fn export_signal_unfenced<S: Signal>(
         .await;
     }
 
-    let rejected_unstorable = signal.strip_unstorable(&mut request);
+    let unstorable = signal.strip_unstorable(&mut request);
+    // Records older than the backend keeps are counted when the export is answered, once it is written: a hold
+    // set or cleared meanwhile decides what the backend kept.
+    let early = expiry::Early::of(unstorable, None);
     let remaining = signal.record_count(&request);
     if remaining == 0 {
-        return Ok(signal.response((rejected_unstorable > 0).then_some((
-            rejected_unstorable,
-            SignalRejection::Unstorable,
-            false,
-        ))));
+        return Ok(signal.response(early.answer(0)));
     }
 
     let records = signal.staged_records(&request, context.clock.now());
@@ -334,15 +348,12 @@ async fn export_signal_unfenced<S: Signal>(
 
             match last_outcome {
                 PersistOutcome::Stored => {
-                    Ok(signal.response((rejected_unstorable > 0).then_some((
-                        rejected_unstorable,
-                        SignalRejection::Unstorable,
-                        true,
-                    ))))
+                    let early = early.with(expiry::expired(signal, &request, &context).await?);
+                    Ok(signal.response(early.answer(remaining)))
                 }
                 PersistOutcome::Dropped { records, reason } => {
-                    let (records, reason) =
-                        combine_rejections(rejected_unstorable, records, reason);
+                    let early = early.with(expiry::expired(signal, &request, &context).await?);
+                    let (records, reason) = combine_rejections(early, records, reason);
                     if signal.total_drop_is_error(reason) {
                         Err(SignalExportError::Gone)
                     } else {
@@ -350,8 +361,8 @@ async fn export_signal_unfenced<S: Signal>(
                     }
                 }
                 PersistOutcome::PartlyDropped { records, reason } => {
-                    let (records, reason) =
-                        combine_rejections(rejected_unstorable, records, reason);
+                    let early = early.with(expiry::expired(signal, &request, &context).await?);
+                    let (records, reason) = combine_rejections(early, records, reason);
                     Ok(signal.response(Some((records, reason, true))))
                 }
             }
@@ -399,27 +410,24 @@ async fn export_signal_unfenced<S: Signal>(
                 return Err(SignalExportError::QueueFull);
             }
 
-            Ok(signal.response((rejected_unstorable > 0).then_some((
-                rejected_unstorable,
-                SignalRejection::Unstorable,
-                true,
-            ))))
+            let early = early.with(expiry::expired(signal, &request, &context).await?);
+            Ok(signal.response(early.answer(remaining)))
         }
     }
 }
 
 fn combine_rejections(
-    unstorable: usize,
+    early: expiry::Early,
     records: usize,
     reason: SignalRejection,
 ) -> (usize, SignalRejection) {
-    if unstorable == 0 {
+    let Some(early_reason) = early.reason else {
         return (records, reason);
-    }
+    };
     (
-        unstorable.saturating_add(records),
-        if reason == SignalRejection::Unstorable {
-            SignalRejection::Unstorable
+        early.combined_with(records),
+        if reason == early_reason {
+            reason
         } else {
             SignalRejection::Mixed
         },
@@ -498,6 +506,10 @@ impl Signal for TraceSignal {
         strip_unstorable_spans(request)
     }
 
+    fn expired(&self, request: &Self::Request, cutoff: u64) -> usize {
+        storable::expired_spans(request, cutoff)
+    }
+
     fn record_count(&self, request: &Self::Request) -> usize {
         request
             .resource_spans
@@ -535,23 +547,29 @@ impl Signal for TraceSignal {
             rejected_spans: records as i64,
             error_message: match (reason, partial) {
                 (SignalRejection::Gone, true) => {
-                    "some spans' project, trace or session is unknown or is being deleted"
+                    "some spans' project, trace or session is unknown or is being deleted".to_string()
                 }
                 (SignalRejection::Gone, false) => {
-                    "the project, trace or session is unknown or is being deleted"
+                    "the project, trace or session is unknown or is being deleted".to_string()
                 }
                 (SignalRejection::Unstorable, true) => {
                     "some spans were rejected as unstorable; check their timestamps are within 1900-2299"
+                        .to_string()
                 }
                 (SignalRejection::Unstorable, false) => {
                     "spans were rejected as unstorable; check their timestamps are within 1900-2299"
+                        .to_string()
+                }
+                (SignalRejection::Expired(days), partial) => {
+                    SignalRejection::expired_message("spans", days, partial)
                 }
                 (SignalRejection::Mixed, true) => {
-                    "some spans were rejected for multiple reasons"
+                    "some spans were rejected for multiple reasons".to_string()
                 }
-                (SignalRejection::Mixed, false) => "spans were rejected for multiple reasons",
-            }
-            .to_string(),
+                (SignalRejection::Mixed, false) => {
+                    "spans were rejected for multiple reasons".to_string()
+                }
+            },
         });
         ExportTraceServiceResponse { partial_success }
     }
@@ -652,6 +670,10 @@ impl Signal for MetricsSignal {
         storable::strip_unstorable_metrics(request)
     }
 
+    fn expired(&self, request: &Self::Request, cutoff: u64) -> usize {
+        storable::expired_metrics(request, cutoff)
+    }
+
     fn record_count(&self, request: &Self::Request) -> usize {
         request
             .resource_metrics
@@ -712,24 +734,22 @@ impl Signal for MetricsSignal {
 
     fn response(&self, rejected: Option<(usize, SignalRejection, bool)>) -> Self::Response {
         ExportMetricsServiceResponse {
-            partial_success: rejected.map(
-                |(records, reason, _partial)| ExportMetricsPartialSuccess {
-                    rejected_data_points: records as i64,
-                    error_message: match reason {
-                        SignalRejection::Gone => {
-                            "the project is unknown or is being deleted"
-                        }
-                        SignalRejection::Unstorable => {
-                            "the data point timestamps are outside the storable range"
-                        }
-                        SignalRejection::Mixed => {
-                            "some projects are unknown or being deleted, and some data point timestamps \
-                             are outside the storable range"
-                        }
+            partial_success: rejected.map(|(records, reason, partial)| ExportMetricsPartialSuccess {
+                rejected_data_points: records as i64,
+                error_message: match reason {
+                    SignalRejection::Gone => "the project is unknown or is being deleted".to_string(),
+                    SignalRejection::Unstorable => {
+                        "the data point timestamps are outside the storable range".to_string()
                     }
-                    .to_string(),
+                    SignalRejection::Expired(days) => {
+                        SignalRejection::expired_message("data points", days, partial)
+                    }
+                    SignalRejection::Mixed => "data points were rejected for more than one reason: an unknown or \
+                                               deleted project, a timestamp outside the storable range, or one \
+                                               older than the backend's retention horizon"
+                        .to_string(),
                 },
-            ),
+            }),
         }
     }
 
@@ -833,6 +853,10 @@ impl Signal for LogSignal {
         storable::strip_unstorable_logs(request)
     }
 
+    fn expired(&self, request: &Self::Request, cutoff: u64) -> usize {
+        storable::expired_logs(request, cutoff)
+    }
+
     fn record_count(&self, request: &Self::Request) -> usize {
         request
             .resource_logs
@@ -884,19 +908,21 @@ impl Signal for LogSignal {
 
     fn response(&self, rejected: Option<(usize, SignalRejection, bool)>) -> Self::Response {
         ExportLogsServiceResponse {
-            partial_success: rejected.map(|(records, reason, _)| ExportLogsPartialSuccess {
+            partial_success: rejected.map(|(records, reason, partial)| ExportLogsPartialSuccess {
                 rejected_log_records: records as i64,
                 error_message: match reason {
-                    SignalRejection::Gone => "the project is unknown or is being deleted",
+                    SignalRejection::Gone => "the project is unknown or is being deleted".to_string(),
                     SignalRejection::Unstorable => {
-                        "the log timestamps are outside the storable range"
+                        "the log timestamps are outside the storable range".to_string()
                     }
-                    SignalRejection::Mixed => {
-                        "some projects are unknown or being deleted, and some log timestamps are \
-                         outside the storable range"
+                    SignalRejection::Expired(days) => {
+                        SignalRejection::expired_message("log records", days, partial)
                     }
-                }
-                .to_string(),
+                    SignalRejection::Mixed => "log records were rejected for more than one reason: an unknown or \
+                                               deleted project, a timestamp outside the storable range, or one \
+                                               older than the backend's retention horizon"
+                        .to_string(),
+                },
             }),
         }
     }
@@ -948,6 +974,7 @@ impl Signal for LogSignal {
     }
 }
 
+mod expiry;
 pub(crate) mod storable;
 
 #[cfg(test)]

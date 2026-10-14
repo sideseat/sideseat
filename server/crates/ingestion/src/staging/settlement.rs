@@ -12,6 +12,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
+use chrono::TimeDelta;
+use sideseat_ports::traits::DeletionScope;
 use sideseat_ports::types::{ProjectId, StagedPayload, StagedRecord, StagedSignal};
 
 use super::{StagingDisposition, StagingError, StagingService};
@@ -134,5 +136,79 @@ impl StagingService {
             && records.iter().all(|record| {
                 matching.contains(record) && covered.contains(&(record.0.clone(), record.1.clone()))
             })
+    }
+
+    /// Whether a record of `project_id` timestamped `at` is older than what is kept - the configured retention
+    /// age, or the backend's expiry horizon, past which it drops a row as it writes it - and no legal hold keeps
+    /// it. A held project's records are kept whatever their age, so none is taken for gone.
+    pub(super) async fn expired(
+        &self,
+        project_id: &ProjectId,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, StagingError> {
+        let now = self.clock.now();
+        let past_age = self.retention.max_age_minutes.is_some_and(|max_age| {
+            at < now
+                - TimeDelta::try_minutes(i64::try_from(max_age).unwrap_or(i64::MAX))
+                    .unwrap_or(TimeDelta::MAX)
+        });
+        let past_horizon = self
+            .analytics
+            .expiry_horizon()
+            .is_some_and(|horizon| at < now - horizon);
+        if !past_age && !past_horizon {
+            return Ok(false);
+        }
+        match &self.governance {
+            Some(governance) => Ok(governance
+                .current_hold(project_id)
+                .await
+                .map_err(|error| StagingError::Registry(error.to_string()))?
+                .is_none()),
+            // Without the holds, only the configured age, as before: the horizon is never assumed.
+            None => Ok(past_age),
+        }
+    }
+
+    pub(super) async fn record_deliberately_absent(
+        &self,
+        project_id: &ProjectId,
+        record: &StagedRecord,
+    ) -> Result<bool, StagingError> {
+        if self.expired(project_id, record.timestamp()).await? {
+            return Ok(true);
+        }
+
+        let journaled = match record {
+            StagedRecord::Span {
+                trace_id, span_id, ..
+            } => {
+                self.database
+                    .deletion_is_journaled(project_id, DeletionScope::Span, trace_id, Some(span_id))
+                    .await
+            }
+            StagedRecord::Log {
+                trace_id: Some(trace_id),
+                span_id,
+                ..
+            } => {
+                self.database
+                    .deletion_is_journaled(
+                        project_id,
+                        if span_id.is_some() {
+                            DeletionScope::Span
+                        } else {
+                            DeletionScope::Trace
+                        },
+                        trace_id,
+                        span_id.as_deref(),
+                    )
+                    .await
+            }
+            StagedRecord::Metric { .. } | StagedRecord::Log { trace_id: None, .. } => {
+                return Ok(false);
+            }
+        };
+        journaled.map_err(|error| StagingError::Registry(error.to_string()))
     }
 }
