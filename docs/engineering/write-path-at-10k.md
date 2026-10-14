@@ -5,9 +5,10 @@ one core; "identical whatever the core count" means identical rows and answers f
 per-table bytes held by the storage gate's deterministic replay; and the new write protocol comes after the other
 targets. Until then the write path is tuned, and only by changes with a measured win: fewer statements per export
 did not show one (section 1.1). Before more tuning comes a diagnosis of where an export's time goes, because the
-rate does not rise with cores (section 1.1). The target was put as AGENTS.md states it: sustained ingest of
-at least 10,000 spans a second on one Ampere A1 core, with the server and its embedded backend inside 2 GB,
-throughput rising with cores, and the stored bytes and every answer identical whatever the core count.
+rate does not rise with cores (section 1.1). The target was first put as one Ampere A1 core; AGENTS.md now
+states it as decided: sustained ingest of at least 10,000 spans a second on one four-core Ampere A1 machine, with
+the server and its embedded backend inside 2 GB, and identical rows and answers for identical receipts whatever
+the core count.
 
 ## 1. What tuning reaches
 
