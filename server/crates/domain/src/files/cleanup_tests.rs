@@ -641,3 +641,106 @@ async fn an_abandoned_delete_keeps_its_claim() {
         "the abandoned delete's claim was released"
     );
 }
+
+/// Bytes an ingest stores between a collection's delete of them and its delete of their row - its association
+/// outrun by the collection - are deleted once more after the row, not left under an incarnation nothing names.
+#[tokio::test]
+async fn bytes_stored_between_the_byte_and_row_deletes_are_collected() {
+    struct FinalizedAfterFirstDelete {
+        inner: Arc<dyn FileStorage>,
+        deletes: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl FileStorage for FinalizedAfterFirstDelete {
+        async fn store(
+            &self,
+            project_id: &ProjectId,
+            object: ObjectName<'_>,
+            data: &[u8],
+        ) -> Result<(), FileStorageError> {
+            self.inner.store(project_id, object, data).await
+        }
+        async fn get(
+            &self,
+            project_id: &ProjectId,
+            object: ObjectName<'_>,
+        ) -> Result<Vec<u8>, FileStorageError> {
+            self.inner.get(project_id, object).await
+        }
+        async fn exists(
+            &self,
+            project_id: &ProjectId,
+            object: ObjectName<'_>,
+        ) -> Result<bool, FileStorageError> {
+            self.inner.exists(project_id, object).await
+        }
+        async fn delete(
+            &self,
+            project_id: &ProjectId,
+            object: ObjectName<'_>,
+        ) -> Result<(), FileStorageError> {
+            self.inner.delete(project_id, object).await?;
+            if self
+                .deletes
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                == 0
+            {
+                // The late ingest's finalization, landing right after the first delete.
+                self.inner.store(project_id, object, b"late").await?;
+            }
+            Ok(())
+        }
+        async fn incarnations(
+            &self,
+            project_id: &ProjectId,
+            hash: &str,
+        ) -> Result<Vec<i64>, FileStorageError> {
+            self.inner.incarnations(project_id, hash).await
+        }
+        async fn scan_objects(
+            &self,
+            visitor: &mut dyn sideseat_ports::blobs::ObjectVisitor,
+        ) -> Result<(), FileStorageError> {
+            self.inner.scan_objects(visitor).await
+        }
+        async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileStorageError> {
+            self.inner.delete_project(project_id).await
+        }
+        async fn finalize_temp(
+            &self,
+            project_id: &ProjectId,
+            object: ObjectName<'_>,
+            temp_path: &Path,
+        ) -> Result<(), FileStorageError> {
+            self.inner
+                .finalize_temp(project_id, object, temp_path)
+                .await
+        }
+    }
+
+    let (_temp_dir, database, inner) = setup_test().await;
+    let project = ProjectId::from("project1");
+    let hash = test_hash();
+    database
+        .upsert_file(&project, &hash, Some("text/plain"), 7, "sha256")
+        .await
+        .unwrap();
+    database.decrement_ref_count(&project, &hash).await.unwrap();
+    inner.store(&project, at(&hash), b"content").await.unwrap();
+    let storage: Arc<dyn FileStorage> = Arc::new(FinalizedAfterFirstDelete {
+        inner: Arc::clone(&inner),
+        deletes: std::sync::atomic::AtomicUsize::new(0),
+    });
+
+    let deleted = cleanup_zero_ref_files(&storage, &database, FILE_DELETION_CLAIM_STALE_SECS)
+        .await
+        .unwrap();
+
+    assert_eq!(deleted, 1);
+    assert!(database.get_file(&project, &hash).await.unwrap().is_none());
+    assert!(
+        !inner.exists(&project, at(&hash)).await.unwrap(),
+        "bytes stored between the deletes were left with no row"
+    );
+}

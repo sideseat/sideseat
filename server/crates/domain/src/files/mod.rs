@@ -726,6 +726,12 @@ impl FileService {
                 );
                 continue;
             }
+            cleanup::delete_bytes_again(
+                &self.storage,
+                project_id,
+                ObjectName::new(&hash, claim.incarnation),
+            )
+            .await;
 
             tracing::debug!(project_id = %project_id, hash, "Deleted orphaned file");
         }

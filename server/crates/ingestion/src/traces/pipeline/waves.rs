@@ -29,6 +29,7 @@ use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 
 use super::{IngestOutcome, TracePipeline};
 use crate::received::ReceivedPayload;
+use sideseat_core::utils::collection_fence::{CollectionFence, Pass};
 use sideseat_ports::types::StagedPayload;
 
 /// What became of one export of [`TracePipeline::run_waves`]: its outcome, and whether its staged payload, when it
@@ -97,6 +98,12 @@ pub(super) fn conflict_free_waves(
     waves
 }
 
+/// Whether a wave held this process's store lease from its start - `term` read then, `pass` entered then - until
+/// now, in that one term.
+fn held_throughout(fence: &CollectionFence, term: Option<u64>, pass: Option<&Pass>) -> bool {
+    pass.is_some() && term.is_some_and(|term| fence.held_through(term))
+}
+
 impl TracePipeline {
     /// Persist exports in conflict-free waves, answering each; exports of a failed wave are retried alone. An
     /// export with a staged payload (`staged`, by index) is settled after its wave, before the next is written.
@@ -117,10 +124,9 @@ impl TracePipeline {
         for wave in conflict_free_waves(requests, received) {
             // The write and the settlement that relies on it in one pass: a payload is retired on the batch's
             // word only if the lease was held from before the write, not lost and taken again in between.
-            let pass = self.staging.collection_fence().enter("trace wave");
-            for &index in &wave {
-                fenced[index] = pass.is_none();
-            }
+            let fence = self.staging.collection_fence();
+            let term = fence.term();
+            let pass = fence.enter("trace wave");
             let batch: Vec<ExportTraceServiceRequest> =
                 wave.iter().map(|&index| requests[index].clone()).collect();
             let bodies: Vec<ReceivedPayload> =
@@ -181,6 +187,13 @@ impl TracePipeline {
                 .zip(self.settle_staged_traces(&payloads).await)
             {
                 settled[index] = done;
+            }
+            // Fenced unless the lease was held, in one term, from before the write to after the settlement: a
+            // wave that lost it part-way - refused at the session fence, say - did not fail on its payload's
+            // account either. The pass still held, the fence cannot have reopened in between.
+            let held_throughout = held_throughout(fence, term, pass.as_ref());
+            for &index in &wave {
+                fenced[index] = !held_throughout;
             }
             drop(pass);
         }
@@ -266,5 +279,38 @@ mod tests {
     fn exports_of_one_trace_are_never_batched_together() {
         let planned = waves(&[export(&[1]), export(&[1]), export(&[2]), export(&[1, 2])]);
         assert_eq!(planned, vec![vec![0, 2], vec![1], vec![3]]);
+    }
+
+    /// A wave is fenced - its failure not counted - unless it held the lease throughout: lost part-way, or lost
+    /// and taken again, it was not.
+    #[test]
+    fn a_wave_holds_the_lease_only_if_it_held_it_throughout_in_one_term() {
+        use sideseat_core::utils::collection_fence::HeldUntil;
+        use tokio::time::{Duration, Instant};
+
+        let until = || Some(HeldUntil::new(Instant::now() + Duration::from_secs(60), 0));
+        let (hold, receiver) = tokio::sync::watch::channel(until());
+        let fence = CollectionFence::following(receiver);
+        let term = fence.term();
+        let pass = fence.enter("trace wave");
+        assert!(held_throughout(&fence, term, pass.as_ref()));
+        hold.send(None).unwrap();
+        assert!(
+            !held_throughout(&fence, term, pass.as_ref()),
+            "lost part-way"
+        );
+        hold.send(Some(HeldUntil::new(
+            Instant::now() + Duration::from_secs(60),
+            1,
+        )))
+        .unwrap();
+        assert!(
+            !held_throughout(&fence, term, pass.as_ref()),
+            "lost and taken again"
+        );
+        assert!(
+            !held_throughout(&fence, fence.term(), None),
+            "never entered"
+        );
     }
 }

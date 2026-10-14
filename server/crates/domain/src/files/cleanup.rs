@@ -239,6 +239,24 @@ pub async fn cleanup_orphan_temp_files(
 ///
 /// `stale_claim_secs` is a parameter rather than read from the constant here so the caller owns the
 /// policy and a test can state the age it means directly.
+/// Delete a collected incarnation's bytes once more, after its row: an ingest whose association the collection
+/// outran can have stored them between the first delete and the row's, and with the row gone nothing would find
+/// them again. The name is that incarnation's alone, so no other row's bytes can be under it.
+pub(super) async fn delete_bytes_again(
+    storage: &Arc<dyn FileStorage>,
+    project_id: &ProjectId,
+    object: ObjectName<'_>,
+) {
+    if let Err(error) = storage.delete(project_id, object).await {
+        tracing::warn!(
+            project_id = %project_id,
+            hash = object.hash,
+            %error,
+            "Could not delete a collected file's bytes a second time; any stored since are left"
+        );
+    }
+}
+
 pub async fn cleanup_zero_ref_files(
     storage: &Arc<dyn FileStorage>,
     database: &Arc<dyn TransactionalRepository + Send + Sync>,
@@ -354,7 +372,9 @@ pub async fn cleanup_zero_ref_files_governed(
             .delete_file_if_unreferenced(&project_id, &hash, &claim)
             .await
         {
-            Ok(true) => {}
+            Ok(true) => {
+                delete_bytes_again(storage, &project_id, ObjectName::new(&hash, claim.incarnation)).await;
+            }
             // Referenced again while its bytes were being deleted. Counting this as a success was
             // wrong twice over: nothing was cleaned, and the row now points at content that is gone.
             Ok(false) => {
@@ -456,6 +476,8 @@ pub async fn cleanup_zero_ref_files_governed(
                     .await
                 {
                     Ok(true) => {
+                        delete_bytes_again(storage, &project_id, ObjectName::new(&hash, claim.incarnation))
+                            .await;
                         tracing::debug!(project_id = %project_id, hash, "Finished an abandoned file deletion");
                         true
                     }
