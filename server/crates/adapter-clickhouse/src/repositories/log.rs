@@ -285,13 +285,22 @@ pub async fn matches_content(
     project_id: &ProjectId,
     records: &[(String, u32, Option<chrono::DateTime<chrono::Utc>>)],
 ) -> Result<bool, ClickhouseError> {
-    let Some(plan) = confirmations::logs(project_id.as_str(), records, Backend::Clickhouse) else {
-        return Ok(true);
-    };
-    let found: u64 = bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
-        .fetch_one()
-        .await?;
-    Ok(found == plan.expected)
+    // A chunk at a time, for `metric::winners`'s reason; every chunk must find all of its records.
+    for chunk in
+        sideseat_query_sql::keyed::bounded_chunks(records, sideseat_query_sql::keyed::KEYED_CHUNK)
+    {
+        let Some(plan) = confirmations::logs(project_id.as_str(), chunk, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let found: u64 = bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
+            .fetch_one()
+            .await?;
+        if found != plan.expected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 pub async fn get_log_filter_options(

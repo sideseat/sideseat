@@ -2,6 +2,7 @@
 //!
 //! Provides the same interface as DuckDB query repository but uses ClickHouse SQL.
 
+mod deletes;
 mod log_media;
 mod rows;
 
@@ -11,6 +12,7 @@ use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
+use sideseat_query_sql::keyed::KEYED_CHUNK;
 use sideseat_query_sql::{Backend, analytics, confirmations, dml};
 
 pub(super) fn bind_analytics_values(
@@ -32,13 +34,19 @@ pub async fn spans_match_content(
     project_id: &str,
     records: &[(String, String, String)],
 ) -> Result<bool, ClickhouseError> {
-    let Some(plan) = confirmations::spans(project_id, records, Backend::Clickhouse) else {
-        return Ok(true);
-    };
-    let found: u64 = bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
-        .fetch_one()
-        .await?;
-    Ok(found == plan.expected)
+    // A chunk at a time, for `metric::winners`'s reason; every chunk must find all of its records.
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(records, KEYED_CHUNK) {
+        let Some(plan) = confirmations::spans(project_id, chunk, Backend::Clickhouse) else {
+            continue;
+        };
+        let found: u64 = bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
+            .fetch_one()
+            .await?;
+        if found != plan.expected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 pub async fn spans_with_matching_content(
@@ -46,15 +54,19 @@ pub async fn spans_with_matching_content(
     project_id: &str,
     records: &[(String, String, String)],
 ) -> Result<HashSet<(String, String, String)>, ClickhouseError> {
-    let Some(query) = confirmations::matching_spans(project_id, records, Backend::Clickhouse)
-    else {
-        return Ok(HashSet::new());
-    };
-    let rows: Vec<(String, String, String)> =
-        bind_analytics_values(client.query(query.sql()), query.params())
-            .fetch_all()
-            .await?;
-    Ok(rows.into_iter().collect())
+    let mut matching = HashSet::with_capacity(records.len());
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(records, KEYED_CHUNK) {
+        let Some(query) = confirmations::matching_spans(project_id, chunk, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let rows: Vec<(String, String, String)> =
+            bind_analytics_values(client.query(query.sql()), query.params())
+                .fetch_all()
+                .await?;
+        matching.extend(rows);
+    }
+    Ok(matching)
 }
 
 /// The winning revision of each of these span identities that has one.
@@ -63,13 +75,18 @@ pub async fn span_winners(
     project_id: &str,
     spans: &[(String, String)],
 ) -> Result<HashMap<(String, String), WinningRevision>, ClickhouseError> {
-    let Some(query) = confirmations::span_winners(project_id, spans, Backend::Clickhouse) else {
-        return Ok(HashMap::new());
-    };
-    let rows: Vec<(String, String, String, i64)> =
-        bind_analytics_values(client.query(query.sql()), query.params())
-            .fetch_all()
-            .await?;
+    let mut rows: Vec<(String, String, String, i64)> = Vec::with_capacity(spans.len());
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(spans, KEYED_CHUNK) {
+        let Some(query) = confirmations::span_winners(project_id, chunk, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        rows.extend(
+            bind_analytics_values(client.query(query.sql()), query.params())
+                .fetch_all::<(String, String, String, i64)>()
+                .await?,
+        );
+    }
     Ok(rows
         .into_iter()
         .map(|(trace_id, span_id, content_digest, ingested_us)| {
@@ -92,6 +109,7 @@ pub async fn span_winners(
 /// # SQL Injection Safety
 /// All values that could potentially come from user input are parameterized.
 use crate::ClickhouseError;
+pub use deletes::{delete_sessions, delete_spans, delete_traces};
 pub use log_media::media_log_trace_ids;
 use rows::{ChSessionRow, ChSpanRow, ChTraceRow};
 use sideseat_ports::types::{
@@ -252,23 +270,30 @@ pub async fn get_trace_session_pairs(
     trace_ids: &[String],
     as_of_us: Option<i64>,
 ) -> Result<Vec<(String, String)>, ClickhouseError> {
-    let Some(statement) =
-        analytics::trace_session_pairs(project_id, trace_ids, as_of_us, Backend::Clickhouse)
-    else {
-        return Ok(vec![]);
-    };
-
     #[derive(Row, Deserialize)]
     struct PairRow {
         trace_id: String,
         session: String,
     }
 
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<PairRow> = query.fetch_all().await?;
-
-    let mut pairs: Vec<(String, String)> =
-        rows.into_iter().map(|r| (r.trace_id, r.session)).collect();
+    // A chunk of distinct traces at a time: an ingest batch's traces, written into one statement, can pass
+    // `max_query_size`, and a trace repeated across chunks would answer twice where one read answers once.
+    let traces: Vec<String> =
+        sideseat_query_sql::keyed::distinct_keys(trace_ids.iter().map(String::as_str))
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(&traces, KEYED_CHUNK) {
+        let Some(statement) =
+            analytics::trace_session_pairs(project_id, chunk, as_of_us, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let query = bind_analytics_values(client.query(statement.sql()), statement.params());
+        let rows: Vec<PairRow> = query.fetch_all().await?;
+        pairs.extend(rows.into_iter().map(|r| (r.trace_id, r.session)));
+    }
     pairs.sort();
     Ok(pairs)
 }
@@ -336,11 +361,6 @@ pub async fn get_span_counts_bulk(
     use sideseat_ports::types::SpanCounts;
     use std::collections::HashMap;
 
-    let Some(statement) = analytics::span_counts_bulk(project_id, spans, Backend::Clickhouse)
-    else {
-        return Ok(HashMap::new());
-    };
-
     let mut counts: HashMap<(String, String), SpanCounts> = HashMap::with_capacity(spans.len());
 
     #[derive(Row, Deserialize)]
@@ -351,17 +371,24 @@ pub async fn get_span_counts_bulk(
         link_count: u32,
     }
 
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<CountRow> = query.fetch_all().await?;
-
-    for row in rows {
-        counts.insert(
-            (row.trace_id, row.span_id),
-            SpanCounts {
-                event_count: i64::from(row.event_count),
-                link_count: i64::from(row.link_count),
-            },
-        );
+    // A chunk at a time: a trace of thousands of spans, its pairs written into one statement, can pass
+    // `max_query_size`.
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(spans, KEYED_CHUNK) {
+        let Some(statement) = analytics::span_counts_bulk(project_id, chunk, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let query = bind_analytics_values(client.query(statement.sql()), statement.params());
+        let rows: Vec<CountRow> = query.fetch_all().await?;
+        for row in rows {
+            counts.insert(
+                (row.trace_id, row.span_id),
+                SpanCounts {
+                    event_count: i64::from(row.event_count),
+                    link_count: i64::from(row.link_count),
+                },
+            );
+        }
     }
 
     Ok(counts)
@@ -377,16 +404,20 @@ pub async fn traces_without_spans(
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<String>, ClickhouseError> {
-    let Some(statement) =
-        analytics::surviving_trace_ids(project_id, trace_ids, Backend::Clickhouse)
-    else {
-        return Ok(Vec::new());
-    };
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let alive: Vec<String> = query.fetch_all().await?;
+    // A chunk at a time: storage pressure asks about every trace of up to 100,000 evicted spans.
+    let mut alive: HashSet<String> = HashSet::new();
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(trace_ids, KEYED_CHUNK) {
+        let Some(statement) =
+            analytics::surviving_trace_ids(project_id, chunk, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let query = bind_analytics_values(client.query(statement.sql()), statement.params());
+        alive.extend(query.fetch_all::<String>().await?);
+    }
     Ok(trace_ids
         .iter()
-        .filter(|t| !alive.contains(t))
+        .filter(|t| !alive.contains(*t))
         .cloned()
         .collect())
 }
@@ -438,132 +469,6 @@ pub async fn stored_trace_ids_after(
             .fetch_all()
             .await?,
     )
-}
-
-pub async fn delete_traces(
-    client: &Client,
-    table: &str,
-    logs_table: &str,
-    on_cluster: &str,
-    project_id: &str,
-    trace_ids: &[String],
-) -> Result<u64, ClickhouseError> {
-    let Some(statement) = dml::delete_traces(
-        dml::MutationTarget::clickhouse(table, on_cluster),
-        project_id,
-        trace_ids,
-    ) else {
-        return Ok(0);
-    };
-
-    // The records the rows name are enqueued before the rows go; see `dml::raw::enqueue_raw_for_traces`.
-    let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Clickhouse, project_id, trace_ids)
-        .expect("non-empty trace set produces a raw enqueue");
-    bind_analytics_values(client.query(enqueue.sql()), enqueue.params())
-        .execute()
-        .await?;
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    query.execute().await?;
-    let logs = dml::delete_logs_for_traces(
-        dml::MutationTarget::clickhouse(logs_table, on_cluster),
-        project_id,
-        trace_ids,
-    )
-    .expect("non-empty trace set produces a log delete");
-    bind_analytics_values(client.query(logs.sql()), logs.params())
-        .execute()
-        .await?;
-
-    // Return count - mutations are async in ClickHouse so we estimate
-    Ok(trace_ids.len() as u64)
-}
-
-/// Delete spans by (trace_id, span_id) pairs
-///
-/// In distributed mode, `table` should be the local table name and
-/// `on_cluster` should be the ON CLUSTER clause.
-pub async fn delete_spans(
-    client: &Client,
-    table: &str,
-    logs_table: &str,
-    on_cluster: &str,
-    project_id: &str,
-    spans: &[(String, String)],
-) -> Result<u64, ClickhouseError> {
-    let Some(statement) = dml::delete_spans(
-        dml::MutationTarget::clickhouse(table, on_cluster),
-        project_id,
-        spans,
-    ) else {
-        return Ok(0);
-    };
-
-    let enqueue = dml::raw::enqueue_raw_for_spans(Backend::Clickhouse, project_id, spans)
-        .expect("non-empty span set produces a raw enqueue");
-    bind_analytics_values(client.query(enqueue.sql()), enqueue.params())
-        .execute()
-        .await?;
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    query.execute().await?;
-    let logs = dml::delete_logs_for_spans(
-        dml::MutationTarget::clickhouse(logs_table, on_cluster),
-        project_id,
-        spans,
-    )
-    .expect("non-empty span set produces a log delete");
-    bind_analytics_values(client.query(logs.sql()), logs.params())
-        .execute()
-        .await?;
-
-    Ok(spans.len() as u64)
-}
-
-/// Delete sessions (all spans in the sessions)
-///
-/// In distributed mode, `table` should be the local table name and
-/// `on_cluster` should be the ON CLUSTER clause.
-pub async fn delete_sessions(
-    client: &Client,
-    table: &str,
-    logs_table: &str,
-    on_cluster: &str,
-    project_id: &str,
-    session_ids: &[String],
-) -> Result<Vec<String>, ClickhouseError> {
-    if session_ids.is_empty() {
-        return Ok(vec![]);
-    }
-
-    // Resolve sessions to complete trace sets because session ids commonly appear only on root spans.
-    // No watermark: a deletion acts on what is stored *now*, not as of some past instant.
-    let trace_ids = get_trace_ids_for_sessions(client, project_id, session_ids, None).await?;
-    if trace_ids.is_empty() {
-        return Ok(vec![]);
-    }
-    let statement = dml::delete_session_traces(
-        dml::MutationTarget::clickhouse(table, on_cluster),
-        project_id,
-        &trace_ids,
-    )
-    .expect("non-empty trace set produces a delete");
-    let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Clickhouse, project_id, &trace_ids)
-        .expect("non-empty trace set produces a raw enqueue");
-    bind_analytics_values(client.query(enqueue.sql()), enqueue.params())
-        .execute()
-        .await?;
-    bind_analytics_values(client.query(statement.sql()), statement.params())
-        .execute()
-        .await?;
-    let logs = dml::delete_logs_for_traces(
-        dml::MutationTarget::clickhouse(logs_table, on_cluster),
-        project_id,
-        &trace_ids,
-    )
-    .expect("non-empty trace set produces a log delete");
-    bind_analytics_values(client.query(logs.sql()), logs.params())
-        .execute()
-        .await?;
-    Ok(trace_ids)
 }
 
 /// Delete all data for a project

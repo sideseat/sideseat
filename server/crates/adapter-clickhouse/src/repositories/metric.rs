@@ -15,6 +15,7 @@ use sideseat_ports::types::{
     ListMetricsParams, MetricAggregateRow, MetricRow as MetricResultRow, NormalizedMetric,
     ProjectId, WinningRevision,
 };
+use sideseat_query_sql::keyed::KEYED_CHUNK;
 use sideseat_query_sql::{Backend, confirmations, dml, metrics as metric_sql};
 
 use super::query::bind_analytics_values;
@@ -360,27 +361,35 @@ pub async fn winners(
     project_id: &ProjectId,
     records: &[(String, chrono::DateTime<chrono::Utc>)],
 ) -> Result<HashMap<String, WinningRevision>, ClickhouseError> {
-    let Some(query) =
-        confirmations::metric_winners(project_id.as_str(), records, Backend::Clickhouse)
-    else {
-        return Ok(HashMap::new());
-    };
-    let rows: Vec<(String, String, i64)> =
-        bind_analytics_values(client.query(query.sql()), query.params())
-            .fetch_all()
-            .await?;
-    Ok(rows
-        .into_iter()
-        .map(|(datapoint_id, content_digest, ingested_us)| {
-            (
-                datapoint_id,
-                WinningRevision {
-                    content_digest,
-                    ingested_at: sideseat_core::utils::time::micros_to_datetime(ingested_us),
-                },
-            )
-        })
-        .collect())
+    // A chunk at a time: the driver writes every bound value into the statement, and a payload's datapoints
+    // (thousands of 64-character ids) passed `max_query_size` in one.
+    let mut winners = HashMap::with_capacity(records.len());
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(records, KEYED_CHUNK) {
+        let Some(query) =
+            confirmations::metric_winners(project_id.as_str(), chunk, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let rows: Vec<(String, String, i64)> =
+            bind_analytics_values(client.query(query.sql()), query.params())
+                .fetch_all()
+                .await?;
+        winners.extend(
+            rows.into_iter()
+                .map(|(datapoint_id, content_digest, ingested_us)| {
+                    (
+                        datapoint_id,
+                        WinningRevision {
+                            content_digest,
+                            ingested_at: sideseat_core::utils::time::micros_to_datetime(
+                                ingested_us,
+                            ),
+                        },
+                    )
+                }),
+        );
+    }
+    Ok(winners)
 }
 
 pub async fn aggregate_metrics(

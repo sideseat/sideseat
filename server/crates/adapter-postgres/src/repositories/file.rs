@@ -590,26 +590,14 @@ pub async fn get_file_hashes_for_traces(
         return Ok(Vec::new());
     }
 
-    // Build placeholders for IN clause with numbered parameters
-    let placeholders = trace_ids
-        .iter()
-        .enumerate()
-        .map(|(i, _)| format!("${}", i + 2))
-        .collect::<Vec<_>>()
-        .join(",");
-
-    let query = format!(
-        "SELECT DISTINCT file_hash FROM trace_files WHERE project_id = $1 AND trace_id IN ({})",
-        placeholders
-    );
-
-    let mut query_builder = sqlx::query_as::<_, (String,)>(&query).bind(project_id);
-
-    for trace_id in trace_ids {
-        query_builder = query_builder.bind(trace_id);
-    }
-
-    let rows = query_builder.fetch_all(&mut *connection).await?;
+    // One array parameter, however many traces, rather than one numbered parameter each.
+    let rows = sqlx::query_as::<_, (String,)>(
+        "SELECT DISTINCT file_hash FROM trace_files WHERE project_id = $1 AND trace_id = ANY($2::text[])",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .fetch_all(&mut *connection)
+    .await?;
 
     Ok(rows.into_iter().map(|(hash,)| hash).collect())
 }

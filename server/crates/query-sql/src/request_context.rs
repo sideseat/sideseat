@@ -89,17 +89,51 @@ pub fn thread_requests(
 /// read. A trace's spans all come back in its own chunk, so the reads never overlap, and their rows sorted by
 /// start, span and trace are in the order one read gives.
 ///
-/// Each read is built as it is asked for, so only one copy of the call ids is held at a time.
+/// The call ids are chunked too, each read binding at most [`KEYED_CHUNK`] of them and
+/// [`crate::keyed::BOUND_BYTES`] of their text: a long thread's calls, bound into one ClickHouse statement, passed
+/// `max_query_size`. A span carries one call id, so no two reads return one
+/// row, and the caller sorts what the reads return. Each read is built as it is asked for.
 pub fn calls_in_traces<'a>(
     trace_ids: &[&'a str],
     call_ids: &'a [&'a str],
     watermark_us: Option<i64>,
     backend: Backend,
 ) -> impl Iterator<Item = ParameterizedQuery> + 'a {
-    let traces = crate::keyed::distinct_keys(trace_ids.iter().copied());
-    (0..traces.len()).step_by(KEYED_CHUNK).map(move |at| {
-        let chunk = &traces[at..traces.len().min(at + KEYED_CHUNK)];
-        calls_in_trace_chunk(chunk, call_ids, watermark_us, backend)
+    // Both lists distinct, as one `IN` list is - an id in two chunks would read its span twice - and each bounded
+    // by count and by half the statement's byte budget, since both are client strings of any length. Chunk bounds
+    // are worked out first and each read built only as it is asked for.
+    let traces = std::sync::Arc::new(crate::keyed::distinct_keys(trace_ids.iter().copied()));
+    let calls = std::sync::Arc::new(crate::keyed::distinct_keys(call_ids.iter().copied()));
+    let budget = crate::keyed::BOUND_BYTES / 2;
+    let ranges = |keys: &[&str]| -> Vec<std::ops::Range<usize>> {
+        let mut at = 0;
+        crate::keyed::bounded_chunks_within(keys, KEYED_CHUNK, budget)
+            .map(|chunk| {
+                let range = at..at + chunk.len();
+                at = range.end;
+                range
+            })
+            .collect()
+    };
+    let trace_ranges = ranges(&traces);
+    // Only ClickHouse bounds a statement's size. Each call chunk reads its trace chunk again, so DuckDB, which has no
+    // such bound, keeps one read per trace chunk however long the thread; ClickHouse rereads only for a thread whose
+    // call ids pass half a statement's budget.
+    let call_ranges = match backend {
+        Backend::Duckdb => std::iter::once(0..calls.len()).collect(),
+        Backend::Clickhouse => ranges(&calls),
+    };
+    trace_ranges.into_iter().flat_map(move |traced| {
+        let traces = std::sync::Arc::clone(&traces);
+        let calls = std::sync::Arc::clone(&calls);
+        call_ranges.clone().into_iter().map(move |called| {
+            calls_in_trace_chunk(
+                &traces[traced.clone()],
+                &calls[called],
+                watermark_us,
+                backend,
+            )
+        })
     })
 }
 
@@ -230,5 +264,76 @@ mod tests {
             let named: usize = reads.iter().map(|read| read.params().len() - 1).sum();
             assert_eq!(named, KEYED_CHUNK + 10, "each distinct trace, once");
         }
+    }
+
+    /// A thread's call ids are each bound once - in chunks on ClickHouse, which bounds a statement's size, and in
+    /// one list per trace chunk on DuckDB, which does not.
+    #[test]
+    fn a_long_thread_s_call_ids_are_chunked() {
+        // Zero-padded, so their order is the sorted one.
+        let ids: Vec<String> = (0..KEYED_CHUNK * 2 + 1)
+            .map(|n| format!("call-{n:05}"))
+            .collect();
+        // Asked twice, read once.
+        let mut calls: Vec<&str> = ids.iter().map(String::as_str).collect();
+        calls.push(ids[0].as_str());
+        for backend in [Backend::Duckdb, Backend::Clickhouse] {
+            let reads: Vec<_> = calls_in_traces(&["trace"], &calls, None, backend).collect();
+            assert_eq!(reads.len(), if backend == Backend::Duckdb { 1 } else { 3 });
+            let mut bound = Vec::new();
+            for read in &reads {
+                let these: Vec<String> = read
+                    .params()
+                    .iter()
+                    .filter_map(|value| match value {
+                        QueryValue::String(text) if text.starts_with("call-") => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                assert!(backend == Backend::Duckdb || these.len() <= KEYED_CHUNK);
+                assert_eq!(read.sql().matches('?').count(), read.params().len());
+                bound.extend(these);
+            }
+            bound.sort();
+            assert_eq!(bound, ids);
+        }
+    }
+
+    /// Long trace and call ids share one ClickHouse statement's byte budget: no read binds more than it, and every
+    /// trace meets every call in exactly one read.
+    #[test]
+    fn long_ids_are_chunked_by_bytes() {
+        use crate::keyed::BoundText;
+        let traces: Vec<String> = (0..300).map(|n| format!("t{n:0>999}")).collect();
+        let calls: Vec<String> = (0..300).map(|n| format!("c{n:0>999}")).collect();
+        let trace_refs: Vec<&str> = traces.iter().map(String::as_str).collect();
+        let call_refs: Vec<&str> = calls.iter().map(String::as_str).collect();
+        let backend = Backend::Clickhouse;
+        let mut met = std::collections::BTreeSet::new();
+        for read in calls_in_traces(&trace_refs, &call_refs, None, backend) {
+            let bound: Vec<&str> = read
+                .params()
+                .iter()
+                .filter_map(|value| match value {
+                    QueryValue::String(text) => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect();
+            assert!(
+                bound.iter().map(|text| text.bound_bytes()).sum::<usize>()
+                    <= crate::keyed::BOUND_BYTES
+            );
+            let (ts, cs): (Vec<&str>, Vec<&str>) =
+                bound.iter().partition(|text| text.starts_with('t'));
+            for t in &ts {
+                for c in &cs {
+                    assert!(
+                        met.insert((t.to_string(), c.to_string())),
+                        "{t} and {c} met twice"
+                    );
+                }
+            }
+        }
+        assert_eq!(met.len(), traces.len() * calls.len());
     }
 }

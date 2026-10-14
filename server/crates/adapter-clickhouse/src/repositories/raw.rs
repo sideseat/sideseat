@@ -12,6 +12,7 @@ use sideseat_query_sql::Backend;
 use sideseat_query_sql::analytics;
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::dml;
+use sideseat_query_sql::keyed::KEYED_CHUNK;
 
 #[derive(Row, Serialize, Deserialize)]
 struct RawRow {
@@ -290,18 +291,24 @@ pub async fn indexed_under_traces(
     project_id: &ProjectId,
     trace_ids: &[String],
 ) -> Result<Vec<String>, ClickhouseError> {
-    if trace_ids.is_empty() {
-        return Ok(Vec::new());
+    // A chunk at a time: the driver writes the bound list into the statement, which `max_query_size` bounds.
+    let mut raw_ids: Vec<String> = Vec::new();
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(trace_ids, KEYED_CHUNK) {
+        raw_ids.extend(
+            client
+                .query(&format!(
+                    "SELECT DISTINCT raw_id FROM {traces} WHERE project_id = ? AND trace_id IN ? \
+                     SETTINGS skip_unavailable_shards = 0"
+                ))
+                .bind(project_id.as_str())
+                .bind(chunk)
+                .fetch_all::<String>()
+                .await?,
+        );
     }
-    Ok(client
-        .query(&format!(
-            "SELECT DISTINCT raw_id FROM {traces} WHERE project_id = ? AND trace_id IN ? \
-             ORDER BY raw_id SETTINGS skip_unavailable_shards = 0"
-        ))
-        .bind(project_id.as_str())
-        .bind(trace_ids)
-        .fetch_all()
-        .await?)
+    raw_ids.sort_unstable();
+    raw_ids.dedup();
+    Ok(raw_ids)
 }
 
 /// The `(raw_id, trace_id)` pairs these traces' span rows still carry, narrowed by the span table's sort key.
@@ -311,24 +318,26 @@ pub async fn named_in_traces(
     project_id: &ProjectId,
     trace_ids: &[String],
 ) -> Result<HashSet<(String, String)>, ClickhouseError> {
-    if trace_ids.is_empty() {
-        return Ok(HashSet::new());
+    // `skip_unavailable_shards = 0` pinned: a replica that cannot be read fails the answer, never shortens it. A
+    // chunk at a time, as `indexed_under_traces` reads.
+    let mut named = HashSet::new();
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(trace_ids, KEYED_CHUNK) {
+        let rows: Vec<(Option<String>, String)> = client
+            .query(&format!(
+                "SELECT DISTINCT raw_id, trace_id FROM {spans} \
+                 WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL \
+                 SETTINGS skip_unavailable_shards = 0"
+            ))
+            .bind(project_id.as_str())
+            .bind(chunk)
+            .fetch_all()
+            .await?;
+        named.extend(
+            rows.into_iter()
+                .filter_map(|(raw_id, trace_id)| raw_id.map(|raw_id| (raw_id, trace_id))),
+        );
     }
-    // `skip_unavailable_shards = 0` pinned: a replica that cannot be read fails the answer, never shortens it.
-    let rows: Vec<(Option<String>, String)> = client
-        .query(&format!(
-            "SELECT DISTINCT raw_id, trace_id FROM {spans} \
-             WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL \
-             SETTINGS skip_unavailable_shards = 0"
-        ))
-        .bind(project_id.as_str())
-        .bind(trace_ids)
-        .fetch_all()
-        .await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(raw_id, trace_id)| raw_id.map(|raw_id| (raw_id, trace_id)))
-        .collect())
+    Ok(named)
 }
 
 /// A collection's removal of a record's rows written at or below `up_to_epoch` (`dml::raw::remove_collected_rows`):
@@ -341,10 +350,16 @@ pub async fn enqueue(
     project_id: &ProjectId,
     raw_ids: &[String],
 ) -> Result<(), ClickhouseError> {
-    match dml::raw::enqueue_raw_records(Backend::Clickhouse, project_id.as_str(), raw_ids) {
-        Some(statement) => execute(client, &statement).await,
-        None => Ok(()),
+    // A chunk at a time: a long-lived trace sits in a record per export that carried it. A record enqueued twice,
+    // by a retry after a chunk failed, is reconciled once.
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(raw_ids, KEYED_CHUNK) {
+        if let Some(statement) =
+            dml::raw::enqueue_raw_records(Backend::Clickhouse, project_id.as_str(), chunk)
+        {
+            execute(client, &statement).await?;
+        }
     }
+    Ok(())
 }
 
 #[derive(Row, Deserialize)]
@@ -417,10 +432,6 @@ pub async fn span_raw_ids(
     project_id: &ProjectId,
     spans: &[(String, String)],
 ) -> Result<HashMap<(String, String), String>, ClickhouseError> {
-    let Some(query) = analytics::span_raw_ids(project_id.as_str(), spans, Backend::Clickhouse)
-    else {
-        return Ok(HashMap::new());
-    };
     #[derive(Row, Deserialize)]
     struct Found {
         trace_id: String,
@@ -428,22 +439,28 @@ pub async fn span_raw_ids(
         // Nullable on the table; the query excludes nulls, but the driver checks the column's type.
         raw_id: Option<String>,
     }
-    let mut request = client.query(query.sql());
-    for value in query.params() {
-        request = match value {
-            QueryValue::String(value) => request.bind(value),
-            QueryValue::Int64(value) => request.bind(value),
-            QueryValue::Float64(value) => request.bind(value),
+    // A chunk at a time: a settlement wave asks for every matched span of a project at once.
+    let mut found = HashMap::with_capacity(spans.len());
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(spans, KEYED_CHUNK) {
+        let Some(query) = analytics::span_raw_ids(project_id.as_str(), chunk, Backend::Clickhouse)
+        else {
+            continue;
         };
-    }
-    let rows: Vec<Found> = request.fetch_all().await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| {
+        let mut request = client.query(query.sql());
+        for value in query.params() {
+            request = match value {
+                QueryValue::String(value) => request.bind(value),
+                QueryValue::Int64(value) => request.bind(value),
+                QueryValue::Float64(value) => request.bind(value),
+            };
+        }
+        let rows: Vec<Found> = request.fetch_all().await?;
+        found.extend(rows.into_iter().filter_map(|row| {
             row.raw_id
                 .map(|raw_id| ((row.trace_id, row.span_id), raw_id))
-        })
-        .collect())
+        }));
+    }
+    Ok(found)
 }
 
 /// The records a survivor read asks for at once: the bound list stays small, and a trace with a long history
@@ -466,26 +483,30 @@ pub async fn survivor_records(
     project_id: &ProjectId,
     trace_ids: &[String],
 ) -> Result<Vec<Vec<u8>>, ClickhouseError> {
-    if trace_ids.is_empty() {
-        return Ok(Vec::new());
+    let mut raw_ids: Vec<String> = Vec::new();
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(trace_ids, SURVIVOR_RECORD_CHUNK) {
+        raw_ids.extend(
+            client
+                .query(&format!(
+                    "SELECT DISTINCT assumeNotNull(raw_id) FROM {spans} \
+                     WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL \
+                     SETTINGS skip_unavailable_shards = 0"
+                ))
+                .bind(project_id.as_str())
+                .bind(chunk)
+                .fetch_all::<String>()
+                .await?,
+        );
     }
-    let raw_ids: Vec<String> = client
-        .query(&format!(
-            "SELECT DISTINCT assumeNotNull(raw_id) FROM {spans} \
-             WHERE project_id = ? AND trace_id IN ? AND raw_id IS NOT NULL \
-             SETTINGS skip_unavailable_shards = 0"
-        ))
-        .bind(project_id.as_str())
-        .bind(trace_ids)
-        .fetch_all()
-        .await?;
+    raw_ids.sort_unstable();
+    raw_ids.dedup();
     #[derive(Row, Deserialize)]
     struct RecordOnly {
         #[serde(with = "binary_string")]
         record: Vec<u8>,
     }
     let mut records = Vec::new();
-    for chunk in raw_ids.chunks(SURVIVOR_RECORD_CHUNK) {
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(&raw_ids, SURVIVOR_RECORD_CHUNK) {
         let rows: Vec<RecordOnly> = client
             .query(&format!(
                 "SELECT record FROM {raw} FINAL WHERE project_id = ? AND raw_id IN ? \

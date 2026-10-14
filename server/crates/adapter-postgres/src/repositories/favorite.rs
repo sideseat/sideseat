@@ -242,28 +242,16 @@ pub async fn delete_favorites_by_entity(
         return Ok(0);
     }
 
-    // Build placeholders for IN clause with numbered parameters
-    let placeholders: String = entity_ids
-        .iter()
-        .enumerate()
-        .map(|(i, _)| format!("${}", i + 3))
-        .collect::<Vec<_>>()
-        .join(",");
-    let query = format!(
-        r#"
-        DELETE FROM favorites
-        WHERE project_id = $1 AND entity_type = $2 AND entity_id IN ({})
-        "#,
-        placeholders
-    );
-
-    let mut query_builder = sqlx::query(&query).bind(project_id).bind(entity_type);
-
-    for id in entity_ids {
-        query_builder = query_builder.bind(id);
-    }
-
-    let result = query_builder.execute(&mut *connection).await?;
+    // One array parameter, however many ids: numbered one each, a pressure eviction's emptied traces passed
+    // PostgreSQL's 65,535 bind parameters.
+    let result = sqlx::query(
+        "DELETE FROM favorites WHERE project_id = $1 AND entity_type = $2 AND entity_id = ANY($3::text[])",
+    )
+    .bind(project_id)
+    .bind(entity_type)
+    .bind(entity_ids)
+    .execute(&mut *connection)
+    .await?;
 
     Ok(result.rows_affected())
 }
