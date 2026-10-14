@@ -567,10 +567,14 @@ revision's terms to delete is gone - and a deletion of any kind takes the terms 
 `a_span_s_search_terms_go_with_its_row_on_both_backends` holds both backends to that through a correction, a reused
 identity and the five deletions. On the storage gate the trace signal went from 750.19 to 558.24 B a span at three
 passes, and from 677.66 to 476.12 B a span marginal from three passes to five; 464.19 from three to ten. A search
-pays for it in reading: every candidate's prompt column is decompressed for its `contains`, so at a million spans
-DuckDB's span search went from 134.0 to 170.2 ms through the API and from 116.5 to 156.1 ms in the distributed
-bench, scanning 2.0 million rows where it scanned 34.6 million, against ClickHouse's 333.5 and 325.5 ms; log search
-did not move. Ingest appends about 32 fewer rows a span, which the throughput profile has yet to measure.
+pays for it in reading: every candidate's term text is scanned for its ` term `, so at a million spans DuckDB's span
+search went from 134.0 to 170.2 ms through the API and from 116.5 to 156.1 ms in the distributed bench, scanning 2.0
+million rows where it scanned 34.6 million, against ClickHouse's 333.5 and 325.5 ms; log search did not move. Split
+by column at thirty passes on one thread, the prompt's `contains` takes 128.6 ms and the completion's 98.7, the four
+short fields 39.2 together, and decompressing the prompt alone - its lengths summed - 27.7: the cost is the
+substring scan of the long text, not its zstd. Testing the short fields first, a pure reordering of the expression,
+measured 200.0 ms against 210.2, within the run's noise, since every field is evaluated for every row either way; it
+is not done. Ingest appends about 32 fewer rows a span, which the throughput profile has yet to measure.
 
 ### Span content digest
 
