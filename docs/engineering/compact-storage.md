@@ -247,7 +247,15 @@ split from a string, or cast to `VARCHAR[]` for `= ANY` or `unnest`, the only li
 is not read through the index at all, and scanned every row of a million to find 64 on 1.5.6. No read depends on
 that form. Writing the keys into the statement as literals instead of binding them was measured too and saved
 nothing: the same cost at 1, 64 and 512 keys over a million spans, and per-export write-path and server ingest
-figures within noise in the pinned 1-core container. The raw identities stay hex text too, measured against 32-byte
+figures within noise in the pinned 1-core container. Why neither form can help is in DuckDB itself:
+`ClientContext::PrepareInternal` (1.5.6, `src/main/client_context.cpp`, lines 428-433) asks
+`PreparedStatement::CanCachePlan` (`src/main/prepared_statement.cpp`, line 137), which refuses any plan holding a
+table scan, and for a statement with parameters then sets `always_require_rebind` and returns before optimising; the
+execution binds, plans and optimises it again with the values. Every parameterised read so plans twice - 15.5 % of
+the server's CPU in the prepare and 20.3 % in the rebind, in the pinned 1-core ingest profile - and typed
+parameters or cached statements change nothing. Only fewer statements per export can lower it, and removing one
+(the second session read) showed no measured win (`write-path-at-10k.md`). The raw identities
+stay hex text too, measured against 32-byte
 binary over a million spans by rebuilding each raw table both ways: the columns compress to the same size
 (`otel_raw` 98.83 MB hex against 99.09 MB binary, `otel_spans.raw_id` 4.46 against 4.19 MB), and only the two ART
 indexes gain - `idx_raw_id` 7.34 to 4.72 MB, `idx_raw_traces_raw` 7.60 to 5.24 MB, about 5 B a span in all, deferred
