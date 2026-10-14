@@ -17,7 +17,7 @@ use crate::otlp::{
     get_user_id, keys,
 };
 use sideseat_core::utils::time::{is_storable, nanos_to_datetime};
-use sideseat_ports::types::{AggregationTemporality, MetricType, NormalizedMetric};
+use sideseat_ports::types::{AggregationTemporality, MetricExemplar, MetricType, NormalizedMetric};
 
 use super::identity::IdentityInputs;
 
@@ -279,7 +279,6 @@ fn extract_number_dp(
     };
 
     let storable = storable_exemplars(&dp.exemplars);
-    let exemplar = storable.first().copied();
 
     NormalizedMetric {
         project_id: ctx.project_id.clone(),
@@ -308,13 +307,7 @@ fn extract_number_dp(
         resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
-        exemplar_trace_id: extract_exemplar_trace_id(exemplar),
-        exemplar_span_id: extract_exemplar_span_id(exemplar),
-        exemplar_value_int: extract_exemplar_value_int(exemplar),
-        exemplar_value_double: extract_exemplar_value_double(exemplar),
-        exemplar_timestamp: extract_exemplar_timestamp(exemplar),
-        exemplar_attributes: extract_exemplar_attrs(exemplar),
-        exemplars: extract_all_exemplars(&storable),
+        exemplars: stored_exemplars(&storable),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, metric_type),
         ..Default::default()
@@ -332,7 +325,6 @@ fn extract_histogram_dp(
 ) -> NormalizedMetric {
     let attrs = extract_attributes(&dp.attributes);
     let storable = storable_exemplars(&dp.exemplars);
-    let exemplar = storable.first().copied();
 
     NormalizedMetric {
         project_id: ctx.project_id.clone(),
@@ -364,13 +356,7 @@ fn extract_histogram_dp(
         resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
-        exemplar_trace_id: extract_exemplar_trace_id(exemplar),
-        exemplar_span_id: extract_exemplar_span_id(exemplar),
-        exemplar_value_int: extract_exemplar_value_int(exemplar),
-        exemplar_value_double: extract_exemplar_value_double(exemplar),
-        exemplar_timestamp: extract_exemplar_timestamp(exemplar),
-        exemplar_attributes: extract_exemplar_attrs(exemplar),
-        exemplars: extract_all_exemplars(&storable),
+        exemplars: stored_exemplars(&storable),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::Histogram),
         ..Default::default()
@@ -388,7 +374,6 @@ fn extract_exp_histogram_dp(
 ) -> NormalizedMetric {
     let attrs = extract_attributes(&dp.attributes);
     let storable = storable_exemplars(&dp.exemplars);
-    let exemplar = storable.first().copied();
 
     NormalizedMetric {
         project_id: ctx.project_id.clone(),
@@ -423,13 +408,7 @@ fn extract_exp_histogram_dp(
         resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
-        exemplar_trace_id: extract_exemplar_trace_id(exemplar),
-        exemplar_span_id: extract_exemplar_span_id(exemplar),
-        exemplar_value_int: extract_exemplar_value_int(exemplar),
-        exemplar_value_double: extract_exemplar_value_double(exemplar),
-        exemplar_timestamp: extract_exemplar_timestamp(exemplar),
-        exemplar_attributes: extract_exemplar_attrs(exemplar),
-        exemplars: extract_all_exemplars(&storable),
+        exemplars: stored_exemplars(&storable),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::ExponentialHistogram),
         ..Default::default()
@@ -490,50 +469,6 @@ fn extract_summary_dp(
 // EXEMPLAR HELPERS
 // ============================================================================
 
-fn extract_exemplar_trace_id(
-    exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
-) -> Option<String> {
-    exemplar
-        .map(|e| hex::encode(&e.trace_id))
-        .filter(|s| !s.is_empty() && s != "00000000000000000000000000000000")
-}
-
-fn extract_exemplar_span_id(
-    exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
-) -> Option<String> {
-    exemplar
-        .map(|e| hex::encode(&e.span_id))
-        .filter(|s| !s.is_empty() && s != "0000000000000000")
-}
-
-fn extract_exemplar_value_int(
-    exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
-) -> Option<i64> {
-    use opentelemetry_proto::tonic::metrics::v1::exemplar::Value;
-    exemplar.and_then(|e| match &e.value {
-        Some(Value::AsInt(i)) => Some(*i),
-        _ => None,
-    })
-}
-
-fn extract_exemplar_value_double(
-    exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
-) -> Option<f64> {
-    use opentelemetry_proto::tonic::metrics::v1::exemplar::Value;
-    exemplar.and_then(|e| match &e.value {
-        Some(Value::AsDouble(d)) => Some(*d),
-        _ => None,
-    })
-}
-
-fn extract_exemplar_timestamp(
-    exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
-) -> Option<chrono::DateTime<chrono::Utc>> {
-    exemplar
-        .filter(|e| e.time_unix_nano > 0)
-        .map(|e| nanos_to_datetime(e.time_unix_nano))
-}
-
 /// The exemplars a backend can actually store, in order.
 ///
 /// Filtered *once*, and both the flat `exemplar_*` fields and the `exemplars` array are derived from the
@@ -563,80 +498,37 @@ fn storable_exemplars(
         .collect()
 }
 
-/// Every storable exemplar of a data point, as a JSON array; `Null` when there are none.
+/// Every storable exemplar of a data point, each once, in order.
 ///
-/// The six flat `exemplar_*` columns keep the *first* one - they are what the trace-correlation index is
-/// built on and what the queries read. But a histogram carries one exemplar **per bucket**, which is the
-/// whole point of them: they are how a reader gets from a slow bucket to the trace that was slow. Keeping
-/// only the first discarded every link but one, so a latency histogram with ten populated buckets offered
-/// one trace out of ten and gave no sign the others had been received.
-fn extract_all_exemplars(
+/// A histogram carries one exemplar **per bucket**, which is the whole point of them: they are how a reader gets
+/// from a slow bucket to the trace that was slow. Keeping only the first discarded every link but one, so a
+/// latency histogram with ten populated buckets offered one trace out of ten and gave no sign the others had been
+/// received. The attributes are typed, not stringified: the ordinary extraction path turns every value into a
+/// string, which is right for display and wrong for a record of what was received - `status_code=200` as an int
+/// and `status_code="200"` as a string both became `"200"`. An exemplar exists to let someone get back to the
+/// exact call, so the value it carries has to be the value that was sent.
+fn stored_exemplars(
     exemplars: &[&opentelemetry_proto::tonic::metrics::v1::Exemplar],
-) -> JsonValue {
+) -> Vec<MetricExemplar> {
     use opentelemetry_proto::tonic::metrics::v1::exemplar::Value;
-
-    if exemplars.is_empty() {
-        return JsonValue::Null;
-    }
-
-    let entries: Vec<JsonValue> = exemplars
+    exemplars
         .iter()
-        .map(|e| {
-            let mut entry = serde_json::Map::new();
-            if let Some(trace_id) = Some(hex::encode(&e.trace_id))
-                .filter(|s| !s.is_empty() && s != "00000000000000000000000000000000")
-            {
-                entry.insert("trace_id".to_string(), JsonValue::String(trace_id));
-            }
-            if let Some(span_id) =
-                Some(hex::encode(&e.span_id)).filter(|s| !s.is_empty() && s != "0000000000000000")
-            {
-                entry.insert("span_id".to_string(), JsonValue::String(span_id));
-            }
-            match &e.value {
-                Some(Value::AsInt(i)) => {
-                    entry.insert("value_int".to_string(), serde_json::json!(i));
-                }
-                Some(Value::AsDouble(d)) => {
-                    entry.insert("value_double".to_string(), serde_json::json!(d));
-                }
-                None => {}
-            }
-            if e.time_unix_nano > 0 {
-                entry.insert(
-                    "timestamp".to_string(),
-                    JsonValue::String(nanos_to_datetime(e.time_unix_nano).to_rfc3339()),
-                );
-            }
-            if !e.filtered_attributes.is_empty() {
-                // Typed, not stringified. The ordinary extraction path turns every value into a string,
-                // which is right for display and wrong for a record of what was received: `status_code=200`
-                // as an int and `status_code="200"` as a string both became `"200"`, and a bool became
-                // `"true"`. An exemplar exists to let someone get back to the exact call, so the value it
-                // carries has to be the value that was sent.
-                entry.insert(
-                    "attributes".to_string(),
-                    crate::otlp::attrs_to_typed_json(&e.filtered_attributes),
-                );
-            }
-            JsonValue::Object(entry)
+        .map(|e| MetricExemplar {
+            trace_id: MetricExemplar::stored_trace_id(&e.trace_id),
+            span_id: MetricExemplar::stored_span_id(&e.span_id),
+            time_unix_nano: e.time_unix_nano,
+            value_int: match &e.value {
+                Some(Value::AsInt(value)) => Some(*value),
+                _ => None,
+            },
+            value_double: match &e.value {
+                Some(Value::AsDouble(value)) => Some(*value),
+                _ => None,
+            },
+            attributes: (!e.filtered_attributes.is_empty())
+                .then(|| crate::otlp::attrs_to_typed_json(&e.filtered_attributes).to_string()),
         })
-        .collect();
-
-    JsonValue::Array(entries)
-}
-
-/// The first exemplar's attributes, typed exactly as the `exemplars` array stores them.
-///
-/// Both representations describe the same exemplar, so they have to agree: with this one going through the
-/// stringifying path, an integer `status_code=200` was `200` in the array and `"200"` in this column, and
-/// this is the column the queries expose.
-fn extract_exemplar_attrs(
-    exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
-) -> JsonValue {
-    exemplar
-        .map(|e| crate::otlp::attrs_to_typed_json(&e.filtered_attributes))
-        .unwrap_or(JsonValue::Null)
+        .collect()
 }
 
 // ============================================================================

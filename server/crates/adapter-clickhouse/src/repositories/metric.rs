@@ -12,8 +12,8 @@ use crate::ClickhouseError;
 use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_ports::traits::FilterOptionRow;
 use sideseat_ports::types::{
-    ListMetricsParams, MetricAggregateRow, MetricRow as MetricResultRow, NormalizedMetric,
-    ProjectId, WinningRevision,
+    ListMetricsParams, MetricAggregateRow, MetricExemplar, MetricRow as MetricResultRow,
+    NormalizedMetric, ProjectId, WinningRevision, exemplars_json,
 };
 use sideseat_query_sql::keyed::KEYED_CHUNK;
 use sideseat_query_sql::{Backend, confirmations, dml, metrics as metric_sql};
@@ -51,13 +51,7 @@ struct MetricRow {
     summary_count: Option<u64>,
     summary_sum: Option<f64>,
     summary_quantiles: Option<String>,
-    exemplar_trace_id: Option<String>,
-    exemplar_span_id: Option<String>,
-    exemplar_value_int: Option<i64>,
-    exemplar_value_double: Option<f64>,
-    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
-    exemplar_timestamp: Option<time::OffsetDateTime>,
-    exemplar_attributes: Option<String>,
+    exemplars: Vec<ChExemplar>,
     session_id: Option<String>,
     user_id: Option<String>,
     environment: Option<String>,
@@ -74,7 +68,6 @@ struct MetricRow {
     scope_attributes: Option<String>,
     scope_schema_url: Option<String>,
     resource_schema_url: Option<String>,
-    exemplars: Option<String>,
     /// The replacing engine's version. See `NormalizedMetric::ingested_at`.
     #[serde(with = "clickhouse::serde::time::datetime64::micros")]
     ingested_at: time::OffsetDateTime,
@@ -82,6 +75,41 @@ struct MetricRow {
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     hold_until: Option<time::OffsetDateTime>,
     logical_bytes: u64,
+}
+
+/// One exemplar as the `exemplars` column's tuple holds it: trace and span ids in hex, the instant in nanoseconds,
+/// the value, and the attributes' typed JSON - the order `schema.rs` declares.
+type ChExemplar = (
+    Option<String>,
+    Option<String>,
+    u64,
+    Option<i64>,
+    Option<f64>,
+    Option<String>,
+);
+
+fn exemplar_to_tuple(exemplar: &MetricExemplar) -> ChExemplar {
+    (
+        exemplar.trace_id_hex(),
+        exemplar.span_id_hex(),
+        exemplar.time_unix_nano,
+        exemplar.value_int,
+        exemplar.value_double,
+        exemplar.attributes.clone(),
+    )
+}
+
+fn exemplar_from_tuple(
+    (trace_id, span_id, time_unix_nano, value_int, value_double, attributes): ChExemplar,
+) -> MetricExemplar {
+    MetricExemplar {
+        trace_id: trace_id.as_deref().and_then(MetricExemplar::id_from_hex),
+        span_id: span_id.as_deref().and_then(MetricExemplar::id_from_hex),
+        time_unix_nano,
+        value_int,
+        value_double,
+        attributes,
+    }
 }
 
 #[derive(Row, Deserialize)]
@@ -103,9 +131,7 @@ struct ChMetricRow {
     histogram_max: Option<f64>,
     summary_count: Option<u64>,
     summary_sum: Option<f64>,
-    exemplar_trace_id: Option<String>,
-    exemplar_span_id: Option<String>,
-    exemplar_timestamp_us: Option<i64>,
+    exemplars: Vec<ChExemplar>,
     session_id: Option<String>,
     user_id: Option<String>,
     environment: Option<String>,
@@ -120,7 +146,6 @@ struct ChMetricRow {
     scope_attributes: Option<String>,
     scope_schema_url: Option<String>,
     resource_schema_url: Option<String>,
-    exemplars: Option<String>,
     flags: Option<i32>,
     raw_metric: Option<String>,
     ingested_at_us: i64,
@@ -128,6 +153,9 @@ struct ChMetricRow {
 
 impl From<ChMetricRow> for MetricResultRow {
     fn from(row: ChMetricRow) -> Self {
+        let exemplars: Vec<MetricExemplar> =
+            row.exemplars.into_iter().map(exemplar_from_tuple).collect();
+        let first = exemplars.first();
         Self {
             datapoint_id: row.datapoint_id,
             metric_name: row.metric_name,
@@ -148,11 +176,9 @@ impl From<ChMetricRow> for MetricResultRow {
             histogram_max: row.histogram_max,
             summary_count: row.summary_count,
             summary_sum: row.summary_sum,
-            exemplar_trace_id: row.exemplar_trace_id,
-            exemplar_span_id: row.exemplar_span_id,
-            exemplar_timestamp: row
-                .exemplar_timestamp_us
-                .and_then(DateTime::from_timestamp_micros),
+            exemplar_trace_id: first.and_then(MetricExemplar::trace_id_hex),
+            exemplar_span_id: first.and_then(MetricExemplar::span_id_hex),
+            exemplar_timestamp: first.and_then(MetricExemplar::stored_timestamp),
             session_id: row.session_id,
             user_id: row.user_id,
             environment: row.environment,
@@ -167,7 +193,7 @@ impl From<ChMetricRow> for MetricResultRow {
             scope_attributes: row.scope_attributes,
             scope_schema_url: row.scope_schema_url,
             resource_schema_url: row.resource_schema_url,
-            exemplars: row.exemplars,
+            exemplars: exemplars_json(&exemplars),
             flags: row.flags,
             raw_metric: row.raw_metric,
             ingested_at: datetime_from_micros(row.ingested_at_us),
@@ -270,12 +296,7 @@ impl From<&NormalizedMetric> for MetricRow {
             summary_count: metric.summary_count,
             summary_sum: metric.summary_sum,
             summary_quantiles: json_to_opt_string(&metric.summary_quantiles),
-            exemplar_trace_id: metric.exemplar_trace_id.clone(),
-            exemplar_span_id: metric.exemplar_span_id.clone(),
-            exemplar_value_int: metric.exemplar_value_int,
-            exemplar_value_double: metric.exemplar_value_double,
-            exemplar_timestamp: metric.exemplar_timestamp.map(chrono_to_time),
-            exemplar_attributes: json_to_opt_string(&metric.exemplar_attributes),
+            exemplars: metric.exemplars.iter().map(exemplar_to_tuple).collect(),
             session_id: metric.session_id.clone(),
             user_id: metric.user_id.clone(),
             environment: metric.environment.clone(),
@@ -292,7 +313,6 @@ impl From<&NormalizedMetric> for MetricRow {
             scope_attributes: json_to_opt_string(&metric.scope_attributes),
             scope_schema_url: metric.scope_schema_url.clone(),
             resource_schema_url: metric.resource_schema_url.clone(),
-            exemplars: json_to_opt_string(&metric.exemplars),
             // Direct conversion is used by tests; production goes through `ClickhouseRepository`, which
             // stamps the whole batch from its injected clock.
             ingested_at: chrono_to_time(metric.ingested_at.unwrap_or(chrono::DateTime::UNIX_EPOCH)),

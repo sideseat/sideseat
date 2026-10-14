@@ -94,7 +94,10 @@ async fn a_datapoint_reads_back_alike_on_both_backends() {
         attributes: serde_json::json!({"queue": "orders"}),
         resource_attributes: serde_json::json!({"service.name": "queue-service"}),
         scope_attributes: serde_json::json!({"meter.kind": "gauge"}),
-        exemplars: serde_json::json!([{"value": 4.5}]),
+        exemplars: vec![sideseat_ports::types::MetricExemplar {
+            value_double: Some(4.5),
+            ..Default::default()
+        }],
         raw_metric: serde_json::json!({"name": "queue.depth"}),
         ingested_at: Some(ts(10)),
         ..Default::default()

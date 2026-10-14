@@ -17,6 +17,17 @@ fn identity(column: &str, width: usize) -> String {
     )
 }
 
+/// The exemplar list with each exemplar's trace and span remapped as `identity` remaps a column.
+fn exemplars() -> String {
+    format!(
+        "list_transform(exemplars, e -> struct_pack(trace_id := {}, span_id := {}, \
+         time_unix_nano := e.time_unix_nano, value_int := e.value_int, value_double := e.value_double, \
+         attributes := e.attributes))",
+        identity("e.trace_id", 32),
+        identity("e.span_id", 16)
+    )
+}
+
 fn session(column: &str) -> String {
     format!("CASE WHEN {column} IS NULL THEN NULL ELSE {column} || '-' || r.k::VARCHAR END")
 }
@@ -71,8 +82,7 @@ fn rewrites() -> Vec<(&'static str, Vec<(&'static str, String)>)> {
             "otel_metrics",
             vec![
                 ("datapoint_id", identity("datapoint_id", 64)),
-                ("exemplar_trace_id", identity("exemplar_trace_id", 32)),
-                ("exemplar_span_id", identity("exemplar_span_id", 16)),
+                ("exemplars", exemplars()),
                 ("session_id", session("session_id")),
                 ("timestamp", shifted("timestamp")),
                 ("ingested_at", shifted("ingested_at")),

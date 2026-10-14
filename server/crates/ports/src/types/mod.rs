@@ -5,6 +5,7 @@
 
 mod analytics;
 mod enums;
+mod exemplar;
 mod logs;
 mod messages;
 mod metrics;
@@ -19,6 +20,7 @@ mod transactional;
 
 // Result ordering: the column, the direction and the SQL they render. Lives here rather than in
 // `api::types` because three analytics DTOs carry it, which made the storage layer import from HTTP.
+pub use exemplar::{MetricExemplar, exemplars_json};
 pub use order::{OrderBy, OrderDirection};
 pub use project_id::ProjectId;
 pub use raw::{

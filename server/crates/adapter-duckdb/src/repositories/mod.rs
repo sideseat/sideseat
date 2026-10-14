@@ -10,6 +10,7 @@ pub(crate) mod keyed;
 pub mod log;
 pub mod messages;
 pub mod metric;
+mod metric_exemplars;
 pub mod query;
 pub mod raw;
 pub mod search;

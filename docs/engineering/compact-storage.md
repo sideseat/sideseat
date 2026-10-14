@@ -182,11 +182,12 @@ the row the ten-pass marginal trace figure is 464.19 B/span (`storage-gate-margi
 | --- | ---: | ---: | ---: | --- |
 | Traces | 455.78 B/span | 480 | 0.7 B | yes |
 | Logs | 199.92 B/record | 300 | 3.6 B | yes |
-| Metrics | 242.72 B/point | 150 | 20 B | no |
+| Metrics | 242.72 B/point | 150 | 20 B | not a rate |
 
 The metric figure moved from 202.27 on 2026-10-13 with no change to metrics: its table took 14 blocks at thirty
-passes where it took 12, none of them shared with another table, for the same rows. At 12,960 points a block is 20 B a point, so the metric rate is read on the derived load as well before a
-metric step is judged.
+passes where it took 12, none of them shared with another table, for the same rows. At 12,960 points a block is 20 B
+a point, so the metric target is judged on the derived load instead (Metrics are judged on a derived load): 128 B a
+point there, met.
 
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
@@ -320,10 +321,13 @@ embedded backend:
 
 | Store | Sampled exemplars, 0.55 a point | Densest, 1.15 a point |
 | --- | ---: | ---: |
-| Flat exemplar columns and a JSON array, 64-hex content digest | 185 B/point | 222 B/point |
+| Before: flat exemplar columns and a JSON array, 64-hex content digest | 185 B/point | 222 B/point |
+| Exemplars once, in one list (Metric exemplars); content digest 128 bits | 128 | 149 |
 
-The exemplars take 59.4 B a point at the sampled rate, the first of them stored twice, and the content digest 34.6:
-the metric target is not met on this load.
+The exemplars take 59.4 B a point before and 21.6 after at the sampled rate, and the content digest 34.6 and 18.3.
+Ten times the replicas - ten times the series, a tenth of the points each - measured within a point of the same figure
+on the earlier load, so the figure does not rest on how often a series repeats within a row group. The metric target
+is met on this load at both rates.
 
 **Arithmetic for media.** Media cannot be compressed losslessly: six generated PNGs, a JPEG, a PDF and encrypted
 reasoning signatures, 15.3 MB unique per project out of 74.6 MB. However well everything else is stored, traces
@@ -658,7 +662,28 @@ either gains only that its own span's earlier revision is taken for its later on
 storage accounting sums, are 32 B smaller with it. On the storage gate the trace signal went from 564.64 to 545.45 B
 a span at three passes, and from 464.19 to 450.48 marginal from three passes to ten, five blocks where a block is
 2.7 B a span. Measured on 409,710 random digests, the column costs 34.55 B a span as 64 hex characters, 17.92 as 32
-and 18.56 as a 16-byte BLOB, so it stays text. A metric point's digest is its own function and keeps its width.
+and 18.56 as a 16-byte BLOB, so it stays text. A metric point's content digest, its own function, is cut to 128 bits on the same reasoning; its `datapoint_id`, which the API addresses a point by, keeps all 256.
+
+### Metric exemplars
+
+A metric data point's exemplars are stored once each, in one list on its row - DuckDB's `STRUCT(trace_id VARCHAR,
+span_id VARCHAR, time_unix_nano UBIGINT, value_int BIGINT, value_double DOUBLE, attributes VARCHAR)[]`, ClickHouse's
+`Array(Tuple(...))` of the same fields, unnamed because the driver parses no named tuple element. Six flat columns
+held the first exemplar for the trace-correlation filter and a JSON array held all of them, the first again, with
+its ids as hex strings, its instant as RFC 3339 text and its keys spelled out on every entry. The answers are
+rebuilt from the list: the first exemplar's trace, span and microsecond instant, and the array, byte for byte as the
+server wrote it - `the_exemplar_array_is_answered_exactly_as_it_was_stored_before` holds the rebuild to the old
+writer, and `captured_exemplars_are_answered_as_before_on_both_backends` holds every captured exemplar on both
+backends to it. The `exemplar_trace_id` filter still matches the first exemplar's trace only. The ids stay hex
+inside the list: compressed, 32 hex characters cost 17.92 B where 16 bytes as a BLOB cost 18.56, on 409,710 random
+ids, and text keeps an id of any length. DuckDB's positional appender binds no list, and its text form of one does
+not cast back every string - an attribute with quotes and backslashes in some orders fails to - so a batch is
+appended to a temporary staging table holding each row's exemplars as JSON, which `serde_json` writes and
+`from_json` reads exactly, and moved into the table by one `INSERT ... SELECT` that converts them;
+`awkward_attribute_text_round_trips_exactly` round-trips a thousand seeded cases of quotes, backslashes, brackets,
+`NULL` as text, control characters and unicode. On the derived load the exemplars went from 59.4 to 21.6 B a point
+at the sampled rate, and the metric figure from 185 to 128 B a point with the 128-bit content digest, 222 to 149 at
+the densest.
 
 ### Not done: a numeric span key
 

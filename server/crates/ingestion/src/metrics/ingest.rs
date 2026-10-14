@@ -177,19 +177,14 @@ async fn ingest_inner(
     // An out-of-range *exemplar* timestamp drops the exemplar, not the datapoint. The exemplar is an
     // auxiliary debugging sample; refusing a real measurement because its exemplar has a bad clock would be
     // wrong, and storing the exemplar's timestamp unvalidated diverged the backends - DuckDB kept year 3000
-    // while ClickHouse clamped it (and, before the clamp, mis-stored it). Cleared here, backend-agnostically,
+    // while ClickHouse clamped it (and, before the clamp, mis-stored it). Dropped here, backend-agnostically,
     // so neither store ever sees an unstorable exemplar instant. The measurement survives.
     let mut exemplars_dropped = 0usize;
     for m in metrics.iter_mut() {
-        if m.exemplar_timestamp.is_some_and(|ts| !is_storable(ts)) {
-            m.exemplar_trace_id = None;
-            m.exemplar_span_id = None;
-            m.exemplar_value_int = None;
-            m.exemplar_value_double = None;
-            m.exemplar_timestamp = None;
-            m.exemplar_attributes = serde_json::Value::Null;
-            exemplars_dropped += 1;
-        }
+        let before = m.exemplars.len();
+        m.exemplars
+            .retain(|exemplar| exemplar.timestamp().is_none_or(is_storable));
+        exemplars_dropped += before - m.exemplars.len();
     }
     if exemplars_dropped > 0 {
         tracing::warn!(

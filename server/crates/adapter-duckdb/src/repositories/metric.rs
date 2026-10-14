@@ -13,7 +13,8 @@ use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::traits::FilterOptionRow;
 use sideseat_ports::types::{
-    ListMetricsParams, MetricAggregateRow, MetricRow, NormalizedMetric, ProjectId, WinningRevision,
+    ListMetricsParams, MetricAggregateRow, MetricExemplar, MetricRow, NormalizedMetric, ProjectId,
+    WinningRevision, exemplars_json,
 };
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::{Backend, confirmations, dml, metrics as metric_sql};
@@ -158,6 +159,9 @@ fn execute_metric_rows(
 }
 
 fn row_to_metric(row: &duckdb::Row<'_>) -> duckdb::Result<MetricRow> {
+    let exemplars =
+        super::metric_exemplars::exemplars_from_value(row.get::<_, duckdb::types::Value>(17)?);
+    let first = exemplars.first();
     Ok(MetricRow {
         datapoint_id: row.get(0)?,
         metric_name: row.get(1)?,
@@ -176,27 +180,27 @@ fn row_to_metric(row: &duckdb::Row<'_>) -> duckdb::Result<MetricRow> {
         histogram_max: row.get(14)?,
         summary_count: row.get::<_, Option<i64>>(15)?.map(|value| value as u64),
         summary_sum: row.get(16)?,
-        exemplar_trace_id: row.get(17)?,
-        exemplar_span_id: row.get(18)?,
-        exemplar_timestamp: row.get::<_, Option<i64>>(19)?.map(micros_to_datetime),
-        session_id: row.get(20)?,
-        user_id: row.get(21)?,
-        environment: row.get(22)?,
-        service_name: row.get(23)?,
-        service_version: row.get(24)?,
-        service_namespace: row.get(25)?,
-        service_instance_id: row.get(26)?,
-        scope_name: row.get(27)?,
-        scope_version: row.get(28)?,
-        attributes: row.get(29)?,
-        resource_attributes: row.get(30)?,
-        scope_attributes: row.get(31)?,
-        scope_schema_url: row.get(32)?,
-        resource_schema_url: row.get(33)?,
-        exemplars: row.get(34)?,
-        flags: row.get(35)?,
-        raw_metric: row.get(36)?,
-        ingested_at: micros_to_datetime(row.get(37)?),
+        exemplar_trace_id: first.and_then(MetricExemplar::trace_id_hex),
+        exemplar_span_id: first.and_then(MetricExemplar::span_id_hex),
+        exemplar_timestamp: first.and_then(MetricExemplar::stored_timestamp),
+        session_id: row.get(18)?,
+        user_id: row.get(19)?,
+        environment: row.get(20)?,
+        service_name: row.get(21)?,
+        service_version: row.get(22)?,
+        service_namespace: row.get(23)?,
+        service_instance_id: row.get(24)?,
+        scope_name: row.get(25)?,
+        scope_version: row.get(26)?,
+        attributes: row.get(27)?,
+        resource_attributes: row.get(28)?,
+        scope_attributes: row.get(29)?,
+        scope_schema_url: row.get(30)?,
+        resource_schema_url: row.get(31)?,
+        exemplars: exemplars_json(&exemplars),
+        flags: row.get(32)?,
+        raw_metric: row.get(33)?,
+        ingested_at: micros_to_datetime(row.get(34)?),
     })
 }
 
@@ -365,7 +369,10 @@ fn insert_metrics(
         return Ok(());
     }
 
-    let mut appender = conn.appender(table)?;
+    // Appended to the stage, whose exemplars are JSON, and moved into the table with them converted
+    // (`metric_exemplars`).
+    super::metric_exemplars::prepare_stage(conn, table)?;
+    let mut appender = conn.appender(super::metric_exemplars::STAGE)?;
 
     // Within one batch, the highest version wins.
     //
@@ -409,13 +416,8 @@ fn insert_metrics(
             m.summary_count.map(|c| c as i64),
             m.summary_sum,
             json_to_opt_string(&m.summary_quantiles).as_deref(),
-            // EXEMPLAR
-            m.exemplar_trace_id.as_deref(),
-            m.exemplar_span_id.as_deref(),
-            m.exemplar_value_int,
-            m.exemplar_value_double,
-            SqlOptTimestamp(m.exemplar_timestamp),
-            json_to_opt_string(&m.exemplar_attributes).as_deref(),
+            // EXEMPLARS, as the JSON the stage holds
+            super::metric_exemplars::staged_exemplars(&m.exemplars).as_deref(),
             // CONTEXT
             m.session_id.as_deref(),
             m.user_id.as_deref(),
@@ -440,7 +442,6 @@ fn insert_metrics(
             json_to_opt_string(&m.scope_attributes).as_deref(),
             m.scope_schema_url.as_deref(),
             m.resource_schema_url.as_deref(),
-            json_to_opt_string(&m.exemplars).as_deref(),
             // The version, appended last for the same positional reason as everything above it.
             SqlTimestamp(m.ingested_at.unwrap_or(batch_now)),
             m.content_digest.as_str(),
@@ -451,7 +452,7 @@ fn insert_metrics(
 
     appender.flush()?;
     drop(appender);
-    Ok(())
+    super::metric_exemplars::commit_stage(conn, table)
 }
 
 #[cfg(test)]
@@ -774,8 +775,11 @@ mod tests {
                 value_double: Some(12.5),
                 service_name: Some("checkout".to_string()),
                 environment: Some("test".to_string()),
-                exemplar_trace_id: Some("trace-1".to_string()),
-                exemplar_span_id: Some("span-1".to_string()),
+                exemplars: vec![sideseat_ports::types::MetricExemplar {
+                    trace_id: Some(vec![0xab; 16]),
+                    span_id: Some(vec![0xcd; 8]),
+                    ..Default::default()
+                }],
                 attributes: serde_json::json!({"route": "/pay"}),
                 ingested_at: Some(ingested_at),
                 ..Default::default()
@@ -815,8 +819,11 @@ mod tests {
             .expect("get metric")
             .expect("metric exists");
         assert_eq!(point.value_double, Some(12.5));
-        assert_eq!(point.exemplar_trace_id.as_deref(), Some("trace-1"));
-        assert_eq!(point.exemplar_span_id.as_deref(), Some("span-1"));
+        assert_eq!(
+            point.exemplar_trace_id.as_deref(),
+            Some("abababababababababababababababab")
+        );
+        assert_eq!(point.exemplar_span_id.as_deref(), Some("cdcdcdcdcdcdcdcd"));
         assert_eq!(point.attributes.as_deref(), Some("{\"route\":\"/pay\"}"));
 
         let aggregates = super::aggregate_metrics(&conn, &params).expect("aggregate metrics");

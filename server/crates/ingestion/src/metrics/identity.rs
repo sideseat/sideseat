@@ -116,6 +116,10 @@ pub fn datapoint_id(metric: &NormalizedMetric, inputs: &IdentityInputs<'_>) -> S
 /// replace. Confirmation needs the opposite distinction: it must prove that this delivery's correction,
 /// rather than an older row with the same identity, is what survived. Only system-managed fields are
 /// removed before serialisation.
+///
+/// The first 128 bits of BLAKE3, as 32 hex characters, for the span content digest's reasons
+/// (`traces::persist::span_content_digest`): it only tells revisions of one datapoint identity apart, and
+/// no API answer, export or cursor holds it. The datapoint identity itself is the API's and keeps its width.
 pub fn content_digest(metric: &NormalizedMetric) -> String {
     let mut producer = metric.clone();
     producer.project_id = None;
@@ -123,8 +127,13 @@ pub fn content_digest(metric: &NormalizedMetric) -> String {
     producer.content_digest.clear();
     let bytes = serde_json::to_vec(&producer)
         .expect("NormalizedMetric contains only values supported by serde_json");
-    blake3::hash(&bytes).to_hex().to_string()
+    let mut digest = blake3::hash(&bytes).to_hex().to_string();
+    digest.truncate(CONTENT_DIGEST_HEX);
+    digest
 }
+
+/// The content digest's length in hex characters: 128 bits.
+const CONTENT_DIGEST_HEX: usize = 32;
 
 /// Hash an OTLP attribute set: keys sorted, each value tagged by its protobuf variant.
 ///
@@ -518,5 +527,31 @@ mod tests {
             )
         };
         assert_ne!(id_of(&m, &[nested(1)]), id_of(&m, &[nested(2)]));
+    }
+
+    /// A datapoint's content digest is 128 bits, as 32 hex characters, the same whatever the system-managed fields
+    /// say and different for any change to what the producer sent; its identity keeps the full 256.
+    #[test]
+    fn a_content_digest_is_128_bits_of_the_producer_s_content() {
+        let metric = base();
+        let digest = content_digest(&metric);
+        assert_eq!(digest.len(), 32, "{digest}");
+        assert!(
+            digest.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "{digest}"
+        );
+        let managed = NormalizedMetric {
+            project_id: Some("another".to_string()),
+            ingested_at: Some(chrono::DateTime::UNIX_EPOCH),
+            content_digest: "stale".to_string(),
+            ..base()
+        };
+        assert_eq!(digest, content_digest(&managed));
+        let corrected = NormalizedMetric {
+            value_int: Some(7),
+            ..base()
+        };
+        assert_ne!(digest, content_digest(&corrected));
+        assert_eq!(id_of(&metric, &[]).len(), 64);
     }
 }

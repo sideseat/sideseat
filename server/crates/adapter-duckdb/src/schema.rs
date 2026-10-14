@@ -300,15 +300,14 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     summary_quantiles       JSON,               -- [{quantile, value}, ...]
 
     -- ═══════════════════════════════════════════════════════════════════
-    -- EXEMPLAR (the *first* exemplar, indexed for trace correlation)
-    -- The full set is in `exemplars` at the end of the table.
+    -- EXEMPLARS: every one, each once, in the order sent (repositories::metric_exemplars). A histogram
+    -- carries one per bucket. The first is the one the trace-correlation filter matches; the API's first
+    -- exemplar fields and its array are rebuilt from this. NULL for a point with none. The ids stay hex:
+    -- compressed, 32 hex characters cost 17.92 B where 16 bytes as a BLOB cost 18.56, measured on 409,710
+    -- random ids, and text keeps an id of any length.
     -- ═══════════════════════════════════════════════════════════════════
-    exemplar_trace_id       VARCHAR,            -- Linked trace ID (hex)
-    exemplar_span_id        VARCHAR,            -- Linked span ID (hex)
-    exemplar_value_int      BIGINT,             -- Exemplar integer value
-    exemplar_value_double   DOUBLE,             -- Exemplar double value
-    exemplar_timestamp      TIMESTAMP,          -- Exemplar timestamp
-    exemplar_attributes     JSON USING COMPRESSION zstd,               -- Exemplar filtered attributes
+    exemplars               STRUCT(trace_id VARCHAR, span_id VARCHAR, time_unix_nano UBIGINT,
+                                   value_int BIGINT, value_double DOUBLE, attributes VARCHAR)[],
 
     -- ═══════════════════════════════════════════════════════════════════
     -- CONTEXT (extracted from attributes)
@@ -359,10 +358,6 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     scope_attributes        JSON USING COMPRESSION zstd,
     scope_schema_url        VARCHAR,
     resource_schema_url     VARCHAR,
-    -- Every exemplar, not just the first. A histogram carries one per bucket, so the six flat
-    -- `exemplar_*` columns above - which the trace-correlation index is built on - held one trace link
-    -- out of however many the exporter sent. Appended, for the positional-Appender reason above.
-    exemplars               JSON USING COMPRESSION zstd,
     -- Server receipt time, and the version that decides which re-delivery of a datapoint wins.
     -- ClickHouse sorts its replacing engine by it; this side compares it before replacing, so both
     -- backends answer that question the same way. Appended, for the positional-Appender reason above.

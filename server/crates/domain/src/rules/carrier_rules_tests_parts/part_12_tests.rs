@@ -699,12 +699,6 @@ fn no_production_module_spells_a_declared_producer_word() {
             "OTLP's own JSON member for a `LogRecord`'s attributes, which the record decoder reads - no producer's",
         ),
         (
-            "server/crates/ingestion/src/metrics/extract.rs",
-            "attributes",
-            "the member SideSeat's stored exemplar keeps OTLP's `Exemplar.filtered_attributes` under - OTLP's data, \
-             no producer's",
-        ),
-        (
             "server/crates/ingestion/src/traces/persist/flattening.rs",
             "attributes",
             "OTLP's own `Span.attributes`, under the member the raw span record keeps them - no producer's",

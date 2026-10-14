@@ -5652,6 +5652,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "futures",
+ "hex",
  "rmp-serde",
  "rustc-hash",
  "serde",

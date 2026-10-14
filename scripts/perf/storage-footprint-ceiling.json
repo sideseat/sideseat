@@ -10,7 +10,7 @@
     },
     "metrics": {
       "target": 150,
-      "regression": 186
+      "regression": 129
     }
   },
   "distributed": {

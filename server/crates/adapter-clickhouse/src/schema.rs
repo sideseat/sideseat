@@ -603,13 +603,13 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     summary_sum             Nullable(Float64),
     summary_quantiles       Nullable(String),
 
-    -- EXEMPLAR (the first one; the full set is in `exemplars` below)
-    exemplar_trace_id       Nullable(String),
-    exemplar_span_id        Nullable(String),
-    exemplar_value_int      Nullable(Int64),
-    exemplar_value_double   Nullable(Float64),
-    exemplar_timestamp      Nullable(DateTime64(6, 'UTC')),
-    exemplar_attributes     Nullable(String),
+    -- EXEMPLARS: every one, each once, in the order sent. A histogram carries one per bucket. The first is the
+    -- one the trace-correlation filter matches; the API's first-exemplar fields and its array are rebuilt from
+    -- this. Empty for a point with none.
+    -- The tuple is unnamed because the driver parses the type the server reports and knows no named element:
+    -- trace id, span id, instant in nanoseconds, integer value, double value, attributes.
+    exemplars               Array(Tuple(Nullable(String), Nullable(String), UInt64, Nullable(Int64),
+                                        Nullable(Float64), Nullable(String))) CODEC(ZSTD(3)),
 
     -- CONTEXT
     session_id              Nullable(String),
@@ -639,9 +639,6 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     scope_schema_url        Nullable(String),
     resource_schema_url     Nullable(String),
 
-    -- Every exemplar, not only the first. A histogram carries one per bucket, so the flat exemplar_*
-    -- columns above hold one trace link out of however many the exporter sent.
-    exemplars               Nullable(String) CODEC(ZSTD(3)),
 
     -- The replacing engine's version. Without it the engine had no version argument at all, so which
     -- of two deliveries of one `datapoint_id` survived was insert-block order - while DuckDB deletes
@@ -728,13 +725,13 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     summary_sum             Nullable(Float64),
     summary_quantiles       Nullable(String),
 
-    -- EXEMPLAR (the first one; the full set is in `exemplars` below)
-    exemplar_trace_id       Nullable(String),
-    exemplar_span_id        Nullable(String),
-    exemplar_value_int      Nullable(Int64),
-    exemplar_value_double   Nullable(Float64),
-    exemplar_timestamp      Nullable(DateTime64(6, 'UTC')),
-    exemplar_attributes     Nullable(String),
+    -- EXEMPLARS: every one, each once, in the order sent. A histogram carries one per bucket. The first is the
+    -- one the trace-correlation filter matches; the API's first-exemplar fields and its array are rebuilt from
+    -- this. Empty for a point with none.
+    -- The tuple is unnamed because the driver parses the type the server reports and knows no named element:
+    -- trace id, span id, instant in nanoseconds, integer value, double value, attributes.
+    exemplars               Array(Tuple(Nullable(String), Nullable(String), UInt64, Nullable(Int64),
+                                        Nullable(Float64), Nullable(String))) CODEC(ZSTD(3)),
 
     -- CONTEXT
     session_id              Nullable(String),
@@ -764,9 +761,6 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     scope_schema_url        Nullable(String),
     resource_schema_url     Nullable(String),
 
-    -- Every exemplar, not only the first. A histogram carries one per bucket, so the flat exemplar_*
-    -- columns above hold one trace link out of however many the exporter sent.
-    exemplars               Nullable(String) CODEC(ZSTD(3)),
 
     -- The replacing engine's version - see the note on the local table.
     ingested_at             DateTime64(6, 'UTC') DEFAULT now64(6),

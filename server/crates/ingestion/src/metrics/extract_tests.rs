@@ -4,6 +4,7 @@ use opentelemetry_proto::tonic::metrics::v1::{
     Gauge, Histogram, HistogramDataPoint, NumberDataPoint, ResourceMetrics, ScopeMetrics, Sum,
 };
 use opentelemetry_proto::tonic::resource::v1::Resource;
+use sideseat_ports::types::exemplars_json;
 
 fn make_key_value(key: &str, value: &str) -> KeyValue {
     KeyValue {
@@ -343,16 +344,22 @@ fn every_exemplar_of_a_data_point_is_kept() {
     assert_eq!(result.len(), 1);
     let metric = &result[0];
 
-    // The flat columns still carry the first, because the trace-correlation index is built on them.
+    // The first is the one the trace-correlation filter matches.
     assert_eq!(
-        metric.exemplar_trace_id.as_deref(),
+        metric
+            .exemplars
+            .first()
+            .and_then(MetricExemplar::trace_id_hex)
+            .as_deref(),
         Some(&"01".repeat(16)[..])
     );
 
-    let all = metric
-        .exemplars
-        .as_array()
-        .expect("exemplars must be an array when the data point carried any");
+    let json: serde_json::Value = serde_json::from_str(
+        &exemplars_json(&metric.exemplars)
+            .expect("exemplars must be an array when the data point carried any"),
+    )
+    .expect("the array is JSON");
+    let all = json.as_array().expect("an array");
     assert_eq!(all.len(), 3, "all three bucket exemplars must be kept");
     assert_eq!(all[1]["trace_id"], "02".repeat(16));
     assert_eq!(all[1]["span_id"], "02".repeat(8));
@@ -392,7 +399,7 @@ fn a_data_point_with_no_exemplars_stores_none() {
     };
 
     let result = extract_metrics_batch(&request);
-    assert!(result[0].exemplars.is_null());
+    assert!(result[0].exemplars.is_empty());
 }
 
 /// An exemplar with an unstorable clock is dropped from *both* representations, and the ones after it
@@ -450,16 +457,21 @@ fn an_unstorable_exemplar_is_dropped_from_both_representations() {
     assert_eq!(result.len(), 1, "the measurement itself must survive");
     let metric = &result[0];
 
-    let all = metric
-        .exemplars
-        .as_array()
-        .expect("the good exemplar remains");
+    let json: serde_json::Value = serde_json::from_str(
+        &exemplars_json(&metric.exemplars).expect("the good exemplar remains"),
+    )
+    .expect("the array is JSON");
+    let all = json.as_array().expect("an array");
     assert_eq!(all.len(), 1, "only the storable exemplar is kept");
     assert_eq!(all[0]["trace_id"], "02".repeat(16));
 
     // And the flat fields name the same one, rather than the dropped one or nothing.
     assert_eq!(
-        metric.exemplar_trace_id.as_deref(),
+        metric
+            .exemplars
+            .first()
+            .and_then(MetricExemplar::trace_id_hex)
+            .as_deref(),
         Some(&"02".repeat(16)[..]),
         "the flat fields and the array must describe the same exemplar"
     );
@@ -518,17 +530,131 @@ fn a_non_finite_exemplar_value_is_dropped_from_both_representations() {
         let result = extract_metrics_batch(&request);
         assert_eq!(result.len(), 1, "the measurement itself must survive {bad}");
         let metric = &result[0];
-        let all = metric.exemplars.as_array().expect("the finite one remains");
+        let json: serde_json::Value = serde_json::from_str(
+            &exemplars_json(&metric.exemplars).expect("the finite one remains"),
+        )
+        .expect("the array is JSON");
+        let all = json.as_array().expect("an array");
         assert_eq!(all.len(), 1, "only the finite exemplar is kept for {bad}");
         assert_eq!(all[0]["value_double"], 1.0);
         assert_eq!(
-            metric.exemplar_value_double,
+            metric
+                .exemplars
+                .first()
+                .and_then(|exemplar| exemplar.value_double),
             Some(1.0),
             "the flat value and the array must agree for {bad}"
         );
         assert_eq!(
-            metric.exemplar_trace_id.as_deref(),
+            metric
+                .exemplars
+                .first()
+                .and_then(MetricExemplar::trace_id_hex)
+                .as_deref(),
             Some(&"02".repeat(16)[..])
         );
     }
+}
+
+/// The array an exemplar list answers with is the one the server stored before the list replaced it, byte for
+/// byte: integer and double values, ids that are all zeroes or absent, attributes of every type, and instants to
+/// the nanosecond. `old_exemplars_json` is that writer, kept here as the oracle.
+#[test]
+fn the_exemplar_array_is_answered_exactly_as_it_was_stored_before() {
+    use opentelemetry_proto::tonic::metrics::v1::{Exemplar, exemplar};
+
+    fn old_exemplars_json(exemplars: &[Exemplar]) -> Option<String> {
+        if exemplars.is_empty() {
+            return None;
+        }
+        let entries: Vec<JsonValue> = exemplars
+            .iter()
+            .map(|e| {
+                let mut entry = serde_json::Map::new();
+                if let Some(trace_id) = Some(hex::encode(&e.trace_id))
+                    .filter(|s| !s.is_empty() && s != "00000000000000000000000000000000")
+                {
+                    entry.insert("trace_id".to_string(), JsonValue::String(trace_id));
+                }
+                if let Some(span_id) = Some(hex::encode(&e.span_id))
+                    .filter(|s| !s.is_empty() && s != "0000000000000000")
+                {
+                    entry.insert("span_id".to_string(), JsonValue::String(span_id));
+                }
+                match &e.value {
+                    Some(exemplar::Value::AsInt(i)) => {
+                        entry.insert("value_int".to_string(), serde_json::json!(i));
+                    }
+                    Some(exemplar::Value::AsDouble(d)) => {
+                        entry.insert("value_double".to_string(), serde_json::json!(d));
+                    }
+                    None => {}
+                }
+                if e.time_unix_nano > 0 {
+                    entry.insert(
+                        "timestamp".to_string(),
+                        JsonValue::String(nanos_to_datetime(e.time_unix_nano).to_rfc3339()),
+                    );
+                }
+                if !e.filtered_attributes.is_empty() {
+                    entry.insert(
+                        "attributes".to_string(),
+                        crate::otlp::attrs_to_typed_json(&e.filtered_attributes),
+                    );
+                }
+                JsonValue::Object(entry)
+            })
+            .collect();
+        serde_json::to_string(&JsonValue::Array(entries)).ok()
+    }
+
+    let typed = |key: &str, value: any_value::Value| KeyValue {
+        key: key.to_string(),
+        value: Some(AnyValue { value: Some(value) }),
+    };
+    let exemplars = vec![
+        Exemplar {
+            trace_id: vec![0xab; 16],
+            span_id: vec![0xcd; 8],
+            time_unix_nano: 1_704_067_200_123_456_789,
+            value: Some(exemplar::Value::AsInt(-42)),
+            filtered_attributes: vec![
+                typed("status_code", any_value::Value::IntValue(200)),
+                typed(
+                    "route",
+                    any_value::Value::StringValue("/pay \"x\"".to_string()),
+                ),
+                typed("cached", any_value::Value::BoolValue(true)),
+                typed("ratio", any_value::Value::DoubleValue(0.25)),
+                // A double whose shortest spelling a parse-and-write could change.
+                typed(
+                    "latency",
+                    any_value::Value::DoubleValue(51.248_178_375_505_404),
+                ),
+            ],
+        },
+        Exemplar {
+            trace_id: vec![0; 16],
+            span_id: vec![0; 8],
+            time_unix_nano: 0,
+            value: Some(exemplar::Value::AsDouble(0.1 + 0.2)),
+            filtered_attributes: vec![],
+        },
+        Exemplar {
+            trace_id: vec![],
+            span_id: vec![7; 3],
+            time_unix_nano: 1,
+            value: None,
+            filtered_attributes: vec![],
+        },
+    ];
+    let references: Vec<&Exemplar> = exemplars.iter().collect();
+    assert_eq!(
+        exemplars_json(&stored_exemplars(&references)),
+        old_exemplars_json(&exemplars)
+    );
+    assert_eq!(
+        exemplars_json(&stored_exemplars(&[])),
+        old_exemplars_json(&[])
+    );
 }

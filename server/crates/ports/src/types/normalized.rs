@@ -74,19 +74,11 @@ pub struct NormalizedMetric {
     pub summary_sum: Option<f64>,
     pub summary_quantiles: JsonValue,
 
-    // Exemplar (first one for trace correlation)
-    pub exemplar_trace_id: Option<String>,
-    pub exemplar_span_id: Option<String>,
-    pub exemplar_value_int: Option<i64>,
-    pub exemplar_value_double: Option<f64>,
-    pub exemplar_timestamp: Option<DateTime<Utc>>,
-    pub exemplar_attributes: JsonValue,
-    /// Every exemplar of the data point, as a JSON array; `Null` when there are none.
+    /// Every exemplar of the data point, in the order it was sent, each stored once.
     ///
-    /// The flat `exemplar_*` fields above carry the first one, for the trace-correlation index. This
-    /// carries them all, because a histogram exemplar is per bucket and dropping the rest throws away
-    /// most of the trace links the exporter sent.
-    pub exemplars: JsonValue,
+    /// A histogram exemplar is per bucket, so all are kept: dropping the rest throws away most of the trace
+    /// links the exporter sent. The first is the one the trace-correlation filter matches.
+    pub exemplars: Vec<super::MetricExemplar>,
 
     /// Server receipt time, and the replacing engine's **version**.
     ///

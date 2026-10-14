@@ -143,12 +143,19 @@ fn filters(params: &ListMetricsParams, backend: Backend) -> (Vec<String>, Vec<Qu
         ("metric_name", params.metric_name.as_ref()),
         ("metric_type", params.metric_type.as_ref()),
         ("service_name", params.service_name.as_ref()),
-        ("exemplar_trace_id", params.exemplar_trace_id.as_ref()),
     ] {
         if let Some(value) = value {
             conditions.push(format!("m.{column} = ?"));
             values.push(QueryValue::String(value.clone()));
         }
+    }
+    // The trace-correlation filter matches the first exemplar's trace, by the hex it is stored as.
+    if let Some(trace_id) = params.exemplar_trace_id.as_ref() {
+        conditions.push(match backend {
+            Backend::Duckdb => "m.exemplars[1].trace_id = ?".to_string(),
+            Backend::Clickhouse => "tupleElement(m.exemplars[1], 1) = ?".to_string(),
+        });
+        values.push(QueryValue::String(trace_id.clone()));
     }
     push_time_filter(
         &mut conditions,
@@ -203,18 +210,16 @@ fn projection(backend: Backend) -> String {
          {} AS timestamp_us, {} AS start_timestamp_us, \
          m.value_int, m.value_double, m.histogram_count, m.histogram_sum, \
          m.histogram_min, m.histogram_max, m.summary_count, m.summary_sum, \
-         m.exemplar_trace_id, m.exemplar_span_id, {} AS exemplar_timestamp_us, \
+         m.exemplars, \
          m.session_id, m.user_id, m.environment, m.service_name, m.service_version, \
          m.service_namespace, m.service_instance_id, m.scope_name, m.scope_version, \
-         {}, {}, {}, m.scope_schema_url, m.resource_schema_url, {}, \
+         {}, {}, {}, m.scope_schema_url, m.resource_schema_url, \
          m.flags, {}, {} AS ingested_at_us",
         nullable_timestamp_micros("m.timestamp", backend),
         nullable_timestamp_micros("m.start_timestamp", backend),
-        nullable_timestamp_micros("m.exemplar_timestamp", backend),
         text_column("attributes", backend),
         text_column("resource_attributes", backend),
         text_column("scope_attributes", backend),
-        text_column("exemplars", backend),
         text_column("raw_metric", backend),
         nullable_timestamp_micros("m.ingested_at", backend),
     )
