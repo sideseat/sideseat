@@ -21,7 +21,7 @@
   "messages": [
     {
       "id": "smolagents.agent_chain_input",
-      "doc": "Smolagents AGENT and CHAIN spans carry framework execution state in `input.value`; their LLM children carry the actual conversation. Claim the envelope so the generic fallback does not present task options or an ActionStep repr as a user turn. Where no LLM child exists - a streamed run on instrumentor releases before 0.1.33 - the prompt the model saw is only inside the agent output's ActionStep reprs, which are not read: those runs show no user turn.",
+      "doc": "Smolagents AGENT and CHAIN spans carry framework execution state in `input.value`; their LLM children carry the actual conversation. Claim the envelope so the generic fallback does not present task options or an ActionStep repr as a user turn. Where no LLM child exists - a streamed run on instrumentor releases before 0.1.33 - the prompt the model saw is only in the agent output's first step record, which `smolagents.agent_stream_objects` reads.",
       "where": {
         "all": [
           {
@@ -71,9 +71,8 @@
       "alternatives": [
         {
           "id": "yielded_objects",
-          "doc": "In the order the run yielded them; the fragment says which objects are turns.",
-          "select": "$",
-          "each": true,
+          "doc": "In the order the run yielded them, except that the first step's record leads: the run yields it only after the calls it made, while the request it lists was sent before them. The fragment says which objects are turns.",
+          "select": "$[?@.__python_constructor == 'ActionStep' && @.step_number == 1, ?@.__python_constructor != 'ActionStep']",
           "then_fragment": "smolagents.stream_object"
         }
       ],
@@ -266,8 +265,21 @@
   ],
   "fragments": {
     "stream_object": {
-      "doc": "What one object a smolagents run yielded is, as a turn: a call the model asked for, and the output its execution returned, each naming the model's id. Deltas, step records and the final-answer marker restate them.",
+      "doc": "What one object a smolagents run yielded is, as a turn: a call the model asked for, and the output its execution returned, each naming the model's id, and the request the first call was sent, which the first step's record holds. Deltas, the rest of the step records and the final-answer marker restate them.",
       "cases": [
+        {
+          "id": "step_request",
+          "doc": "The request the first model call received - the system prompt and the task - which the first step's record lists as `model_input_messages`. Instrumentor releases before 0.1.33 record no span for a streamed model call, so this is the only copy of it; where that span exists, content identity makes the two one.",
+          "parent_where": {
+            "path": "$.__python_constructor",
+            "one_of": [
+              "ActionStep"
+            ]
+          },
+          "select": "$.model_input_messages",
+          "each": true,
+          "direction": "input"
+        },
         {
           "id": "tool_call",
           "doc": "A call the model asked for, with the model's id.",

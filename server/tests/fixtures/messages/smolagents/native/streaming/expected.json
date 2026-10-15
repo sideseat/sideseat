@@ -176,8 +176,10 @@
       "messages": []
     },
     "trace-1/ToolCallingAgent.run/span-2": {
-      "message_count": 4,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "user",
         "assistant",
         "tool",
         "assistant",
@@ -188,6 +190,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "fa412b2baf51bf0c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -196,7 +214,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
@@ -205,7 +223,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fxXvbuUiFnXzqhEazxk8Qr\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket …[324 chars]",
@@ -214,7 +232,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 3,
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
@@ -255,7 +273,7 @@
           "entry_type": "text",
           "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
           "content_digest": "630fb2be90363606",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -263,7 +281,7 @@
           "entry_type": "text",
           "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "fa412b2baf51bf0c",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -327,7 +345,7 @@
           "entry_type": "text",
           "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
           "content_digest": "630fb2be90363606",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -335,7 +353,7 @@
           "entry_type": "text",
           "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "fa412b2baf51bf0c",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -382,9 +400,9 @@
       "tool",
       "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [
       "final_answer",
@@ -421,28 +439,28 @@
       },
       {
         "index": 3,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
-        "content_digest": "630fb2be90363606",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
-        "role": "user",
-        "entry_type": "text",
-        "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
-        "content_digest": "fa412b2baf51bf0c",
-        "observation_type": "generation"
-      },
-      {
-        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
         "content_digest": "0877f1c2ad599f2d",
         "tool_name": "get_weather",
         "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+        "content_digest": "630fb2be90363606",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+        "content_digest": "fa412b2baf51bf0c",
+        "observation_type": "agent"
       }
     ]
   }
