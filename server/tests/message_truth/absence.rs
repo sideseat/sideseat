@@ -381,6 +381,8 @@ pub(super) enum Claim<'t> {
     CallOrder(&'t str),
     /// A call's request, on the span it is tied to (`input_not_exported`): that span records none of it.
     Input(&'t str),
+    /// A call recorded on the model-call span of the call before it (`call_folded_into_run_span`).
+    FoldedCall(&'t str),
     /// A turn the call's span states it was sent (`producer_states_unsent`): its recorded request lacks it.
     Unsent(&'t str, &'t str),
 }
@@ -401,6 +403,7 @@ impl Claim<'_> {
             Claim::CallOrder(_) => "order of a response's parallel calls",
             Claim::Input(_) => "model call's request, on its span",
             Claim::Unsent(..) => "turn the producer states it sent",
+            Claim::FoldedCall(_) => "model call's own span, in a run recorded on one",
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
@@ -439,6 +442,7 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                 "output_not_exported" => Claim::Output(fact(subject)?),
                 "span_signature_not_exported" => Claim::SpanSignature(fact(subject)?),
                 "call_span_not_exported" => Claim::CallSpan(subject),
+                "call_folded_into_run_span" => Claim::FoldedCall(subject),
                 "trace_not_propagated" => Claim::Untraced(subject),
                 "call_span_records_no_output" => Claim::RequestSpan(subject),
                 "call_order_not_exported" => Claim::CallOrder(subject),
@@ -491,6 +495,7 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         | Claim::Untraced(_)
         | Claim::RequestSpan(_)
         | Claim::Input(_)
+        | Claim::FoldedCall(_)
         | Claim::Unsent(..) => Proof::Unprovable(
             "this absence is searched for on the spans the capture's calls are tied to".to_string(),
         ),
@@ -829,6 +834,7 @@ fn every_absence_gap_is_proven() {
                             | Claim::Untraced(_)
                             | Claim::RequestSpan(_)
                             | Claim::Input(_)
+                            | Claim::FoldedCall(_)
                             | Claim::Unsent(..)
                     )
             });
@@ -884,6 +890,12 @@ fn every_absence_gap_is_proven() {
                         Some((recon, matching)) => request_input::prove_input_unexported(
                             &checked, call, recon, matching, &haystack,
                         ),
+                        None => Proof::Unprovable("the capture was not reconstructed".to_string()),
+                    },
+                    Claim::FoldedCall(call) => match &matched {
+                        Some((recon, matching)) => {
+                            call_span::prove_folded_call(&checked, call, recon, matching, &haystack)
+                        }
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
                     Claim::Unsent(call, text) => match &matched {

@@ -37,6 +37,11 @@ impl Matching {
     }
 }
 
+/// The gaps saying a call is recorded on the span of the call before it: no model-call span at all
+/// (`call_span_not_exported`), or one span for a whole run of calls (`call_folded_into_run_span`).
+pub(super) const SHARED_SPAN_REASONS: [&str; 2] =
+    ["call_span_not_exported", "call_folded_into_run_span"];
+
 /// The span a call recorded on no span of its own shares (`call_span_not_exported`): that of the nearest
 /// earlier successful call of its conversation tied to a span of its own, when the call right before it asked
 /// for a tool - it answers a tool round - and every call in between shares that span too. Anything else
@@ -58,7 +63,7 @@ pub(super) fn shared_span(
     let spanless: BTreeSet<&str> = truth
         .gaps
         .iter()
-        .filter(|g| g.reason == "call_span_not_exported")
+        .filter(|g| SHARED_SPAN_REASONS.contains(&g.reason.as_str()))
         .filter_map(|g| g.subject.as_deref())
         .collect();
     let mut earlier = truth.calls[..position]
@@ -162,7 +167,10 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
     // A response proven absent from the telemetry has no span to find.
     let unexported = proven("call_not_exported");
     // A call proven to have no span of its own (`call_span_not_exported`) is tied to none.
-    let spanless = proven("call_span_not_exported");
+    let spanless: BTreeSet<&str> = SHARED_SPAN_REASONS
+        .iter()
+        .flat_map(|reason| proven(reason))
+        .collect();
     // A call whose request span is proven silent (`call_span_records_no_output`) has no span to find.
     let silent = proven("call_span_records_no_output");
     let off_span = proven("output_not_exported");

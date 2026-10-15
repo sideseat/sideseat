@@ -519,6 +519,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // A model call the producer records on no span of its own - an agent span holds every call of its run -
         // so no span can be tied to it; its parts are asserted where the conversation shows them.
         "call_span_not_exported" => effects(GapSubject::Call, false, false, true),
+        // A model call the producer records on the model-call span of the call before it - one span for a whole
+        // automatic function-calling run - so no span of its own can be tied to it; its parts are asserted there.
+        "call_folded_into_run_span" => effects(GapSubject::Call, false, false, true),
         // A model call whose request span is exported but records none of its output and nothing identifying
         // it, so no span can be tied to the call; its parts are asserted where the conversation shows them.
         "call_span_records_no_output" => effects(GapSubject::Call, false, false, true),

@@ -46,6 +46,7 @@ UNEXPORTED = frozenset(
         "parallel_call_order",
         "structured_tool_results",
         "tool_round_call_spans",
+        "tool_round_run_spans",
         "tool_round_traces",
         "media",
         *METADATA,
@@ -238,6 +239,12 @@ def apply(builder: Builder, framework: Framework) -> None:
         # proves per capture that no model-call span exists and that span shows this call's output.
         for record in _tool_round_answers(builder.calls, facts):
             gap("response", "call_span_not_exported", detail, record["id"])
+    if detail := declared("tool_round_run_spans"):
+        # The producer writes model-call spans, but one for a whole run of calls: the call answering a tool round
+        # is recorded on the previous call's span. The rubric proves per capture that the span is a model call,
+        # shows both calls' output, and that no other span does.
+        for record in _tool_round_answers(builder.calls, facts):
+            gap("response", "call_folded_into_run_span", detail, record["id"])
     if detail := declared("tool_round_traces"):
         # The rubric proves per capture that the call's span has no parent and sits in another trace than
         # the previous call's.

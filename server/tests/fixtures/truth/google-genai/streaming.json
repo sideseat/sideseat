@@ -234,6 +234,17 @@
    "subject": "fact-004"
   },
   {
+   "fact": "usage.output",
+   "reason": "metadata_not_exported",
+   "detail": "the first call's output tokens: the run's one generate_content span states a single output count for the whole run, which is not the first call's, and no payload carries the first call's count",
+   "subject": "call-001",
+   "modes": [
+    "native",
+    "sdk",
+    "native@1.1b1"
+   ]
+  },
+  {
    "fact": "response",
    "reason": "call_not_exported",
    "detail": "the model responses that only call functions: automatic function calling records one generate_content span for the whole run, carrying the final answer, so a round's calls appear one execution at a time",
@@ -242,6 +253,17 @@
     "native@0.6b0+semconv-latest",
     "native@0.7b1+semconv-latest",
     "native@1.0b1"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_folded_into_run_span",
+   "detail": "the own span of the call that answers the tool round: from release 1.1 the Google GenAI instrumentation records a streamed automatic function-calling run on one generate_content span, carrying the first call's function call and the second call's answer, so the second call has no span of its own",
+   "subject": "call-002",
+   "modes": [
+    "native",
+    "sdk",
+    "native@1.1b1"
    ]
   },
   {

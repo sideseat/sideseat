@@ -33,6 +33,16 @@ reason = "the model responses that only call functions: automatic function calli
 scenarios = ["tool_use", "error", "streaming"]
 modes = { streaming = ["native@0.7b1+semconv-latest", "native@1.0b1"] }
 
+[tool.sideseat-example.truth.unexported.tool_round_run_spans]
+reason = "the own span of the call that answers the tool round: from release 1.1 the Vertex AI instrumentation records a streamed automatic function-calling run on one generate_content span, carrying the first call's function call and the second call's answer, so the second call has no span of its own"
+scenarios = ["streaming"]
+modes = { streaming = ["native", "sdk", "native@1.1b1"] }
+
+[tool.sideseat-example.truth.unexported.usage_output]
+reason = "the first call's output tokens: the run's one generate_content span states a single output count for the whole run, which is not the first call's, and no payload carries the first call's count"
+scenarios = ["streaming"]
+modes = { streaming = ["native", "sdk", "native@1.1b1"] }
+
 [tool.sideseat-example.truth.unexported.reasoning_kind]
 reason = "the model's thoughts: the Vertex AI instrumentation records a thought part as an ordinary text part, with nothing marking it as a thought, in the native setup and the SDK's alike"
 scenarios = ["reasoning"]

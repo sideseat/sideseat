@@ -71,6 +71,8 @@ class Framework:
     #: holds two of them together (``call_order_not_exported``; their presence stays asserted);
     #: ``tool_round_call_spans`` - the own span of a call that answers a tool round, where the producer
     #: records the whole run on one agent span and no model-call span (``call_span_not_exported``);
+    #: ``tool_round_run_spans`` - the own span of a call that answers a tool round, where the producer
+    #: records a whole run of calls on one model-call span, the run's first call's (``call_folded_into_run_span``);
     #: ``tool_round_traces`` - the trace context of such a call, which the producer starts a new trace for
     #: (``trace_not_propagated``);
     #: ``media`` - the

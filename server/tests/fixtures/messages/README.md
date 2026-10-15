@@ -137,7 +137,12 @@ object stating a role) holding any of its calls' arguments, no carrier holding t
 when automatic function calling records one span for a whole run. Such a call needs no span; its
 parts are checked where the conversation shows them, still in their order (reversed in the feed,
 where each is recorded on its own), but its calls need not all precede its results; and the span
-recording the run may report the run's usage where its payload states that total. A gap may hold
+recording the run may report the run's usage where its payload states that total. Where the producer does write model-call
+spans but one per run - a streamed automatic function-calling run on one `generate_content` span -
+`call_folded_into_run_span` says the call answering the tool round has no span of its own, proven per capture: the
+call answers a tool round, the span it shares is typed a model call and shows the output of the call tied to it, and
+either every asserted output of this call is shown there and nowhere else or, with none asserted, every model-call
+span is tied to a call. A gap may hold
 for some capture modes only (`modes`, `native@1.0b1`), when one release exports what another omits;
 it is proven against exactly those fixtures. The converse, `producer_states_unsent`, is a turn the producer's telemetry states a call was sent and
 its own client dropped before sending (`states_unsent` in the suite's truth table, with the framework's source
