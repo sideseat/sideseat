@@ -189,6 +189,64 @@ passes where it took 12, none of them shared with another table, for the same ro
 a point, so the metric target is judged on the derived load instead (Metrics are judged on a derived load): 128 B a
 point there, met.
 
+**The verdict with every growing table charged, 2026-10-15**, thirty passes at 2ff418b2, the raw records' owner rows
+charged to traces (Every growing table is charged, below), excluding media:
+
+| Signal | Marginal, three to thirty passes | Of it, `raw_owners` | Target | Met |
+| --- | ---: | ---: | ---: | --- |
+| Traces | 466.77 B/span | 10.99 | 480 | yes, by 13.2 B |
+| Logs | 199.92 B/record | - | 300 | yes |
+| Metrics | 182.04 B/point | - | 150 | not a rate |
+
+The trace margin is thin: 13.2 B a span, under 3 % of the target, so a change adding a column's worth to every span
+can cross it. `raw_owners`, one row a raw record and trace for 10.99 B a span, is the lever if one does. From three passes to
+ten the same store reads 458.79 B/span, 210.31 B/record and 156.03 B/point.
+
+**Which load judges the metric target.** On both backends, the derived load of a million points, never the
+gate's captured points: 480 a pass, where a block is tens of bytes a point, so the gate's metric figure - 156 B a
+point from three passes to ten - is a regression check on the bytes and not a rate. Traces and logs are judged on
+the replayed corpus.
+
+**On ClickHouse, 2026-10-15**, at bc736ba8: `storage-footprint.py distributed --production-parts
+--replay-passes N` posts the corpus to a live server N times, a later pass's exports rewritten as the
+in-process gate rewrites them - every trace and span id XORed with the pass's key, the same length - and each table
+merged in the parts its own settings choose. A pass's instants move a second back where the in-process gate's move a
+day on: ClickHouse partitions by month, and ten passes a day apart reach a month three do not on some dates, so the
+difference would charge that partition's fixed cost to the rate; for the same reason both runs are rebased to one
+instant, and the gate fails unless they hold the same partitions. A run whose server rejects any item stops, as its
+figures would count the item stored. Metric exports are replayed too, their instants moved, so the passes grow
+the metric tables and the growth audit sees them; the metric figure is not read from the passes. Metrics are judged
+on one run of the derived load, a million points, where a
+part's fixed cost is a fraction of a byte a point. `make storage-marginal-distributed` runs all three and holds each
+figure to `scripts/perf/storage-marginal-distributed-ceiling.json`: a regression ceiling about 2 % above it, since
+two runs' merges differ by about 1 % (logs read 276.8 and 279.5 on one schema), and the target. The figures below
+were taken with passes a day apart, before the second shift, so a partition the ten passes reached and the three did
+not may be in them; the target re-measures them. Excluding media:
+
+| Signal | Marginal, three to ten passes | One pass less part overhead | Target | Met |
+| --- | ---: | ---: | ---: | --- |
+| Traces | 356.1 B/span | 450.8 | 480 | yes |
+| Logs | 276.8 B/record | 240.1 | 300 | yes |
+| Metrics | 126.6 B/point, derived load | - | 150 | yes |
+
+A later pass repeats the first's content under new ids and instants, and ClickHouse compresses the large text
+columns in blocks of up to 4 MiB that can hold both, so the marginal can credit cross-pass repetition that new
+conversations would not have. The second column has none: one pass in wide parts, less the parts' fixed overhead
+(117.4 B a span, 128.3 a record), still charging the transactional store's pages; both are under the targets. With
+`otel_raw.record` in 4 MiB blocks as well the trace marginal is 315.6 B/span (raw records 95.0 to 58.9), but on a
+read A/B at a load of 16-124 messages of a trace through the domain read 1.83x as long, so it is not done until a
+quiet run judges it.
+
+**Every growing table is charged.** The raw records' owner rows, `raw_owners`, one per record and trace, were charged to no
+signal until 2026-10-15: 36.7 B a span on PostgreSQL between three passes and ten, and 43.2 B in one pass, that no
+span figure held. A marginal run now reports every table's growth per item of each signal, and fails on a table that
+grows by more than half a byte an item while no owner map in `storage-footprint.py` charges it and
+`scripts/perf/storage_growth.py` does not list it, with its reason, as holding no stored item (settled payloads'
+dead tuples, released write claims). The run fails rather than charging an unowned table itself, by design: a replay
+grows every signal's items together, so a table's growth says that it holds something per item but not whose item,
+and a guessed owner would move bytes between signals unseen. Which signal owns a table is stated in the owner map,
+where a review sees it.
+
 **How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
 `VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
 `used_blocks`: the per-column attribution from the segment map plus the residue (indexes, headers, the unused tail

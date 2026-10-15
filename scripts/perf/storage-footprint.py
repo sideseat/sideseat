@@ -54,6 +54,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import storage_raw  # noqa: E402  (a sibling module, importable once the script's directory is on the path)
 import storage_rebase  # noqa: E402  (the same)
 import storage_gate_figures  # noqa: E402  (the same)
+import storage_passes  # noqa: E402  (the same)
 import storage_server  # noqa: E402  (the same)
 from storage_server import http  # noqa: E402
 
@@ -97,10 +98,13 @@ ANALYTICS_OWNER = {**RAW_TABLES, **SPAN_TABLES, **LOG_TABLES, **METRIC_TABLES}
 TRANSACTIONAL_OWNER = {
     "files": "traces",
     "trace_files": "traces",
+    # Who holds each raw record, so its bytes are released only when the last holder goes: one row a record and
+    # trace, so a record holding several traces has several.
+    "raw_owners": "traces",
 }
 # Free ports of its own unless named: two runs on one port measured each other's corpus too.
 PORT = int(os.environ.get("FOOTPRINT_STORAGE_PORT", "0")) or storage_server.free_ports()
-SCOPE = str(abs(hash(str(ROOT))) % 1_000_000)
+SCOPE = storage_server.docker_scope(ROOT)
 CH_NAME, PG_NAME, MINIO_NAME = (
     f"sideseat-storage-{n}-{SCOPE}" for n in ("ch", "pg", "minio")
 )
@@ -183,7 +187,6 @@ def manifest_paths() -> list[Path]:
 
 def corpus() -> list[dict]:
     """Every pinned export, with its signal, tenant and protobuf size."""
-    from google.protobuf import json_format
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
         ExportLogsServiceRequest,
     )
@@ -206,7 +209,10 @@ def corpus() -> list[dict]:
         body = path.read_bytes()
         message = message_type()
         if path.suffix == ".json":
-            json_format.Parse(body, message)
+            # OTLP/JSON spells ids as hex, which the protobuf JSON mapping would read as base64.
+            message = storage_passes.parsed_json(
+                {"signal": signal_name, "body": body, "json": True}
+            )
         else:
             message.ParseFromString(body)
         exports.append(
@@ -598,7 +604,7 @@ def cpu_seconds(pid: int, mode: str) -> dict:
     return cpu
 
 
-def measure_distributed() -> dict:
+def measure_distributed(wide: bool = True) -> dict:
     tables = [
         t
         for t in clickhouse("SHOW TABLES FROM sideseat").split()
@@ -607,10 +613,11 @@ def measure_distributed() -> dict:
     for table in tables:
         # Wide parts, whatever the table's size: a compact part reports no per-column sizes, which left a small
         # table's columns at zero. A store at scale writes wide parts anyway.
-        clickhouse(
-            f"ALTER TABLE sideseat.{table} MODIFY SETTING min_bytes_for_wide_part = 0, "
-            "min_rows_for_wide_part = 0"
-        )
+        if wide:
+            clickhouse(
+                f"ALTER TABLE sideseat.{table} MODIFY SETTING min_bytes_for_wide_part = 0, "
+                "min_rows_for_wide_part = 0"
+            )
         clickhouse(f"OPTIMIZE TABLE sideseat.{table} FINAL")
     rows = clickhouse(
         "SELECT table, name, data_compressed_bytes, data_uncompressed_bytes FROM system.columns "
@@ -627,6 +634,15 @@ def measure_distributed() -> dict:
         "GROUP BY table FORMAT TSV"
     )
     on_disk = {t: int(b) for t, b in (line.split("\t") for line in parts.splitlines())}
+    # Which month partitions each table holds: runs compared with one another must hold the same ones, or the
+    # difference charges a partition's fixed cost to the rate.
+    partitions = collections.defaultdict(list)
+    for line in clickhouse(
+        "SELECT DISTINCT table, partition FROM system.parts WHERE database = 'sideseat' AND active "
+        "ORDER BY table, partition FORMAT TSV"
+    ).splitlines():
+        table, partition = line.split("\t")
+        partitions[table].append(partition)
     pg = docker(
         "exec",
         PG_NAME,
@@ -661,6 +677,7 @@ def measure_distributed() -> dict:
         "analytics_uncompressed": uncompressed,
         "analytics_total": sum(on_disk.get(t, 0) for t in ANALYTICS_OWNER),
         "analytics_parts": on_disk,
+        "analytics_partitions": dict(partitions),
         "transactional": transactional,
         "blobs": dict(blobs),
     }
@@ -783,7 +800,7 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
     return result
 
 
-def gate(result: dict, only: str | None = None) -> int:
+def gate(result: dict, only: str | None = None, replay_passes: int = 1) -> int:
     """Fail the run when a signal is above its ceiling, or when the run is not the one the ceilings describe.
 
     Every signal is judged, on the whole corpus: `only` - a run of one signal's corpus - is refused rather than
@@ -803,6 +820,13 @@ def gate(result: dict, only: str | None = None) -> int:
     # figures are not the ones any ceiling was taken on. Measured on one corpus, the 480 captured points in place
     # of the load read 784 -> 867 B/span, 2,570 -> 2,717 B/log and 138 -> 552 B/point, which looks like three
     # regressions and is one wrong command. Such a run reports its figures and is refused rather than compared.
+    # The ceilings were taken on one pass of the trace and log corpus; more passes change every share as a subset
+    # does.
+    if replay_passes > 1:
+        failures.append(
+            f"gating needs one pass of the corpus; this run replayed {replay_passes}, so no figure here is "
+            f"comparable with a ceiling. `make storage-marginal-distributed` gates the replayed runs."
+        )
     metric_points = result["signals"]["metrics"]["items"]
     if metric_points < METRIC_LOAD_POINTS:
         failures.append(
@@ -856,6 +880,24 @@ def main() -> int:
     parser.add_argument(
         "--keep", action="store_true", help="keep the data directory for inspection"
     )
+    parser.add_argument(
+        "--replay-passes",
+        type=int,
+        default=1,
+        help="send the trace and log exports this many times, a later pass as new telemetry (storage_passes.py)",
+    )
+    parser.add_argument(
+        "--rebase-at",
+        type=int,
+        help="distributed: the Unix nanosecond instant the corpus is rebased to a day before, instead of now, so "
+        "runs compared with one another put every record in the same month's partition",
+    )
+    parser.add_argument(
+        "--production-parts",
+        action="store_true",
+        help="distributed: merge each table in the parts its own settings choose, not forced wide, so the "
+        "stored bytes are what a deployment keeps; a compact part reports no per-column sizes",
+    )
     storage_gate_figures.add_arguments(parser)
     args = parser.parse_args()
     if args.mode == "self-test":
@@ -895,13 +937,18 @@ def main() -> int:
         )
     if args.mode == "distributed":
         storage_rebase.self_test(CORPUS)
-        exports = storage_rebase.rebased(exports, time.time_ns())
+        exports = storage_rebase.rebased(exports, args.rebase_at or time.time_ns())
+    if args.replay_passes > 1:
+        storage_passes.self_test(exports)
+        exports = storage_passes.replayed(exports, args.replay_passes)
     log(f"corpus: {len(exports)} exports")
     extra_env = {}
     server = None
     # A failed run keeps its work directory, the server's log among it: a run that deletes the evidence of its
     # own failure leaves nothing to find the cause in.
     outcome = 1
+    # Taken before anything that could remove containers: a refused run must not clean up the holder's.
+    held = args.mode == "distributed" and storage_server.hold_containers(SCOPE)
     try:
         if args.mode == "distributed":
             extra_env = start_distributed(work)
@@ -913,7 +960,9 @@ def main() -> int:
         storage_server.stop_server(server)
         server = None
         measured = (
-            measure_embedded(work) if args.mode == "embedded" else measure_distributed()
+            measure_embedded(work)
+            if args.mode == "embedded"
+            else measure_distributed(wide=not args.production_parts)
         )
         raw_failed = (
             storage_raw.verify_raw_embedded(work, exports, projects)
@@ -927,13 +976,17 @@ def main() -> int:
         log(f"CPU over the load and its settling: {result['cpu_seconds']}")
         if args.json:
             args.json.write_text(json.dumps(result, indent=1, default=str))
-        outcome = max(gate(result, args.signal) if args.gate else 0, raw_failed)
+        outcome = max(
+            gate(result, args.signal, args.replay_passes) if args.gate else 0,
+            raw_failed,
+        )
         return outcome
     finally:
         if server is not None:
             storage_server.stop_server(server)
         if args.mode == "distributed":
             stop_distributed()
+            held.close()
         if args.keep or outcome:
             log(f"data kept in {work}")
             if outcome:

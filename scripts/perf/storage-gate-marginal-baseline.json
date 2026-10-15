@@ -7,9 +7,9 @@
  "signals": {
   "traces": {
    "items": 95788,
-   "stored_excluding_media": 43073168,
-   "per_item": 449.67,
-   "fixed_blocks": 14.83
+   "stored_excluding_media": 44142224,
+   "per_item": 460.83,
+   "fixed_blocks": 14.79
   },
   "logs": {
    "items": 18697,

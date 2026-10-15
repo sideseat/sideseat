@@ -44,7 +44,10 @@ SIDESEAT_TEST_CONTAINERS = \
 	$(REDPANDA_TEST_CONTAINER) \
 	sideseat-bench-pg-$(DOCKER_SCOPE) \
 	sideseat-bench-ch-$(DOCKER_SCOPE) \
-	sideseat-bench-minio-$(DOCKER_SCOPE)
+	sideseat-bench-minio-$(DOCKER_SCOPE) \
+	sideseat-storage-ch-$(DOCKER_SCOPE) \
+	sideseat-storage-pg-$(DOCKER_SCOPE) \
+	sideseat-storage-minio-$(DOCKER_SCOPE)
 
 clean-docker: ## Remove this checkout's test containers
 	@command -v docker >/dev/null 2>&1 || { echo "[clean-docker] docker not installed; nothing to do"; exit 0; }

@@ -1,0 +1,5 @@
+{
+ "traces": {"regression": 363, "target": 480},
+ "logs": {"regression": 283, "target": 300},
+ "metrics": {"regression": 130, "target": 150}
+}

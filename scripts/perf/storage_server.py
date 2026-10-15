@@ -163,6 +163,7 @@ def load(
     started = time.monotonic()
     retries = collections.Counter()
     retried = 0
+    rejected = 0
     for export in exports:
         content_type = (
             "application/json" if export["json"] else "application/x-protobuf"
@@ -191,7 +192,14 @@ def load(
             path = export["path"]
             named = path.relative_to(root) if path.is_relative_to(root) else path
             sys.exit(f"[storage] {named} returned {status}: {body[:300]!r}")
+        rejected += rejected_items(export, body)
     log(f"posted {len(exports)} exports in {time.monotonic() - started:.1f}s")
+    if rejected:
+        # Every figure divides the stored bytes by the items sent, so a record the server refused - one past the
+        # retention horizon, say - would read as one stored for nothing.
+        sys.exit(
+            f"[storage] the server rejected {rejected} items: the figures would count them as stored"
+        )
     log(
         f"retried {retried} exports, {sum(retries.values())} times: "
         + (
@@ -202,6 +210,38 @@ def load(
         )
     )
     return projects
+
+
+def rejected_items(export: dict, body: bytes) -> int:
+    """The items an export's 200 answer reports rejected (OTLP partial success), in the request's encoding."""
+    field = {
+        "traces": "rejected_spans",
+        "logs": "rejected_log_records",
+        "metrics": "rejected_data_points",
+    }[export["signal"]]
+    if export["json"]:
+        answer = json.loads(body or b"{}").get("partialSuccess") or {}
+        camel = field.split("_")[0] + "".join(
+            word.title() for word in field.split("_")[1:]
+        )
+        return int(answer.get(camel) or answer.get(field) or 0)
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+        ExportLogsServiceResponse,
+    )
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
+        ExportMetricsServiceResponse,
+    )
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+        ExportTraceServiceResponse,
+    )
+
+    response = {
+        "traces": ExportTraceServiceResponse,
+        "logs": ExportLogsServiceResponse,
+        "metrics": ExportMetricsServiceResponse,
+    }[export["signal"]]()
+    response.ParseFromString(body)
+    return getattr(response.partial_success, field)
 
 
 def settle(
@@ -228,3 +268,29 @@ def settle(
             return
         time.sleep(1)
     log("warning: storage accounting did not settle in 180s")
+
+
+def docker_scope(root: Path) -> str:
+    """`make`'s DOCKER_SCOPE, the root's POSIX `cksum`: the suffix of this checkout's containers, the same in every
+    process, so `make clean-docker` finds them and a killed run's are the next run's to replace."""
+    done = subprocess.run(
+        ["cksum"], input=str(root).encode(), capture_output=True, check=True
+    )
+    return done.stdout.split()[0].decode()
+
+
+def hold_containers(scope: str):
+    """An exclusive hold on this checkout's container names for the life of the process, or exit: with stable names a
+    second run would remove the first's databases while it measures them. A lock file, so a killed run's hold is
+    released by the kernel, never left behind."""
+    import fcntl
+    import tempfile
+
+    held = open(Path(tempfile.gettempdir()) / f"sideseat-storage-{scope}.lock", "w")
+    try:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit(
+            f"[storage] another run holds this checkout's containers (scope {scope})"
+        )
+    return held

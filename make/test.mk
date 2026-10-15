@@ -3,7 +3,7 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-clickhouse-two-replica test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-marginal storage-gate-equivalence footprint-storage-distributed test-storage-rebase test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-clickhouse-two-replica test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage storage-gate storage-gate-marginal storage-gate-equivalence footprint-storage-distributed storage-marginal-distributed test-storage-rebase test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
 test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet test-storage-rebase ## Run all regular test suites
 
@@ -151,6 +151,12 @@ test-storage-rebase: ## Check that moving the storage corpus in time changes not
 
 footprint-storage-distributed: ## Measure and gate stored bytes per signal (ClickHouse, in containers)
 	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py distributed --gate --metrics-load)
+
+# What one more item costs on ClickHouse: the corpus posted three times and ten to a live server in containers, in
+# production parts, and the metric figure on the derived load, each held to its regression ceiling and target in
+# scripts/perf/storage-marginal-distributed-ceiling.json. Opt-in, before a release; about an hour and a half.
+storage-marginal-distributed: ## Gate the marginal stored bytes per item on ClickHouse (in containers)
+	$(call run-with-disk-guard,./scripts/perf/storage-marginal-distributed.sh)
 
 # The process gates run against the release server and measure the memory the OS charges; the same load then
 # runs in the Linux image under enforced limits (Docker; on macOS, Colima). In-process gates use allocation

@@ -13,6 +13,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import storage_growth
+
 # The engine settings every connection that writes to a gate store uses. DuckDB lays a checkpoint's segments out
 # in the order its threads finish them, so a store checkpointed with several threads can differ between two runs
 # of the same input; with one it cannot. `tests/storage_gate.rs` sets the same on the server's connection.
@@ -404,21 +406,32 @@ def run_marginal(args: argparse.Namespace, script, store: Path, owners: tuple) -
     more = args.marginal_store.resolve()
     if not args.marginal_passes or args.marginal_passes <= args.passes:
         raise SystemExit("[storage] --marginal-passes must be more than --passes")
-    figures = marginal_figures(
+    corpus = script.corpus()
+    at_fewer, at_more = (
         store_figures(
-            stored_figures(store, script.measure_embedded),
-            script.corpus(),
-            args.passes,
-            *owners,
-        ),
-        store_figures(
-            stored_figures(more, script.measure_embedded),
-            script.corpus(),
-            args.marginal_passes,
-            *owners,
-        ),
-        block_size(store),
+            stored_figures(path, script.measure_embedded), corpus, passes, *owners
+        )
+        for path, passes in ((store, args.passes), (more, args.marginal_passes))
     )
+    figures = marginal_figures(at_fewer, at_more, block_size(store))
+    # The two stores apart: both hold a `schema_version`, and one name for two tables would hide one's growth.
+    items = {s: signal["items"] for s, signal in figures["signals"].items()}
+    lines, unowned = [], []
+    for store, sized, owned in (
+        (
+            "analytics",
+            lambda f: {t: p["columns"] + p["indexes"] for t, p in f["tables"].items()},
+            owners[1],
+        ),
+        ("transactional", lambda f: dict(f["transactional"]), owners[2]),
+    ):
+        found, failed = storage_growth.growth(
+            sized(at_fewer), sized(at_more), items, owned
+        )
+        lines += [f"{store} {line}" for line in found]
+        unowned += failed
+    for line in lines:
+        log(f"growth: {line}")
     fewer, many = figures["passes"]
     for s, signal in figures["signals"].items():
         log(
@@ -435,6 +448,10 @@ def run_marginal(args: argparse.Namespace, script, store: Path, owners: tuple) -
     )
     if args.json:
         args.json.write_text(json.dumps(figures, indent=1))
+    for failure in unowned:
+        log(f"FAIL: {failure}")
+    if unowned:
+        return 1
     if args.baseline:
         return ratchet(
             figures,
