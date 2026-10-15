@@ -1,7 +1,7 @@
 //! What the stamp protocol costs a survivor release against the release-then-re-check one it replaces, measured
 //! as an alternating A/B in one run, so load from outside the process falls on both alike.
 //!
-//! `cargo test -p sideseat-ingestion --release --lib survivor_release_bench -- --ignored --nocapture`
+//! `cargo test --locked -p sideseat-ingestion --release --lib survivor_release_bench -- --ignored --nocapture`
 //!
 //! Each trace's record names a picture until a rewrite removes the span that carried it; before every timed
 //! release the association is restored, untimed, so every release has the same thing to release. A is the

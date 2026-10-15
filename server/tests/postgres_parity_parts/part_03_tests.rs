@@ -406,7 +406,7 @@ async fn retention_cleanup_records_and_completions_do_not_deadlock() {
 /// What the confirm stamp costs a batch's confirm on PostgreSQL, as an alternating A/B in one run over the service's
 /// own pool, so load from outside the process falls on both alike.
 ///
-/// `cargo test -p sideseat-server --test postgres_parity confirm_stamp_bench -- --ignored --nocapture`, with
+/// `cargo test --locked -p sideseat-server --test postgres_parity confirm_stamp_bench -- --ignored --nocapture`, with
 /// `SIDESEAT_TEST_POSTGRES_URL` set. A is the repository's confirm as it was before stamps, reproduced exactly:
 /// grouped by project, one tenant transaction each, deduplicated, one `UPDATE` over the batch. B is the
 /// repository's confirm, which also draws a sequence value and applies the larger of each row's stamp and it.

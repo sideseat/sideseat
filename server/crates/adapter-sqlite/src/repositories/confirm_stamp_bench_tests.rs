@@ -1,7 +1,7 @@
 //! What the confirm stamp costs a batch's confirm, measured as an alternating A/B in one run over the service's own
 //! file-backed store, so load from outside the process falls on both alike.
 //!
-//! `cargo test -p sideseat-adapter-sqlite --release --lib confirm_stamp_bench -- --ignored --nocapture`
+//! `cargo test --locked -p sideseat-adapter-sqlite --release --lib confirm_stamp_bench -- --ignored --nocapture`
 //!
 //! A is the confirm as it was before stamps, reproduced exactly; B is `confirm_trace_file_associations`, which draws
 //! the batch's stamp first and applies the larger of each row's and its own.
