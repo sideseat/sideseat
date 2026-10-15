@@ -836,7 +836,11 @@ fn pressure_candidates_are_winning_held_aware_bounded_and_parameterized() {
         let query = oldest_reclaimable_spans("tenant-'quoted", backend, 10_000, now, 100);
         assert_eq!(query.sql().matches('?').count(), query.params().len());
         assert!(!query.sql().contains("tenant-'quoted"));
-        assert!(query.sql().contains("hold_until IS NULL OR hold_until < ?"));
+        assert!(query.sql().contains(match backend {
+            Backend::Duckdb => "hold_until IS NULL OR hold_until < ?)",
+            Backend::Clickhouse =>
+                "hold_until IS NULL OR hold_until < fromUnixTimestamp64Micro(?))",
+        }));
         assert!(query.sql().contains("bytes_before < ?"));
         assert!(query.sql().contains("pressure_rank <= ?"));
         match backend {

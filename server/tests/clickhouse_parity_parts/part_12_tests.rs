@@ -9,6 +9,16 @@ struct FilePipeline {
 }
 
 async fn file_pipeline(clickhouse: &Arc<dyn AnalyticsRepository + Send + Sync>) -> FilePipeline {
+    file_pipeline_governed(clickhouse).await.0
+}
+
+/// [`file_pipeline`], with its transactional side as the storage governance a retention pass takes.
+async fn file_pipeline_governed(
+    clickhouse: &Arc<dyn AnalyticsRepository + Send + Sync>,
+) -> (
+    FilePipeline,
+    Arc<dyn sideseat_ports::traits::StorageGovernance + Send + Sync>,
+) {
     use sideseat_core::config::{
         CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, RetentionConfig, StorageBackend,
     };
@@ -21,6 +31,9 @@ async fn file_pipeline(clickhouse: &Arc<dyn AnalyticsRepository + Send + Sync>) 
         sideseat_adapter_sqlite::SqliteService::init(&storage, Arc::clone(&clock))
             .await
             .expect("sqlite"),
+    );
+    let governance: Arc<dyn sideseat_ports::traits::StorageGovernance + Send + Sync> = Arc::new(
+        sideseat_adapter_sqlite::SqliteRepository(Arc::clone(&sqlite)),
     );
     let transactional: Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync> =
         Arc::new(sideseat_adapter_sqlite::SqliteRepository(sqlite));
@@ -74,13 +87,16 @@ async fn file_pipeline(clickhouse: &Arc<dyn AnalyticsRepository + Send + Sync>) 
         )),
     );
 
-    FilePipeline {
-        _temp: temp,
-        pipeline,
-        transactional,
-        files,
-        blobs,
-    }
+    (
+        FilePipeline {
+            _temp: temp,
+            pipeline,
+            transactional,
+            files,
+            blobs,
+        },
+        governance,
+    )
 }
 
 /// One span of trace `[trace; 16]`, dated now, whose input carries an attachment the file store extracts. Dated

@@ -418,6 +418,15 @@ pub fn project_row_count(
     }
 }
 
+/// An instant's placeholder, compared with a timestamp column: DuckDB casts the RFC 3339 string it is bound as;
+/// ClickHouse is bound microseconds, which compared bare with a `DateTime64` read as seconds and overflow it.
+fn instant(backend: Backend) -> &'static str {
+    match backend {
+        Backend::Duckdb => "?",
+        Backend::Clickhouse => "fromUnixTimestamp64Micro(?)",
+    }
+}
+
 /// Build attributable logical-byte sums, optionally restricted to rows under an active hold.
 pub fn project_logical_bytes(
     project_id: &str,
@@ -425,9 +434,12 @@ pub fn project_logical_bytes(
     held_at: Option<chrono::DateTime<chrono::Utc>>,
 ) -> ProjectLogicalBytesPlan {
     let predicate = if held_at.is_some() {
-        "project_id = ? AND hold_until IS NOT NULL AND hold_until >= ?"
+        format!(
+            "project_id = ? AND hold_until IS NOT NULL AND hold_until >= {}",
+            instant(backend)
+        )
     } else {
-        "project_id = ?"
+        "project_id = ?".to_string()
     };
     let params = || {
         let mut values = vec![QueryValue::String(project_id.to_string())];
@@ -477,6 +489,7 @@ pub fn oldest_reclaimable_spans(
         Backend::Duckdb => QueryValue::String(now.to_rfc3339()),
         Backend::Clickhouse => QueryValue::Int64(now.timestamp_micros()),
     };
+    let now_value = instant(backend);
     ParameterizedQuery::new(
         format!(
             "SELECT trace_id, span_id, logical_bytes FROM (\
@@ -489,7 +502,7 @@ pub fn oldest_reclaimable_spans(
                             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\
                         ), 0) AS bytes_before \
                  FROM {relation} \
-                 WHERE project_id = ? AND (hold_until IS NULL OR hold_until < ?)\
+                 WHERE project_id = ? AND (hold_until IS NULL OR hold_until < {now_value})\
              ) WHERE pressure_rank <= ? AND bytes_before < ? \
              ORDER BY pressure_rank"
         ),
