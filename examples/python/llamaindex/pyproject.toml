@@ -30,6 +30,11 @@ scenarios = ["multi_agent", "multi_turn", "session"]
 reason = "the reasoning the model showed: the model call's flattened output drops the reasoning part, while the agent's step result printed beside it keeps the provider's whole response, reasoning and signature included"
 scenarios = ["reasoning"]
 
+[[tool.sideseat-example.truth.result_renderings]]
+format = "mcp_call_tool_result_str"
+source = "llama_index/core/tools/function_tool.py in llama-index-core 0.14.25: FunctionTool._parse_tool_output (line 329) returns TextBlock(text=str(raw_output)) for a value that is no content block, and an MCP tool's function returns the client's CallToolResult unchanged (llama_index/tools/mcp/base.py line 112, llama-index-tools-mcp 0.6.0)"
+scenarios = ["mcp_tools"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

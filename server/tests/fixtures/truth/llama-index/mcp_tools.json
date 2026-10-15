@@ -139,7 +139,7 @@
    "value": {
     "call_id": "tooluse_alPuaJRYlvt4bbaxR5v5lK",
     "name": "calculate",
-    "value": 395,
+    "value": "meta={'fastmcp': {'wrap_result': True}} content=[TextContent(type='text', text='395.0', annotations=None, meta=None)] structured_content={'result': 395.0} is_error=False result_type='complete'",
     "is_error": false
    },
    "require": {

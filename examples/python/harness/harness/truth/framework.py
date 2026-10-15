@@ -108,6 +108,12 @@ class Framework:
     #: so that is the call it is declared for. Each becomes a ``producer_states_unsent`` gap the rubric proves
     #: per capture: the call's span states the text byte for byte and its recorded request does not carry it.
     states_unsent: tuple[dict[str, Any], ...] = ()
+    #: Tool results the framework hands the model as its own rendering of what the tool returned: each
+    #: ``{format, source, scenarios}``. ``format`` is a closed vocabulary - ``mcp_call_tool_result_str``, the
+    #: ``str()`` of an MCP SDK ``CallToolResult`` model - and ``source`` cites where the framework renders it. Each
+    #: result fact of those scenarios becomes the text the recorded requests sent, checked against the format
+    #: and the script's value (``rendered_results``), so a rendering of anything else is refused.
+    result_renderings: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -138,6 +144,9 @@ class Framework:
             ),
             states_unsent=tuple(
                 _states_unsent(entry) for entry in table.get("states_unsent", ())
+            ),
+            result_renderings=tuple(
+                _result_rendering(entry) for entry in table.get("result_renderings", ())
             ),
         )
 
@@ -279,3 +288,113 @@ def unsent_gaps(
                 if gap not in gaps:
                     gaps.append(gap)
     return gaps
+
+
+#: The renderings a framework may declare it hands the model instead of a tool's returned value.
+RENDERINGS = frozenset({"mcp_call_tool_result_str"})
+
+
+def _result_rendering(entry: dict[str, Any]) -> dict[str, Any]:
+    """One declared result rendering, refused unless its format is known and it states a source and scenarios."""
+    if not (
+        entry.get("format") in RENDERINGS
+        and isinstance(entry.get("source"), str)
+        and entry["source"]
+        and isinstance(entry.get("scenarios"), list)
+        and entry["scenarios"]
+    ):
+        raise ValueError(
+            f"a result_renderings entry needs a known format, a source and scenarios: {entry!r}"
+        )
+    return entry
+
+
+def _renders_call_tool_result(text: str, value: Any, is_error: bool) -> bool:
+    """Whether the text is the ``str()`` of an MCP ``CallToolResult`` holding exactly this value: pydantic prints
+    its fields as ``name=repr`` separated by spaces, and the SDK's model has a one-text content list, the value
+    as ``structured_content={'result': ...}`` and the error flag."""
+    import ast
+    import re
+
+    shape = re.fullmatch(
+        r"meta=(?P<meta>\{.*\}|None) content=\[TextContent\(type='text', text=(?P<text>'[^'\\]*'), "
+        r"annotations=None, meta=None\)\] structured_content=(?P<structured>\{.*\}|None) "
+        r"is_error=(?P<error>True|False)(?: result_type='[a-z_]+')?",
+        text,
+    )
+    if shape is None or (shape["error"] == "True") != is_error:
+        return False
+    shown = ast.literal_eval(shape["text"])
+    structured = ast.literal_eval(shape["structured"])
+    if not (isinstance(structured, dict) and set(structured) == {"result"}):
+        return False
+    result = structured["result"]
+
+    def number(x: Any) -> bool:
+        return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+    if number(value):
+        # Exact comparison: Python compares an int with a float by value, never through a lossy conversion, and
+        # a string or a boolean is not the number the script returned.
+        try:
+            text_value = ast.literal_eval(shown)
+        except (ValueError, SyntaxError):
+            return False
+        return (
+            number(result)
+            and result == value
+            and number(text_value)
+            and text_value == value
+        )
+    return result == value and shown == value
+
+
+def rendered_results(
+    framework: Framework,
+    scenario: str,
+    document: dict[str, Any],
+    requests: dict[str, Any],
+) -> None:
+    """Each tool result of a scenario the framework declares it renders, as the text the model was sent: read from
+    the recorded requests, which must all send one text, and refused unless that text is the declared rendering of
+    the result's value as the script computed it."""
+    entries = [e for e in framework.result_renderings if scenario in e["scenarios"]]
+    for entry in entries:
+        for fact in document["facts"]:
+            if fact["kind"] != "tool_result":
+                continue
+            naming = [
+                part["part"]
+                for recorded in requests.values()
+                for request in recorded["calls"].values()
+                for message in request["messages"]
+                for part in message["parts"]
+                if fact["id"] in (part.get("new_fact"), part.get("replay_of"))
+            ]
+            if not naming:
+                continue
+            # Every occurrence, in every fixture: one sent in any other shape is not the declared rendering.
+            sent = set()
+            for part in naming:
+                content = part.get("content") or []
+                if not (
+                    part.get("type") == "tool_result"
+                    and len(content) == 1
+                    and isinstance(content[0].get("text"), str)
+                ):
+                    raise ValueError(
+                        f"{fact['id']} is sent as {part!r}, not as one text ({entry['source']})"
+                    )
+                sent.add(content[0]["text"])
+            if len(sent) != 1:
+                raise ValueError(f"{fact['id']} is sent as {len(sent)} different texts")
+            (text,) = sent
+            value = fact["value"]
+            if not _renders_call_tool_result(
+                text, value.get("value"), bool(value.get("is_error"))
+            ):
+                raise ValueError(
+                    f"{fact['id']} is sent as {text!r}, which is not the {entry['format']} of "
+                    f"{value.get('value')!r} ({entry['source']})"
+                )
+            value["value"] = text
