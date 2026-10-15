@@ -274,6 +274,10 @@ pub(super) struct Gap {
     /// release that exports what another omits is told apart here, never by weakening the fact.
     #[serde(default)]
     pub modes: Vec<String>,
+    /// The text a `producer_states_unsent` gap is about: what the producer's telemetry states the call was
+    /// sent and its request never carried. Absent on every other gap.
+    #[serde(default)]
+    pub text: Option<String>,
 }
 
 impl Gap {
@@ -425,6 +429,7 @@ impl Gap {
             detail: "made unknowable by a test".to_string(),
             subject: Some(fact.to_string()),
             modes: Vec::new(),
+            text: None,
         }
     }
 }
@@ -492,6 +497,10 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // The framework's own per-step state message restates the prompt in the call's request: one
         // user text containing the prompt, in that call's trace.
         "framework_restates_prompt" => effects(GapSubject::Call, false, true, false),
+        // A turn the producer's telemetry states the call was sent and its request never carried - a framework
+        // composing a message its own client then drops: the call's request is held to it as the span states
+        // it. Proven per capture: the span states it byte for byte, the recorded request does not.
+        "producer_states_unsent" => effects(GapSubject::Call, false, false, true),
         // The telemetry does not carry the fact: proven, never assumed.
         "not_exported" => effects(GapSubject::Fact, true, false, true),
         // Only a tool call's wire id is missing: the call is still asserted, under whatever id it is shown.

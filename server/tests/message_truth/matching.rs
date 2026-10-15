@@ -100,7 +100,7 @@ pub(super) fn signature<'a>(truth: &'a Truth, call: &Call) -> Vec<&'a Fact> {
 /// A generation span's output blocks - the side that says what it produced.
 pub(super) fn outputs<'a>(recon: &'a Recon, generation: &Generation) -> Vec<&'a Block> {
     recon
-        .span_view(&generation.span)
+        .generation_view(generation)
         .map(|view| view.blocks.iter().filter(|b| b.output).collect())
         .unwrap_or_default()
 }

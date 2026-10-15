@@ -28,6 +28,7 @@ mod request_input;
 mod request_span;
 #[cfg(test)]
 mod tests;
+mod unsent;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -380,6 +381,8 @@ pub(super) enum Claim<'t> {
     CallOrder(&'t str),
     /// A call's request, on the span it is tied to (`input_not_exported`): that span records none of it.
     Input(&'t str),
+    /// A turn the call's span states it was sent (`producer_states_unsent`): its recorded request lacks it.
+    Unsent(&'t str, &'t str),
 }
 
 impl Claim<'_> {
@@ -397,6 +400,7 @@ impl Claim<'_> {
             Claim::RequestSpan(_) => "model call's output, on its request span",
             Claim::CallOrder(_) => "order of a response's parallel calls",
             Claim::Input(_) => "model call's request, on its span",
+            Claim::Unsent(..) => "turn the producer states it sent",
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
@@ -439,6 +443,11 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                 "call_span_records_no_output" => Claim::RequestSpan(subject),
                 "call_order_not_exported" => Claim::CallOrder(subject),
                 "input_not_exported" => Claim::Input(subject),
+                // A gap stating no text is a malformed declaration: claimed as an empty text, which the proof refuses,
+                // rather than dropped, which would excuse it unproven.
+                "producer_states_unsent" => {
+                    Claim::Unsent(subject, gap.text.as_deref().unwrap_or(""))
+                }
                 "call_not_exported" => {
                     let call = truth.calls.iter().find(|c| c.id == subject)?;
                     Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
@@ -481,7 +490,8 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         | Claim::CallSpan(_)
         | Claim::Untraced(_)
         | Claim::RequestSpan(_)
-        | Claim::Input(_) => Proof::Unprovable(
+        | Claim::Input(_)
+        | Claim::Unsent(..) => Proof::Unprovable(
             "this absence is searched for on the spans the capture's calls are tied to".to_string(),
         ),
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
@@ -688,7 +698,7 @@ pub(super) fn request_limitations(
                     request.messages.iter().flat_map(|m| {
                         m.parts
                             .iter()
-                            .map(move |o| (super::requests::shown_role(&m.role, &o.part), o))
+                            .map(move |o| (super::requests::parts::shown_role(&m.role, &o.part), o))
                     }),
                 );
                 for (role, occurrence) in parts {
@@ -819,6 +829,7 @@ fn every_absence_gap_is_proven() {
                             | Claim::Untraced(_)
                             | Claim::RequestSpan(_)
                             | Claim::Input(_)
+                            | Claim::Unsent(..)
                     )
             });
             let checked = truth.for_fixture(fixture);
@@ -873,6 +884,12 @@ fn every_absence_gap_is_proven() {
                         Some((recon, matching)) => request_input::prove_input_unexported(
                             &checked, call, recon, matching, &haystack,
                         ),
+                        None => Proof::Unprovable("the capture was not reconstructed".to_string()),
+                    },
+                    Claim::Unsent(call, text) => match &matched {
+                        Some((recon, matching)) => {
+                            unsent::prove_unsent(&checked, call, text, recon, matching, &haystack)
+                        }
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
                     _ => prove_claim(claim, &haystack),

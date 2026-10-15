@@ -19,14 +19,17 @@ use super::absence::{Proof, prove};
 use super::matching::Matching;
 use super::predicates::{Shows, shows};
 use super::recon::{Block, Recon, ViewKind};
-use super::truth::{CallRequest, Fact, Occurrence, Requirement, Truth};
+use super::truth::{CallRequest, Fact, Requirement, Truth};
 use super::{Violation, ViolationView};
 
+pub(super) mod parts;
 mod python;
 mod rewrites;
 #[cfg(test)]
 mod tests;
+mod unsent;
 
+use parts::{names_fact, rewritten, shown_role};
 use rewrites::{rewrites, wire_ids};
 
 /// What a fixture's recorded requests account for in its views.
@@ -34,6 +37,21 @@ use rewrites::{rewrites, wire_ids};
 pub(super) struct Accounted {
     /// Blocks a request explains that no conversation fact holds.
     pub blocks: BTreeSet<String>,
+    /// Blocks a turn the producer states it sent explains (`producer_states_unsent`), as `(trace, span,
+    /// identity)`: only on the span of the call it was stated for, in that call's trace.
+    pub stated: BTreeSet<(String, String, String)>,
+}
+
+impl Accounted {
+    /// Whether a block is content a request, or a turn stated for this block's own span, accounts for.
+    pub(super) fn explains(&self, block: &Block) -> bool {
+        self.blocks.contains(&block.identity)
+            || self.stated.contains(&(
+                block.trace.clone(),
+                block.span.clone(),
+                block.identity.clone(),
+            ))
+    }
 }
 
 /// One expected input block: where it sits in the request, its role, and the fact it must show.
@@ -48,21 +66,6 @@ pub(super) struct Expected {
     is_fact: bool,
     /// The conversation facts this part renders, where it renders rather than states them.
     renders: Vec<String>,
-}
-
-/// The role a reconstruction shows a part under: a tool's result is the tool's turn, whatever message
-/// carried it, and a provider's own names for the assistant and the tool are normalised.
-pub(super) fn shown_role(message_role: &str, part: &Value) -> &'static str {
-    if part.get("type").and_then(Value::as_str) == Some("tool_result") {
-        return "tool";
-    }
-    match message_role {
-        "system" => "system",
-        "user" => "user",
-        "assistant" | "model" => "assistant",
-        "tool" | "function" => "tool",
-        _ => "unknown",
-    }
 }
 
 fn requirement(matcher: &str) -> Option<Requirement> {
@@ -162,22 +165,6 @@ fn result_value(content: &Value) -> Value {
     match parts.as_slice() {
         [one] => single(one),
         many => Value::Array(many.iter().map(single).collect()),
-    }
-}
-
-/// Whether an occurrence's lineage names a conversation fact, which the fact checks then account for.
-fn names_fact(occurrence: &Occurrence) -> bool {
-    [&occurrence.new_fact, &occurrence.replay_of]
-        .into_iter()
-        .flatten()
-        .any(|named| named.starts_with("fact-"))
-}
-
-/// The id a view shows a wire id under, where the framework rewrote it.
-fn rewritten(id: &Value, rewrites: &BTreeMap<String, String>) -> Value {
-    match id.as_str().and_then(|id| rewrites.get(id)) {
-        Some(shown) => Value::String(shown.clone()),
-        None => id.clone(),
     }
 }
 
@@ -448,7 +435,7 @@ pub(super) fn sequenced_inputs(
             .collect();
         let wanted = expected(
             call,
-            request,
+            &unsent::as_stated(truth, &recon.fixture, call, request),
             &rewrites(request, recon, &blocks, &issued),
             &unsigned(truth),
         );
@@ -792,6 +779,7 @@ pub(super) fn check_requests(
             }
         }
     }
+    unsent::account_stated(truth, recon, matching, &everywhere, &mut accounted);
     for (call, request) in &recorded.calls {
         // Only a call whose span its *output* established. A failed attempt is tied to an ERROR span by
         // its error message, and a call with no asserted output is tied by cardinality: in both the span
@@ -807,13 +795,13 @@ pub(super) fn check_requests(
         // absence is waived - what the span does show is still held to the request.
         let inputs_unexported = truth.gap_holds("input_not_exported", call, &recon.fixture);
         let span = &recon.generations[generation].span;
-        let Some(view) = recon.span_view(span) else {
+        let Some(view) = recon.generation_view(&recon.generations[generation]) else {
             continue;
         };
         let blocks: Vec<&Block> = view.blocks.iter().filter(|b| !b.output).collect();
         let wanted = expected(
             call,
-            request,
+            &unsent::as_stated(truth, &recon.fixture, call, request),
             &rewrites(request, recon, &blocks, &issued),
             &unsigned(truth),
         );

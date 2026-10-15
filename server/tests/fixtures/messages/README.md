@@ -139,7 +139,12 @@ parts are checked where the conversation shows them, still in their order (rever
 where each is recorded on its own), but its calls need not all precede its results; and the span
 recording the run may report the run's usage where its payload states that total. A gap may hold
 for some capture modes only (`modes`, `native@1.0b1`), when one release exports what another omits;
-it is proven against exactly those fixtures. `metadata_not_exported` covers a call's model, response
+it is proven against exactly those fixtures. The converse, `producer_states_unsent`, is a turn the producer's telemetry states a call was sent and
+its own client dropped before sending (`states_unsent` in the suite's truth table, with the framework's source
+lines): the call's request view is held to the recorded request with that text appended to its last user
+message, which also accounts for the one block showing it in the call's trace, and the gap is proven per
+capture - the call's span states the text byte for byte and its recorded request holds it nowhere
+(`absence::unsent`). `metadata_not_exported` covers a call's model, response
 model, response id, finish or usage count that the producer states wrongly while the right value is in no
 payload (a finish counts as stated only under a member naming a finish; a usage count is refused by any
 payload holding the wire's count as a number, and the gap is itself a violation, `gap.unused`, where the span

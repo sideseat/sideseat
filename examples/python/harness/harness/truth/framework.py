@@ -99,6 +99,13 @@ class Framework:
     #: the fallback call, which the rubric proves per capture byte for byte against that call's request
     #: (``message_truth::authored``).
     framework_prompts: tuple[dict[str, Any], ...] = ()
+    #: Turns the framework's telemetry states it sent the model and its client then dropped: each ``{text,
+    #: reason, source, scenarios, modes}``, ``text`` the framework's own literal, ``source`` citing where it
+    #: composes the turn and where its client drops it, ``modes`` the releases (``{scenario: [mode]}``) that do
+    #: both. The framework appends the turn to a request whose last message holds nothing but tool results,
+    #: so that is the call it is declared for. Each becomes a ``producer_states_unsent`` gap the rubric proves
+    #: per capture: the call's span states the text byte for byte and its recorded request does not carry it.
+    states_unsent: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -126,6 +133,9 @@ class Framework:
             },
             framework_prompts=tuple(
                 _prompt_template(entry) for entry in table.get("framework_prompts", ())
+            ),
+            states_unsent=tuple(
+                _states_unsent(entry) for entry in table.get("states_unsent", ())
             ),
         )
 
@@ -206,3 +216,64 @@ def _prompt_template(entry: dict[str, Any]) -> dict[str, Any]:
             f"a framework_prompts entry needs a template naming {{task}}, a source and scenarios: {entry!r}"
         )
     return entry
+
+
+def _states_unsent(entry: dict[str, Any]) -> dict[str, Any]:
+    """One declared unsent turn, refused unless it states its text, reason, source, scenarios and, for each
+    scenario, the releases it holds for: a turn every release drops would be a defect of the declaration."""
+    modes = entry.get("modes")
+    scenarios = entry.get("scenarios")
+    if not (
+        all(
+            isinstance(entry.get(k), str) and entry[k]
+            for k in ("text", "reason", "source")
+        )
+        and isinstance(scenarios, list)
+        and scenarios
+        and isinstance(modes, dict)
+        and set(modes) == set(scenarios)
+        and all(isinstance(m, list) and m for m in modes.values())
+    ):
+        raise ValueError(
+            "a states_unsent entry needs a text, a reason, a source, scenarios and the modes of each: "
+            f"{entry!r}"
+        )
+    return entry
+
+
+def unsent_gaps(
+    framework: Framework, scenario: str, requests: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """The ``producer_states_unsent`` gaps of a scenario: for each declared turn and each fixture of a release
+    it names, every call whose recorded request ends with a message of nothing but tool results - the request
+    the framework appends the turn to."""
+    gaps = []
+    for entry in framework.states_unsent:
+        if scenario not in entry["scenarios"]:
+            continue
+        for fixture, recorded in sorted(requests.items()):
+            mode = fixture.split("/")[1]
+            if mode not in entry["modes"][scenario]:
+                continue
+            for call, request in sorted(recorded["calls"].items()):
+                last = request["messages"][-1] if request["messages"] else None
+                if not (
+                    last
+                    and last["role"] == "user"
+                    and last["parts"]
+                    and all(
+                        p["part"].get("type") == "tool_result" for p in last["parts"]
+                    )
+                ):
+                    continue
+                gap = {
+                    "fact": "user_text",
+                    "reason": "producer_states_unsent",
+                    "detail": f"{entry['reason']} ({entry['source']})",
+                    "subject": call,
+                    "modes": [mode],
+                    "text": entry["text"],
+                }
+                if gap not in gaps:
+                    gaps.append(gap)
+    return gaps

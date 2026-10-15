@@ -66,6 +66,7 @@ pub(super) fn restate_prompt(truth: &mut Truth, recon: &mut Recon, copies: usize
         detail: "restated by a test".to_string(),
         subject: Some(second),
         modes: Vec::new(),
+        text: None,
     });
     let trace = recon.views[view].blocks[at].trace.clone();
     let text = format!(
@@ -125,6 +126,7 @@ pub(super) fn invented_model_under_a_gap(truth: &mut Truth, recon: &mut Recon) -
         detail: "declared by a test".to_string(),
         subject: Some(call),
         modes: Vec::new(),
+        text: None,
     });
     super::mutate::edit_generation(
         truth,
@@ -153,6 +155,7 @@ fn gap_the_input_count(truth: &mut Truth) -> bool {
         detail: "declared by a test".to_string(),
         subject: Some(call),
         modes: Vec::new(),
+        text: None,
     });
     true
 }

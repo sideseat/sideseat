@@ -310,7 +310,7 @@ fn check_unexplained(
                 && block.kind == "tool_result"
                 && block.result_call_id().is_some_and(|id| used.contains(id))
         };
-        if context.accounted.blocks.contains(&block.identity)
+        if context.accounted.explains(block)
             && !result_id_spent(&result_ids_used, block)
             && (scope.kind != ViewKind::Span
                 || (!content_used.contains(block.identity.as_str())

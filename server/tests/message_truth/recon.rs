@@ -182,6 +182,13 @@ pub(super) struct Recon {
 }
 
 impl Recon {
+    /// The span view of one generation, by its trace and span: span ids repeat across traces.
+    pub fn generation_view(&self, generation: &Generation) -> Option<&View> {
+        self.views.iter().find(|v| {
+            v.kind == ViewKind::Span && v.key == generation.span && v.trace == generation.trace
+        })
+    }
+
     pub fn span_view(&self, span: &str) -> Option<&View> {
         self.views
             .iter()

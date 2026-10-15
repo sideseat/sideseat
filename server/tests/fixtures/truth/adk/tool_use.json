@@ -508,6 +508,16 @@
    "reason": "metadata_not_exported",
    "detail": "why a response that called tools ended: ADK records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
    "subject": "call-001"
+  },
+  {
+   "fact": "user_text",
+   "reason": "producer_states_unsent",
+   "detail": "ADK 1.22.1 appends this user turn to a request whose last message holds only tool results, and records the request with it, but its LiteLLM client sends a message holding tool results as tool messages alone and drops the turn (google/adk/models/lite_llm.py in google-adk 1.22.1: _part_has_payload (line 346) counts no function response, _append_fallback_user_content_if_missing (line 357) appends the text, _content_to_message_param (line 446) returns only the tool messages; 1.23.0 sends the text)",
+   "subject": "call-002",
+   "modes": [
+    "native@1.22.1"
+   ],
+   "text": "Handle the requests as specified in the System Instruction."
   }
  ],
  "requests": {
