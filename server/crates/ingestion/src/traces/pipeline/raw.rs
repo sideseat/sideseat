@@ -336,7 +336,7 @@ pub(in crate::traces) fn without_spans(
 }
 
 /// The latest span start among the kept spans, and their distinct traces.
-fn extent(
+pub(super) fn extent(
     request: &ExportTraceServiceRequest,
     keep: &HashSet<SpanKey>,
 ) -> (Option<DateTime<Utc>>, Vec<String>) {

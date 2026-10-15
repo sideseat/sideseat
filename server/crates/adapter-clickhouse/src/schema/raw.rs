@@ -27,8 +27,19 @@ const COLUMNS: &str = "
     hold_until   Nullable(DateTime64(6, 'UTC')),
     record       String CODEC(ZSTD(3))";
 
-const TTL: &str = "TTL greatest(signal_until + INTERVAL 90 DAY, \
-                   coalesce(hold_until, toDateTime64(0, 6, 'UTC'))) DELETE";
+/// When a version expires: the latest of its rows' expiry and its hold.
+macro_rules! expires {
+    () => {
+        "greatest(signal_until + INTERVAL 90 DAY, coalesce(hold_until, toDateTime64(0, 6, 'UTC')))"
+    };
+}
+
+const TTL: &str = concat!("TTL ", expires!(), " DELETE");
+
+/// A version the TTL has not reached. The TTL deletes in a merge, some time after the insert or after the row
+/// expires, so a reader that left this out read an expired version as live until then: a record that landed past
+/// its expiry was reconciled, re-derived and kept media alive, and its trace owned it.
+pub(crate) const LIVE: &str = concat!(expires!(), " > now64(6, 'UTC')");
 
 const TRACE_COLUMNS: &str = "
     project_id   LowCardinality(String),

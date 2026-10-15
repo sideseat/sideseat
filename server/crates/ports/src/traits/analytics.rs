@@ -498,6 +498,11 @@ pub trait AnalyticsMaintenance: Send + Sync {
     /// unless a legal hold keeps it. `None` where the store keeps every record until retention deletes it.
     fn expiry_horizon(&self) -> Option<chrono::TimeDelta>;
 
+    /// The store's own clock, which its time to live is judged by - `None` where it has none
+    /// ([`Self::expiry_horizon`]). What decides whether a record is past it once the store no longer serves the
+    /// record, so that neither another clock nor whether a merge has yet removed the row can decide it instead.
+    async fn expiry_clock(&self) -> Result<Option<chrono::DateTime<chrono::Utc>>, DataError>;
+
     /// Distinct projects represented by any analytics signal.
     ///
     /// Restore repair cannot seed its traversal only from the transactional store: an analytics backup may

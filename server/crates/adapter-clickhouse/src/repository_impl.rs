@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
     AnalyticsMaintenance, EntityQuery, FilterOptionRow, LogStore, MessageStore, MetricStore,
-    SearchIndex, SpanStore, SurvivorReferences,
+    SearchIndex, SpanStore,
 };
 use sideseat_ports::types::{
     FeedMessagesParams, FeedSpansParams, ListLogsParams, ListMetricsParams, ListSessionsParams,
@@ -792,6 +792,18 @@ impl AnalyticsMaintenance for ClickhouseRepository {
         chrono::TimeDelta::try_days(crate::schema::TTL_DAYS)
     }
 
+    /// ClickHouse's `now64`, which the tables' TTL and the raw readers' `LIVE` compare against.
+    async fn expiry_clock(&self) -> Result<Option<chrono::DateTime<chrono::Utc>>, DataError> {
+        let micros: i64 = self
+            .0
+            .client()
+            .query("SELECT toUnixTimestamp64Micro(now64(6, 'UTC'))")
+            .fetch_one()
+            .await
+            .map_err(|error| DataError::from(crate::ClickhouseError::from(error)))?;
+        Ok(chrono::DateTime::from_timestamp_micros(micros))
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
@@ -920,78 +932,6 @@ impl AnalyticsMaintenance for ClickhouseRepository {
     }
 }
 
-#[async_trait]
-impl SurvivorReferences for ClickhouseRepository {
-    async fn survivor_raw_records(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<Vec<u8>>, DataError> {
-        let spans = self.0.every_replica_spans();
-        let raw = self.0.every_replica_table("otel_raw");
-        tenant_query!(
-            self,
-            project_id,
-            crate::repositories::raw::survivor_records,
-            &spans,
-            &raw,
-            project_id,
-            trace_ids
-        )
-    }
-
-    async fn file_reference_fields_for_traces(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        let spans = self.0.every_replica_spans();
-        tenant_query!(
-            self,
-            project_id,
-            query::file_reference_fields_for_traces,
-            &spans,
-            project_id,
-            trace_ids,
-            &self.0.every_replica_table("otel_logs")
-        )
-    }
-
-    async fn media_log_trace_ids(
-        &self,
-        project_id: &ProjectId,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<Vec<String>, DataError> {
-        tenant_query!(
-            self,
-            project_id,
-            query::media_log_trace_ids,
-            project_id.as_str(),
-            after,
-            limit,
-            &self.0.every_replica_table("otel_logs")
-        )
-    }
-
-    async fn stored_trace_ids_after(
-        &self,
-        project_id: &ProjectId,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<Vec<String>, DataError> {
-        let spans = self.0.every_replica_spans();
-        tenant_query!(
-            self,
-            project_id,
-            query::stored_trace_ids_after,
-            &spans,
-            project_id.as_str(),
-            after,
-            limit
-        )
-    }
-}
-
-// After the query macros, which it uses.
+// After the query macros, which they use.
 mod raw_store;
+mod survivor_references;

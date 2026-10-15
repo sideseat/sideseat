@@ -443,3 +443,105 @@ async fn a_held_projects_old_data_points_redriven_are_kept() {
         "the redriven data point lost the hold and was dropped"
     );
 }
+
+/// A raw record whose every span is already past the horizon when it lands is never read and never owned. The
+/// table's TTL removes it only in a merge, some time after the insert, and until then it was read as live - by
+/// the reconciler, a re-derivation and survivor reconciliation - and the ingest's confirm fence granted its
+/// trace ownership of bytes the merge was about to take.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_record_landing_past_the_horizon_is_neither_read_nor_owned() {
+    let Some(harness) = harness("distributed_ingest_raw_ttl").await else {
+        return;
+    };
+    let stores = &harness.stores;
+    let project = ProjectId::from(PROJECT);
+    // A merge applies the TTL at a time of its choosing; held off, the expired row stays for the readers to hide.
+    harness
+        .clickhouse
+        .query("SYSTEM STOP TTL MERGES otel_raw")
+        .execute()
+        .await
+        .expect("stop TTL merges");
+
+    let old = trace_export(0x41, &[long_ago(), long_ago()]);
+    let body = received(&old);
+    let answer = export_signal(&stores.traces, old, stores.context(PROJECT, &body))
+        .await
+        .expect("answered");
+    assert_eq!(answer.partial_success.expect("rejected").rejected_spans, 2);
+
+    // No merge has run: the row is still in the table, so only the readers can hide it.
+    let stored: u64 = harness
+        .clickhouse
+        .query("SELECT count() FROM otel_raw WHERE project_id = ?")
+        .bind(PROJECT)
+        .fetch_one()
+        .await
+        .expect("count");
+    assert_eq!(stored, 1, "the insert kept the raw record until a merge");
+    let analytics: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::from(stores.analytics.repository());
+    assert!(
+        analytics
+            .raw_records_page(&project, None, 10)
+            .await
+            .expect("page")
+            .is_empty(),
+        "a record past its time to live reads as absent"
+    );
+    let database = stores.database.repository();
+    assert!(
+        database
+            .raw_owners_of_traces(&project, &["41".repeat(16)])
+            .await
+            .expect("owners")
+            .is_empty(),
+        "and its trace owns nothing"
+    );
+}
+
+/// The same, with merges forced while the export is written, so the expired record's row can be gone by the time
+/// the ingest finds no live version: whether it is past its time to live is decided from what it holds against
+/// the store's clock, not from whether its row is still there to ask about, and its trace still owns nothing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_record_merged_away_while_landing_past_the_horizon_is_still_not_owned() {
+    let Some(harness) = harness("distributed_ingest_raw_ttl_merged").await else {
+        return;
+    };
+    let stores = &harness.stores;
+    let project = ProjectId::from(PROJECT);
+    let merging = {
+        let client = harness.clickhouse.clone();
+        tokio::spawn(async move {
+            for _ in 0..50 {
+                client
+                    .query("OPTIMIZE TABLE otel_raw FINAL")
+                    .execute()
+                    .await
+                    .expect("a merge");
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+        })
+    };
+    for trace in 0x51..0x55u8 {
+        let old = trace_export(trace, &[long_ago()]);
+        let body = received(&old);
+        export_signal(&stores.traces, old, stores.context(PROJECT, &body))
+            .await
+            .expect("answered");
+    }
+    merging.await.expect("merges");
+    let traces: Vec<String> = (0x51..0x55u8)
+        .map(|t| format!("{t:02x}").repeat(16))
+        .collect();
+    assert!(
+        stores
+            .database
+            .repository()
+            .raw_owners_of_traces(&project, &traces)
+            .await
+            .expect("owners")
+            .is_empty(),
+        "no trace owns a record past its time to live"
+    );
+}

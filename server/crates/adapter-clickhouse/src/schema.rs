@@ -29,7 +29,7 @@ getSettingOrDefault('SQL_sideseat_project_id', '') OR \
 getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1";
 
 mod logs;
-mod raw;
+pub(crate) mod raw;
 use logs::{otel_logs_distributed_table, otel_logs_local_table, otel_logs_single_table};
 pub use raw::raw_tables;
 

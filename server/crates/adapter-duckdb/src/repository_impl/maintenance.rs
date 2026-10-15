@@ -16,6 +16,10 @@ impl AnalyticsMaintenance for DuckdbRepository {
         None
     }
 
+    async fn expiry_clock(&self) -> Result<Option<chrono::DateTime<chrono::Utc>>, DataError> {
+        Ok(None)
+    }
+
     // ==================== Project Data Operations ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {

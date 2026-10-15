@@ -7,6 +7,7 @@ use clickhouse::{Client, Row};
 use serde::{Deserialize, Serialize};
 
 use crate::ClickhouseError;
+use crate::schema::raw::LIVE;
 use sideseat_ports::types::{ProjectId, RawOrigin, RawPending, RawRecordRow, StagedSignal};
 use sideseat_query_sql::Backend;
 use sideseat_query_sql::analytics;
@@ -199,7 +200,8 @@ pub async fn get(
     }
     let rows: Vec<RawRow> = client
         .query(&format!(
-            "SELECT {COLUMNS} FROM otel_raw FINAL WHERE project_id = ? AND raw_id IN ? ORDER BY raw_id"
+            "SELECT {COLUMNS} FROM otel_raw FINAL WHERE project_id = ? AND raw_id IN ? AND {LIVE} \
+             ORDER BY raw_id"
         ))
         .bind(project_id.as_str())
         .bind(raw_ids)
@@ -220,7 +222,7 @@ pub async fn page(
         .unwrap_or((i64::MIN, String::new()));
     let rows: Vec<RawRow> = client
         .query(&format!(
-            "SELECT {COLUMNS} FROM otel_raw FINAL WHERE project_id = ? \
+            "SELECT {COLUMNS} FROM otel_raw FINAL WHERE project_id = ? AND {LIVE} \
              AND (toUnixTimestamp64Micro(received_at), raw_id) > (?, ?) \
              ORDER BY received_at, raw_id LIMIT ?"
         ))
@@ -509,7 +511,7 @@ pub async fn survivor_records(
     for chunk in sideseat_query_sql::keyed::bounded_chunks(&raw_ids, SURVIVOR_RECORD_CHUNK) {
         let rows: Vec<RecordOnly> = client
             .query(&format!(
-                "SELECT record FROM {raw} FINAL WHERE project_id = ? AND raw_id IN ? \
+                "SELECT record FROM {raw} FINAL WHERE project_id = ? AND raw_id IN ? AND {LIVE} \
                  SETTINGS skip_unavailable_shards = 0"
             ))
             .bind(project_id.as_str())

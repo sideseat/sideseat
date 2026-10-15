@@ -17,7 +17,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use chrono::Utc;
+use chrono::{SubsecRound, Utc};
 use sideseat_ports::types::{RawConfirmOutcome, RawOwnerClaim, RawRecordRow, raw_version_epoch};
 
 use super::raw_lifecycle::WrittenRecord;
@@ -120,6 +120,7 @@ impl TracePipeline {
         written: &[WrittenRecord<'_>],
     ) -> Result<(), String> {
         let mut by_project: BTreeMap<&str, Vec<&WrittenRecord<'_>>> = BTreeMap::new();
+        let horizon = self.analytics.expiry_horizon();
         for item in written.iter().filter(|item| !item.written.is_empty()) {
             by_project
                 .entry(item.draft.project_id())
@@ -136,6 +137,35 @@ impl TracePipeline {
             ids.dedup();
             let mut live = live_raw_records(self, &project_id, &ids).await?;
             let epoch = self.raw_epoch(&project_id).await?;
+
+            // A record the store no longer serves because its time to live has passed - every span it holds
+            // older than the backend keeps, and no hold - is neither rekeyed nor claimed: the store deletes it and
+            // its rows in a merge, a fresh version would be as old, and its traces must not own bytes about to
+            // go. Decided by the store's own clock, for the records the read did not find: one cut off by a
+            // collection is rekeyed as before, and one found live was live then, its trace's age pass releasing
+            // what it owns. Judged from what the record holds against the store's clock, so a merge that has
+            // already removed the row changes nothing.
+            let clock = if horizon.is_some()
+                && items
+                    .iter()
+                    .any(|item| !live.contains_key(item.draft.raw_id()))
+            {
+                self.analytics
+                    .expiry_clock()
+                    .await
+                    .map_err(|error| error.to_string())?
+            } else {
+                None
+            };
+            let items: Vec<&WrittenRecord<'_>> = items
+                .into_iter()
+                .filter(|item| {
+                    live.contains_key(item.draft.raw_id()) || !past_horizon(item, horizon, clock)
+                })
+                .collect();
+            if items.is_empty() {
+                continue;
+            }
 
             // A record with no live version - collected since the insert looked, or never inserted because a
             // stale doomed copy looked present - is keyed afresh before it is claimed (`Rekey`).
@@ -236,6 +266,28 @@ impl TracePipeline {
             .map_err(|error| error.to_string())?;
         Ok(version)
     }
+}
+
+/// Whether every span this ingest's version of the record holds, and its hold, are past the backend's time to
+/// live at `now` - the store's clock - so the store no longer keeps it. Never where the store has no time to live.
+fn past_horizon(
+    item: &WrittenRecord<'_>,
+    horizon: Option<chrono::TimeDelta>,
+    now: Option<chrono::DateTime<Utc>>,
+) -> bool {
+    let (Some(horizon), Some(now)) = (horizon, now) else {
+        return false;
+    };
+    let (until, _) = super::raw::extent(item.request, &item.kept);
+    // At the store's precision, microseconds, as the stored instants are: compared at nanoseconds, an expiry a
+    // fraction of a microsecond after `now` read as live here and as expired there.
+    until
+        .map(|until| until + horizon)
+        .into_iter()
+        .chain(item.hold_until)
+        .max()
+        .map(|expires| expires.trunc_subsecs(6))
+        .is_some_and(|expires| expires <= now)
 }
 
 /// The distinct traces of an ingest's written spans: what its claim takes ownership through.

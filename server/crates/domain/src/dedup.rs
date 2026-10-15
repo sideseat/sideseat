@@ -495,6 +495,10 @@ impl AnalyticsMaintenance for DedupAnalyticsRepository {
         self.inner.expiry_horizon()
     }
 
+    async fn expiry_clock(&self) -> Result<Option<chrono::DateTime<chrono::Utc>>, DataError> {
+        self.inner.expiry_clock().await
+    }
+
     // ==================== Project Data Operations (pass-through) ====================
 
     async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
