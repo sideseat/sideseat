@@ -189,12 +189,16 @@ pub trait FileStorage: Send + Sync {
 pub trait RetentionFileReconciler: Send + Sync {
     fn is_enabled(&self) -> bool;
 
+    /// Release the associations the traces' surviving spans no longer reference, returning the traces it
+    /// **deferred** - left holding an association it could neither keep nor release, as a writer was pending on
+    /// it or a confirm since the release's horizon stamped it, or whose leftover could not be read - whose cleanup
+    /// the caller must keep owed rather than complete.
     async fn reconcile_trace_survivors(
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
         analytics: &dyn SurvivorReferences,
-    ) -> Result<(), String>;
+    ) -> Result<Vec<String>, String>;
 }
 
 #[cfg(test)]

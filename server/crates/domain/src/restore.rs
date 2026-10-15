@@ -458,10 +458,13 @@ async fn visit_owning_traces(
             OwningStep::Repair => {
                 repair_trace_batch(project_id, &trace_ids, survivors, files, file_report).await?
             }
+            // Ingestion is stopped for a restore, so a writer still pending is one that died without resolving,
+            // and its association can never be released: what this defers is the open `pending_writers` leak,
+            // which no retry here would end.
             OwningStep::Release => {
                 files
                     .reconcile_trace_survivors(project_id, &trace_ids, survivors)
-                    .await?
+                    .await?;
             }
         }
         after = trace_ids.last().cloned();

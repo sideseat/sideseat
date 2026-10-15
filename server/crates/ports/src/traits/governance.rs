@@ -282,6 +282,19 @@ pub fn retention_cleanup_logical_bytes<P: AsRef<str> + ?Sized>(
         .saturating_add(trace_id.len() as u64)
 }
 
+/// The claimed cleanup tokens a retention pass may complete: all but the traces whose file reconciliation was
+/// deferred, which stay recorded and are retried at the claim's capped backoff.
+pub fn retention_cleanup_owed_kept(
+    claimed: &[(String, i64)],
+    deferred: &[String],
+) -> Vec<(String, i64)> {
+    claimed
+        .iter()
+        .filter(|(trace_id, _)| !deferred.contains(trace_id))
+        .cloned()
+        .collect()
+}
+
 /// Durable metadata for payload bytes staged before OTLP acknowledgement.
 ///
 /// The blob itself lives behind `FileStorage`; this registry is what makes queue loss discoverable and

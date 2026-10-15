@@ -402,3 +402,117 @@ async fn retention_cleanup_records_and_completions_do_not_deadlock() {
         task.await.expect("no worker failed");
     }
 }
+
+/// What the confirm stamp costs a batch's confirm on PostgreSQL, as an alternating A/B in one run over the service's
+/// own pool, so load from outside the process falls on both alike.
+///
+/// `cargo test -p sideseat-server --test postgres_parity confirm_stamp_bench -- --ignored --nocapture`, with
+/// `SIDESEAT_TEST_POSTGRES_URL` set. A is the repository's confirm as it was before stamps, reproduced exactly:
+/// grouped by project, one tenant transaction each, deduplicated, one `UPDATE` over the batch. B is the
+/// repository's confirm, which also draws a sequence value and applies the larger of each row's stamp and it.
+#[tokio::test]
+#[ignore = "a measurement, not a check: run it on purpose"]
+async fn confirm_stamp_bench() {
+    const BATCHES: usize = 400;
+    const PER_BATCH: usize = 8;
+    let Some((_sqlite, postgres)) = pair().await else {
+        return;
+    };
+    let project = ProjectId::from("default");
+    // HEAD's repository confirm and its statement, wrapper and all: grouped by project, one tenant transaction each.
+    let unstamped = |associations: Vec<(String, String, String)>| {
+        let service = postgres.0.clone();
+        async move {
+            let mut by_project =
+                std::collections::BTreeMap::<&str, Vec<(String, String, String)>>::new();
+            for association in &associations {
+                by_project
+                    .entry(association.0.as_str())
+                    .or_default()
+                    .push(association.clone());
+            }
+            let mut confirmed = 0;
+            for (project_id, project_associations) in by_project {
+                let project_id = ProjectId::from(project_id);
+                let mut unique: Vec<&(String, String, String)> =
+                    project_associations.iter().collect();
+                unique.sort_unstable();
+                unique.dedup();
+                let projects: Vec<&str> = unique.iter().map(|(p, _, _)| p.as_str()).collect();
+                let traces: Vec<&str> = unique.iter().map(|(_, t, _)| t.as_str()).collect();
+                let hashes: Vec<&str> = unique.iter().map(|(_, _, h)| h.as_str()).collect();
+                let mut transaction = service.tenant_transaction(&project_id).await.unwrap();
+                let result = sqlx::query(
+                    "UPDATE trace_files SET durable = TRUE, pending_writers = GREATEST(pending_writers - 1, 0) \
+                     WHERE (project_id, trace_id, file_hash) IN ( \
+                         SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[]) \
+                     )",
+                )
+                .bind(&projects)
+                .bind(&traces)
+                .bind(&hashes)
+                .execute(&mut *transaction)
+                .await
+                .unwrap();
+                transaction.commit().await.unwrap();
+                confirmed += result.rows_affected();
+            }
+            confirmed
+        }
+    };
+    let mut a = Vec::new();
+    let mut b = Vec::new();
+    for batch in 0..BATCHES {
+        let associations: Vec<(String, String, String)> = (0..PER_BATCH)
+            .map(|i| {
+                (
+                    "default".to_string(),
+                    format!("bench-{batch}"),
+                    format!("{:064x}", batch * PER_BATCH + i),
+                )
+            })
+            .collect();
+        for (_, trace_id, file_hash) in &associations {
+            postgres
+                .associate_file(trace_id, &project, file_hash, None, 5, "sha256")
+                .await
+                .unwrap();
+        }
+        let stamped = batch % 2 == 1;
+        let started = std::time::Instant::now();
+        let confirmed = if stamped {
+            postgres
+                .confirm_trace_file_associations(&associations)
+                .await
+                .unwrap()
+        } else {
+            unstamped(associations).await
+        };
+        let elapsed = started.elapsed();
+        assert_eq!(
+            confirmed, PER_BATCH as u64,
+            "both arms confirm the whole batch"
+        );
+        if stamped {
+            b.push(elapsed)
+        } else {
+            a.push(elapsed)
+        }
+    }
+    let summary = |samples: &mut Vec<std::time::Duration>| {
+        samples.sort();
+        let micros = |d: std::time::Duration| d.as_secs_f64() * 1e6;
+        (
+            micros(samples[samples.len() / 2]),
+            micros(samples[samples.len() * 9 / 10]),
+        )
+    };
+    let (am, ap) = summary(&mut a);
+    let (bm, bp) = summary(&mut b);
+    eprintln!(
+        "PostgreSQL confirm of {PER_BATCH} associations, {} batches each: unstamped median {am:.0} us p90 {ap:.0} us; \
+         stamped median {bm:.0} us p90 {bp:.0} us; stamped / unstamped median {:.3}",
+        a.len(),
+        bm / am
+    );
+}

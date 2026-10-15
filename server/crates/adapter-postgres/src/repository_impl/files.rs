@@ -329,6 +329,21 @@ impl FileMetaStore for PostgresRepository {
         })
     }
 
+    async fn defer_retention_cleanup(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            retention_cleanup::defer_retention_cleanup(
+                connection,
+                project_id,
+                trace_ids,
+                self.0.clock().now().timestamp(),
+            )
+        })
+    }
+
     async fn claim_retention_cleanup(
         &self,
         limit: i64,
@@ -370,9 +385,16 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         trace_id: &str,
         keep: &[String],
+        horizon: i64,
     ) -> Result<Vec<String>, DataError> {
         tenant_transaction!(self, project_id, |connection| {
-            file::release_trace_files_except(connection, project_id, trace_id, keep)
+            file::release_trace_files_except(connection, project_id, trace_id, keep, horizon)
+        })
+    }
+
+    async fn trace_file_confirm_horizon(&self, project_id: &ProjectId) -> Result<i64, DataError> {
+        tenant_transaction!(self, project_id, |connection| {
+            file::trace_file_confirm_horizon(connection)
         })
     }
 

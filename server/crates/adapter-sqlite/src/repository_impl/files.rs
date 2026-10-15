@@ -323,6 +323,21 @@ impl FileMetaStore for SqliteRepository {
         .map_err(Into::into)
     }
 
+    async fn defer_retention_cleanup(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        retention_cleanup::defer_retention_cleanup(
+            self.0.pool(),
+            project_id,
+            trace_ids,
+            self.0.clock().now().timestamp(),
+        )
+        .await
+        .map_err(Into::into)
+    }
+
     async fn claim_retention_cleanup(
         &self,
         limit: i64,
@@ -364,8 +379,15 @@ impl FileMetaStore for SqliteRepository {
         project_id: &ProjectId,
         trace_id: &str,
         keep: &[String],
+        horizon: i64,
     ) -> Result<Vec<String>, DataError> {
-        file::release_trace_files_except(self.0.pool(), project_id, trace_id, keep)
+        file::release_trace_files_except(self.0.pool(), project_id, trace_id, keep, horizon)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn trace_file_confirm_horizon(&self, _project_id: &ProjectId) -> Result<i64, DataError> {
+        file::trace_file_confirm_horizon(self.0.pool())
             .await
             .map_err(Into::into)
     }

@@ -15,20 +15,52 @@ pub(crate) async fn record_one(
     trace_id: &str,
     now: i64,
 ) -> Result<i64, PostgresError> {
-    Ok(sqlx::query_scalar(
-        "INSERT INTO retention_cleanup \
-         (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
-         VALUES ($1, $2, $3, 0, 0, nextval('retention_cleanup_tokens'), $4) \
-         ON CONFLICT (project_id, trace_id) DO UPDATE SET \
-             claim_token = excluded.claim_token, next_attempt_at = 0 \
-         RETURNING claim_token",
-    )
-    .bind(project_id)
-    .bind(trace_id)
-    .bind(now)
-    .bind(i64::try_from(retention_cleanup_logical_bytes(project_id, trace_id)).unwrap_or(i64::MAX))
-    .fetch_one(&mut *connection)
-    .await?)
+    write_one(connection, project_id, trace_id, now, Due::Now).await
+}
+
+/// When a re-recorded row is next attempted.
+#[derive(Clone, Copy)]
+enum Due {
+    /// At once: new work behind the identity.
+    Now,
+    /// As it was: a retry of work already owed, which must not undo the claim's backoff.
+    AsScheduled,
+}
+
+async fn write_one(
+    connection: &mut PgConnection,
+    project_id: &str,
+    trace_id: &str,
+    now: i64,
+    due: Due,
+) -> Result<i64, PostgresError> {
+    let sql = match due {
+        Due::Now => {
+            "INSERT INTO retention_cleanup \
+             (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
+             VALUES ($1, $2, $3, 0, 0, nextval('retention_cleanup_tokens'), $4) \
+             ON CONFLICT (project_id, trace_id) DO UPDATE SET \
+                 claim_token = excluded.claim_token, next_attempt_at = 0 \
+             RETURNING claim_token"
+        }
+        Due::AsScheduled => {
+            "INSERT INTO retention_cleanup \
+             (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
+             VALUES ($1, $2, $3, 0, 0, nextval('retention_cleanup_tokens'), $4) \
+             ON CONFLICT (project_id, trace_id) DO UPDATE SET claim_token = excluded.claim_token \
+             RETURNING claim_token"
+        }
+    };
+    Ok(sqlx::query_scalar(sql)
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(now)
+        .bind(
+            i64::try_from(retention_cleanup_logical_bytes(project_id, trace_id))
+                .unwrap_or(i64::MAX),
+        )
+        .fetch_one(&mut *connection)
+        .await?)
 }
 
 /// Record cleanup intent for these traces, each once under a fresh token, due now, in trace order: two
@@ -39,12 +71,35 @@ pub async fn record_retention_cleanup(
     trace_ids: &[String],
     now: i64,
 ) -> Result<Vec<(String, i64)>, PostgresError> {
+    write_all(connection, project_id, trace_ids, now, Due::Now).await
+}
+
+/// Keep these traces' cleanup owed under a fresh token, leaving a recorded row's next attempt where it was; a
+/// trace with none is due now. In trace order, as every statement that locks cleanup rows.
+pub async fn defer_retention_cleanup(
+    connection: &mut PgConnection,
+    project_id: &str,
+    trace_ids: &[String],
+    now: i64,
+) -> Result<(), PostgresError> {
+    write_all(connection, project_id, trace_ids, now, Due::AsScheduled)
+        .await
+        .map(|_| ())
+}
+
+async fn write_all(
+    connection: &mut PgConnection,
+    project_id: &str,
+    trace_ids: &[String],
+    now: i64,
+    due: Due,
+) -> Result<Vec<(String, i64)>, PostgresError> {
     let mut ordered: Vec<&String> = trace_ids.iter().collect();
     ordered.sort_unstable();
     ordered.dedup();
     let mut written = Vec::with_capacity(ordered.len());
     for trace_id in ordered {
-        let token = record_one(connection, project_id, trace_id, now).await?;
+        let token = write_one(connection, project_id, trace_id, now, due).await?;
         written.push((trace_id.clone(), token));
     }
     Ok(written)

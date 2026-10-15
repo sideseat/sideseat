@@ -572,27 +572,20 @@ async fn reconciliation_keeps_a_surviving_spans_file_and_releases_the_expired_on
     );
 }
 
-/// A span that commits **between the scan and the release** keeps its file.
+/// A span that commits **after the scan** keeps its file, with no re-check.
 ///
 /// The window `pending_writers` cannot close, because at the decisive moment the counter is legitimately
-/// zero: reconciliation scans trace T and does not see hash H; an ingestion then associates H, commits its
-/// span, and confirms - dropping `pending_writers` back to zero. The release now sees a zero counter and a
-/// hash the stale snapshot did not contain, and reclaims bytes a committed span references.
-///
-/// The compensation is a second scan after the release, restoring any association whose reference has
-/// appeared, before any byte is deleted. This test drives exactly that interleaving by writing the span
-/// *after* the first scan would have run - which is what the previous test could not do, because it left
-/// the writer pending throughout and so never reached the dangerous state.
+/// zero: reconciliation scans trace T and does not see hash H; an ingestion associates H, commits its span, and
+/// confirms - dropping `pending_writers` back to zero. A release that saw a zero counter and a hash the scan did
+/// not contain took the association of a committed span; the re-check that once restored it left a window in
+/// which an orphan sweep, or a restore that failed, lost the bytes. The confirm stamps the association above
+/// the horizon read before the scan, so the release leaves it, and the trace is reported deferred.
 #[tokio::test]
-async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
+async fn a_span_committing_after_the_scan_keeps_its_association() {
     let (temp_dir, database, cache) = setup_test().await;
-    fs::create_dir_all(temp_dir.path().join("files"))
-        .await
-        .unwrap();
-    fs::create_dir_all(temp_dir.path().join("files_temp"))
-        .await
-        .unwrap();
-
+    for dir in ["files", "files_temp"] {
+        fs::create_dir_all(temp_dir.path().join(dir)).await.unwrap();
+    }
     let config = FilesConfig {
         enabled: true,
         storage: sideseat_core::config::StorageBackend::Filesystem,
@@ -605,32 +598,26 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
         .await
         .unwrap();
 
-    // No analytics store here: the stub below *is* the analytics side, which is the point of the narrow
-    // port - the interleaving is what is under test, not a query.
-    //
-    // A file associated and *confirmed* - so `pending_writers` is zero - whose span is not in the store
-    // when the first scan runs.
+    // A file the trace held through a span that has since expired, durable, with no writer pending.
     let racing = "d".repeat(64);
+    let project = ProjectId::from("default");
     let repo = database.as_ref();
-    repo.upsert_file(&ProjectId::from("default"), &racing, None, 5, "sha256")
+    repo.associate_file("trace1", &project, &racing, None, 5, "sha256")
         .await
         .unwrap();
-    store_for_row(
-        &service.storage,
-        repo,
-        &ProjectId::from("default"),
-        &racing,
-        b"bytes",
-    )
-    .await;
-    repo.insert_trace_file("trace1", &ProjectId::from("default"), &racing)
-        .await
-        .unwrap();
+    store_for_row(&service.storage, repo, &project, &racing, b"bytes").await;
+    repo.confirm_trace_file_associations(&[(
+        "default".to_string(),
+        "trace1".to_string(),
+        racing.clone(),
+    )])
+    .await
+    .unwrap();
 
-    // An analytics repository that writes the span on its *second* read, which is precisely the
-    // interleaving: the first scan sees nothing, the re-check sees the committed span.
+    // The analytics side, whose scan runs while a batch associates the file again, writes its span and
+    // confirms: the scan does not see the span, and by the release no writer is pending.
     struct RacingAnalytics {
-        calls: std::sync::atomic::AtomicUsize,
+        database: Arc<dyn TransactionalRepository + Send + Sync>,
         hash: String,
     }
 
@@ -655,16 +642,20 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
 
         async fn file_reference_fields_for_traces(
             &self,
-            _project_id: &ProjectId,
+            project_id: &ProjectId,
             _trace_ids: &[String],
         ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
-            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            if n == 0 {
-                // The scan, before the span exists.
-                return Ok(Vec::new());
-            }
-            // The re-check, after it committed.
-            Ok(vec![format!("#!B64!#image/png::{}", self.hash)])
+            self.database
+                .associate_file("trace1", project_id, &self.hash, None, 5, "sha256")
+                .await?;
+            self.database
+                .confirm_trace_file_associations(&[(
+                    project_id.to_string(),
+                    "trace1".to_string(),
+                    self.hash.clone(),
+                )])
+                .await?;
+            Ok(Vec::new())
         }
 
         async fn media_log_trace_ids(
@@ -677,143 +668,34 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
         }
     }
 
-    let racing_analytics = RacingAnalytics {
-        calls: std::sync::atomic::AtomicUsize::new(0),
-        hash: racing.clone(),
-    };
-
-    service
+    let deferred = service
         .reconcile_trace_survivors(
-            &ProjectId::from("default"),
+            &project,
             &["trace1".to_string()],
-            &racing_analytics,
+            &RacingAnalytics {
+                database: database.clone(),
+                hash: racing.clone(),
+            },
         )
         .await
         .expect("reconcile");
 
-    assert!(
-        service
-            .file_exists(&ProjectId::from("default"), &racing)
+    assert_eq!(
+        repo.get_file_hashes_for_traces(&project, &["trace1".to_string()])
             .await
             .unwrap(),
-        "a span that committed between the survivor scan and the release lost its file - the re-check did \
-             not restore the association, so a committed span points at bytes that are gone"
+        vec![racing.clone()],
+        "a span that committed after the survivor scan lost its association"
     );
-}
-
-/// A span that commits during the release keeps its file even when the re-check that would have seen it fails.
-///
-/// The failed re-check used to hand the released hashes on to be reclaimed, so the window the re-check closes
-/// was open whenever it failed. They are restored instead, for the next pass to settle, and the failure is
-/// returned: a retention pass or a restore that took it for success would not come back for it.
-#[tokio::test]
-async fn a_failed_recheck_reclaims_nothing_it_released() {
-    let (temp_dir, database, cache) = setup_test().await;
-    fs::create_dir_all(temp_dir.path().join("files"))
-        .await
-        .unwrap();
-    fs::create_dir_all(temp_dir.path().join("files_temp"))
-        .await
-        .unwrap();
-    let config = FilesConfig {
-        enabled: true,
-        storage: sideseat_core::config::StorageBackend::Filesystem,
-        quota_bytes: 1024 * 1024,
-        filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
-        s3: None,
-    };
-    let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
-    let service = create_file_service(config, &app_storage, database.clone(), cache)
-        .await
-        .unwrap();
-    let racing = "e".repeat(64);
-    let repo = database.as_ref();
-    repo.upsert_file(&ProjectId::from("default"), &racing, None, 5, "sha256")
-        .await
-        .unwrap();
-    store_for_row(
-        &service.storage,
-        repo,
-        &ProjectId::from("default"),
-        &racing,
-        b"bytes",
-    )
-    .await;
-    repo.insert_trace_file("trace1", &ProjectId::from("default"), &racing)
-        .await
-        .unwrap();
-
-    // The scan sees nothing; the re-check, by which time the span has committed, fails.
-    struct FailingRecheck {
-        calls: std::sync::atomic::AtomicUsize,
-    }
-
-    #[async_trait::async_trait]
-    impl sideseat_ports::traits::SurvivorReferences for FailingRecheck {
-        async fn stored_trace_ids_after(
-            &self,
-            _project_id: &ProjectId,
-            _after: Option<&str>,
-            _limit: usize,
-        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
-            Ok(Vec::new())
-        }
-
-        async fn survivor_raw_records(
-            &self,
-            _project_id: &ProjectId,
-            _trace_ids: &[String],
-        ) -> Result<Vec<Vec<u8>>, sideseat_ports::error::DataError> {
-            Ok(Vec::new())
-        }
-
-        async fn file_reference_fields_for_traces(
-            &self,
-            _project_id: &ProjectId,
-            _trace_ids: &[String],
-        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
-            if self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
-                return Ok(Vec::new());
-            }
-            Err(sideseat_ports::error::DataError::Conflict(
-                "the analytics store is unavailable".to_string(),
-            ))
-        }
-
-        async fn media_log_trace_ids(
-            &self,
-            _project_id: &ProjectId,
-            _after: Option<&str>,
-            _limit: usize,
-        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
-            Ok(Vec::new())
-        }
-    }
-
-    service
-        .reconcile_trace_survivors(
-            &ProjectId::from("default"),
-            &["trace1".to_string()],
-            &FailingRecheck {
-                calls: std::sync::atomic::AtomicUsize::new(0),
-            },
-        )
-        .await
-        .expect_err("the failed re-check is the caller's to see, though it was compensated");
-
     assert!(
-        service
-            .file_exists(&ProjectId::from("default"), &racing)
-            .await
-            .unwrap(),
-        "the re-check failed, and a file a span may have committed against was reclaimed anyway"
+        service.file_exists(&project, &racing).await.unwrap(),
+        "and its bytes"
     );
-    let file = repo
-        .get_file(&ProjectId::from("default"), &racing)
-        .await
-        .unwrap()
-        .expect("the file row");
-    assert_eq!(file.ref_count, 1, "restored and counted again");
+    assert_eq!(
+        deferred,
+        vec!["trace1".to_string()],
+        "left for a later pass, which sees the span"
+    );
 }
 
 /// A concurrent ingestion's association is not released, because its writer is counted before its span row

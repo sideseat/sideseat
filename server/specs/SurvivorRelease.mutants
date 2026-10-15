@@ -1,0 +1,7 @@
+# Each guard the configuration's header calls necessary, and the invariant TLC breaks without it
+# (`scripts/check/model-mutants.sh`).
+Stamp = FALSE -> NoMediaLost
+Max = FALSE -> NoMediaLost
+Protocol = "ReleaseFirst" -> NoMediaLost
+Protocol = "IntentFirst" -> NoMediaLost
+Defer = FALSE -> OwedNotLost

@@ -691,6 +691,8 @@ mod raw_ownership_tests;
 #[cfg(test)]
 mod raw_rewrite_cleanup_tests;
 #[cfg(test)]
+mod raw_rewrite_deferral_tests;
+#[cfg(test)]
 mod raw_rewrite_stale_tests;
 #[cfg(test)]
 mod receipt_precedence_tests;
@@ -700,3 +702,5 @@ mod settlement_skip_tests;
 mod storable_timestamp_tests;
 #[cfg(test)]
 mod strip_unstorable_tests;
+#[cfg(test)]
+mod survivor_release_bench;

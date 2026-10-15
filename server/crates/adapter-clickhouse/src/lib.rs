@@ -106,18 +106,25 @@ impl ClickhouseService {
             tracing::debug!(project_id = %project_id, "Collection is fenced; the cleanup stays recorded");
             return;
         }
+        // A trace the reconciliation deferred - an association a writer was pending on, or a confirm since its
+        // horizon stamped - stays recorded on its own, retried at the claim's capped backoff, while the rest of the
+        // batch completes.
+        let mut deferred = Vec::new();
         match file_service {
             Some(files) if files.is_enabled() => {
-                if let Err(error) = files
+                match files
                     .reconcile_trace_survivors(project_id, trace_ids, analytics)
                     .await
                 {
-                    clean = false;
-                    tracing::warn!(
-                        project_id = %project_id,
-                        %error,
-                        "Failed to reconcile ClickHouse retention file survivors"
-                    );
+                    Ok(skipped) => deferred = skipped,
+                    Err(error) => {
+                        clean = false;
+                        tracing::warn!(
+                            project_id = %project_id,
+                            %error,
+                            "Failed to reconcile ClickHouse retention file survivors"
+                        );
+                    }
                 }
             }
             _ => clean = false,
@@ -187,7 +194,10 @@ impl ClickhouseService {
         if clean
             && fence.is_open()
             && let Err(error) = database
-                .complete_retention_cleanup(project_id, completed)
+                .complete_retention_cleanup(
+                    project_id,
+                    &sideseat_ports::traits::retention_cleanup_owed_kept(completed, &deferred),
+                )
                 .await
         {
             tracing::debug!(

@@ -626,10 +626,11 @@ pub async fn delete_trace_files(
 
 /// Release a trace's associations except the ones its surviving spans still reference.
 ///
-/// Two conditions and neither is optional. `file_hash <> ALL(keep)` leaves a survivor's file alone;
+/// Three conditions and none is optional. `file_hash <> ALL(keep)` leaves a survivor's file alone;
 /// `pending_writers = 0` protects a batch in flight, which the survivor scan cannot see because referencing
-/// a file increments that counter *before* the span row exists. Without it this is a read-then-act race with
-/// exactly the window it exists to close.
+/// a file increments that counter *before* the span row exists; and `confirm_stamp <= horizon`, the sequence
+/// read before the scan, protects a batch that wrote its span after the scan and has confirmed since, which
+/// the first two cannot tell from an association its spans abandoned. See the SQLite twin.
 ///
 /// `RETURNING`, so the caller reconciles the set this statement produced rather than one it read beforehand.
 pub async fn release_trace_files_except(
@@ -637,19 +638,34 @@ pub async fn release_trace_files_except(
     project_id: &str,
     trace_id: &str,
     keep: &[String],
+    horizon: i64,
 ) -> Result<Vec<String>, PostgresError> {
     let rows: Vec<String> = sqlx::query_scalar(
         "DELETE FROM trace_files \
          WHERE project_id = $1 AND trace_id = $2 AND pending_writers = 0 \
-           AND file_hash <> ALL($3::text[]) \
+           AND file_hash <> ALL($3::text[]) AND confirm_stamp <= $4 \
          RETURNING file_hash",
     )
     .bind(project_id)
     .bind(trace_id)
     .bind(keep)
+    .bind(horizon)
     .fetch_all(&mut *connection)
     .await?;
     Ok(rows)
+}
+
+/// The latest confirm stamp drawn, 0 before any, as the SQLite adapter's twin describes it. A sequence's
+/// `last_value` is shared and not transactional: it covers every stamp drawn before this read, committed or not,
+/// and a stamp drawn before the read belongs to a batch whose spans were already written.
+pub async fn trace_file_confirm_horizon(
+    connection: &mut PgConnection,
+) -> Result<i64, PostgresError> {
+    Ok(sqlx::query_scalar(
+        "SELECT CASE WHEN is_called THEN last_value ELSE 0 END FROM trace_file_confirm_stamps",
+    )
+    .fetch_one(&mut *connection)
+    .await?)
 }
 
 /// Get total storage used by a project
@@ -780,8 +796,19 @@ pub async fn confirm_trace_file_associations(
     let projects: Vec<&str> = unique.iter().map(|(p, _, _)| p.as_str()).collect();
     let traces: Vec<&str> = unique.iter().map(|(_, t, _)| t.as_str()).collect();
     let hashes: Vec<&str> = unique.iter().map(|(_, _, h)| h.as_str()).collect();
+    // One stamp for the batch, drawn as the statement runs: every span the batch wrote is committed by now, so a
+    // release whose sequence read covers this stamp drew it after them, and scanned after them
+    // (`trace_files.confirm_stamp`). A sequence, not a counter row, so concurrent confirms do not queue on one
+    // lock; its values need not commit in order, which the release does not ask of them.
+    //
+    // `GREATEST`, never the batch's stamp alone: `nextval` is outside the transaction, so a confirm that drew an
+    // older stamp can reach a row after a newer confirm committed on it, and under READ COMMITTED it updates the
+    // newest version. Overwriting would leave the older stamp, at or below a horizon read before the newer
+    // writer's span was written, on an association that writer's span needs - and the release would take it.
     let result = sqlx::query(
-        "UPDATE trace_files SET durable = TRUE, pending_writers = GREATEST(pending_writers - 1, 0) \
+        "WITH stamp AS (SELECT nextval('trace_file_confirm_stamps') AS value) \
+         UPDATE trace_files SET durable = TRUE, pending_writers = GREATEST(pending_writers - 1, 0), \
+             confirm_stamp = GREATEST(confirm_stamp, (SELECT value FROM stamp)) \
          WHERE (project_id, trace_id, file_hash) IN ( \
              SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[]) \
          )",
@@ -794,10 +821,8 @@ pub async fn confirm_trace_file_associations(
     Ok(result.rows_affected())
 }
 
-/// Restore an association a survivor scan released, as **durable**.
-///
-/// The compensation path of survivor reconciliation: a span committed between the scan and the release, so its
-/// association was deleted and must come back before any byte is reclaimed.
+/// Restore an association a committed span's reference needs, as **durable**: a restore's repair, rebuilding
+/// the associations of the spans it brought back.
 ///
 /// `durable = 1` is the whole point, and `insert_trace_file` was the first choice and is wrong here: it leaves
 /// the row provisional, so a *later* batch that references the same file and then fails would decrement

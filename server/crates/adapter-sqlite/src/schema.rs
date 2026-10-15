@@ -253,6 +253,11 @@ CREATE TABLE IF NOT EXISTS retention_cleanup_tokens (
     id   INTEGER PRIMARY KEY CHECK (id = 1),
     last INTEGER NOT NULL
 );
+-- Where confirm stamps come from (`trace_files.confirm_stamp`): one counter, bumped by every confirm.
+CREATE TABLE IF NOT EXISTS trace_file_confirm_stamps (
+    id   INTEGER PRIMARY KEY CHECK (id = 1),
+    last INTEGER NOT NULL
+);
 -- Sessions whose deletion has to outlive the traces it knew about.
 --
 -- A session is deleted *by* deleting its traces, so the route resolves session ids to trace ids and
@@ -297,6 +302,12 @@ CREATE TABLE IF NOT EXISTS trace_files (
     -- batch can never orphan a file another batch committed or is about to.
     pending_writers INTEGER NOT NULL DEFAULT 0,
     durable INTEGER NOT NULL DEFAULT 0,
+    -- The confirm stamp: the value the confirm sequence gave the latest batch that confirmed this association.
+    -- A survivor release reads the sequence before its scan and takes only an association stamped no later: a
+    -- batch stamped earlier wrote its span before that read, so the scan saw it, and one stamped later is
+    -- skipped. That is what lets the release decide on a scan of a store no transaction here covers without
+    -- ever releasing what a span committed after the scan names (`server/specs/SurvivorRelease.tla`).
+    confirm_stamp INTEGER NOT NULL DEFAULT 0,
     -- Project first: a trace id comes from the client, so two projects can present the same one.
     -- Keyed without the project, one project's association satisfied `INSERT OR IGNORE` for the
     -- other, leaving the second with no association and a reference nothing would release.

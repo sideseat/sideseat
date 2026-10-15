@@ -33,21 +33,52 @@ pub(crate) async fn record_in(
     trace_id: &str,
     now: i64,
 ) -> Result<i64, SqliteError> {
+    write_in(tx, project_id, trace_id, now, Due::Now).await
+}
+
+/// When a re-recorded row is next attempted.
+#[derive(Clone, Copy)]
+enum Due {
+    /// At once: new work behind the identity.
+    Now,
+    /// As it was: a retry of work already owed, which must not undo the claim's backoff.
+    AsScheduled,
+}
+
+async fn write_in(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    project_id: &str,
+    trace_id: &str,
+    now: i64,
+    due: Due,
+) -> Result<i64, SqliteError> {
     let token = fresh_cleanup_token(&mut **tx).await?;
-    sqlx::query(
-        "INSERT INTO retention_cleanup \
-         (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
-         VALUES (?, ?, ?, 0, 0, ?, ?) \
-         ON CONFLICT(project_id, trace_id) DO UPDATE SET \
-             claim_token = excluded.claim_token, next_attempt_at = 0",
-    )
-    .bind(project_id)
-    .bind(trace_id)
-    .bind(now)
-    .bind(token)
-    .bind(i64::try_from(retention_cleanup_logical_bytes(project_id, trace_id)).unwrap_or(i64::MAX))
-    .execute(&mut **tx)
-    .await?;
+    let sql = match due {
+        Due::Now => {
+            "INSERT INTO retention_cleanup \
+             (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
+             VALUES (?, ?, ?, 0, 0, ?, ?) \
+             ON CONFLICT(project_id, trace_id) DO UPDATE SET \
+                 claim_token = excluded.claim_token, next_attempt_at = 0"
+        }
+        Due::AsScheduled => {
+            "INSERT INTO retention_cleanup \
+             (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token, logical_bytes) \
+             VALUES (?, ?, ?, 0, 0, ?, ?) \
+             ON CONFLICT(project_id, trace_id) DO UPDATE SET claim_token = excluded.claim_token"
+        }
+    };
+    sqlx::query(sql)
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(now)
+        .bind(token)
+        .bind(
+            i64::try_from(retention_cleanup_logical_bytes(project_id, trace_id))
+                .unwrap_or(i64::MAX),
+        )
+        .execute(&mut **tx)
+        .await?;
     Ok(token)
 }
 
@@ -59,13 +90,36 @@ pub async fn record_retention_cleanup(
     trace_ids: &[String],
     now: i64,
 ) -> Result<Vec<(String, i64)>, SqliteError> {
+    write_all(pool, project_id, trace_ids, now, Due::Now).await
+}
+
+/// Keep these traces' cleanup owed under a fresh token, leaving a recorded row's next attempt where it was; a
+/// trace with none is due now.
+pub async fn defer_retention_cleanup(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+    now: i64,
+) -> Result<(), SqliteError> {
+    write_all(pool, project_id, trace_ids, now, Due::AsScheduled)
+        .await
+        .map(|_| ())
+}
+
+async fn write_all(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+    now: i64,
+    due: Due,
+) -> Result<Vec<(String, i64)>, SqliteError> {
     let mut ordered: Vec<&String> = trace_ids.iter().collect();
     ordered.sort_unstable();
     ordered.dedup();
     let mut written = Vec::with_capacity(ordered.len());
     for trace_id in ordered {
         let mut tx = pool.begin().await?;
-        let token = record_in(&mut tx, project_id, trace_id, now).await?;
+        let token = write_in(&mut tx, project_id, trace_id, now, due).await?;
         tx.commit().await?;
         written.push((trace_id.clone(), token));
     }

@@ -369,11 +369,37 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
         .await
         .ok();
 
+        // Read before the scan a release acts on; a batch that confirms after it is not released, though its
+        // writer is no longer pending and the keep list does not name it.
+        let horizon = repo
+            .trace_file_confirm_horizon(&ProjectId::from("default"))
+            .await
+            .expect("horizon");
+        let confirmed_since = hash(4);
+        repo.associate_file(
+            "t1",
+            &ProjectId::from("default"),
+            &confirmed_since,
+            None,
+            5,
+            "sha256",
+        )
+        .await
+        .ok();
+        repo.confirm_trace_file_associations(&[(
+            "default".to_string(),
+            "t1".to_string(),
+            confirmed_since.clone(),
+        )])
+        .await
+        .ok();
+
         let mut released = repo
             .release_trace_files_except(
                 &ProjectId::from("default"),
                 "t1",
                 std::slice::from_ref(&keep_hash),
+                horizon,
             )
             .await
             .expect("release");
@@ -387,6 +413,10 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
             "released the in-flight one: {}",
             released.contains(&inflight_hash)
         ));
+        t.note(&format!(
+            "released the one confirmed since the horizon: {}",
+            released.contains(&confirmed_since)
+        ));
 
         let mut left = repo
             .get_file_hashes_for_traces(&ProjectId::from("default"), &["t1".to_string()])
@@ -395,9 +425,9 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
         left.sort();
         t.note(&format!("still associated: {}", left.len()));
 
-        // An empty keep list: everything releasable except the in-flight row.
+        // An empty keep list: everything releasable except the in-flight row and the one confirmed since.
         let empty = repo
-            .release_trace_files_except(&ProjectId::from("default"), "t1", &[])
+            .release_trace_files_except(&ProjectId::from("default"), "t1", &[], horizon)
             .await
             .expect("release with no survivors");
         t.note(&format!("released with no survivors: {}", empty.len()));
@@ -410,7 +440,7 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
 
         // A trace with nothing to release.
         let none = repo
-            .release_trace_files_except(&ProjectId::from("default"), "absent", &[])
+            .release_trace_files_except(&ProjectId::from("default"), "absent", &[], horizon)
             .await
             .expect("release for an unknown trace");
         t.note(&format!("released for an unknown trace: {}", none.len()));

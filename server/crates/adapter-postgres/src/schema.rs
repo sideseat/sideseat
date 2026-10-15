@@ -303,6 +303,8 @@ CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_a
 -- Where claim tokens come from: one sequence for every row, so a row completed and recorded again never carries a
 -- token an earlier row did, and a stale completion can match only the row it claimed.
 CREATE SEQUENCE IF NOT EXISTS retention_cleanup_tokens AS BIGINT;
+-- Where confirm stamps come from (`trace_files.confirm_stamp`): one sequence, drawn by every confirm.
+CREATE SEQUENCE IF NOT EXISTS trace_file_confirm_stamps AS BIGINT;
 -- Sessions whose deletion has to outlive the traces it knew about.
 --
 -- A session is deleted *by* deleting its traces, so the route resolves session ids to trace ids and
@@ -347,6 +349,12 @@ CREATE TABLE IF NOT EXISTS trace_files (
     -- batch can never orphan a file another batch committed or is about to.
     pending_writers INTEGER NOT NULL DEFAULT 0,
     durable BOOLEAN NOT NULL DEFAULT FALSE,
+    -- The confirm stamp: the value the confirm sequence gave the latest batch that confirmed this association.
+    -- A survivor release reads the sequence before its scan and takes only an association stamped no later: a
+    -- batch stamped earlier wrote its span before that read, so the scan saw it, and one stamped later is
+    -- skipped. That is what lets the release decide on a scan of a store no transaction here covers without
+    -- ever releasing what a span committed after the scan names (`server/specs/SurvivorRelease.tla`).
+    confirm_stamp BIGINT NOT NULL DEFAULT 0,
     -- Project first, matching SQLite: a trace id comes from the client, so two projects can present
     -- the same one, and keyed without the project one project's association satisfied the other's
     -- conflict clause - leaving the second with no association and a reference nothing would release.

@@ -609,6 +609,18 @@ pub trait FileMetaStore: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
+    /// Keep these traces' cleanup owed: a retry of work a reconciliation could not finish - an association a
+    /// pending writer, or a confirm since its scan, kept.
+    ///
+    /// Under a fresh token, as [`Self::record_retention_cleanup`], so a worker completing the token it claimed
+    /// before cannot discard it; but a recorded row keeps its next attempt, so a reconciliation deferred again on
+    /// every retry is retried at the claim's capped backoff rather than at once. A trace with no row is due now.
+    async fn defer_retention_cleanup(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
+
     /// Claim due cleanup candidates, leasing them so a concurrent instance takes different ones.
     ///
     /// The claim pushes `next_attempt_at` out **before** returning, which is what stops a slow reconciliation
@@ -633,11 +645,10 @@ pub trait FileMetaStore: Send + Sync {
         completed: &[(String, i64)],
     ) -> Result<(), DataError>;
 
-    /// Restore an association a survivor scan released, as **durable**.
-    ///
-    /// The compensation path: a span committed between the scan and the release. `durable` rather than
-    /// provisional, because the reference belongs to a *committed* span - restoring it as provisional lets a
-    /// later failing batch's release delete it, since that release deletes a non-durable row with no writer left.
+    /// Restore an association a committed span's reference needs, as **durable**: a restore's repair, rebuilding
+    /// the associations of the spans it brought back. `durable` rather than provisional, because the reference
+    /// belongs to a *committed* span - restoring it as provisional lets a later failing batch's release delete
+    /// it, since that release deletes a non-durable row with no writer left.
     async fn restore_durable_trace_file(
         &self,
         project_id: &ProjectId,
@@ -654,18 +665,22 @@ pub trait FileMetaStore: Send + Sync {
     /// had been reclaimed, which is precisely the dangling reference the write-files-before-rows ordering
     /// exists to prevent, produced by retention instead.
     ///
-    /// Two conditions, and neither is optional:
+    /// Three conditions, and none is optional:
     ///
     /// - `file_hash NOT IN keep`, so a file a survivor references is untouched.
     /// - `pending_writers = 0`, which is what protects a batch in flight. Referencing a file increments that
     ///   counter *before* the span row exists, so a concurrent ingestion is invisible to the survivor scan -
     ///   there is no span to find yet. Without this the reconciliation is a read-then-act race with exactly
     ///   the window it is meant to close.
+    /// - `confirm_stamp <= horizon`, read before the scan ([`Self::trace_file_confirm_horizon`]), which protects
+    ///   a batch that wrote its span after the scan and has confirmed since: its writer is no longer pending, and
+    ///   the scan did not see its span. Without it a release took the association of a span that had just
+    ///   committed, and only a re-check could restore it - before which an orphan sweep could take its bytes.
     ///
     /// `durable` is deliberately not a condition: the associations a release exists to drop are durable ones,
     /// confirmed when their spans were written and left behind when those spans expired. A durable association a
     /// live span still needs is protected by `keep`, which is why `SurvivorReferences` may answer more than the
-    /// survivors but never less, and by the caller's re-check.
+    /// survivors but never less, and by the horizon.
     ///
     /// Returns the hashes actually removed, so the caller reconciles the set the statement produced rather
     /// than one it read beforehand - the same reason `delete_trace_files` uses `RETURNING`.
@@ -674,7 +689,19 @@ pub trait FileMetaStore: Send + Sync {
         project_id: &ProjectId,
         trace_id: &str,
         keep: &[String],
+        horizon: i64,
     ) -> Result<Vec<String>, DataError>;
+
+    /// The latest confirm stamp drawn, 0 before any: the `horizon` a survivor release holds to, read **before**
+    /// the survivor scan it acts on.
+    ///
+    /// Every confirm stamps the associations it confirms with a value drawn from one sequence, after the batch's
+    /// spans are written, and never lowers a stamp: a confirm that drew an older value and reaches a row after a
+    /// newer one leaves the newer. An association stamped at or below a horizon read before the scan was confirmed by a
+    /// batch whose spans the scan saw; one stamped above it may name a span written after the scan, and the
+    /// release leaves it for a later pass. This is what lets the release decide on a scan of a store no
+    /// transaction here covers without a re-check (`server/specs/SurvivorRelease.tla`).
+    async fn trace_file_confirm_horizon(&self, project_id: &ProjectId) -> Result<i64, DataError>;
 
     /// Get total storage used by a project
     async fn get_project_storage_bytes(&self, project_id: &ProjectId) -> Result<i64, DataError>;

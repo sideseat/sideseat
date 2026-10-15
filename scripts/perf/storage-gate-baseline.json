@@ -61,6 +61,7 @@
   "sqlite_sequence": 4096,
   "staged_payload_anomalies": 8192,
   "staged_payloads": 16384,
+  "trace_file_confirm_stamps": 4096,
   "trace_files": 282624,
   "users": 12288
  },

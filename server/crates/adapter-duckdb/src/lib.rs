@@ -401,19 +401,28 @@ impl DuckdbService {
             tracing::debug!(project_id = %project_id, "Collection is fenced; the cleanup stays recorded");
             return;
         }
+        // A trace the reconciliation deferred - an association a writer was pending on, or a confirm since its
+        // horizon stamped - stays recorded on its own, retried at the claim's capped backoff, while the rest of the
+        // batch completes.
+        let mut deferred = Vec::new();
         if let Some(fs) = file_service
             && fs.is_enabled()
-            && let Err(e) = fs
+        {
+            match fs
                 .reconcile_trace_survivors(project_id, trace_ids, analytics)
                 .await
-        {
-            clean = false;
-            tracing::warn!(
-                error = %e,
-                project_id = %project_id,
-                traces = trace_ids.len(),
-                "Failed to reconcile files during retention; the cleanup stays recorded and is retried"
-            );
+            {
+                Ok(skipped) => deferred = skipped,
+                Err(e) => {
+                    clean = false;
+                    tracing::warn!(
+                        error = %e,
+                        project_id = %project_id,
+                        traces = trace_ids.len(),
+                        "Failed to reconcile files during retention; the cleanup stays recorded and is retried"
+                    );
+                }
+            }
         }
 
         if !fence.is_open() {
@@ -457,12 +466,12 @@ impl DuckdbService {
         //
         // **Stated residual: this is a read-then-act pair and cannot be compensated.** A span for T can commit
         // between `traces_without_spans` reporting T empty and the delete, and the favourite of a live trace is
-        // then removed. The file path solves the same race with a re-check that *restores* what it released;
-        // there is nothing to restore here, because a favourite records which user marked it and deleting the row
-        // destroys that. Narrowing the window is all that is available, so the check is immediately before the
-        // delete. The cost of getting it wrong is a lost bookmark rather than lost telemetry, which is why this
-        // is stated rather than engineered around - the alternative is never removing a favourite, and a
-        // favourite pointing at a deleted trace is its own defect.
+        // then removed. The file path closes the same race with a stamp each confirm leaves, read before its
+        // scan; nothing here leaves one, and nothing could be restored after, because a favourite records which
+        // user marked it and deleting the row destroys that. Narrowing the window is all that is available, so
+        // the check is immediately before the delete. The cost of getting it wrong is a lost bookmark rather than
+        // lost telemetry, which is why this is stated rather than engineered around - the alternative is never
+        // removing a favourite, and a favourite pointing at a deleted trace is its own defect.
         let repo = database.as_ref();
         match sideseat_ports::traits::EntityQuery::traces_without_spans(
             analytics, project_id, trace_ids,
@@ -501,13 +510,16 @@ impl DuckdbService {
 
         // Completed only on the tokens actually held - the claim's, or the ones the recording pass wrote. With
         // none, the record is left for the sweep rather than deleted on a guess.
-        let Some(completed) = claimed else {
+        let Some(claimed) = claimed else {
             return;
         };
+        let completed = sideseat_ports::traits::retention_cleanup_owed_kept(claimed, &deferred);
 
         if clean
             && fence.is_open()
-            && let Err(e) = repo.complete_retention_cleanup(project_id, completed).await
+            && let Err(e) = repo
+                .complete_retention_cleanup(project_id, &completed)
+                .await
         {
             // Harmless: the record is idempotent work, so a stale one costs one extra reconciliation.
             tracing::debug!(

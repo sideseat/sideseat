@@ -600,41 +600,47 @@ append lands. Each round found a way to lose the cleanup, and each fix needed a 
 The fresh-token rule survived: tokens come from one sequence, so no row carries a token an earlier one did. The
 parked hold code and model are kept outside the tree, so nobody rebuilds them.
 
-**Open: survivor reconciliation reports success over an association it skipped.** A release keeps any
-association with `pending_writers > 0`, since a batch in flight may be about to commit a span that names it, and
-the reconciliation still returns success. The retention sweep and a rewritten record's reconciler pass then
-treat the cleanup as done. The interleaving: a redelivery associates a file that a rewrite has just stopped
-referencing (+1). The pass reconciles, skips that association and clears its entries. The redelivery's span is
-then dropped by the tombstone fence, and its compensation decrements the writer but keeps the durable
-association. The file is now associated, referenced by nothing, and owed nothing. The fix, as its own slice:
-the reconciliation reports what it deferred, and its callers keep the cleanup owed (the sweep's record, with its
-backoff), modelled with a provisional writer that commits or aborts, and a mutant showing the deferral is needed.
+**Survivor release: nothing a span committed after the scan names, and nothing skipped is lost.** A survivor
+release scans what the trace's spans and raw records reference, in the analytics store, and releases in the
+transactional store whatever the scan did not keep and no writer is pending on. No transaction covers both, so a
+batch could associate a file, write its span and confirm after the scan, leaving an association neither the scan
+nor `pending_writers` protects. The release took it, and a re-check restored it: until the restore landed an orphan
+sweep could collect the bytes, and a restore that failed left them collectable for good - acknowledged media lost.
+Modelled, recording the cleanup intent before the release keeps the cleanup owed but releases the referenced
+association all the same, so no intent closes that window.
 
-**Open, a data-loss risk: survivor reconciliation releases before it re-checks.** `reconcile_one_trace` scans,
-releases what the scan did not keep, re-checks, and restores what a span committed in between now names. Two
-windows remain in that protocol:
+So nothing is released that a re-check would restore. Every confirm stamps the associations it confirms with a value
+from one sequence (`trace_files.confirm_stamp`, a counter row on SQLite, a sequence on PostgreSQL), drawn after the
+batch's spans are written. A release reads the latest stamp - its horizon - before its scan, and takes only
+associations stamped at or below it: a batch stamped by then wrote its spans before the scan began, so the scan saw
+them; one stamped later is left. A confirm never lowers a stamp (`GREATEST`, `MAX`): PostgreSQL's `nextval` is
+outside the transaction, so a confirm that drew an older stamp can reach a row after a newer confirm committed on
+it, and overwriting would put that older stamp on an association the newer batch's span needs. There is no re-check
+and nothing to compensate. It rests on a fact of both analytics stores: a span whose write returned before a scan
+starts is read by the scan. DuckDB reads its own committed rows; ClickHouse's survivor scans read every replica of
+every shard (`clusterAllReplicas` over the `_local` tables), failing rather than skipping an unreachable one, and a
+span write returns only once a replica holds it (`insert_distributed_sync = 1`, async inserts pinned to wait),
+whatever `insert_quorum` is.
 
-1. *A failed compensation loses a live span's file.* A span naming H commits between the scan and the release; the
-   release removes H; the re-check fails; and the restore fails too. H stays released. A retry sees H referenced,
-   but its release removes nothing, so it has nothing to restore, and completes. A later cleanup of H's other
-   traces can then collect bytes an acknowledged span references. Even when the restore succeeds, an orphan sweep
-   between the release and the restore can collect them.
-2. *A successful re-check can restore an association owed nothing.* The re-check finds H referenced by a span that
-   committed in between; before the restore lands, retention deletes that span and its cleanup completes while
-   H's association is absent; the restore then lands. H is associated, referenced by nothing, and nothing is
-   owed - a file kept too long, not a loss.
+What a release leaves that its scan does not justify - skipped for a pending writer or a stamp above the horizon,
+or associated since - it reports **deferred**, read after the release whatever `pending_writers` says then: the
+writer may still abort, which leaves a durable association referenced by nothing. Reporting success over it lost
+that cleanup. A failed read counts as deferred. The retention sweep completes every other trace of its batch and
+leaves a deferred one recorded; a rewritten record's pass keeps the deferred traces' cleanup owed
+(`defer_retention_cleanup`) before clearing its entries, under a fresh token - so a stale completion cannot
+discard it - that keeps a recorded row's next attempt. Retries run at the sweep's claim backoff, `600 s x
+min(attempts, 8)`: at most one survivor scan and release per deferred trace every 80 minutes from its eighth
+claim on, and only new work - a retention pass or a deletion that records the trace again - makes it due at once.
+A rewritten record's pass that fails at a later step is retried at the reconciler's pace, and each retry
+reconciles again; that is the pass's own retry, which the deferral neither adds to nor brings the sweep forward
+by. A restore's release step defers nothing it could act on: ingestion is stopped, so a pending writer there is a
+dead one, the leak below.
 
-The fix is its own slice, next, with the skipped-association deferral above folded in. Modelled, recording the
-cleanup intent before the release keeps the cleanup owed but still releases a referenced association for a while,
-so an orphan sweep in that while collects its bytes: no intent closes that. The fix chosen releases nothing a
-re-check would restore. A confirm stamps the association with a sequence value, a pass reads the sequence before
-its scan, and the release, one transaction, takes only an association no writer is pending on, the scan did not
-keep, and no confirm has stamped since that read: a writer stamped earlier wrote its span before the read, so the
-scan saw it. That removes the re-check and the compensation. It rests on a fact of both analytics stores: a span
-whose write returned before a scan starts is visible to the scan. DuckDB reads its own committed rows; ClickHouse's
-survivor scans read every replica of every shard (`clusterAllReplicas` over the `_local` tables), failing rather
-than skipping an unreachable one, and a span write returns only once a replica holds it
-(`insert_distributed_sync = 1`, async inserts pinned to wait), whatever `insert_quorum` is.
+`server/specs/SurvivorRelease.tla` models writers that associate, write and confirm or abort, retention deleting
+committed spans, a raw rewrite, a retention sweep and a raw-record pass reconciling concurrently, and an orphan
+sweep collecting any unassociated file at any moment. The stamp protocol keeps every invariant; without the stamp,
+with the release-then-re-check it replaced, or with intent-first, `NoMediaLost` breaks, and without the deferral
+`OwedNotLost` does.
 
 **Open: an ingest batch's pending writer outlives a crash.** A file association counts its in-flight writers in
 `trace_files.pending_writers`, and survivor reconciliation releases only an association with none. An ingest
@@ -643,9 +649,21 @@ failure. A batch that crashes between the association and the confirm or release
 The payload's redrive then associates again (+1) and confirms (-1), so the count stays at one: survivor
 reconciliation never releases the association while the trace lives, and its file is kept until the whole trace,
 or its project, is deleted, whose cleanup removes associations whatever they count. That is a file kept too long,
-not data loss, and nothing today resets a dead writer's count. A fix needs a writer's identity behind each increment, so that a
+not data loss, and nothing today resets a dead writer's count. Since a skipped association stays owed, the leak
+also keeps its trace's retention cleanup recorded for as long as the trace lives: one survivor scan and release per
+trace every 80 minutes at the backoff's ceiling, bounded in cost per retry and unbounded in time. Fixing the leak
+ends those retries. A fix needs a writer's identity behind each increment, so that a
 dead one can be told apart from one in flight. A lease would bring back the stalled-writer hazard, so the fix is
 still to be designed.
+
+**Open: a replica that has not seen a rewrite keeps the file it removed.** On ClickHouse a rewritten-record pass
+reads the record's new version, but its survivor scan reads every replica, and a replica the rewrite's version has
+not reached yet still holds the previous version, which names the removed media. The scan keeps the file, so the
+release leaves nothing it does not justify and defers nothing; the pass then removes the superseded versions and
+clears its queue entries, and the association stays, referenced by nothing and owed no cleanup. That errs toward
+keeping the file - a leak, not a loss - and `SurvivorRelease.tla`, whose scan answers exactly, does not show it.
+It is one more requirement of the landing fence (item 2 above): a rewrite's queue entry readable only once its
+version is visible on every replica the scan reads, so the pass never scans a replica that predates it.
 
 **Deferred to the trace-index slice, right after it:** the retention release is bounded per call by traces (64 at
 a time), not within a trace. It reads every owner of those traces and every record their rows still name, so one

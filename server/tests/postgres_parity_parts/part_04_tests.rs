@@ -357,6 +357,77 @@ async fn the_retention_cleanup_backlog_reads_identically_on_both_backends() {
     );
 }
 
+/// A deferral keeps a trace's cleanup owed under a fresh token, past a stale completion, without bringing its
+/// next attempt forward; a trace with no row is due now. Alike on both backends.
+#[tokio::test]
+async fn a_deferred_cleanup_keeps_its_schedule_on_both_backends() {
+    let Some((sqlite, postgres)) = pair().await else {
+        return;
+    };
+    let project = ProjectId::from("default");
+    let services = [
+        TransactionalService::Sqlite(sqlite),
+        TransactionalService::Postgres(postgres.0),
+    ];
+    let mut answers = Vec::new();
+    for service in &services {
+        let repository = service.repository();
+        repository
+            .record_retention_cleanup(&project, &["t1".to_string()])
+            .await
+            .expect("record");
+        let claimed: Vec<(String, i64)> = repository
+            .claim_retention_cleanup(16, 600)
+            .await
+            .expect("claim")
+            .into_iter()
+            .map(|(_, trace, token)| (trace, token))
+            .collect();
+        repository
+            .defer_retention_cleanup(&project, &["t1".to_string()])
+            .await
+            .expect("defer");
+        repository
+            .complete_retention_cleanup(&project, &claimed)
+            .await
+            .expect("complete");
+        let before = repository
+            .claim_retention_cleanup(16, 600)
+            .await
+            .expect("claim");
+        repository
+            .defer_retention_cleanup(&project, &["t2".to_string()])
+            .await
+            .expect("defer");
+        let fresh = repository
+            .claim_retention_cleanup(16, 600)
+            .await
+            .expect("claim");
+        let owed = service
+            .governance_repository()
+            .retention_cleanup_backlog(&project)
+            .await
+            .expect("backlog");
+        answers.push(format!(
+            "due before its backoff {:?}, due fresh {:?}, owed {}",
+            before
+                .iter()
+                .map(|(_, t, _)| t.as_str())
+                .collect::<Vec<_>>(),
+            fresh.iter().map(|(_, t, _)| t.as_str()).collect::<Vec<_>>(),
+            owed.pending
+        ));
+    }
+    assert_eq!(
+        answers[0],
+        r#"due before its backoff [], due fresh ["t2"], owed 2"#
+    );
+    assert_eq!(
+        answers[0], answers[1],
+        "SQLite (reference) and PostgreSQL alike"
+    );
+}
+
 /// A store at the current version created before the cleanup token sequence existed is refused at startup with
 /// the reset command named: a sequence no column default names is part of the layout too.
 #[tokio::test]
@@ -405,5 +476,124 @@ async fn a_postgres_store_missing_the_cleanup_token_sequence_is_refused() {
     assert!(
         message.contains("sideseat system prune"),
         "names the reset command: {message}"
+    );
+}
+
+/// A confirm that drew its stamp before a newer confirm committed on the same association never lowers that
+/// association's stamp: PostgreSQL's `nextval` is outside the transaction, so the older confirm can reach the row
+/// after the newer one has committed on it (`SurvivorRelease.tla`, mutant `Max = FALSE`).
+///
+/// The interleaving is forced on one row, so no plan order matters. Two writers hold `held`. B, on the owner
+/// connection, locks the row; A - the repository's confirm - draws its stamp and waits on that lock. A pass reads
+/// its horizon there. B then draws a newer stamp, confirms the row with it as a confirm does, and commits; A
+/// updates the row last, leaving no writer pending. Had A put its own stamp back, `held` would sit at or below the
+/// horizon, and a release with nothing to keep - B's span written after that pass's scan - would take the
+/// association of an acknowledged span.
+#[tokio::test]
+async fn an_older_confirm_never_lowers_a_newer_stamp() {
+    let Some((_sqlite, postgres)) = pair().await else {
+        return;
+    };
+    let repository = Arc::new(postgres);
+    let project = ProjectId::from("default");
+    let trace = "stamp-race";
+    let held = hash(0x52);
+    for _ in 0..2 {
+        repository
+            .associate_file(trace, &project, &held, None, 5, "sha256")
+            .await
+            .expect("associate");
+    }
+    let owner = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&std::env::var(URL_ENV).expect("url"))
+        .await
+        .expect("owner connection");
+    let mut newer = owner.begin().await.expect("begin B");
+    sqlx::query("SELECT set_config('sideseat.project_id', 'default', true)")
+        .execute(&mut *newer)
+        .await
+        .expect("tenant");
+    let locked = sqlx::query(
+        "SELECT 1 FROM trace_files WHERE project_id = 'default' AND trace_id = $1 FOR UPDATE",
+    )
+    .bind(trace)
+    .fetch_all(&mut *newer)
+    .await
+    .expect("lock held");
+    assert_eq!(locked.len(), 1, "B holds the row");
+
+    let older = {
+        let repository = repository.clone();
+        let associations = vec![("default".to_string(), trace.to_string(), held.clone())];
+        tokio::spawn(async move {
+            repository
+                .confirm_trace_file_associations(&associations)
+                .await
+        })
+    };
+    // A has drawn its stamp once it waits on the row: the stamp is part of the row's new values, computed before
+    // the update waits for the row's lock.
+    let mut waited = false;
+    for _ in 0..500 {
+        let waiting: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' \
+             AND query LIKE '%trace_file_confirm_stamps%'",
+        )
+        .fetch_one(&owner)
+        .await
+        .expect("read the waits");
+        if waiting > 0 {
+            waited = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(waited, "confirm A waits on the row, its stamp drawn");
+    let horizon = repository
+        .trace_file_confirm_horizon(&project)
+        .await
+        .expect("horizon");
+
+    // B's confirm of `held`: a stamp drawn after the horizon, applied as the repository's confirm applies it.
+    let confirmed = sqlx::query(
+        "WITH stamp AS (SELECT nextval('trace_file_confirm_stamps') AS value) \
+         UPDATE trace_files SET durable = TRUE, pending_writers = GREATEST(pending_writers - 1, 0), \
+             confirm_stamp = GREATEST(confirm_stamp, (SELECT value FROM stamp)) \
+         WHERE project_id = 'default' AND trace_id = $1 AND file_hash = $2",
+    )
+    .bind(trace)
+    .bind(&held)
+    .execute(&mut *newer)
+    .await
+    .expect("confirm B");
+    assert_eq!(confirmed.rows_affected(), 1, "B confirms first");
+    newer.commit().await.expect("commit B");
+    assert_eq!(
+        older.await.expect("join").expect("confirm A"),
+        1,
+        "A confirms after B"
+    );
+
+    let (pending, stamp): (i32, i64) = sqlx::query_as(
+        "SELECT pending_writers, confirm_stamp FROM trace_files \
+         WHERE project_id = 'default' AND trace_id = $1",
+    )
+    .bind(trace)
+    .fetch_one(&owner)
+    .await
+    .expect("read held");
+    assert_eq!(pending, 0, "both writers resolved");
+    assert!(
+        stamp > horizon,
+        "`held` keeps B's stamp {stamp}, above the horizon {horizon} read before B drew it"
+    );
+    let released = repository
+        .release_trace_files_except(&project, trace, &[], horizon)
+        .await
+        .expect("release");
+    assert!(
+        released.is_empty(),
+        "a release at that horizon leaves B's association: {released:?}"
     );
 }

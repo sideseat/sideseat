@@ -348,8 +348,22 @@ impl TracePipeline {
         self.unfenced()?;
         #[cfg(test)]
         RECONCILED_TRACES.with(|count| count.set(count.get() + traces.len() as u64));
-        self.file_service
+        let deferred = self
+            .file_service
             .reconcile_trace_survivors(project_id, &traces, self.analytics.as_ref())
+            .await
+            .map_err(|error| error.to_string())?;
+        // An association skipped for a pending writer, or for a confirm since the release's horizon, is owed until a
+        // later pass can decide it, and an abort leaves it referenced by nothing: kept owed as the trace's retention
+        // cleanup, which the sweep retries at its capped backoff, rather than in this queue, which would retry it at
+        // the reconciler's pace. A recorded trace keeps its schedule, so a pass that is itself retried does not bring
+        // the sweep's retry forward.
+        if deferred.is_empty() {
+            return Ok(());
+        }
+        self.file_service
+            .database()
+            .defer_retention_cleanup(project_id, &deferred)
             .await
             .map_err(|error| error.to_string())
     }
@@ -598,6 +612,7 @@ impl TracePipeline {
         // The removed spans' media is no longer referenced by this record. The pass the append queued reconciles
         // it (`reconcile_files_of_rewritten`); where the store queues apart from the append, a crash between the
         // two would leave that owed and nothing queued, so the rewrite also reconciles them itself, best effort.
+        // What it defers is the queued pass's to keep owed.
         if !self.analytics.rewrites_queue_atomically()
             && let Err(error) = self
                 .file_service

@@ -105,6 +105,12 @@ pub struct FileService {
     fence: CollectionFence,
 }
 
+/// One trace's survivor reconciliation: the hashes it released, and whether it left an association owed.
+struct TraceReconciliation {
+    released: Vec<String>,
+    deferred: bool,
+}
+
 impl FileService {
     /// Create a file service from already selected ports.
     pub async fn new(
@@ -364,20 +370,28 @@ impl FileService {
     ///
     /// So the survivors are asked for directly. `file_reference_fields_for_traces` reads the four fields that
     /// can carry a reference from the **winning** spans that remain, the domain's single scanner turns them
-    /// into URIs, and everything else the trace held is released - `pending_writers = 0` only, which is what
-    /// protects a batch whose association exists before its span row does.
+    /// into URIs, and everything else the trace held is released - but only with `pending_writers = 0`, which
+    /// protects a batch whose association exists before its span row does, and confirmed at or below the horizon
+    /// read before the scan, which protects one whose span was written after the scan and has confirmed since.
+    ///
+    /// Returns the traces it **deferred**: those left holding an association it neither kept nor released -
+    /// skipped for a pending writer or a confirm since its horizon, or made after the release - and those whose
+    /// leftover read failed, which count as deferred. Their cleanup is still owed, and the caller must keep it
+    /// so: the writer can still abort, leaving a durable association nothing references, which no reconciliation
+    /// would otherwise come back for (`server/specs/SurvivorRelease.tla`).
     pub async fn reconcile_trace_survivors(
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
         analytics: &dyn sideseat_ports::traits::SurvivorReferences,
-    ) -> Result<(), FileServiceError> {
+    ) -> Result<Vec<String>, FileServiceError> {
         if !self.config.enabled || trace_ids.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         let repo = self.database.as_ref();
         let mut reconcile: Vec<String> = Vec::new();
+        let mut deferred: Vec<String> = Vec::new();
         let mut first_error: Option<FileServiceError> = None;
         // The scans and the releases they decide in one pass, refused while this process's store lease is lost.
         let Some(_pass) = self.fence.enter("survivor reconciliation") else {
@@ -392,7 +406,12 @@ impl FileService {
                 .reconcile_one_trace(project_id, trace_id, analytics, repo)
                 .await
             {
-                Ok(removed) => reconcile.extend(removed),
+                Ok(outcome) => {
+                    reconcile.extend(outcome.released);
+                    if outcome.deferred {
+                        deferred.push(trace_id.clone());
+                    }
+                }
                 // **Kept going, and the reclaim still runs.** Returning here left the associations this loop
                 // had already deleted with a positive stored `ref_count`, and the orphan sweeper selects on
                 // *zero* - so an earlier trace's file became permanently unreclaimable because a later trace
@@ -418,111 +437,70 @@ impl FileService {
 
         match first_error {
             Some(e) => Err(e),
-            None => reclaimed,
+            None => reclaimed.map(|()| deferred),
         }
     }
 
-    /// One trace's release, with the **re-check** that closes the commit-after-scan window.
+    /// One trace's release, which never takes what a span committed after its scan names.
     ///
-    /// The survivor scan is a snapshot, and the release happens after it. In between, an ingestion can
-    /// associate a file (`pending_writers = 1`), commit its span, and confirm (`pending_writers = 0`) - so the
-    /// release sees a zero counter and a hash the stale snapshot did not contain, and reclaims bytes a
-    /// committed span references. `pending_writers` alone does not close this: it is zero at exactly the wrong
-    /// moment.
+    /// The survivor scan reads the analytics store, which no transaction here covers, so a batch can associate a
+    /// file, write its span, and confirm (`pending_writers = 0`) after the scan, leaving an association the scan
+    /// did not keep and no writer protects. Releasing it and then re-checking, as this once did, left the span
+    /// without its association until a restore landed - and an orphan sweep in between, or a restore that
+    /// failed, took bytes an acknowledged span references. So the horizon is read **before** the scan, and the
+    /// release takes only associations confirmed at or below it: a batch confirmed by then wrote its spans before
+    /// the scan began, so the scan saw them. Nothing is released that a re-check would have restored, so there is
+    /// no re-check and nothing to compensate (`server/specs/SurvivorRelease.tla`).
     ///
-    /// So the release is followed by a **second scan**, and any hash that has appeared is re-associated before
-    /// any byte is deleted. This is the same four-step shape the trace-deletion protocol uses - act, re-check,
-    /// compensate - and for the same reason: no transaction spans the analytics and transactional stores, so
-    /// the window cannot be removed, only compensated.
-    ///
-    /// What remains is bounded rather than open: a batch that associates *after* the release holds a row the
-    /// release never saw, so nothing released it; and one that associated *before* it had `pending_writers`
-    /// above zero and was skipped. The uncovered case is therefore a batch that associates after the release
-    /// and commits after the re-check, whose association is intact throughout.
+    /// Assumed of both analytics stores, and true of each: a span whose write returned before a scan starts is
+    /// read by it. DuckDB reads its own committed rows; ClickHouse's survivor scans read every replica of every
+    /// shard, failing rather than skipping one, and its span writes return only once a replica holds them.
     async fn reconcile_one_trace(
         &self,
         project_id: &ProjectId,
         trace_id: &str,
         analytics: &dyn sideseat_ports::traits::SurvivorReferences,
         repo: &(dyn sideseat_ports::traits::TransactionalRepository + Send + Sync),
-    ) -> Result<Vec<String>, FileServiceError> {
+    ) -> Result<TraceReconciliation, FileServiceError> {
+        let horizon = repo.trace_file_confirm_horizon(project_id).await?;
         let keep = Self::referenced_hashes(project_id, trace_id, analytics).await?;
         if !self.fence.is_open() {
             return Err(FileStorageError::Fenced.into());
         }
 
-        let removed = repo
-            .release_trace_files_except(project_id, trace_id, &keep)
+        let released = repo
+            .release_trace_files_except(project_id, trace_id, &keep, horizon)
             .await?;
-        if removed.is_empty() {
-            return Ok(removed);
-        }
-
-        // The re-check. Only the released hashes matter, so this compares against them rather than
-        // recomputing a whole set difference.
-        //
-        // **A failed re-check restores every association it released.** Handing them on to be reclaimed, as
-        // this once did, let a span that committed between the scan and the release lose its file. Dropping
-        // them silently instead left their stored `ref_count` above zero with no association to rediscover
-        // them from, which the orphan sweeper never reclaims. Restored as durable, they are counted again and
-        // the next pass, whose scans succeed, releases the ones nothing references. The failure is still the
-        // caller's to see: a retention cleanup that took it for success would not come back for that pass, and
-        // a restore would go on to collect orphans after a read it could not complete.
-        let now_referenced = match Self::referenced_hashes(project_id, trace_id, analytics).await {
-            Ok(hashes) => hashes,
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
+        // What the release left that `keep` does not justify - skipped for a pending writer or a confirm since the
+        // horizon, or made since - read after it, whatever `pending_writers` says by then: a writer it skipped may
+        // have resolved, and an abort leaves a durable association with no writer and no reference, exactly the
+        // one still owed. A read that fails counts as deferred rather than returning, so the hashes this release
+        // removed still reach the reclaim.
+        let deferred = match repo
+            .get_file_hashes_for_traces(project_id, std::slice::from_ref(&trace_id.to_string()))
+            .await
+        {
+            // `keep` is sorted and deduplicated, so a trace with many files still referenced costs a search each.
+            Ok(left) => left.iter().any(|hash| keep.binary_search(hash).is_err()),
+            Err(error) => {
+                tracing::warn!(
+                    %error,
                     project_id = %project_id,
                     trace_id,
-                    released = removed.len(),
-                    "Could not re-check survivors after releasing their associations; restoring them, so a \
-                     span that committed during the release keeps its file, and leaving them to the next pass"
+                    "Could not read what the release left; the trace's cleanup is kept owed"
                 );
-                for hash in &removed {
-                    repo.restore_durable_trace_file(project_id, trace_id, hash)
-                        .await?;
-                    repo.sync_ref_count(project_id, hash).await?;
-                }
-                return Err(e);
+                true
             }
         };
-
-        let mut kept_after_all = Vec::new();
-        let mut released = Vec::new();
-        for hash in removed {
-            if now_referenced.contains(&hash) {
-                kept_after_all.push(hash);
-            } else {
-                released.push(hash);
-            }
-        }
-
-        for hash in &kept_after_all {
-            // Restored **durable**, before any byte is deleted, so the span that arrived mid-flight keeps its
-            // reference. Not `insert_trace_file`: that leaves the row provisional, and a later batch that
-            // references the same file and then fails would decrement `pending_writers` to zero, find a
-            // non-durable row and delete it - taking the association of a span that committed long before.
-            repo.restore_durable_trace_file(project_id, trace_id, hash)
-                .await?;
-            repo.sync_ref_count(project_id, hash).await?;
-            tracing::warn!(
-                project_id = %project_id,
-                trace_id,
-                hash,
-                "A span referencing this file committed between the survivor scan and the release; the \
-                 association has been restored before any bytes were reclaimed"
-            );
-        }
 
         tracing::debug!(
             project_id = %project_id,
             trace_id,
             released = released.len(),
-            restored = kept_after_all.len(),
+            deferred,
             "Released associations of expired spans, keeping the survivors'"
         );
-        Ok(released)
+        Ok(TraceReconciliation { released, deferred })
     }
 
     /// The file hashes a trace's stored rows and raw records reference - the survivor scan's answer, for a caller
@@ -873,12 +851,14 @@ impl sideseat_ports::blobs::RetentionFileReconciler for FileService {
         project_id: &ProjectId,
         trace_ids: &[String],
         analytics: &dyn sideseat_ports::traits::SurvivorReferences,
-    ) -> Result<(), String> {
+    ) -> Result<Vec<String>, String> {
         FileService::reconcile_trace_survivors(self, project_id, trace_ids, analytics)
             .await
             .map_err(|error| error.to_string())
     }
 }
+#[cfg(test)]
+mod deferral_tests;
 #[cfg(test)]
 mod log_retention_tests;
 #[cfg(test)]

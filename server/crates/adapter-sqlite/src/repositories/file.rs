@@ -674,10 +674,11 @@ pub async fn delete_trace_files(
 
 /// Release a trace's associations except the ones its surviving spans still reference.
 ///
-/// Two conditions and neither is optional. `file_hash <> ALL(keep)` leaves a survivor's file alone;
+/// Three conditions and none is optional. `file_hash <> ALL(keep)` leaves a survivor's file alone;
 /// `pending_writers = 0` protects a batch in flight, which the survivor scan cannot see because referencing
-/// a file increments that counter *before* the span row exists. Without it this is a read-then-act race with
-/// exactly the window it exists to close.
+/// a file increments that counter *before* the span row exists; and `confirm_stamp <= horizon`, the sequence
+/// read before the scan, protects a batch that wrote its span after the scan and has confirmed since, which
+/// the first two cannot tell from an association its spans abandoned.
 ///
 /// `RETURNING`, so the caller reconciles the set this statement produced rather than one it read beforehand.
 ///
@@ -688,6 +689,7 @@ pub async fn release_trace_files_except(
     project_id: &str,
     trace_id: &str,
     keep: &[String],
+    horizon: i64,
 ) -> Result<Vec<String>, SqliteError> {
     let keep_clause = if keep.is_empty() {
         String::new()
@@ -698,17 +700,29 @@ pub async fn release_trace_files_except(
         )
     };
     let sql = format!(
-        "DELETE FROM trace_files WHERE project_id = ? AND trace_id = ? AND pending_writers = 0\
-         {keep_clause} RETURNING file_hash"
+        "DELETE FROM trace_files WHERE project_id = ? AND trace_id = ? AND pending_writers = 0 \
+         AND confirm_stamp <= ?{keep_clause} RETURNING file_hash"
     );
 
     let mut query = sqlx::query_scalar::<_, String>(&sql)
         .bind(project_id)
-        .bind(trace_id);
+        .bind(trace_id)
+        .bind(horizon);
     for hash in keep {
         query = query.bind(hash);
     }
     Ok(query.fetch_all(pool).await?)
+}
+
+/// The latest confirm stamp drawn, 0 before any: read before a survivor scan, it is the horizon its release
+/// holds to.
+pub async fn trace_file_confirm_horizon(pool: &SqlitePool) -> Result<i64, SqliteError> {
+    Ok(
+        sqlx::query_scalar::<_, i64>("SELECT last FROM trace_file_confirm_stamps WHERE id = 1")
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or(0),
+    )
 }
 
 /// Get total storage used by a project
@@ -841,12 +855,24 @@ pub async fn confirm_trace_file_associations(
     unique.sort_unstable();
     unique.dedup();
     let mut tx = pool.begin().await?;
+    // One stamp for the batch, drawn in its transaction: every span the batch wrote is committed by now, so a
+    // release whose sequence read saw this stamp scanned after them (`trace_files.confirm_stamp`). A row's stamp
+    // only grows (`MAX`), as on PostgreSQL, where an older confirm can reach a row after a newer one; here write
+    // transactions are serial, so it never does, and the rule is the same on both.
+    let stamp: i64 = sqlx::query_scalar(
+        "INSERT INTO trace_file_confirm_stamps (id, last) VALUES (1, 1) \
+         ON CONFLICT(id) DO UPDATE SET last = last + 1 RETURNING last",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
     let mut confirmed = 0u64;
     for (project_id, trace_id, file_hash) in unique {
         let result = sqlx::query(
-            "UPDATE trace_files SET durable = 1, pending_writers = MAX(pending_writers - 1, 0) \
+            "UPDATE trace_files SET durable = 1, pending_writers = MAX(pending_writers - 1, 0), \
+             confirm_stamp = MAX(confirm_stamp, ?) \
              WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
         )
+        .bind(stamp)
         .bind(project_id)
         .bind(trace_id)
         .bind(file_hash)
@@ -858,10 +884,8 @@ pub async fn confirm_trace_file_associations(
     Ok(confirmed)
 }
 
-/// Restore an association a survivor scan released, as **durable**.
-///
-/// The compensation path of survivor reconciliation: a span committed between the scan and the release, so its
-/// association was deleted and must come back before any byte is reclaimed.
+/// Restore an association a committed span's reference needs, as **durable**: a restore's repair, rebuilding
+/// the associations of the spans it brought back.
 ///
 /// `durable = 1` is the whole point, and `insert_trace_file` was the first choice and is wrong here: it leaves
 /// the row provisional, so a *later* batch that references the same file and then fails would decrement
@@ -894,3 +918,7 @@ mod tests;
 #[cfg(test)]
 #[path = "file_confirm_dedup_tests.rs"]
 mod confirm_dedup_tests;
+
+#[cfg(test)]
+#[path = "confirm_stamp_bench_tests.rs"]
+mod confirm_stamp_bench;
