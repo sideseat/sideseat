@@ -22,6 +22,9 @@ use super::recon::{Block, Recon, ViewKind};
 use super::truth::{CallRequest, Fact, Requirement, Truth};
 use super::{Violation, ViolationView};
 
+#[cfg(test)]
+mod merge_tests;
+mod neighbours;
 pub(super) mod parts;
 mod python;
 mod rewrites;
@@ -29,6 +32,7 @@ mod rewrites;
 mod tests;
 mod unsent;
 
+use neighbours::EmptyNeighbours;
 use parts::{names_fact, rewritten, shown_role};
 use rewrites::{rewrites, wire_ids};
 
@@ -571,9 +575,8 @@ fn merge_window(
 /// blocks, or a newline at an end where the span's own payload holds an empty message of that role next to
 /// the part - so an ordinary part still needs a block of its own, and a lost byte is no merge. The blocks
 /// must sit in `window`, between those the request's neighbouring parts were shown by. The empty message
-/// that evidences a newline must neighbour the payload message the block itself shows: the n-th block of a
-/// role and text is bound to the payload's n-th message of that role and text, never to another message that
-/// happens to read the same.
+/// that evidences a newline must neighbour the payload message the block itself shows, which is known only
+/// where the span's input is one export of the payload shown verbatim (`EmptyNeighbours`).
 fn merged_run(
     item: &Expected,
     blocks: &[&Block],
@@ -586,20 +589,9 @@ fn merged_run(
     const LONGEST: usize = 4;
     let text = item.part.get("text").and_then(Value::as_str)?;
     let free = |j: usize| !assigned_block[j] && !explained[j] && blocks[j].role == item.role;
-    // Which of the span's blocks of the same role and text this one is, counted from the first.
-    let occurrence = |j: usize| {
-        (0..j)
-            .filter(|&k| {
-                blocks[k].role == blocks[j].role
-                    && blocks[k].text().is_some()
-                    && blocks[k].text() == blocks[j].text()
-            })
-            .count()
-    };
     let end_of_window = window.end.min(blocks.len());
     (window.start..end_of_window).find_map(|start| {
         let mut joined = String::new();
-        let mut first: Option<&str> = None;
         for (end, block) in blocks
             .iter()
             .enumerate()
@@ -611,14 +603,13 @@ fn merged_run(
                 return None;
             }
             let piece = block.text()?;
-            let head = *first.get_or_insert(piece);
             if end > start {
                 joined.push_str(JOIN);
             }
             joined.push_str(piece);
             let several = end > start;
-            let leading = neighbours.empty_before(head, occurrence(start), item.role);
-            let trailing = neighbours.empty_after(piece, occurrence(end), item.role);
+            let leading = neighbours.empty_before(blocks, start, item.role);
+            let trailing = neighbours.empty_after(blocks, end, item.role);
             let candidates = [
                 (joined.clone(), several),
                 (format!("{JOIN}{joined}"), leading),
@@ -634,119 +625,6 @@ fn merged_run(
         }
         None
     })
-}
-
-/// A span's indexed input messages that carry a role and no content: the empty turns a client merges into
-/// their neighbours, leaving only the newline it joins them with.
-///
-/// Read from the span's own exported attributes, `<family>.<n>.message.role` beside its content keys, so the
-/// evidence is the payload and never the reconstruction under test.
-#[derive(Default)]
-pub(super) struct EmptyNeighbours {
-    /// (family, index) -> role, for every indexed message.
-    roles: BTreeMap<(String, u64), String>,
-    /// (family, index) of every message that has content.
-    filled: BTreeSet<(String, u64)>,
-    /// text -> (family, index) where a message holds exactly that text.
-    texts: BTreeMap<String, Vec<(String, u64)>>,
-}
-
-impl EmptyNeighbours {
-    fn of_span(recon: &Recon, span: &str) -> Self {
-        use opentelemetry_proto::tonic::common::v1::any_value::Value as Any;
-        let hex = |bytes: &[u8]| bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
-        let mut out = EmptyNeighbours::default();
-        for path in &recon.paths {
-            let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
-            if !name.is_some_and(|n| n.starts_with("req-")) {
-                continue;
-            }
-            let request = crate::decode_request(path);
-            let spans = request
-                .resource_spans
-                .iter()
-                .flat_map(|r| r.scope_spans.iter())
-                .flat_map(|s| s.spans.iter())
-                .filter(|s| hex(&s.span_id) == span);
-            for found in spans {
-                for attribute in &found.attributes {
-                    if let Some(Any::StringValue(text)) =
-                        attribute.value.as_ref().and_then(|v| v.value.as_ref())
-                    {
-                        out.record(&attribute.key, text.clone());
-                    }
-                }
-            }
-        }
-        out
-    }
-
-    fn record(&mut self, key: &str, value: String) {
-        let Some((head, member)) = key.split_once(".message.") else {
-            return;
-        };
-        let Some((family, index)) = head
-            .rsplit_once('.')
-            .and_then(|(family, index)| Some((family.to_string(), index.parse::<u64>().ok()?)))
-        else {
-            return;
-        };
-        if member == "role" {
-            self.roles.insert((family, index), value);
-            return;
-        }
-        if member.starts_with("content") {
-            if member == "content" || member.ends_with(".text") {
-                self.texts
-                    .entry(value)
-                    .or_default()
-                    .push((family.clone(), index));
-            }
-            self.filled.insert((family, index));
-        }
-    }
-
-    /// Whether the `occurrence`-th payload message holding exactly `text` that could be shown under `role`, in
-    /// payload order, has an empty message of that role at `offset` from it.
-    ///
-    /// A holder of another known role is not the message the block shows, so its neighbours evidence nothing
-    /// about it. A holder under a role spelling the rubric does not know - a producer's own pseudo-role, which
-    /// the reconstruction shows under a canonical one - may be it, and is kept.
-    fn neighbour(&self, text: &str, occurrence: usize, role: &str, offset: i64) -> bool {
-        let of_role = |key: &(String, u64)| {
-            self.roles
-                .get(key)
-                .is_some_and(|r| shown_role(r, &Value::Null) == role)
-        };
-        let could_be = |key: &(String, u64)| {
-            self.roles
-                .get(key)
-                .is_some_and(|r| matches!(shown_role(r, &Value::Null), "unknown") || of_role(key))
-        };
-        let mut holders: Vec<&(String, u64)> = self
-            .texts
-            .get(text)
-            .into_iter()
-            .flatten()
-            .filter(|key| could_be(key))
-            .collect();
-        holders.sort_unstable();
-        holders.dedup();
-        holders.get(occurrence).is_some_and(|(family, index)| {
-            index.checked_add_signed(offset).is_some_and(|other| {
-                let key = (family.clone(), other);
-                !self.filled.contains(&key) && of_role(&key)
-            })
-        })
-    }
-
-    fn empty_before(&self, text: &str, occurrence: usize, role: &str) -> bool {
-        self.neighbour(text, occurrence, role, -1)
-    }
-
-    fn empty_after(&self, text: &str, occurrence: usize, role: &str) -> bool {
-        self.neighbour(text, occurrence, role, 1)
-    }
 }
 
 /// Requests against span inputs, for every matched call the fixture's transcript recorded.
@@ -820,7 +698,8 @@ pub(super) fn check_requests(
             &mut assigned_block,
         );
         let mut explained = vec![false; blocks.len()];
-        let neighbours = EmptyNeighbours::of_span(recon, span);
+        let neighbours =
+            EmptyNeighbours::of_span(recon, &recon.generations[generation].trace, span);
         // Where each settled part was shown, as (part, first block, last block): the exact assignment, and
         // every merged part as it is recovered, so two merges are held to the request's order between them
         // as much as a merge and an exact part are.

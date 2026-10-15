@@ -229,6 +229,20 @@ every absence claim does.
 - `request.order`: a sent part shown elsewhere;
 - `request.role`: a sent part shown under another role.
 
+A client may merge consecutive messages of one role before it sends them: their texts joined by a newline, an
+empty message leaving only its newline. A merged part is shown by the consecutive blocks whose exact join it
+is. A newline at either end is excused only by the span's own payload, and only where the span shows one export
+of its input verbatim (`server/tests/message_truth/requests/neighbours.rs`): its indexed input attributes, or the one message
+list a text attribute decodes to. The export's texts must be exactly the span's input blocks, one text block per
+text, in order, each read from that export and under its message's role; every member from index 0 a message
+holding only text, each receipt of the span its own export. Then the block at place `p` shows the export's
+`p`-th text, and only an empty message of the absorbing role beside that message evidences the newline. Anything
+such an alignment cannot account for leaves no evidence, and the part is reported. Known limit: a decoded list's
+alignment is by order, not by the position each block records, so in `[user(""), user("Hello"),
+assistant("Reply"), user("Hello")]` two `Hello` blocks whose recorded positions were swapped would still align,
+and the first would borrow message 0's empty turn; no capture shows a reconstruction that reorders identical
+blocks, and the recorded position does not yet name a list member directly.
+
 The call itself is found by its output, never by the input under test. A fixture without a transcript
 has no request truth. Its calls are counted as unrecorded, never as passing.
 
