@@ -113,6 +113,8 @@ bench-reads: ## Gate every core read at a million spans: memory limit and per-re
 	$(call run-with-disk-guard,scripts/perf/bench-reads.sh)
 
 # The same reads on ClickHouse at a million spans: every answer equal to DuckDB's, and both latencies.
+# `SIDESEAT_READ_PARITY_CODECS=<file>`, one `table.column CODEC [setting=value ...]` a line, also times every read
+# against a copy of the store with those columns changed, in `SIDESEAT_READ_PARITY_ROUNDS` (default 5) alternating rounds.
 bench-reads-distributed: ## ClickHouse at a million spans: every read's answer against DuckDB's, and both latencies
 	$(call run-with-disk-guard,CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
 		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/test/container-test.sh clickhouse-scale)

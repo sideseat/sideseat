@@ -40,13 +40,13 @@ fn otel_logs_columns() -> &'static str {
     hold_until Nullable(DateTime64(6, 'UTC')),
     logical_bytes UInt64 DEFAULT 0,
     search_indexed UInt8 DEFAULT 0,
-    search_body Array(String) DEFAULT [],
+    search_body Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_body_truncated UInt8 DEFAULT 0,
-    search_event_name Array(String) DEFAULT [],
+    search_event_name Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_event_name_truncated UInt8 DEFAULT 0,
-    search_severity Array(String) DEFAULT [],
+    search_severity Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_severity_truncated UInt8 DEFAULT 0,
-    search_attributes Array(String) DEFAULT [],
+    search_attributes Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_attributes_truncated UInt8 DEFAULT 0,
     -- NULL for a record that carries no messages, and for one whose raw_log rebuilds them (domain::log_messages);
     -- stored where it does not, or where they hold a file reference a release must see.

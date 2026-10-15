@@ -195,10 +195,10 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     span_name               Nullable(String),
     span_kind               LowCardinality(Nullable(String)),
     status_code             LowCardinality(Nullable(String)),
-    status_message          Nullable(String),
+    status_message          Nullable(String) CODEC(ZSTD(3)),
     exception_type          Nullable(String),
-    exception_message       Nullable(String),
-    exception_stacktrace    Nullable(String),
+    exception_message       Nullable(String) CODEC(ZSTD(3)),
+    exception_stacktrace    Nullable(String) CODEC(ZSTD(3)),
 
     -- CLASSIFICATION
     span_category           LowCardinality(Nullable(String)),
@@ -247,7 +247,7 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     gen_ai_usage_cache_read_tokens  Int64 DEFAULT 0,
     gen_ai_usage_cache_write_tokens Int64 DEFAULT 0,
     gen_ai_usage_reasoning_tokens   Int64 DEFAULT 0,
-    gen_ai_usage_details            Nullable(String),
+    gen_ai_usage_details            Nullable(String) CODEC(ZSTD(3)),
 
     -- GEN AI: COSTS (Decimal for precision)
     gen_ai_cost_input           Decimal64(6) DEFAULT 0,
@@ -266,7 +266,7 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     db_system                   LowCardinality(Nullable(String)),
     db_name                     Nullable(String),
     db_operation                LowCardinality(Nullable(String)),
-    db_statement                Nullable(String),
+    db_statement                Nullable(String) CODEC(ZSTD(3)),
 
     -- STORAGE
     storage_system              LowCardinality(Nullable(String)),
@@ -279,38 +279,40 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
 
     -- USER-DEFINED DATA
     tags                        Nullable(String),
-    metadata                    Nullable(String),
-    input_preview               Nullable(String),
-    output_preview              Nullable(String),
+    metadata                    Nullable(String) CODEC(ZSTD(3)),
+    input_preview               Nullable(String) CODEC(ZSTD(3)),
+    output_preview              Nullable(String) CODEC(ZSTD(3)),
 
     -- RAW MESSAGES, TOOL DEFINITIONS
-    messages                    String DEFAULT '[]',
-    tool_definitions            String DEFAULT '[]',
-    tool_names                  String DEFAULT '[]',
+    -- Messages compress in 4 MiB blocks: a 1 MiB one holds about a thousand spans' messages, too few for ZSTD to see
+    -- the history a conversation's spans repeat, and stores twice the bytes; reading one trace's messages costs the same.
+    messages                    String DEFAULT '[]' CODEC(ZSTD(3)) SETTINGS (min_compress_block_size = 4194304, max_compress_block_size = 4194304),
+    tool_definitions            String DEFAULT '[]' CODEC(ZSTD(3)),
+    tool_names                  String DEFAULT '[]' CODEC(ZSTD(3)),
 
     -- RAW SPAN (compressed)
 
     -- Instrumentation scope: the library that produced the span, versioned
     scope_name                  Nullable(String) CODEC(ZSTD(1)),
     scope_version               Nullable(String) CODEC(ZSTD(1)),
-    content_digest              String DEFAULT '',
+    content_digest              String DEFAULT '' CODEC(ZSTD(3)),
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
-    raw_id                     Nullable(String),
+    raw_id                     Nullable(String) CODEC(ZSTD(3)),
     event_count                UInt32 DEFAULT 0,
     link_count                 UInt32 DEFAULT 0,
     search_indexed             UInt8 DEFAULT 0,
-    search_prompt              Array(String) DEFAULT [],
+    search_prompt              Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_prompt_truncated    UInt8 DEFAULT 0,
-    search_completion          Array(String) DEFAULT [],
+    search_completion          Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_completion_truncated UInt8 DEFAULT 0,
-    search_tool_name           Array(String) DEFAULT [],
+    search_tool_name           Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_tool_name_truncated UInt8 DEFAULT 0,
-    search_tool_args           Array(String) DEFAULT [],
+    search_tool_args           Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_tool_args_truncated UInt8 DEFAULT 0,
-    search_error               Array(String) DEFAULT [],
+    search_error               Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_error_truncated     UInt8 DEFAULT 0,
-    search_span_name           Array(String) DEFAULT [],
+    search_span_name           Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_span_name_truncated UInt8 DEFAULT 0,
     -- The conversation thread a request span belongs to, where a producer exports each request as what it added
     -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Not
@@ -394,10 +396,10 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     span_name               Nullable(String),
     span_kind               LowCardinality(Nullable(String)),
     status_code             LowCardinality(Nullable(String)),
-    status_message          Nullable(String),
+    status_message          Nullable(String) CODEC(ZSTD(3)),
     exception_type          Nullable(String),
-    exception_message       Nullable(String),
-    exception_stacktrace    Nullable(String),
+    exception_message       Nullable(String) CODEC(ZSTD(3)),
+    exception_stacktrace    Nullable(String) CODEC(ZSTD(3)),
 
     -- CLASSIFICATION
     span_category           LowCardinality(Nullable(String)),
@@ -446,7 +448,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     gen_ai_usage_cache_read_tokens  Int64 DEFAULT 0,
     gen_ai_usage_cache_write_tokens Int64 DEFAULT 0,
     gen_ai_usage_reasoning_tokens   Int64 DEFAULT 0,
-    gen_ai_usage_details            Nullable(String),
+    gen_ai_usage_details            Nullable(String) CODEC(ZSTD(3)),
 
     -- GEN AI: COSTS (Decimal for precision)
     gen_ai_cost_input           Decimal64(6) DEFAULT 0,
@@ -465,7 +467,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     db_system                   LowCardinality(Nullable(String)),
     db_name                     Nullable(String),
     db_operation                LowCardinality(Nullable(String)),
-    db_statement                Nullable(String),
+    db_statement                Nullable(String) CODEC(ZSTD(3)),
 
     -- STORAGE
     storage_system              LowCardinality(Nullable(String)),
@@ -478,38 +480,40 @@ CREATE TABLE IF NOT EXISTS otel_spans (
 
     -- USER-DEFINED DATA
     tags                        Nullable(String),
-    metadata                    Nullable(String),
-    input_preview               Nullable(String),
-    output_preview              Nullable(String),
+    metadata                    Nullable(String) CODEC(ZSTD(3)),
+    input_preview               Nullable(String) CODEC(ZSTD(3)),
+    output_preview              Nullable(String) CODEC(ZSTD(3)),
 
     -- RAW MESSAGES, TOOL DEFINITIONS
-    messages                    String DEFAULT '[]',
-    tool_definitions            String DEFAULT '[]',
-    tool_names                  String DEFAULT '[]',
+    -- Messages compress in 4 MiB blocks: a 1 MiB one holds about a thousand spans' messages, too few for ZSTD to see
+    -- the history a conversation's spans repeat, and stores twice the bytes; reading one trace's messages costs the same.
+    messages                    String DEFAULT '[]' CODEC(ZSTD(3)) SETTINGS (min_compress_block_size = 4194304, max_compress_block_size = 4194304),
+    tool_definitions            String DEFAULT '[]' CODEC(ZSTD(3)),
+    tool_names                  String DEFAULT '[]' CODEC(ZSTD(3)),
 
     -- RAW SPAN (compressed)
 
     -- Instrumentation scope: the library that produced the span, versioned
     scope_name                  Nullable(String) CODEC(ZSTD(1)),
     scope_version               Nullable(String) CODEC(ZSTD(1)),
-    content_digest              String DEFAULT '',
+    content_digest              String DEFAULT '' CODEC(ZSTD(3)),
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
-    raw_id                     Nullable(String),
+    raw_id                     Nullable(String) CODEC(ZSTD(3)),
     event_count                UInt32 DEFAULT 0,
     link_count                 UInt32 DEFAULT 0,
     search_indexed             UInt8 DEFAULT 0,
-    search_prompt              Array(String) DEFAULT [],
+    search_prompt              Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_prompt_truncated    UInt8 DEFAULT 0,
-    search_completion          Array(String) DEFAULT [],
+    search_completion          Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_completion_truncated UInt8 DEFAULT 0,
-    search_tool_name           Array(String) DEFAULT [],
+    search_tool_name           Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_tool_name_truncated UInt8 DEFAULT 0,
-    search_tool_args           Array(String) DEFAULT [],
+    search_tool_args           Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_tool_args_truncated UInt8 DEFAULT 0,
-    search_error               Array(String) DEFAULT [],
+    search_error               Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_error_truncated     UInt8 DEFAULT 0,
-    search_span_name           Array(String) DEFAULT [],
+    search_span_name           Array(String) DEFAULT [] CODEC(ZSTD(3)),
     search_span_name_truncated UInt8 DEFAULT 0,
     -- The conversation thread a request span belongs to, where a producer exports each request as what it added
     -- (sideseat_domain::rules::request_threads); '' on every other span, which is almost all of them. Not
@@ -588,20 +592,20 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     histogram_sum           Nullable(Float64),
     histogram_min           Nullable(Float64),
     histogram_max           Nullable(Float64),
-    histogram_bucket_counts Nullable(String),
-    histogram_explicit_bounds Nullable(String),
+    histogram_bucket_counts Nullable(String) CODEC(ZSTD(3)),
+    histogram_explicit_bounds Nullable(String) CODEC(ZSTD(3)),
 
     -- EXPONENTIAL HISTOGRAM
     exp_histogram_scale     Nullable(Int32),
     exp_histogram_zero_count Nullable(UInt64),
     exp_histogram_zero_threshold Nullable(Float64),
-    exp_histogram_positive  Nullable(String),
-    exp_histogram_negative  Nullable(String),
+    exp_histogram_positive  Nullable(String) CODEC(ZSTD(3)),
+    exp_histogram_negative  Nullable(String) CODEC(ZSTD(3)),
 
     -- SUMMARY
     summary_count           Nullable(UInt64),
     summary_sum             Nullable(Float64),
-    summary_quantiles       Nullable(String),
+    summary_quantiles       Nullable(String) CODEC(ZSTD(3)),
 
     -- EXEMPLARS: every one, each once, in the order sent. A histogram carries one per bucket. The first is the
     -- one the trace-correlation filter matches; the API's first-exemplar fields and its array are rebuilt from
@@ -627,15 +631,15 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     scope_version           Nullable(String),
 
     -- ATTRIBUTES
-    attributes              Nullable(String),
-    resource_attributes     Nullable(String),
+    attributes              Nullable(String) CODEC(ZSTD(3)),
+    resource_attributes     Nullable(String) CODEC(ZSTD(3)),
 
     -- FLAGS & RAW
     flags                   Nullable(Int32),
     raw_metric              Nullable(String) CODEC(ZSTD(3)),
 
     -- SCOPE AND SCHEMA
-    scope_attributes        Nullable(String),
+    scope_attributes        Nullable(String) CODEC(ZSTD(3)),
     scope_schema_url        Nullable(String),
     resource_schema_url     Nullable(String),
 
@@ -645,7 +649,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     -- and re-inserts, making it commit-last-wins there. Two rules for one question, and a corrected
     -- datapoint could read differently per backend.
     ingested_at             DateTime64(6, 'UTC') DEFAULT now64(6),
-    content_digest          String DEFAULT '',
+    content_digest          String DEFAULT '' CODEC(ZSTD(3)),
     hold_until             Nullable(DateTime64(6, 'UTC')),
     logical_bytes          UInt64 DEFAULT 0,
 
@@ -710,20 +714,20 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     histogram_sum           Nullable(Float64),
     histogram_min           Nullable(Float64),
     histogram_max           Nullable(Float64),
-    histogram_bucket_counts Nullable(String),
-    histogram_explicit_bounds Nullable(String),
+    histogram_bucket_counts Nullable(String) CODEC(ZSTD(3)),
+    histogram_explicit_bounds Nullable(String) CODEC(ZSTD(3)),
 
     -- EXPONENTIAL HISTOGRAM
     exp_histogram_scale     Nullable(Int32),
     exp_histogram_zero_count Nullable(UInt64),
     exp_histogram_zero_threshold Nullable(Float64),
-    exp_histogram_positive  Nullable(String),
-    exp_histogram_negative  Nullable(String),
+    exp_histogram_positive  Nullable(String) CODEC(ZSTD(3)),
+    exp_histogram_negative  Nullable(String) CODEC(ZSTD(3)),
 
     -- SUMMARY
     summary_count           Nullable(UInt64),
     summary_sum             Nullable(Float64),
-    summary_quantiles       Nullable(String),
+    summary_quantiles       Nullable(String) CODEC(ZSTD(3)),
 
     -- EXEMPLARS: every one, each once, in the order sent. A histogram carries one per bucket. The first is the
     -- one the trace-correlation filter matches; the API's first-exemplar fields and its array are rebuilt from
@@ -749,22 +753,22 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     scope_version           Nullable(String),
 
     -- ATTRIBUTES
-    attributes              Nullable(String),
-    resource_attributes     Nullable(String),
+    attributes              Nullable(String) CODEC(ZSTD(3)),
+    resource_attributes     Nullable(String) CODEC(ZSTD(3)),
 
     -- FLAGS & RAW
     flags                   Nullable(Int32),
     raw_metric              Nullable(String) CODEC(ZSTD(3)),
 
     -- SCOPE AND SCHEMA
-    scope_attributes        Nullable(String),
+    scope_attributes        Nullable(String) CODEC(ZSTD(3)),
     scope_schema_url        Nullable(String),
     resource_schema_url     Nullable(String),
 
 
     -- The replacing engine's version - see the note on the local table.
     ingested_at             DateTime64(6, 'UTC') DEFAULT now64(6),
-    content_digest          String DEFAULT '',
+    content_digest          String DEFAULT '' CODEC(ZSTD(3)),
     hold_until             Nullable(DateTime64(6, 'UTC')),
     logical_bytes          UInt64 DEFAULT 0,
 

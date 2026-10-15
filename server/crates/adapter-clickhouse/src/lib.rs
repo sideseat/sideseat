@@ -559,6 +559,8 @@ impl ClickhouseService {
             check(found, schema::SCHEMA_VERSION).map_err(ClickhouseError::UnsupportedSchema)?;
         // Whichever the decision: on a cluster the version row is the shard's own, so a shard other than the one
         // that created the store finds none and would create - keeping, through `IF NOT EXISTS`, a table it holds.
+        // Only layouts this process would read wrongly are refused. A column's codec or compress block size changes
+        // no answer, so a store created with other ones (LZ4 throughout, say) is accepted as it is.
         self.refuse_partitioned_raw_records().await?;
         self.refuse_unkeyed_raw_versions().await?;
         self.refuse_receipt_partitioned_logs().await?;

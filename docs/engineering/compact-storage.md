@@ -700,6 +700,23 @@ appended to a temporary staging table holding each row's exemplars as JSON, whic
 at the sampled rate, and the metric figure from 185 to 128 B a point with the 128-bit content digest, 222 to 149 at
 the densest.
 
+### ClickHouse column codecs
+
+ClickHouse compresses every column with LZ4 unless its definition names a codec. The large text columns and the
+digests that are not sort keys now take ZSTD(3): the spans' messages, tool definitions and names, previews, metadata,
+exception text, usage details, statements, content digest, raw id and search columns; the metrics' attributes,
+histogram, quantile and digest columns; and the logs' search columns. The sort-key ids keep LZ4, which a key lookup
+decompresses most. The spans' `messages` also compress in 4 MiB blocks: in the default 1 MiB ones they cost 187.2 B a
+span where DuckDB's cost 96, and in 4 MiB ones 95.9. Row order made no difference: on one pass of the corpus,
+insertion, trace and time orders all compress to 183-184 B a span in default blocks. On the distributed footprint
+(wide parts, one pass), traces went from 1,087 to 525 B a span, logs from 467 to 368 B a record and metrics from 154 to
+127 B a point, and the load's CPU fell from 68.3 to 61.9 s in the server and 399.2 to 372.6 s in ClickHouse. The reads
+were timed with `SIDESEAT_READ_PARITY_CODECS` on the million-span scale test: one store as it was, A, and one
+with the codecs, B, with the same rows and part layout, alternated five rounds a read. At a quiet run's spread of 1.035 the
+median B/A was 1.024 and the worst read 1.201 (messages of a session, through the domain), the searches 1.13-1.19. A
+codec or block size changes no answer, so a store created with others is accepted; ClickHouse refuses only layouts
+it would read wrongly.
+
 ### Not done: a numeric span key
 
 The `span_id` index is the largest left beside the columns, 49.9 B a span at 409,710 spans. An index on an 8-byte

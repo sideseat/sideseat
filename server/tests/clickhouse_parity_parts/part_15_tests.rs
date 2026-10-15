@@ -410,6 +410,10 @@ async fn reads_agree_at_a_million_spans() {
         started.elapsed().as_secs_f64()
     );
 
+    // A second ClickHouse store with a codec variant, when one is asked for (`codec_variant`).
+    let variant = codec_variant(&url, database).await;
+    let mut ab: Vec<(String, Vec<std::time::Duration>, Vec<std::time::Duration>)> = Vec::new();
+
     // Samples, from the store: the median trace, the busiest session, a mid-frequency search term.
     let project = ProjectId::from("default");
     let (trace, session, term, latest_us): (String, String, String, i64) = {
@@ -489,6 +493,29 @@ async fn reads_agree_at_a_million_spans() {
                     "{}:\n  duckdb:     {d:?}\n  clickhouse: {c:?}",
                     $name
                 ));
+            }
+            if let Some((variant, rounds)) = &variant {
+                let (a, b, answers) = alternate_rounds(
+                    *rounds,
+                    || async {
+                        let $repo = &ch;
+                        $read.await
+                    },
+                    || async {
+                        let $repo = variant;
+                        $read.await
+                    },
+                )
+                .await;
+                for answer in answers {
+                    let answer = describe(
+                        answer.unwrap_or_else(|error| panic!("{}: A/B round: {error}", $name)),
+                    );
+                    if answer != c {
+                        mismatches.push(format!("{}: an A/B round answers differently", $name));
+                    }
+                }
+                ab.push(($name.to_string(), a, b));
             }
             timings.push(($name.to_string(), d_time, c_time));
         }};
@@ -708,6 +735,12 @@ async fn reads_agree_at_a_million_spans() {
     // in the raw record (`log_views`).
     let duck_view = sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(duck.clone()));
     let ch_view = sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(ch.clone()));
+    let variant_view = variant.as_ref().map(|(repo, rounds)| {
+        (
+            sideseat_domain::dedup::DedupAnalyticsRepository::new(Box::new(repo.clone())),
+            *rounds,
+        )
+    });
     macro_rules! compare_views {
         ($name:expr, |$repo:ident| $read:expr, |$answer:ident| $describe:expr) => {{
             let (d_time, d) = fastest_of_three(|| async {
@@ -728,6 +761,29 @@ async fn reads_agree_at_a_million_spans() {
                     "{}:\n  duckdb:     {d:?}\n  clickhouse: {c:?}",
                     $name
                 ));
+            }
+            if let Some((variant, rounds)) = &variant_view {
+                let (a, b, answers) = alternate_rounds(
+                    *rounds,
+                    || async {
+                        let $repo = &ch_view;
+                        $read.await
+                    },
+                    || async {
+                        let $repo = variant;
+                        $read.await
+                    },
+                )
+                .await;
+                for answer in answers {
+                    let answer = describe(
+                        answer.unwrap_or_else(|error| panic!("{}: A/B round: {error}", $name)),
+                    );
+                    if answer != c {
+                        mismatches.push(format!("{}: an A/B round answers differently", $name));
+                    }
+                }
+                ab.push(($name.to_string(), a, b));
             }
             timings.push(($name.to_string(), d_time, c_time));
         }};
@@ -920,6 +976,7 @@ async fn reads_agree_at_a_million_spans() {
             ch_time.as_secs_f64() * 1000.0
         );
     }
+    print_codec_variant(&ab);
     assert!(
         mismatches.is_empty(),
         "{} read(s) answer differently:\n{}",
