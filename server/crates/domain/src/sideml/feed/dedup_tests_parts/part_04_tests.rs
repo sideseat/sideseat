@@ -390,3 +390,79 @@ fn a_wrapped_block_list_hashes_as_its_json_part() {
         hash(serde_json::json!([{"type": "json", "data": [image]}]))
     );
 }
+
+/// A call only a later request re-sends - its own response recorded none of it - is kept where a current result
+/// answers it: the result says the call happened. Not where a current copy of the call exists (the re-send folds onto
+/// it), where the result answers it in another trace, or where nothing current answers it.
+#[test]
+fn a_re_sent_call_that_a_current_result_answers_is_kept() {
+    let t0 = utc(0);
+    let request = |trace: &str| {
+        let mut call = make_tool_use_block(trace, "second", "call-1", "get_weather", t0);
+        call.observation_type = Some("generation".to_string());
+        call.source_type = "attribute".to_string();
+        call.source_attribute = Some("gen_ai.prompt.2.content".to_string());
+        call.message_index = 2;
+        call.is_history = true;
+        call
+    };
+    let result = |trace: &str| {
+        let mut result = make_tool_result_block(trace, "second", "call-1", "Sunny.", t0);
+        result.observation_type = Some("generation".to_string());
+        result.source_type = "attribute".to_string();
+        result.source_attribute = Some("gen_ai.prompt.3.content".to_string());
+        result.message_index = 3;
+        result
+    };
+    let calls = |blocks: Vec<BlockEntry>| {
+        process_dedup(blocks, HashMap::new())
+            .iter()
+            .filter(|b| matches!(b.content, ContentBlock::ToolUse { .. }))
+            .map(|b| b.span_id.clone())
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(calls(vec![request("trace1"), result("trace1")]), ["second"]);
+
+    let mut reported = make_tool_use_block("trace1", "first", "call-1", "get_weather", t0);
+    reported.observation_type = Some("generation".to_string());
+    reported.source_type = "attribute".to_string();
+    reported.source_attribute = Some("gen_ai.completion.0.content".to_string());
+    assert_eq!(
+        calls(vec![reported, request("trace1"), result("trace1")]),
+        ["first"],
+        "a call its response reported is that copy, once"
+    );
+    assert!(
+        calls(vec![request("trace1"), result("trace2")]).is_empty(),
+        "a result in another trace answers another call"
+    );
+    assert!(
+        calls(vec![request("trace1")]).is_empty(),
+        "nothing current answers it"
+    );
+
+    // The same call carried in from another trace's history, under that trace's id, is that trace's call: keeping
+    // the local copy must not bring it back.
+    let mut carried = make_tool_use_block("trace1", "second", "old-id", "get_weather", t0);
+    carried.observation_type = Some("generation".to_string());
+    carried.source_type = "attribute".to_string();
+    carried.source_attribute = Some("gen_ai.prompt.0.content".to_string());
+    carried.is_history = true;
+    carried.is_cross_trace_history = true;
+    let kept: Vec<Option<String>> = process_dedup(
+        vec![carried, request("trace1"), result("trace1")],
+        HashMap::new(),
+    )
+    .iter()
+    .filter_map(|b| match &b.content {
+        ContentBlock::ToolUse { id, .. } => Some(id.clone()),
+        _ => None,
+    })
+    .collect();
+    assert_eq!(
+        kept,
+        [Some("call-1".to_string())],
+        "only the local copy, under its own id"
+    );
+}

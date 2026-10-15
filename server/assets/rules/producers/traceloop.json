@@ -24,6 +24,20 @@
   ],
   "observation_types": [
     {
+      "id": "observation.traceloop_model_call",
+      "doc": "OpenLLMetry's own name for a model call's kind, which its instrumentations wrote before they took up `gen_ai.operation.name` (TraceLoop 0.53.3 on `bedrock.converse`): `chat` or `completion` is a generation. It outranks the agent name the workflow decorator copies onto every span inside it, which `observation.named_agent` would read as an agent.",
+      "priority": 59,
+      "where": {
+        "source": "attr:llm.request.type",
+        "one_of": [
+          "chat",
+          "completion"
+        ]
+      },
+      "result": "generation",
+      "replaces_legacy_result": "agent"
+    },
+    {
       "id": "observation.traceloop_tool",
       "doc": "A TraceLoop tool decorator states the operation directly. This outranks the owning agent name that TraceLoop also copies onto the tool span.",
       "priority": 55,
@@ -65,6 +79,20 @@
     }
   ],
   "span_categories": [
+    {
+      "id": "category.traceloop_model_call",
+      "doc": "The span-category twin of `observation.traceloop_model_call`: OpenLLMetry's own name for a model call's kind (`llm.request.type` `chat` or `completion`, as TraceLoop 0.53.3 writes it on `bedrock.converse`) is a model call. It outranks the agent name the workflow decorator copies onto every span inside it.",
+      "priority": 63,
+      "where": {
+        "source": "attr:llm.request.type",
+        "one_of": [
+          "chat",
+          "completion"
+        ]
+      },
+      "result": "llm",
+      "replaces_legacy_result": "agent"
+    },
     {
       "id": "category.traceloop_tool",
       "doc": "A TraceLoop tool decorator. This outranks the owning agent name that TraceLoop also copies onto the tool span.",

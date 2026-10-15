@@ -56,6 +56,7 @@ use crate::sideml::types::{ChatRole, ContentBlock};
 use sideseat_ports::types::MessageCategory;
 
 mod adopt;
+mod answered;
 mod identity;
 mod resent;
 mod signature;
@@ -65,6 +66,7 @@ use adopt::{
     adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finishes, adopt_result_id,
     adopt_signature, reports_of, settle_marker_reports,
 };
+use answered::answered_history_calls;
 use resent::resent_parts;
 use signature::signature_aliases;
 #[cfg(any(test, feature = "test-support"))]
@@ -585,6 +587,7 @@ fn deduplicate_with_lineage(
         .filter(|key| aliased_by_current.contains(key))
         .collect();
     non_history_ids.extend(kept_for_merge);
+    let answered = answered_history_calls(&blocks, &current_calls);
     // So are the parts of a re-sent response that only the re-send carries.
     let resent = resent_parts(
         blocks.iter().zip(ordinals.iter().copied()),
@@ -603,7 +606,7 @@ fn deduplicate_with_lineage(
         .into_iter()
         .zip(ordinals)
         .enumerate()
-        .filter(|(_, (b, ordinal))| {
+        .filter(|(index, (b, ordinal))| {
             if b.is_history {
                 // An ordered snapshot can prove distinct historical occurrences rather than merely
                 // re-listing an undifferentiated state. Atomic emissions also prove occurrences, but
@@ -614,7 +617,8 @@ fn deduplicate_with_lineage(
                         crate::sideml::carrier::semantics_for_context(&b.carrier_context());
                     semantics.may_restate_prior_observations
                         && semantics.position_proves_distinct_occurrence
-                }) || non_history_ids.contains(&(MessageIdentity::from_block(b), *ordinal))
+                }) || answered.contains(index)
+                    || non_history_ids.contains(&(MessageIdentity::from_block(b), *ordinal))
             } else {
                 true
             }
