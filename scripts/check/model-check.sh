@@ -2,7 +2,10 @@
 # Model-check one TLA+ specification with hard caps, so a model that outgrows its bounds fails instead of
 # filling the disk or running for hours.
 #
-#   scripts/check/model-check.sh JAR SPEC_DIR SPEC
+#   scripts/check/model-check.sh JAR SPEC_DIR SPEC [CONFIG EXPECTED_INVARIANT]
+#
+# With CONFIG and EXPECTED_INVARIANT, the run is a mutant's (`model-mutants.sh`): it passes only when TLC reports
+# exactly that invariant violated, so a guard the model claims is necessary is shown to be, every run.
 #
 # TLC keeps its state queue and fingerprints on disk, and a model whose bounds are too loose can write tens of
 # gigabytes in minutes - enough to fill a developer's disk and take every other build down with it. So each run
@@ -16,6 +19,8 @@ set -euo pipefail
 jar=$1
 dir=$2
 spec=$3
+config=${4:-$spec.cfg}
+expected=${5:-}
 max_mb=${MODEL_CHECK_MAX_MB:-2048}
 max_seconds=${MODEL_CHECK_MAX_SECONDS:-1800}
 # TLC's own default (a quarter of the machine's memory) unless asked otherwise: capping it low makes TLC
@@ -33,7 +38,7 @@ trap cleanup EXIT
 mkdir -p "$states"
 
 (cd "$dir" && exec java -XX:+UseParallelGC ${heap:+-Xmx$heap} -cp "$jar" tlc2.TLC \
-	-workers auto -metadir "states/$spec" -config "$spec.cfg" "$spec.tla") >"$log" 2>&1 &
+	-workers auto -metadir "states/$spec" -config "$config" "$spec.tla") >"$log" 2>&1 &
 tlc=$!
 
 reason=""
@@ -55,6 +60,16 @@ wait "$tlc" 2>/dev/null || true
 
 if [ -n "$reason" ]; then
 	echo "FAILED: stopped because $reason; tighten the model's bounds"
+	tail -5 "$log"
+	exit 1
+fi
+if [ -n "$expected" ]; then
+	violated=$( { grep -oE "Invariant [A-Za-z0-9_]+ is violated" "$log" || true; } | head -1 | awk '{print $2}')
+	if [ "$violated" = "$expected" ]; then
+		echo "breaks $expected"
+		exit 0
+	fi
+	echo "FAILED: expected $expected violated, got ${violated:-no violation}"
 	tail -5 "$log"
 	exit 1
 fi

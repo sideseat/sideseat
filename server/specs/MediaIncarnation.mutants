@@ -1,0 +1,6 @@
+# Each guard the configuration's header calls necessary, and the invariant TLC breaks without it
+# (`scripts/check/model-mutants.sh`).
+Drain = FALSE -> AckedReadable
+Lease = FALSE, CollectorsStopped = FALSE -> AckedReadable
+Incarnations = FALSE -> AckedReadable
+Advance = FALSE -> StoredNamesBelowNext

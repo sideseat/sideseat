@@ -1,0 +1,3 @@
+# Each guard the configuration's header calls necessary, and the invariant TLC breaks without it
+# (`scripts/check/model-mutants.sh`).
+Epochs = FALSE -> NoLatestLost

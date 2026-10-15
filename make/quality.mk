@@ -154,6 +154,10 @@ harden-spec: ## Model-check every TLA+ specification
 		done; \
 		for cfg in server/specs/*.cfg; do \
 			[ -f "$${cfg%.cfg}.tla" ] || echo "$$cfg configures no specification"; \
+		done; \
+		for mutants in server/specs/*.mutants; do \
+			[ -e "$$mutants" ] || continue; \
+			[ -f "$${mutants%.mutants}.cfg" ] || echo "$$mutants mutates no configured specification"; \
 		done); \
 	if [ -n "$$orphans" ]; then \
 		echo "[harden-spec] specification and configuration do not pair up:"; \
@@ -168,6 +172,7 @@ harden-spec: ## Model-check every TLA+ specification
 		spec=$$(basename $$tla .tla); \
 		printf "[harden-spec] %-22s " "$$spec"; \
 		./scripts/check/model-check.sh $(CURDIR)/$(TLA_JAR) server/specs $$spec || failed=1; \
+		./scripts/check/model-mutants.sh $(CURDIR)/$(TLA_JAR) server/specs $$spec || failed=1; \
 	done; \
 	rm -rf server/specs/states server/specs/*_TTrace_*.bin server/specs/*_TTrace_*.tla; \
 	exit $$failed
