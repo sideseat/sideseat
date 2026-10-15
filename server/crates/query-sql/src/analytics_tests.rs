@@ -829,6 +829,25 @@ fn session_point_aggregate_uses_canonical_membership_and_shared_totals() {
     }
 }
 
+/// The held-bytes measure compares the hold deadline with an instant: on ClickHouse a `DateTime64` against
+/// bare microseconds is read as seconds and overflows, so the instant is converted there.
+#[test]
+fn held_bytes_compare_the_hold_with_an_instant() {
+    let now = chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap();
+    for backend in [Backend::Duckdb, Backend::Clickhouse] {
+        let plan = project_logical_bytes("p", backend, Some(now));
+        for query in [&plan.spans, &plan.metrics, &plan.logs] {
+            assert_eq!(query.sql().matches('?').count(), query.params().len());
+            assert!(query.sql().contains(match backend {
+                Backend::Duckdb => "hold_until >= ?",
+                Backend::Clickhouse => "hold_until >= fromUnixTimestamp64Micro(?)",
+            }));
+        }
+        let unheld = project_logical_bytes("p", backend, None);
+        assert!(!unheld.spans.sql().contains("hold_until"));
+    }
+}
+
 #[test]
 fn pressure_candidates_are_winning_held_aware_bounded_and_parameterized() {
     let now = chrono::DateTime::from_timestamp(1_795_000_000, 0).unwrap();

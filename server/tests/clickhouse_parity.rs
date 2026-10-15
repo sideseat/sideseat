@@ -18,7 +18,8 @@
 //! rows for span/trace/session (with log-carried messages joined, watermarked and re-sent), the rows a
 //! delta-exporting producer's request view composes from (its thread and the calls its deltas answer), the project
 //! feed's span and message pages, filter options for all
-//! three scopes, tag options, project span counts, project stats, the four delete paths, and -
+//! three scopes, tag options, project span counts, project stats, the four delete paths, retention by age, by span
+//! count and by size under quota pressure - with a legal hold and once it lapses - and the held-byte measure, and -
 //! per filter variant, since each is rendered by its own arm - pagination, sorting, time bounds
 //! and the advanced filters on the trace, span and session lists.
 //!
@@ -75,3 +76,4 @@ include!("clickhouse_parity_parts/part_28_tests.rs");
 include!("clickhouse_parity_parts/part_29_tests.rs");
 include!("clickhouse_parity_parts/part_30_tests.rs");
 include!("clickhouse_parity_parts/part_31_tests.rs");
+include!("clickhouse_parity_parts/part_32_tests.rs");
