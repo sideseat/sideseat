@@ -12,7 +12,8 @@ use crate::DuckdbError;
 use crate::sql_types::SqlTimestamp;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
-    ProjectId, RAW_VERSION_EPOCH_SHIFT, RawOrigin, RawPending, RawRecordRow, StagedSignal,
+    ProjectId, RAW_VERSION_EPOCH_SHIFT, RawOrigin, RawPending, RawRecordRow, RawRewrite,
+    StagedSignal,
 };
 use sideseat_query_sql::Backend;
 use sideseat_query_sql::analytics;
@@ -426,70 +427,33 @@ pub fn named_in_traces(
 /// whatever becomes of the caller. Returns the records appended.
 pub fn append_rewrites(
     conn: &Connection,
-    records: &[RawRecordRow],
+    rewrites: &[RawRewrite],
 ) -> Result<HashSet<String>, DuckdbError> {
     crate::in_transaction(conn, |conn| {
-        let mut by_project: BTreeMap<&ProjectId, Vec<String>> = BTreeMap::new();
-        for record in records {
-            by_project
-                .entry(&record.project_id)
-                .or_default()
-                .push(record.raw_id.clone());
-        }
-        let mut stored: HashSet<(ProjectId, String)> = HashSet::new();
-        for (project_id, raw_ids) in by_project {
-            for raw_id in stored_ids(conn, project_id, &raw_ids)? {
-                stored.insert((project_id.clone(), raw_id));
+        let mut appended = HashSet::new();
+        // One at a time, each judged against the latest as the ones before it left it: two rewrites of one record
+        // in one call cannot both pass against one read.
+        for rewrite in rewrites {
+            let row = &rewrite.row;
+            // The record's latest version, as readers take it. A rewrite lands only while the version it was
+            // prepared from is still the latest: once another has landed over it - a newer rewrite, a repair, a
+            // restore - this one, prepared from older content, would bring back spans and media the newer version
+            // no longer holds, whose files a reconciliation may already have released. Whatever landed queued the
+            // record as it did, so the pass it leads to rewrites what is left from current state. A record no
+            // longer stored was collected, and stays so.
+            let latest = get(conn, &row.project_id, std::slice::from_ref(&row.raw_id))?;
+            if !latest
+                .first()
+                .is_some_and(|latest| rewrite.based_on_latest(latest))
+            {
+                continue;
             }
+            append(conn, &[row], Stored::Unknown)?;
+            enqueue(conn, &row.project_id, std::slice::from_ref(&row.raw_id))?;
+            appended.insert(row.raw_id.clone());
         }
-        let kept: Vec<&RawRecordRow> = records
-            .iter()
-            .filter(|record| stored.contains(&(record.project_id.clone(), record.raw_id.clone())))
-            .collect();
-        if !kept.is_empty() {
-            append(conn, &kept, Stored::Unknown)?;
-        }
-        let mut queued: BTreeMap<&ProjectId, Vec<String>> = BTreeMap::new();
-        for record in &kept {
-            queued
-                .entry(&record.project_id)
-                .or_default()
-                .push(record.raw_id.clone());
-        }
-        for (project_id, raw_ids) in queued {
-            enqueue(conn, project_id, &raw_ids)?;
-        }
-        Ok(kept.iter().map(|record| record.raw_id.clone()).collect())
+        Ok(appended)
     })
-}
-
-/// Which of these records have a version stored, read through the index without their bodies.
-fn stored_ids(
-    conn: &Connection,
-    project_id: &ProjectId,
-    raw_ids: &[String],
-) -> Result<std::collections::BTreeSet<String>, DuckdbError> {
-    let keys = distinct_keys(raw_ids.iter().map(String::as_str));
-    let mut stored = std::collections::BTreeSet::new();
-    for chunk in keys.chunks(KEYED_CHUNK) {
-        let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, raw_id", chunk.len());
-        let values: Vec<duckdb::types::Value> = chunk
-            .iter()
-            .map(|key| duckdb::types::Value::Text((*key).to_string()))
-            .chain(std::iter::once(duckdb::types::Value::Text(
-                project_id.to_string(),
-            )))
-            .collect();
-        let mut statement = conn.prepare(&format!(
-            "SELECT DISTINCT raw_id FROM {keyed} WHERE project_id = ?"
-        ))?;
-        let rows =
-            statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, String>(0))?;
-        for row in rows {
-            stored.insert(row?);
-        }
-    }
-    Ok(stored)
 }
 
 /// Enqueue these records for reconciliation.

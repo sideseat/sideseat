@@ -431,9 +431,23 @@ impl TracePipeline {
         project_id: &ProjectId,
         read: &RawRecordRow,
     ) -> Result<bool, String> {
+        let Some(rewrite) = self.prepare_rewrite(project_id, read).await? else {
+            return Ok(false);
+        };
+        self.land_rewrite(project_id, rewrite).await?;
+        Ok(true)
+    }
+
+    /// The rewrite of `read` without what the deletion fences refuse now, if they refuse anything, and the
+    /// traces of the spans it removes.
+    pub(super) async fn prepare_rewrite(
+        &self,
+        project_id: &ProjectId,
+        read: &RawRecordRow,
+    ) -> Result<Option<(sideseat_ports::types::RawRewrite, Vec<String>)>, String> {
         let removed = self.deleted_spans_of(project_id, &read.record).await?;
         if removed.is_empty() {
-            return Ok(false);
+            return Ok(None);
         }
         let (content, original, available) =
             self.decode_with_media(project_id, &read.record).await?;
@@ -483,20 +497,38 @@ impl TracePipeline {
             record: encoded,
             ..read.clone()
         };
-        self.unfenced()?;
-        let appended = self
-            .analytics
-            .append_raw_rewrites(std::slice::from_ref(&row))
-            .await
-            .map_err(|error| error.to_string())?;
-        if !appended.contains(&row.raw_id) {
-            // Another reconciler collected the record since it was read: it stays collected.
-            return Ok(true);
-        }
-        // The removed spans' media is no longer referenced by this record; their traces' survivors decide.
         let mut traces: Vec<String> = removed.into_iter().map(|(trace, _)| trace).collect();
         traces.sort_unstable();
         traces.dedup();
+        Ok(Some((
+            sideseat_ports::types::RawRewrite {
+                row,
+                based_on: read.clone(),
+            },
+            traces,
+        )))
+    }
+
+    /// Land a prepared rewrite, and reconcile the files of the traces whose spans it removed.
+    pub(super) async fn land_rewrite(
+        &self,
+        project_id: &ProjectId,
+        (rewrite, traces): (sideseat_ports::types::RawRewrite, Vec<String>),
+    ) -> Result<(), String> {
+        self.unfenced()?;
+        let appended = self
+            .analytics
+            .append_raw_rewrites(std::slice::from_ref(&rewrite))
+            .await
+            .map_err(|error| error.to_string())?;
+        if !appended.contains(&rewrite.row.raw_id) {
+            // Collected since it was read, the record stays collected. Or a version landed since over the one
+            // this rewrite was prepared from - a newer rewrite, a repair - and this stale one would have brought
+            // back content, and media, the newer version no longer holds; whatever landed queued the record,
+            // and that pass rewrites what is left from current state.
+            return Ok(());
+        }
+        // The removed spans' media is no longer referenced by this record; their traces' survivors decide.
         if let Err(error) = self
             .file_service
             .reconcile_trace_survivors(project_id, &traces, self.analytics.as_ref())
@@ -504,7 +536,7 @@ impl TracePipeline {
         {
             tracing::warn!(%error, "Could not reconcile files after a raw rewrite; the file sweep retries");
         }
-        Ok(true)
+        Ok(())
     }
 
     /// The spans of a record the deletion fences refuse now: the same fences, in the same order, as an ingest

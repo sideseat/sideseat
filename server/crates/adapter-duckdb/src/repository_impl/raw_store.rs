@@ -53,10 +53,10 @@ impl RawStore for DuckdbRepository {
 
     async fn append_raw_rewrites(
         &self,
-        records: &[RawRecordRow],
+        rewrites: &[sideseat_ports::types::RawRewrite],
     ) -> Result<std::collections::HashSet<String>, DataError> {
-        let records = records.to_vec();
-        run(&self.0, move |conn| raw::append_rewrites(conn, &records)).await
+        let rewrites = rewrites.to_vec();
+        run(&self.0, move |conn| raw::append_rewrites(conn, &rewrites)).await
     }
 
     async fn span_raw_ids(

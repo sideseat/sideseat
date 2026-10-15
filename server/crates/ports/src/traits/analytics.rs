@@ -595,14 +595,17 @@ pub trait RawStore: Send + Sync {
         limit: usize,
     ) -> Result<Vec<RawRecordRow>, DataError>;
 
-    /// Append these rewritten versions of the records still stored, and queue those appended, deciding, appending
-    /// and queueing as one step: a record another reconciler collected since the caller read it stays collected,
-    /// and a rewrite prepared before a later deletion - which can win the version tie over a newer one - is looked
-    /// at again whether or not the caller lives to. Returns the records appended. DuckDB decides, appends and
-    /// queues in one transaction; ClickHouse reads and then appends.
+    /// Append these rewrites, each only while the version it was prepared from is still its record's latest, and
+    /// queue those appended, deciding, appending and queueing as one step: a record another reconciler collected
+    /// since the caller read it stays collected, and a rewrite prepared from a version since superseded - by a
+    /// newer rewrite, a repair, a restore, each of which queued the record as it appended - is refused, since it
+    /// would bring back spans and media the newer version no longer holds, whose files may already be released;
+    /// the pass the newer version's queueing leads to rewrites what is left from current state. Returns the
+    /// records appended. DuckDB decides, appends and queues in one transaction; ClickHouse reads and then
+    /// appends.
     async fn append_raw_rewrites(
         &self,
-        records: &[RawRecordRow],
+        rewrites: &[RawRewrite],
     ) -> Result<std::collections::HashSet<String>, DataError>;
 
     /// The record each of these spans was derived from, for the winning row of each identity.

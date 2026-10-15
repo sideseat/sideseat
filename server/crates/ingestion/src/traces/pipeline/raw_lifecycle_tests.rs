@@ -14,9 +14,9 @@ use super::pipeline_tests::pipeline_over_a_temp_store_with;
 use super::raw::{SpanKey, record_identities};
 use super::*;
 
-const PROJECT: &str = "default";
+pub(super) const PROJECT: &str = "default";
 
-fn picture(seed: u8) -> String {
+pub(super) fn picture(seed: u8) -> String {
     base64::engine::general_purpose::STANDARD.encode(
         (0..1500)
             .map(|i| (i as u8).wrapping_mul(7).wrapping_add(seed))
@@ -24,7 +24,7 @@ fn picture(seed: u8) -> String {
     )
 }
 
-fn span(trace: u8, id: u8, text: Option<String>) -> Span {
+pub(super) fn span(trace: u8, id: u8, text: Option<String>) -> Span {
     Span {
         trace_id: vec![trace; 16],
         span_id: vec![id; 8],
@@ -45,7 +45,7 @@ fn span(trace: u8, id: u8, text: Option<String>) -> Span {
     }
 }
 
-fn export(spans: Vec<Span>) -> ExportTraceServiceRequest {
+pub(super) fn export(spans: Vec<Span>) -> ExportTraceServiceRequest {
     ExportTraceServiceRequest {
         resource_spans: vec![ResourceSpans {
             resource: Some(Resource::default()),
@@ -58,16 +58,19 @@ fn export(spans: Vec<Span>) -> ExportTraceServiceRequest {
     }
 }
 
-fn trace(id: u8) -> String {
+pub(super) fn trace(id: u8) -> String {
     hex::encode([id; 16])
 }
 
-fn key(trace_id: u8, id: u8) -> SpanKey {
+pub(super) fn key(trace_id: u8, id: u8) -> SpanKey {
     (trace(trace_id), hex::encode([id; 8]))
 }
 
 /// Ingest a body exactly as the request path does: staged, prepared, written.
-async fn ingest(pipeline: &TracePipeline, body: &ExportTraceServiceRequest) -> ReceivedPayload {
+pub(super) async fn ingest(
+    pipeline: &TracePipeline,
+    body: &ExportTraceServiceRequest,
+) -> ReceivedPayload {
     let received = ReceivedPayload::new(
         body.encode_to_vec(),
         RawContent::Protobuf,
@@ -87,7 +90,9 @@ async fn ingest(pipeline: &TracePipeline, body: &ExportTraceServiceRequest) -> R
     received
 }
 
-async fn only_record(analytics: &Arc<dyn AnalyticsRepository + Send + Sync>) -> RawRecordRow {
+pub(super) async fn only_record(
+    analytics: &Arc<dyn AnalyticsRepository + Send + Sync>,
+) -> RawRecordRow {
     let page = analytics
         .raw_records_page(&ProjectId::from(PROJECT), None, 10)
         .await

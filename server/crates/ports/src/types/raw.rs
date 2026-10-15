@@ -126,6 +126,26 @@ pub struct RawCollection {
     pub decided_at: DateTime<Utc>,
 }
 
+/// A rewritten version of a raw record, and the version it was prepared from: what decides whether it may land.
+/// A rewrite lands only while the version it was prepared from is still the record's latest - one prepared from
+/// older content, whatever key its epoch gives it, would bring back spans and media a newer version no longer
+/// holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawRewrite {
+    pub row: RawRecordRow,
+    /// The latest version this rewrite was prepared from.
+    pub based_on: RawRecordRow,
+}
+
+impl RawRewrite {
+    /// Whether `latest` is the version this rewrite was prepared from: its key and its bytes. Two versions can
+    /// share a key - a repair and a rewrite keyed above one latest at one epoch - so the key alone does not tell
+    /// them apart, while two with one key and the same bytes are the same version to every reader.
+    pub fn based_on_latest(&self, latest: &RawRecordRow) -> bool {
+        latest.version == self.based_on.version && latest.record == self.based_on.record
+    }
+}
+
 /// The raw arbiter's integer key for a record: the first eight bytes of its id, which is itself a BLAKE3 digest
 /// of the project and the received body - so the key is already project-scoped and uniform. Owner rows carry
 /// integers rather than the 64-character id, which is what keeps them small (`raw_owners`).

@@ -339,8 +339,14 @@ async fn a_rewrite_is_stored_only_while_its_record_is() {
             crate::repositories::raw::append_rewrites(
                 conn,
                 &[
-                    raw_version("raw-a", 2, &[], b"SSR1\0\0a2"),
-                    raw_version("raw-b", 2, &[], b"SSR1\0\0b2"),
+                    sideseat_ports::types::RawRewrite {
+                        row: raw_version("raw-a", 2, &[], b"SSR1\0\0a2"),
+                        based_on: raw_version("raw-a", 1, &["t1"], b"SSR1\0\0a"),
+                    },
+                    sideseat_ports::types::RawRewrite {
+                        row: raw_version("raw-b", 2, &[], b"SSR1\0\0b2"),
+                        based_on: raw_version("raw-b", 1, &["t2"], b"SSR1\0\0b"),
+                    },
                 ],
             )
         })

@@ -61,29 +61,34 @@ impl RawStore for ClickhouseRepository {
     /// Not one step either, for the same reason as the delete.
     async fn append_raw_rewrites(
         &self,
-        records: &[RawRecordRow],
+        rewrites: &[sideseat_ports::types::RawRewrite],
     ) -> Result<std::collections::HashSet<String>, DataError> {
         let mut appended = std::collections::HashSet::new();
-        for (project_id, records) in by_project(records) {
-            let ids: Vec<String> = records.iter().map(|record| record.raw_id.clone()).collect();
-            let stored: std::collections::HashSet<String> = self
-                .get_raw_records(project_id, &ids)
-                .await?
-                .into_iter()
-                .map(|row| row.raw_id)
-                .collect();
-            let kept: Vec<RawRecordRow> = records
-                .into_iter()
-                .filter(|record| stored.contains(&record.raw_id))
-                .collect();
-            if kept.is_empty() {
+        // One at a time, each judged against the latest as the ones before it left it, as DuckDB admits them.
+        for rewrite in rewrites {
+            let row = &rewrite.row;
+            // Only while the version it was prepared from is still the latest, as DuckDB decides it. Advisory here:
+            // read and then written, and read on one replica, so a version landing in between, or committed on a
+            // replica this read does not see, is not seen - the gap the landing fence closes.
+            let latest = self
+                .get_raw_records(&row.project_id, std::slice::from_ref(&row.raw_id))
+                .await?;
+            if !latest
+                .first()
+                .is_some_and(|latest| rewrite.based_on_latest(latest))
+            {
                 continue;
             }
-            let result: Result<(), DataError> = tenant_query!(self, project_id, raw::append, &kept);
+            let result: Result<(), DataError> = tenant_query!(
+                self,
+                &row.project_id,
+                raw::append,
+                std::slice::from_ref(row)
+            );
             result?;
-            let raw_ids: Vec<String> = kept.into_iter().map(|record| record.raw_id).collect();
-            self.enqueue_raw_records(project_id, &raw_ids).await?;
-            appended.extend(raw_ids);
+            self.enqueue_raw_records(&row.project_id, std::slice::from_ref(&row.raw_id))
+                .await?;
+            appended.insert(row.raw_id.clone());
         }
         Ok(appended)
     }

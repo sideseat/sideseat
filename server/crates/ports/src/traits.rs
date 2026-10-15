@@ -17,10 +17,10 @@ use crate::types::{
     MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, OrgWithRole,
     OrganizationRow, PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow,
     ProjectStorageUsage, RawCollection, RawConfirmOutcome, RawCutoff, RawOwnerClaim, RawPending,
-    RawRecordRow, RetentionCleanupBacklog, SearchBackfillDocument, SearchBackfillSource,
-    SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
-    StagedPayload, StagedSequenceState, TraceRow, UserRow, WinningRevision, raw_record_key,
-    raw_trace_key,
+    RawRecordRow, RawRewrite, RetentionCleanupBacklog, SearchBackfillDocument,
+    SearchBackfillSource, SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow,
+    SpanCounts, SpanRow, StagedPayload, StagedSequenceState, TraceRow, UserRow, WinningRevision,
+    raw_record_key, raw_trace_key,
 };
 
 mod analytics;

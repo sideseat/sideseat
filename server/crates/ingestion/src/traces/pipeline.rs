@@ -689,6 +689,8 @@ mod raw_lifecycle_tests;
 #[cfg(test)]
 mod raw_ownership_tests;
 #[cfg(test)]
+mod raw_rewrite_stale_tests;
+#[cfg(test)]
 mod receipt_precedence_tests;
 #[cfg(test)]
 mod settlement_skip_tests;

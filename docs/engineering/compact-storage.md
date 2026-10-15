@@ -548,7 +548,11 @@ still land. The last condition is the one that needs a mechanism, and the order 
 1. a time-to-live read predicate on ClickHouse - a raw version past `greatest(signal_until + 90 days, hold_until)`
    reads as absent and the confirm fence refuses it - which also fixes a record that lands already past its TTL:
    visible until a merge, or removed before the age pass records it;
-2. the landing fence (`INSERT ... SELECT FROM input()`), designed in TLA+ first;
+2. the landing fence (`INSERT ... SELECT FROM input()`), designed in TLA+ first. It must also make a raw rewrite's
+   admission - it lands only while the version it was prepared from, key and bytes, is still the record's latest
+   - one step with its append on ClickHouse, and visible across replicas, as it is in DuckDB's transaction.
+   ClickHouse reads and then writes, on one replica, so a version landing in between, or committed on a replica
+   the read missed, is not seen and its check is only advisory (`server/specs/RawRewriteFiles.tla`);
 3. pruning on top of it, by one rule on both backends: the lowest epoch any execution that can still land has
    read.
 
@@ -582,6 +586,17 @@ append lands. Each round found a way to lose the cleanup, and each fix needed a 
 
 The fresh-token rule survived: tokens come from one sequence, so no row carries a token an earlier one did. The
 parked hold code and model are kept outside the tree, so nobody rebuilds them.
+
+**Open: an ingest batch's pending writer outlives a crash.** A file association counts its in-flight writers in
+`trace_files.pending_writers`, and survivor reconciliation releases only an association with none. An ingest
+batch increments it when it associates a file, and decrements it when it confirms on success or releases on
+failure. A batch that crashes between the association and the confirm or release leaves its increment behind.
+The payload's redrive then associates again (+1) and confirms (-1), so the count stays at one: survivor
+reconciliation never releases the association while the trace lives, and its file is kept until the whole trace,
+or its project, is deleted, whose cleanup removes associations whatever they count. That is a file kept too long,
+not data loss, and nothing today resets a dead writer's count. A fix needs a writer's identity behind each increment, so that a
+dead one can be told apart from one in flight. A lease would bring back the stalled-writer hazard, so the fix is
+still to be designed.
 
 **Deferred to the trace-index slice, right after it:** the retention release is bounded per call by traces (64 at
 a time), not within a trace. It reads every owner of those traces and every record their rows still name, so one

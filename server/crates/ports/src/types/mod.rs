@@ -25,7 +25,7 @@ pub use order::{OrderBy, OrderDirection};
 pub use project_id::ProjectId;
 pub use raw::{
     RAW_VERSION_EPOCH_SHIFT, RAW_VERSION_MAX_EPOCH, RAW_VERSION_MAX_N, RawCollection,
-    RawConfirmOutcome, RawCutoff, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow,
+    RawConfirmOutcome, RawCutoff, RawOrigin, RawOwnerClaim, RawPending, RawRecordRow, RawRewrite,
     raw_record_key, raw_trace_key, raw_version, raw_version_above, raw_version_epoch,
 };
 

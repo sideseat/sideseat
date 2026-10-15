@@ -209,14 +209,26 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
             .to_string(),
     );
 
-    // A rewrite is stored only while its record is: raw-b was collected.
+    // A rewrite is stored only while its record is: raw-b was collected. raw-a's is prepared from its latest.
+    let latest_a = store
+        .get_raw_records(&project, &["raw-a".to_string()])
+        .await
+        .expect("raw-a")
+        .pop()
+        .expect("raw-a is stored");
     say(
         &mut answers,
         "rewrites appended",
         store
             .append_raw_rewrites(&[
-                raw_row("raw-a", 5, &[], b"rewritten-a5"),
-                raw_row("raw-b", 5, &[], b"rewritten-b5"),
+                sideseat_ports::types::RawRewrite {
+                    row: raw_row("raw-a", 5, &[], b"rewritten-a5"),
+                    based_on: latest_a.clone(),
+                },
+                sideseat_ports::types::RawRewrite {
+                    row: raw_row("raw-b", 5, &[], b"rewritten-b5"),
+                    based_on: raw_row("raw-b", 1, &["trace-b"], b"received-b"),
+                },
             ])
             .await
             .expect("append rewrites")

@@ -629,9 +629,9 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
 
     async fn append_raw_rewrites(
         &self,
-        records: &[RawRecordRow],
+        rewrites: &[sideseat_ports::types::RawRewrite],
     ) -> Result<std::collections::HashSet<String>, DataError> {
-        self.inner.append_raw_rewrites(records).await
+        self.inner.append_raw_rewrites(rewrites).await
     }
 
     async fn span_raw_ids(
