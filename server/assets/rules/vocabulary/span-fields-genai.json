@@ -350,6 +350,11 @@
           "attribute": "llm.finish_reason"
         },
         {
+          "id": "llm_response_finish_reasons",
+          "doc": "OpenInference's Java instrumentation before it wrote `llm.finish_reason`: LangChain4j's 0.1.8 states the reasons as a list under this key. After the flat spelling, so a span stating both answers with it.",
+          "attribute": "llm.response.finish_reasons"
+        },
+        {
           "id": "gen_ai_completion_finish_reason",
           "json": {
             "attribute": "gen_ai.completion",
