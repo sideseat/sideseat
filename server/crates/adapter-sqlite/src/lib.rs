@@ -14,10 +14,12 @@
 #![deny(clippy::iter_over_hash_type)]
 
 mod error;
+mod lease_connection;
 mod migrations;
 mod repositories;
 mod repository_impl;
 pub use error::SqliteError;
+pub use lease_connection::{LeaseConnection, LeaseWork};
 pub use repository_impl::SqliteRepository;
 pub mod schema;
 #[cfg(any(test, feature = "test-support"))]
@@ -60,6 +62,9 @@ use sideseat_ports::clock::Clock;
 /// Should be created once at server startup and shared across all modules.
 pub struct SqliteService {
     pool: SqlitePool,
+    /// The connection process-lease statements run on, of their own, so a renewal never queues behind the pool's
+    /// other work (`lease_connection`); the pool itself when built from one.
+    lease: LeaseConnection,
     /// The cache, held by the service rather than passed to every port method.
     ///
     /// 29 of `TransactionalRepository`'s 95 methods took `cache: Option<&dyn CacheStore>`, which put an
@@ -103,16 +108,21 @@ impl SqliteService {
             .pragma("fullfsync", "ON")
             .pragma("checkpoint_fullfsync", "ON");
 
+        let lease_bound =
+            Duration::from_secs(sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS);
+        let lease_options = options.clone().busy_timeout(lease_bound);
         let pool = SqlitePoolOptions::new()
             .max_connections(SQLITE_MAX_CONNECTIONS)
             .connect_with(options)
             .await?;
 
         migrations::ensure_schema(&pool, clock.as_ref()).await?;
+        let lease = LeaseConnection::owned(lease_options, lease_bound);
 
         tracing::debug!(path = %db_path.display(), "SqliteService initialized");
         Ok(Self {
             pool,
+            lease,
             cache: None,
             clock,
         })
@@ -120,6 +130,11 @@ impl SqliteService {
 
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
+    }
+
+    /// The process-lease connection: one, owned, its open and busy timeouts the lease statement bound.
+    pub fn lease_connection(&self) -> &LeaseConnection {
+        &self.lease
     }
 
     /// The cache this service was built with, if any.
@@ -143,6 +158,10 @@ impl SqliteService {
     /// the pool lifecycle.
     pub fn from_pool(pool: SqlitePool, clock: Arc<dyn Clock>) -> Self {
         Self {
+            lease: LeaseConnection::shared(
+                pool.clone(),
+                Duration::from_secs(sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS),
+            ),
             pool,
             cache: None,
             clock,
@@ -159,6 +178,7 @@ impl SqliteService {
 
     /// Close the connection pool gracefully
     pub async fn close(&self) {
+        self.lease.close().await;
         self.pool.close().await;
         tracing::debug!("SQLite pool closed");
     }
@@ -228,5 +248,164 @@ mod durability_tests {
             assert_eq!(journal, "wal");
             held.push(connection);
         }
+    }
+}
+
+#[cfg(test)]
+mod lease_pool_tests {
+    use super::*;
+    use sideseat_core::storage::AppStorage;
+    use sideseat_ports::traits::{ProcessLeases, ProcessRole};
+
+    /// A lease renewal never waits on the pool every other statement shares: with each of its connections held,
+    /// the lease's own connection still renews, durably, and within the lease statement bound.
+    #[tokio::test]
+    async fn a_lease_renews_while_every_shared_connection_is_held() {
+        let root = tempfile::TempDir::new().expect("temp dir");
+        let storage = AppStorage::init_for_test(root.path().to_path_buf());
+        let service = std::sync::Arc::new(
+            SqliteService::init(&storage, std::sync::Arc::new(TestClock))
+                .await
+                .expect("sqlite"),
+        );
+        let mut held = Vec::new();
+        for _ in 0..SQLITE_MAX_CONNECTIONS {
+            held.push(service.pool().acquire().await.expect("connection"));
+        }
+        let repo = SqliteRepository(std::sync::Arc::clone(&service));
+        let renewed = tokio::time::timeout(
+            Duration::from_secs(sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS),
+            repo.renew_process_lease("server-a", ProcessRole::Server, 30),
+        )
+        .await;
+        assert!(
+            matches!(renewed, Ok(Ok(()))),
+            "renewed through its own connection: {renewed:?}"
+        );
+        let synchronous: i64 = service
+            .lease_connection()
+            .run(|connection| {
+                Box::pin(async move {
+                    Ok(sqlx::query_scalar("PRAGMA synchronous")
+                        .fetch_one(&mut *connection)
+                        .await?)
+                })
+            })
+            .await
+            .expect("pragma");
+        assert_eq!(synchronous, 2, "the lease connection commits durably too");
+        drop(held);
+    }
+
+    /// An attempt abandoned while its statement runs takes its connection with it, and the next attempt opens a
+    /// new one: the abandoned connection's temporary table is not there. And once closed, the lease connection
+    /// refuses work rather than reopening.
+    #[tokio::test]
+    async fn an_abandoned_lease_statement_takes_its_connection_and_close_is_final() {
+        let root = tempfile::TempDir::new().expect("temp dir");
+        let storage = AppStorage::init_for_test(root.path().to_path_buf());
+        let service = std::sync::Arc::new(
+            SqliteService::init(&storage, std::sync::Arc::new(TestClock))
+                .await
+                .expect("sqlite"),
+        );
+        let lease = service.lease_connection();
+        lease
+            .run(|connection| {
+                Box::pin(async move {
+                    sqlx::query("CREATE TEMP TABLE marker (x INTEGER)")
+                        .execute(&mut *connection)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await
+            .expect("marked");
+        // A statement that runs for seconds, abandoned while it runs.
+        let abandoned = tokio::time::timeout(
+            Duration::from_millis(100),
+            lease.run(|connection| {
+                Box::pin(async move {
+                    sqlx::query(
+                        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200000000) \
+                         SELECT count(*) FROM n",
+                    )
+                    .execute(&mut *connection)
+                    .await?;
+                    Ok(())
+                })
+            }),
+        )
+        .await;
+        assert!(
+            abandoned.is_err(),
+            "the attempt was abandoned while its statement ran"
+        );
+        let marked: i64 = lease
+            .run(|connection| {
+                Box::pin(async move {
+                    Ok(sqlx::query_scalar(
+                        "SELECT count(*) FROM temp.sqlite_master WHERE name = 'marker'",
+                    )
+                    .fetch_one(&mut *connection)
+                    .await?)
+                })
+            })
+            .await
+            .expect("the next attempt runs");
+        assert_eq!(
+            marked, 0,
+            "the next attempt runs on a new connection, not the abandoned one"
+        );
+        let repo = SqliteRepository(std::sync::Arc::clone(&service));
+        repo.renew_process_lease("server-a", ProcessRole::Server, 30)
+            .await
+            .expect("renewed");
+        service.close().await;
+        assert!(
+            repo.renew_process_lease("server-a", ProcessRole::Server, 30)
+                .await
+                .is_err(),
+            "closed, the lease connection refuses rather than reopening"
+        );
+    }
+
+    /// Closed while its slot is held past the close's own wait, the lease connection still refuses every later
+    /// call: closure is marked before the wait, not after it.
+    #[tokio::test]
+    async fn close_that_cannot_take_the_slot_is_still_final() {
+        let root = tempfile::TempDir::new().expect("temp dir");
+        let db = root.path().join("lease.db");
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&db)
+            .create_if_missing(true);
+        let lease = LeaseConnection::owned(options, Duration::from_millis(100));
+        lease
+            .run(|connection| {
+                Box::pin(async move {
+                    sqlx::query("SELECT 1").execute(&mut *connection).await?;
+                    Ok(())
+                })
+            })
+            .await
+            .expect("an open connection");
+        // The slot held by someone else past the close's 100 ms wait.
+        let held = lease.slot_for_test().lock().await;
+        tokio::time::timeout(Duration::from_secs(1), lease.close())
+            .await
+            .expect("close gives up its wait");
+        drop(held);
+        let after = lease
+            .run(|connection| {
+                Box::pin(async move {
+                    sqlx::query("SELECT 1").execute(&mut *connection).await?;
+                    Ok(())
+                })
+            })
+            .await;
+        assert!(
+            matches!(after, Err(SqliteError::Database(sqlx::Error::PoolClosed))),
+            "refused after a close that never took the slot: {after:?}"
+        );
     }
 }

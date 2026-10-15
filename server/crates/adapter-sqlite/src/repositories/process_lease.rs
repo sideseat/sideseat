@@ -1,6 +1,6 @@
 //! The leases processes hold on the store: see `sideseat_ports::traits::ProcessLeases`.
 
-use sqlx::SqlitePool;
+use sqlx::SqliteConnection;
 
 use crate::SqliteError;
 
@@ -8,7 +8,7 @@ use crate::SqliteError;
 const NOW: &str = "CAST(strftime('%s', 'now') AS INTEGER)";
 
 pub async fn renew(
-    pool: &SqlitePool,
+    connection: &mut SqliteConnection,
     process_id: &str,
     role: &str,
     lease_secs: i64,
@@ -20,20 +20,24 @@ pub async fn renew(
     .bind(process_id)
     .bind(role)
     .bind(lease_secs)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
-pub async fn end(pool: &SqlitePool, process_id: &str) -> Result<(), SqliteError> {
+pub async fn end(connection: &mut SqliteConnection, process_id: &str) -> Result<(), SqliteError> {
     sqlx::query("DELETE FROM process_leases WHERE process_id = ?")
         .bind(process_id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     Ok(())
 }
 
-pub async fn live(pool: &SqlitePool, role: &str, except: &str) -> Result<Vec<String>, SqliteError> {
+pub async fn live(
+    connection: &mut SqliteConnection,
+    role: &str,
+    except: &str,
+) -> Result<Vec<String>, SqliteError> {
     Ok(sqlx::query_scalar(&format!(
         "SELECT process_id FROM process_leases
           WHERE role = ? AND process_id <> ? AND lease_until > {NOW}
@@ -41,6 +45,6 @@ pub async fn live(pool: &SqlitePool, role: &str, except: &str) -> Result<Vec<Str
     ))
     .bind(role)
     .bind(except)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?)
 }

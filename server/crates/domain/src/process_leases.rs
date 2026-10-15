@@ -44,9 +44,23 @@ pub const RESTORE_SETTLE: Duration = Duration::from_secs(20);
 /// the fence has to finish in.
 pub const LOST_AFTER: Duration = Duration::from_secs(12);
 
+/// What a restore repair's second look leaves a server whose renewals stopped landing: the time between that
+/// server closing its fence ([`LOST_AFTER`] past its last renewal that landed) and the second look
+/// ([`RESTORE_SETTLE`] past the first). It is a budget, not a bound: it is meant to cover a collector step that
+/// entered its pass before the fence closed and is still running - the step the fence cannot stop, only no longer
+/// admit - but nothing enforces it. A delete the step had sent can be cancelled at the fence and still be applied
+/// by the store later (`CollectionFence::bounded`), after the repair has begun: the open restore residual in
+/// `docs/engineering/compact-storage.md`.
+pub const COLLECTOR_STEP_MARGIN: Duration = Duration::from_secs(8);
+
 const _: () = assert!(RENEW_EVERY.as_secs() * 2 < LOST_AFTER.as_secs());
-const _: () = assert!(LOST_AFTER.as_secs() < RESTORE_SETTLE.as_secs());
+const _: () =
+    assert!(LOST_AFTER.as_secs() + COLLECTOR_STEP_MARGIN.as_secs() <= RESTORE_SETTLE.as_secs());
 const _: () = assert!(RESTORE_SETTLE.as_secs() < LEASE_SECS as u64);
+// Each lease statement step's budget fits inside the loss bound; the renewer's own wait, not the backend's,
+// enforces the deadline.
+const _: () =
+    assert!(sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS <= LOST_AFTER.as_secs());
 
 #[derive(Debug, Error)]
 pub enum ProcessLeaseError {
@@ -223,7 +237,11 @@ async fn renew(
             _ = interval.tick() => {
                 let sent = Instant::now();
                 if renewing {
-                    let until = deadline.min(sent + every);
+                    // Waited out to the loss deadline, not to the next tick: a renewal that lands late still
+                    // renews from when it was sent, which is no later than the store's own start of it, so it
+                    // moves nothing the fence's timing rests on - and abandoning it at the tick lost the lease of
+                    // a server whose store merely answered slowly under load.
+                    let until = deadline;
                     match tokio::time::timeout_at(until, store.renew_process_lease(&id, role, LEASE_SECS)).await {
                         Ok(Ok(())) => {
                             renewed_at = sent;
@@ -240,7 +258,9 @@ async fn renew(
                         continue;
                     }
                 } else {
-                    let retaken = tokio::time::timeout(every, async {
+                    // Bounded by the loss bound, not the interval: the renewal and the exclusion look are two
+                    // statements, and on a loaded store each can take most of an interval.
+                    let retaken = tokio::time::timeout(lost_after, async {
                         store.renew_process_lease(&id, role, LEASE_SECS).await?;
                         alone(store.as_ref(), &id, role).await
                     })

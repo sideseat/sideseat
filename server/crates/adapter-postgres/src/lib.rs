@@ -14,6 +14,8 @@
 #![deny(clippy::iter_over_hash_type)]
 
 mod durability;
+mod lease_connection;
+pub use lease_connection::{LeaseConnection, LeaseWork};
 mod error;
 pub mod migrations;
 mod repositories;
@@ -57,6 +59,9 @@ pub struct PostgresService {
     /// Ordinary application operations. Every connection assumes `sideseat_runtime`; tenant context must
     /// still be bound transaction-locally before touching a project-scoped table.
     runtime_pool: PgPool,
+    /// The connection process-lease statements run on, of their own, so a renewal never waits behind the
+    /// maintenance pool's retention and repair work (`lease_connection`).
+    lease: LeaseConnection,
     /// The cache, held by the service rather than passed to every port method.
     ///
     /// 29 of `TransactionalRepository`'s 95 methods took `cache: Option<&dyn CacheStore>`, which put an
@@ -173,6 +178,14 @@ impl PostgresService {
 
         options = options.log_statements(LevelFilter::Trace);
 
+        let lease_options = options.clone().options([(
+            "statement_timeout",
+            format!(
+                "{}s",
+                sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS
+            ),
+        )]);
+
         // Set statement timeout at connection level for query protection
         if statement_timeout > 0 {
             options = options.options([("statement_timeout", format!("{}s", statement_timeout))]);
@@ -215,8 +228,15 @@ impl PostgresService {
         )
         .await?;
 
+        let lease = LeaseConnection::new(
+            lease_options,
+            POSTGRES_MAINTENANCE_ROLE,
+            Duration::from_secs(sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS),
+        );
+
         // Both pools write - the runtime pool for exports and staging, the maintenance pool for retention and
-        // repair - so both are held to commits that are durable when they return.
+        // repair - so both are held to commits that are durable when they return. The lease connection is a
+        // session of the same server, whose settings these read.
         durability::check(&pool).await?;
         durability::check(&runtime_pool).await?;
 
@@ -233,6 +253,7 @@ impl PostgresService {
             schema_pool: owner_pool,
             pool,
             runtime_pool,
+            lease,
             cache: None,
             clock,
         })
@@ -282,6 +303,11 @@ impl PostgresService {
         &self.runtime_pool
     }
 
+    /// The process-lease connection: one, owned, its connect and statement timeouts the lease statement bound.
+    pub fn lease_connection(&self) -> &LeaseConnection {
+        &self.lease
+    }
+
     /// Start an ordinary application transaction scoped to exactly one project.
     ///
     /// `set_config(..., true)` makes the tenant selector transaction-local, so pooled
@@ -323,6 +349,7 @@ impl PostgresService {
     /// Close the connection pool gracefully
     pub async fn close(&self) {
         self.runtime_pool.close().await;
+        self.lease.close().await;
         self.pool.close().await;
         self.schema_pool.close().await;
         tracing::debug!("PostgreSQL pool closed");

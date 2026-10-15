@@ -740,6 +740,17 @@ fence's design must meet these requirements:
 - an association is refused on a tombstoned trace in its own transaction (on PostgreSQL under the trace's advisory
   lock, which a tombstone write also takes), and a confirm marks durable only what its own writer still holds.
 
+**Open, a data-loss risk during a restore repair: a collector delete cancelled at the fence can still land.** A
+server whose lease renewals stop landing closes its collection fence `LOST_AFTER` (12 s) after the last that did,
+and a restore repair looks a second time `RESTORE_SETTLE` (20 s) after its first; the 8 s between them,
+`COLLECTOR_STEP_MARGIN`, is a budget for a collector step that entered its pass before the fence closed. Nothing
+enforces it. A delete the step had already sent can be cancelled when the fence closes and still be applied by the
+store afterwards (`CollectionFence::bounded`), after the repair has begun - removing what the restore brought back.
+Restores are rare operator actions, which is why this is recorded rather than redesigned inside a lease fix. The fix
+belongs to the write-protocol design (`docs/engineering/write-protocol.md`, to come) as one of its requirements:
+collector deletes decided under a fence epoch that the restore revokes, and applied only by the store's own
+condition on that epoch, never by elapsed time. It touches `server/specs/MediaIncarnation.tla`'s `CollectorsStopped`.
+
 **Open: a replica that has not seen a rewrite keeps the file it removed.** On ClickHouse a rewritten-record pass
 reads the record's new version, but its survivor scan reads every replica, and a replica the rewrite's version has
 not reached yet still holds the previous version, which names the removed media. The scan keeps the file, so the

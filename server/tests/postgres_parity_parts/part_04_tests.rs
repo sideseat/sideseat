@@ -597,3 +597,67 @@ async fn an_older_confirm_never_lowers_a_newer_stamp() {
         "a release at that horizon leaves B's association: {released:?}"
     );
 }
+
+/// A lease renewal never waits on the maintenance pool retention and repair share: with every one of that pool's
+/// connections held, the lease's own connection still renews, and its statement timeout is the lease statement
+/// bound, which `LOST_AFTER` is held to.
+#[tokio::test]
+async fn a_lease_renews_while_every_maintenance_connection_is_held() {
+    use sideseat_ports::traits::{ProcessLeases, ProcessRole};
+    let Some((_sqlite, postgres)) = pair().await else {
+        return;
+    };
+    // `pair` sizes the pools at 8: every one of them held.
+    let mut held = Vec::new();
+    for _ in 0..8 {
+        held.push(
+            tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                postgres.0.pool().acquire(),
+            )
+            .await
+            .expect("a free connection")
+            .expect("a connection"),
+        );
+    }
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(300),
+            postgres.0.pool().acquire()
+        )
+        .await
+        .is_err(),
+        "the maintenance pool is exhausted"
+    );
+    let renewed = tokio::time::timeout(
+        std::time::Duration::from_secs(
+            sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS,
+        ),
+        postgres.renew_process_lease("server-a", ProcessRole::Server, 30),
+    )
+    .await;
+    assert!(
+        matches!(renewed, Ok(Ok(()))),
+        "renewed through its own connection: {renewed:?}"
+    );
+    let timeout: String = postgres
+        .0
+        .lease_connection()
+        .run(|connection| {
+            Box::pin(async move {
+                Ok(sqlx::query_scalar("SHOW statement_timeout")
+                    .fetch_one(&mut *connection)
+                    .await?)
+            })
+        })
+        .await
+        .expect("statement timeout");
+    assert_eq!(
+        timeout,
+        format!(
+            "{}s",
+            sideseat_core::constants::PROCESS_LEASE_STATEMENT_TIMEOUT_SECS
+        )
+    );
+    drop(held);
+}

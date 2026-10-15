@@ -1,6 +1,6 @@
 //! The leases processes hold on the store: see `sideseat_ports::traits::ProcessLeases`.
 
-use sqlx::PgPool;
+use sqlx::PgConnection;
 
 use crate::PostgresError;
 
@@ -8,7 +8,7 @@ use crate::PostgresError;
 const NOW: &str = "EXTRACT(EPOCH FROM clock_timestamp())::BIGINT";
 
 pub async fn renew(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     process_id: &str,
     role: &str,
     lease_secs: i64,
@@ -20,20 +20,24 @@ pub async fn renew(
     .bind(process_id)
     .bind(role)
     .bind(lease_secs)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
-pub async fn end(pool: &PgPool, process_id: &str) -> Result<(), PostgresError> {
+pub async fn end(connection: &mut PgConnection, process_id: &str) -> Result<(), PostgresError> {
     sqlx::query("DELETE FROM process_leases WHERE process_id = $1")
         .bind(process_id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     Ok(())
 }
 
-pub async fn live(pool: &PgPool, role: &str, except: &str) -> Result<Vec<String>, PostgresError> {
+pub async fn live(
+    connection: &mut PgConnection,
+    role: &str,
+    except: &str,
+) -> Result<Vec<String>, PostgresError> {
     Ok(sqlx::query_scalar(&format!(
         "SELECT process_id FROM process_leases
           WHERE role = $1 AND process_id <> $2 AND lease_until > {NOW}
@@ -41,6 +45,6 @@ pub async fn live(pool: &PgPool, role: &str, except: &str) -> Result<Vec<String>
     ))
     .bind(role)
     .bind(except)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?)
 }

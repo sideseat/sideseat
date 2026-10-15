@@ -418,3 +418,102 @@ async fn a_retaken_lease_waits_for_the_passes_begun_before_its_loss() {
     stop.send(true).unwrap();
     renewer.await.unwrap();
 }
+
+/// A store that answers every renewal, after `delay`.
+struct SlowLeases {
+    delay: Duration,
+    landed: AtomicUsize,
+}
+
+#[async_trait]
+impl ProcessLeases for SlowLeases {
+    async fn renew_process_lease(&self, _: &str, _: ProcessRole, _: i64) -> Result<(), DataError> {
+        tokio::time::sleep(self.delay).await;
+        self.landed.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+    async fn end_process_lease(&self, _: &str) -> Result<(), DataError> {
+        Ok(())
+    }
+    async fn live_process_leases(&self, _: ProcessRole, _: &str) -> Result<Vec<String>, DataError> {
+        Ok(Vec::new())
+    }
+}
+
+/// A slow renewer at test speed - renewals every 20 ms, lost after 100 ms - against a store taking `delay` a renewal.
+fn slow_renewer(delay: Duration) -> (Arc<SlowLeases>, CollectionFence, watch::Sender<bool>) {
+    let leases = Arc::new(SlowLeases {
+        delay,
+        landed: AtomicUsize::new(0),
+    });
+    let (stop, stopped) = watch::channel(false);
+    let started = Instant::now();
+    let (hold, held) = watch::channel(Some(HeldUntil::new(
+        started + Duration::from_millis(100),
+        0,
+    )));
+    tokio::spawn(renew(
+        Renewal {
+            store: Arc::clone(&leases) as Arc<dyn ProcessLeases>,
+            id: "server-a".to_string(),
+            role: ProcessRole::Server,
+            every: Duration::from_millis(20),
+            lost_after: Duration::from_millis(100),
+            passes: Arc::default(),
+        },
+        started,
+        stopped,
+        hold,
+    ));
+    (leases, CollectionFence::following(held), stop)
+}
+
+/// A store slower than the renewal interval but faster than the loss bound - a loaded host - keeps the lease: each
+/// renewal is waited out to the loss deadline, not abandoned at the next tick, and renews from when it was sent.
+#[tokio::test]
+async fn a_renewal_slower_than_its_interval_but_inside_the_loss_bound_keeps_the_lease() {
+    let (leases, fence, stop) = slow_renewer(Duration::from_millis(45));
+    let term = fence.term().expect("held");
+    for _ in 0..40 {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        assert!(
+            fence.is_open(),
+            "every renewal lands inside the loss bound, so the fence never closes"
+        );
+    }
+    assert!(
+        fence.held_through(term),
+        "the same term throughout: the lease was never lost"
+    );
+    assert!(
+        leases.landed.load(Ordering::SeqCst) >= 5,
+        "renewals kept landing"
+    );
+    stop.send(true).unwrap();
+}
+
+/// A store slower than the loss bound still loses the lease: waiting out a renewal never holds the fence open past
+/// the deadline of the last one that landed, every attempt is abandoned at its bound rather than waited out, and
+/// the lease stays lost.
+#[tokio::test]
+async fn a_renewal_slower_than_the_loss_bound_still_loses_the_lease() {
+    let started = Instant::now();
+    let (leases, fence, stop) = slow_renewer(Duration::from_millis(150));
+    until(&fence, false).await;
+    assert!(
+        started.elapsed() < Duration::from_millis(160),
+        "closed {:?} after the last renewal, past its 100 ms deadline",
+        started.elapsed()
+    );
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert!(
+        !fence.is_open(),
+        "lost, and every attempt to take it again is abandoned at the loss bound"
+    );
+    assert_eq!(
+        leases.landed.load(Ordering::SeqCst),
+        0,
+        "no renewal or retake was waited out past its bound"
+    );
+    stop.send(true).unwrap();
+}

@@ -11,13 +11,26 @@ impl ProcessLeases for SqliteRepository {
         role: ProcessRole,
         lease_secs: i64,
     ) -> Result<(), DataError> {
-        process_lease::renew(self.0.pool(), process_id, role.as_str(), lease_secs)
+        let role = role.as_str();
+        self.0
+            .lease_connection()
+            .run(|connection| {
+                let id = process_id.to_owned();
+                Box::pin(
+                    async move { process_lease::renew(connection, &id, role, lease_secs).await },
+                )
+            })
             .await
             .map_err(Into::into)
     }
 
     async fn end_process_lease(&self, process_id: &str) -> Result<(), DataError> {
-        process_lease::end(self.0.pool(), process_id)
+        self.0
+            .lease_connection()
+            .run(|connection| {
+                let id = process_id.to_owned();
+                Box::pin(async move { process_lease::end(connection, &id).await })
+            })
             .await
             .map_err(Into::into)
     }
@@ -27,7 +40,13 @@ impl ProcessLeases for SqliteRepository {
         role: ProcessRole,
         except: &str,
     ) -> Result<Vec<String>, DataError> {
-        process_lease::live(self.0.pool(), role.as_str(), except)
+        let role = role.as_str();
+        self.0
+            .lease_connection()
+            .run(|connection| {
+                let except = except.to_owned();
+                Box::pin(async move { process_lease::live(connection, role, &except).await })
+            })
             .await
             .map_err(Into::into)
     }

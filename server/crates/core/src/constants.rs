@@ -134,6 +134,13 @@ pub const SQLITE_MAX_CONNECTIONS: u32 = 5;
 /// SQLite busy timeout in seconds
 pub const SQLITE_BUSY_TIMEOUT_SECS: u64 = 30;
 
+/// How long, in seconds, a process-lease statement waits at each of its steps: for its connection, to open it,
+/// and - PostgreSQL's `statement_timeout`, SQLite's busy timeout - in the store. These are separate budgets, not
+/// one bound on the whole, and SQLite's covers only lock waits. The renewer bounds the whole itself, at the lease's
+/// loss deadline; each step is kept within the loss bound (`domain::process_leases::LOST_AFTER`, which asserts it
+/// is at least this), since a step waited out past it could only be abandoned.
+pub const PROCESS_LEASE_STATEMENT_TIMEOUT_SECS: u64 = 10;
+
 /// SQLite cache size (negative = KB, so -64000 = 64MB)
 pub const SQLITE_CACHE_SIZE: &str = "-64000";
 

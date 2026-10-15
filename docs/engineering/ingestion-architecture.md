@@ -264,7 +264,8 @@ two statements are not checked apart. In the same class are a process paused rat
 remote store received before its client gave up. A pass that hangs stalls collection on that instance, which the
 log and `collection.waiting_for` in the project storage report show. The
 fence closes before the repair's second look 20 s after its first, so at that look every server either holds a lease
-the repair sees or has stopped deleting. Exports are not acknowledged while the fence is closed (`export_signal`).
+the repair sees or has stopped starting deletes - though a delete sent before the fence closed can still be applied
+afterwards, the restore residual `compact-storage.md` records as open. Exports are not acknowledged while the fence is closed (`export_signal`).
 An export written across the restore could confirm the association the restore and a later export recreated under
 another incarnation. A reused name alone is harmless, because `{hash}.{id}` holds the same bytes whatever timeline
 issued it; the model's `AckedReadable` holds with `Advance` FALSE.
