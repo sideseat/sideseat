@@ -43,6 +43,10 @@ TRAILING_TOOL = (
     "Look up the weather in Oslo for tomorrow. Report only the tool's result, verbatim."
 )
 
+#: An agent that runs out of steps: the one step it is allowed goes to the tool, so the agent asks the model
+#: for its answer in a further call of its own.
+MAX_STEPS = "Check the weather in Paris and tell me whether to take an umbrella."
+
 REASONING = (
     "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a "
     "pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest "

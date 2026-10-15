@@ -76,6 +76,12 @@ CATALOG: dict[str, ScenarioSpec] = {
             "so no later request re-sends what the tool returned.",
             core=False,
         ),
+        ScenarioSpec(
+            "max_steps",
+            "An agent that reaches its step limit before answering and is asked for its answer once more, "
+            "without tools.",
+            core=False,
+        ),
     )
 }
 

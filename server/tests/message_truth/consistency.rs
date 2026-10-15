@@ -156,10 +156,10 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                 fact.id, fact.evidence
             ));
         }
-        // What a framework writes itself is an assistant text of no call, owed by the conversation
-        // (`authored`).
+        // What a framework writes itself is an assistant text of no call, or a prompt it sends a call, owed by
+        // the conversation (`authored`).
         if fact.evidence == "framework"
-            && (fact.kind != "text"
+            && (!["text", "user_text"].contains(&fact.kind.as_str())
                 || fact.call.is_some()
                 || fact
                     .require
@@ -167,7 +167,7 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                     .is_none_or(|r| r.anchor != "conversation"))
         {
             bad(format!(
-                "{} rests on the framework's own writing but is not a conversation's assistant text",
+                "{} rests on the framework's own writing but is not a conversation's assistant text or prompt",
                 fact.id
             ));
         }

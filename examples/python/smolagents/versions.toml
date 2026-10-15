@@ -8,7 +8,7 @@ resolved-before = "2026-10-05T00:00:00Z"
 # models to InvokeModel instead of the Converse calls the suite (and its cassettes) make.
 allow-hosts = ["raw.githubusercontent.com"]
 probes = ["tool_use", "streaming"]
-scenarios = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming", "max_steps"]
 
 # Each variant is the newest release of one telemetry class in `versions.census.json`.
 [[variant]]

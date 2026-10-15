@@ -6,9 +6,9 @@
  "block_size": 262144,
  "signals": {
   "traces": {
-   "items": 95599,
+   "items": 95788,
    "stored_excluding_media": 42802832,
-   "per_item": 447.73,
+   "per_item": 446.85,
    "fixed_blocks": 15.27
   },
   "logs": {

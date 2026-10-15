@@ -2,7 +2,7 @@
 
 Each entry of a suite's ``truth.unexported`` table becomes a gap the Rust rubric proves against every
 fixture (``message_truth::absence``); the vocabulary and what each item withdraws or moves is documented on
-``derive.Framework.unexported``.
+``framework.Framework.unexported``.
 """
 
 from __future__ import annotations
@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from harness.truth.derive import Builder, Framework
+    from harness.truth.derive import Builder
+    from harness.truth.framework import Framework
 
 
 def withheld(part: dict[str, Any]) -> bool:

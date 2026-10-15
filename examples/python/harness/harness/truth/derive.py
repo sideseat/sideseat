@@ -28,6 +28,7 @@ from typing import Any
 from harness import content
 from harness.fakes import script
 from harness.truth import unexported
+from harness.truth.framework import Framework, ToolOutcome
 from harness.truth.wire import ModelCall
 
 FORMAT = "sideseat.truth/3"
@@ -55,6 +56,7 @@ PROMPTS: dict[str, list[tuple[str, ...]]] = {
     "mcp_tools": [(content.MCP,)],
     "server_tools": [(content.SERVER_TOOLS,)],
     "trailing_tool": [(content.TRAILING_TOOL,)],
+    "max_steps": [(content.MAX_STEPS,)],
 }
 
 #: Attachments of each scenario's user turn, by scenario.
@@ -131,12 +133,6 @@ def resolve_tool(name: str) -> str | None:
         if re.search(rf"(?:^|[-.:/]|__){re.escape(known)}$", name):
             return known
     return None
-
-
-@dataclass(frozen=True)
-class ToolOutcome:
-    value: Any
-    is_error: bool
 
 
 def run_tool(name: str, arguments: Any) -> ToolOutcome | None:
@@ -284,141 +280,6 @@ def _usage(call: ModelCall) -> dict[str, Any] | None:
     return call.usage.to_json() if call.usage else None
 
 
-@dataclass(frozen=True)
-class Framework:
-    """How a suite's framework turns the model's output into a conversation, as the suite declares it.
-
-    Read from the suite manifest's ``truth`` table. Some frameworks do not let the model call tools
-    directly: the model answers with one *plan* call whose member lists actions, and the framework
-    executes each - under ids of its own, since the wire never had any - and reports each action and
-    its result. Those actions are facts of the conversation: what the model asked for is on the wire,
-    inside the plan's arguments.
-    """
-
-    #: Plan tool name -> the argument member listing its actions, each ``{action_name: arguments}``.
-    action_plans: dict[str, str] = field(default_factory=dict)
-    #: Actions that end the turn; the first is the turn's answer.
-    turn_ending_actions: frozenset[str] = frozenset()
-    #: Action -> the argument members whose value the framework reports as the action's result, the
-    #: first present one deciding (a ``done`` action's result is its answer). Also read for a terminal
-    #: tool the framework reports a result for (smolagents' ``final_answer``).
-    action_results: dict[str, tuple[str, ...]] = field(default_factory=dict)
-    #: The framework re-sends the task inside a state message of its own on every step of a turn.
-    restates_prompt: bool = False
-    #: A turn the model ends with text is ended by the framework through this tool, called with the text
-    #: under this argument: ``{tool, argument}`` (smolagents runs ``final_answer(answer=...)`` itself).
-    text_answer_action: dict[str, str] = field(default_factory=dict)
-    #: Scenario -> actions the framework performs before the model's first call (opening a URL the task
-    #: names), each ``{action_name: arguments}``.
-    initial_actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
-    #: What the framework's telemetry leaves out, by a closed vocabulary, with the reason. Each becomes an
-    #: absence gap the Rust rubric proves against every fixture (``message_truth::absence``):
-    #: ``tool_call_ids`` - the model's tool-call ids (``id_not_exported``); ``tool_calling_rounds`` - the
-    #: responses that only call tools, whose parts are recorded one execution at a time
-    #: (``call_not_exported``); ``model``, ``response_model``, ``response_id``, ``finish`` - a call's
-    #: metadata the producer states wrongly with the right value in no payload; ``usage_input``,
-    #: ``usage_output``, ``usage_cache_read``, ``usage_cache_write``, ``usage_reasoning`` - a usage count the
-    #: producer states wrongly with the right count in no payload (``metadata_not_exported`` on
-    #: ``usage.<count>``); ``reasoning_kind`` -
-    #: visible reasoning the producer records as plain text (``kind_not_exported``);
-    #: ``withheld_reasoning`` - signed reasoning with no text the producer exports no part for
-    #: (``not_exported``); ``reasoning_signature`` - that reasoning's signature, the step itself exported
-    #: (``signature_not_exported``); ``reasoning_output`` - that reasoning missing from the span that
-    #: produced it, a later request re-sending it (``output_not_exported``); ``visible_reasoning_output`` -
-    #: visible reasoning missing from the span that produced it, another carrier of the capture holding it
-    #: (``output_not_exported``); ``reasoning_span_signature``
-    #: - that reasoning's signature missing from the span that produced it, another carrier holding it
-    #: (``span_signature_not_exported``); ``tool_calling_round_output`` - the tool calls of a response that
-    #: only calls tools, missing from the span that produced it, other carriers holding them
-    #: (``output_not_exported``); ``parallel_tool_results`` - the results of every tool call but the
-    #: first of one response, where the producer records only the first of the turn's tool messages
-    #: (``not_exported``; it withdraws them); ``structured_tool_results`` - the results a tool returned as
-    #: data rather than text, where the producer records only text (``not_exported``; it withdraws them);
-    #: ``parallel_call_order`` - the relative order of one response's parallel tool calls, where no payload
-    #: holds two of them together (``call_order_not_exported``; their presence stays asserted);
-    #: ``tool_round_call_spans`` - the own span of a call that answers a tool round, where the producer
-    #: records the whole run on one agent span and no model-call span (``call_span_not_exported``);
-    #: ``tool_round_traces`` - the trace context of such a call, which the producer starts a new trace for
-    #: (``trace_not_propagated``);
-    #: ``media`` - the
-    #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
-    #: those modalities, and it withdraws the fact, so it holds for every capture or none)
-    #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
-    #: value is the reason, or ``{reason, scenarios, modes}`` when only
-    #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
-    #: telemetry leaves it out.
-    unexported: dict[str, Any] = field(default_factory=dict)
-    #: Text the framework writes into the conversation itself rather than the model: each ``{text, source,
-    #: scenarios[, after]}``, ``source`` citing the line of the framework that writes it and ``after`` the
-    #: successful call it is written after (the last by default). It becomes a fact resting on ``framework``
-    #: evidence, which the rubric proves per capture (``message_truth::authored``): byte for byte in a span's
-    #: payload, held by no other fact, sent by no request as user or system content, placed where the raw
-    #: timing says, and carried by every later request.
-    framework_authored: tuple[dict[str, Any], ...] = ()
-
-    @classmethod
-    def of(cls, table: dict[str, Any] | None) -> "Framework":
-        table = table or {}
-        return cls(
-            action_plans=dict(table.get("action_plans", {})),
-            turn_ending_actions=frozenset(table.get("turn_ending_actions", ())),
-            action_results={
-                name: tuple(members)
-                for name, members in table.get("action_results", {}).items()
-            },
-            restates_prompt=bool(table.get("restates_prompt", False)),
-            initial_actions={
-                scenario: list(actions)
-                for scenario, actions in table.get("initial_actions", {}).items()
-            },
-            unexported=dict(table.get("unexported", {})),
-            text_answer_action=dict(table.get("text_answer_action", {})),
-            framework_authored=tuple(
-                _authored(entry) for entry in table.get("framework_authored", ())
-            ),
-        )
-
-    def authored(self, scenario: str) -> list[dict[str, Any]]:
-        """The texts the framework writes itself in this scenario."""
-        return [
-            entry for entry in self.framework_authored if scenario in entry["scenarios"]
-        ]
-
-    def actions(self, name: str, arguments: Any) -> list[tuple[str, Any]] | None:
-        """The actions a plan call lists, or ``None`` when the call is not a plan.
-
-        Fails closed: a plan without its declared list, an entry that is not one ``{action:
-        arguments}`` pair, or an action after the turn's end is a derivation error rather than a plan
-        with nothing to assert.
-        """
-        member = self.action_plans.get(name)
-        if member is None:
-            return None
-        listed = arguments.get(member) if isinstance(arguments, dict) else None
-        if not isinstance(listed, list) or not listed:
-            raise ValueError(f"the {name} plan has no {member!r} list: {arguments!r}")
-        actions = []
-        for entry in listed:
-            if not isinstance(entry, dict) or len(entry) != 1:
-                raise ValueError(
-                    f"a {name} action is not one {{name: arguments}} pair: {entry!r}"
-                )
-            ((action, value),) = entry.items()
-            if actions and actions[-1][0] in self.turn_ending_actions:
-                raise ValueError(
-                    f"the {name} plan acts after ending the turn: {listed!r}"
-                )
-            actions.append((action, value))
-        return actions
-
-    def action_result(self, name: str, arguments: Any) -> ToolOutcome | None:
-        """The result the framework reports for an action it carried out itself."""
-        for member in self.action_results.get(name, ()):
-            if isinstance(arguments, dict) and arguments.get(member) is not None:
-                return ToolOutcome(arguments[member], is_error=False)
-        return None
-
-
 @dataclass
 class Options:
     """What a source can vouch for, beyond the response content itself."""
@@ -534,6 +395,7 @@ def assemble(
         prompt = groups[0].pop(0)
         if not groups[0]:
             groups.pop(0)
+        state["task"] = prompt
         state["pending"] = builder.fact(
             conversation,
             "user_text",
@@ -619,6 +481,23 @@ def assemble(
             state["pending"] = None
         previous_call = identifier
         state["turn_calls"] += 1
+        limit = framework.step_limits.get(scenario)
+        fallback = limit is not None and state["turn_calls"] > limit
+        if fallback:
+            for entry in framework.framework_prompts:
+                if scenario not in entry["scenarios"]:
+                    continue
+                prompt = builder.fact(
+                    conversation,
+                    "user_text",
+                    "user",
+                    "framework",
+                    {"text": entry["template"].replace("{task}", state["task"])},
+                    require=_conversation_requirement("exact"),
+                )
+                builder.edges.append(
+                    {"kind": "prompt_of", "from": prompt, "to": identifier}
+                )
         if framework.restates_prompt and state["turn_calls"] > 1:
             builder.gap(
                 "user_text",
@@ -775,6 +654,7 @@ def assemble(
         # A turn the model ends in text that the framework then answers through a tool of its own.
         if (
             framework.text_answer_action
+            and not fallback
             and not call.tool_calls
             and (answer := _final_answer(builder, call_facts))
         ):
@@ -808,28 +688,6 @@ def assemble(
         _framework_text(builder, entry["text"], entry.get("after"))
     unexported.apply(builder, framework)
     return builder
-
-
-def _authored(entry: dict[str, Any]) -> dict[str, Any]:
-    """One declared framework text, refused unless it states its text, its source and its scenarios.
-
-    ``after`` is the ordinal of the successful call the framework writes it after, from 1; without it, the
-    scenario's last. The rubric checks the place against the raw payload's timing.
-    """
-    after = entry.get("after")
-    if not (
-        isinstance(entry.get("text"), str)
-        and entry["text"]
-        and isinstance(entry.get("source"), str)
-        and entry["source"]
-        and isinstance(entry.get("scenarios"), list)
-        and entry["scenarios"]
-        and (after is None or (isinstance(after, int) and after >= 1))
-    ):
-        raise ValueError(
-            f"a framework_authored entry needs a text, a source and scenarios: {entry!r}"
-        )
-    return entry
 
 
 def _strings(value: Any) -> list[str]:

@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **225 suites, 1104 samples, and 1394 captured OTLP requests**:
+The current tracked corpus contains **225 suites, 1109 samples, and 1400 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -206,7 +206,7 @@ describes those captures, not every release of the framework.
 | openinference | attachment (2 in 2 captures) | the document the user sent: the flattened input messages drop a document block (an image is kept, its data redacted), and no payload holds its bytes | `native`: files; `sdk`: files |
 | pydantic-ai | reasoning signature (8 in 6 captures) | the signature of reasoning the model withheld the text of: Pydantic AI's telemetry exports the reasoning step as an empty part and drops its signature, which no payload holds | `native`: error, multi_turn, session; `sdk`: error, multi_turn, session |
 | semantic-kernel | reasoning (4 in 4 captures) | reasoning the model signed and withheld the text of: Semantic Kernel's telemetry exports no reasoning part for it, and no payload holds one | `native`: multi_turn, session; `sdk`: multi_turn, session |
-| smolagents | user prompt (6 in 2 captures) | sent to the model as one message and exported as the separate messages its client merged: no payload holds the merged one | `native`: multi_turn; `sdk`: multi_turn |
+| smolagents | user prompt (11 in 7 captures) | sent to the model as one message and exported as the separate messages its client merged: no payload holds the merged one | `native`: max_steps, multi_turn; `native@0.1.26`: max_steps; `native@0.1.27`: max_steps; `native@0.1.32`: max_steps; `sdk`: max_steps, multi_turn |
 | spring-ai | attachment (4 in 2 captures) | the attachments the user sent: Spring AI's telemetry records the prompt's text only, and their bytes are in no payload | `native`: files; `sdk`: files |
 | spring-ai | model call's trace context (3 in 3 captures) | the trace of the call that answers a streamed tool round: Spring AI's OpenInference instrumentation starts a new trace for it, with no parent and no session | `native`: streaming; `native@0.1.9`: streaming; `sdk`: streaming |
 | spring-ai | reasoning (9 in 7 captures) | reasoning the model signed and withheld the text of: Spring AI's telemetry exports no reasoning part for it, and no payload holds one | `native`: multi_turn, session, streaming; `native@0.1.9`: streaming; `sdk`: multi_turn, session, streaming |

@@ -29,7 +29,8 @@ from harness.fakes import google_genai as fake_gemini
 from harness.fakes import openai as fake_openai
 from harness.scrub import PLACEHOLDER_USER
 from harness.truth import derive
-from harness.truth.derive import Builder, Framework, Options, assemble, document
+from harness.truth.derive import Builder, Options, assemble, document
+from harness.truth.framework import Framework
 from harness.truth import request_truth
 from harness.truth.wire import ModelCall, decode, decode_cassette
 
@@ -335,6 +336,7 @@ SCENARIO_TOOLS = {
     "error": ("book_flight",),
     "mcp_tools": ("calculate",),
     "trailing_tool": ("get_weather",),
+    "max_steps": ("get_weather",),
 }
 #: The tools the provider runs itself that each scenario enables; the Responses API is the one that
 #: offers them.

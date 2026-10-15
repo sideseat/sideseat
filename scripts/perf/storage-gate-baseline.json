@@ -52,7 +52,7 @@
   "projects": 12288,
   "raw_arbiter": 8192,
   "raw_collections": 12288,
-  "raw_owners": 442368,
+  "raw_owners": 446464,
   "raw_writers": 12288,
   "retention_cleanup": 12288,
   "retention_cleanup_tokens": 4096,
@@ -67,9 +67,9 @@
  "media": 4322820,
  "signals": {
   "traces": {
-   "items": 40971,
+   "items": 41052,
    "stored_excluding_media": 22347544,
-   "per_item": 545.45
+   "per_item": 544.37
   },
   "logs": {
    "items": 8013,

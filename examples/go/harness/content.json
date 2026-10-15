@@ -491,6 +491,11 @@
       "name": "trailing_tool",
       "summary": "A turn that ends on a tool result: the model calls a tool and the conversation stops there, so no later request re-sends what the tool returned.",
       "core": false
+    },
+    {
+      "name": "max_steps",
+      "summary": "An agent that reaches its step limit before answering and is asked for its answer once more, without tools.",
+      "core": false
     }
   ],
   "user_id": "example-user",

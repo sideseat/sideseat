@@ -23,6 +23,14 @@ integrations = ["smolagents"]
 [tool.sideseat-example.truth]
 action_results = { final_answer = ["answer"] }
 text_answer_action = { tool = "final_answer", argument = "answer" }
+# `max_steps` allows one step (the scenario's `max_steps=1`); smolagents then asks for the answer in a call of
+# its own, without tools, sending its final-answer prompt after the steps' history.
+step_limits = { max_steps = 1 }
+
+[[tool.sideseat-example.truth.framework_prompts]]
+template = "Based on the above, please provide an answer to the following user task:\n{task}"
+source = "smolagents 1.26.0, prompts/toolcalling_agent.yaml:240 (final_answer.post_messages), sent by MultiStepAgent.provide_final_answer"
+scenarios = ["max_steps"]
 
 [tool.uv]
 required-version = "==0.12.13"

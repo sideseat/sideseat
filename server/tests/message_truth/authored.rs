@@ -31,11 +31,166 @@ pub(super) fn emitting_spans(
     authored
         .into_iter()
         .map(|fact| {
+            if fact.kind == "user_text" {
+                // A prompt is the request of the call it was sent to, so that call's span is where it is shown.
+                let held = prompted_span(truth, fact, recon, matching)
+                    .filter(|at| span_holds(recon, at, fact.text()))
+                    .map(|(_, span)| span);
+                return (fact.id.clone(), held.into_iter().collect());
+            }
             let (before, after) = call_starts(truth, fact, recon, matching).unwrap_or_default();
             let placed = placed_holders(&holders(&spans, fact.text()), &before, &after);
             (fact.id.clone(), placed)
         })
         .collect()
+}
+
+/// The one call a framework prompt was sent to (`prompt_of`), or `None` where it names none or several.
+fn prompted_call<'t>(truth: &'t Truth, fact: &Fact) -> Option<&'t str> {
+    let mut calls = truth
+        .edges
+        .iter()
+        .filter(|e| e.kind == "prompt_of" && e.from.as_deref() == Some(fact.id.as_str()))
+        .filter_map(|e| e.to.as_deref());
+    match (calls.next(), calls.next()) {
+        (Some(call), None) => Some(call),
+        _ => None,
+    }
+}
+
+/// The span of the call a framework prompt was sent to, as `(trace, span)`: span ids repeat across traces.
+fn prompted_span(
+    truth: &Truth,
+    fact: &Fact,
+    recon: &Recon,
+    matching: &Matching,
+) -> Option<(String, String)> {
+    let call = prompted_call(truth, fact)?;
+    let generation = &recon.generations[matching.span_showing(call)?];
+    Some((generation.trace.clone(), generation.span.clone()))
+}
+
+/// Whether the span's payload holds the text byte for byte as one whole string: an attribute's, one inside an
+/// attribute that is JSON, or one inside a serialised value the payload decodes to (a Python repr, say).
+fn span_holds(recon: &Recon, (trace, span): &(String, String), text: &str) -> bool {
+    fn within(value: &Value, text: &str) -> bool {
+        match value {
+            Value::String(s) => s == text,
+            Value::Array(items) => items.iter().any(|v| within(v, text)),
+            Value::Object(members) => members.values().any(|v| within(v, text)),
+            _ => false,
+        }
+    }
+    if raw_spans(&recon.paths)
+        .iter()
+        .filter(|raw| raw.trace == *trace && raw.id == *span)
+        .any(|raw| raw.strings.iter().any(|(s, _)| s == text))
+    {
+        return true;
+    }
+    super::absence::haystack::Haystack::of_fixture(&recon.paths)
+        .carriers
+        .iter()
+        .filter(|c| {
+            c.trace.as_deref() == Some(trace.as_str()) && c.span.as_deref() == Some(span.as_str())
+        })
+        .any(|c| c.nodes.iter().any(|(_, node)| within(node, text)))
+}
+
+/// Whether a request's text holds the prompt as one of its own lines' runs: the whole text, or the text at a
+/// line boundary at either end, as a framework that joins its prompt to the message before it writes it.
+fn sends_prompt(sent: &str, prompt: &str) -> bool {
+    sent == prompt
+        || sent.ends_with(&format!("\n{prompt}"))
+        || sent.starts_with(&format!("{prompt}\n"))
+        || sent.contains(&format!("\n{prompt}\n"))
+}
+
+/// Why a framework prompt (`user_text` on `framework` evidence) does not hold for one capture, or `None` when it
+/// does. It holds where:
+/// - it names exactly one call it was sent to (`prompt_of`);
+/// - that call's span holds it, byte for byte, as a whole string of its raw payload;
+/// - no other fact of the truth holds it, so no model said it and no script sent it;
+/// - the capture's transcript records that call's request, and a user message of it sends it byte for byte, alone
+///   or joined at a line boundary to the message before it; and no earlier call's recorded request sent it.
+pub(super) fn prompt_refusal(
+    truth: &Truth,
+    fixture: &str,
+    fact: &Fact,
+    recon: &Recon,
+    matching: &Matching,
+) -> Option<String> {
+    let text = fact.text();
+    if fact.call.is_some() || fact.role != "user" || text.is_empty() {
+        return Some(format!("{} is not a user text outside every call", fact.id));
+    }
+    let Some(call) = prompted_call(truth, fact) else {
+        return Some(format!("{} names no one call it was sent to", fact.id));
+    };
+    let Some(span) = prompted_span(truth, fact, recon, matching) else {
+        return Some(format!("{call} has no span"));
+    };
+    if !span_holds(recon, &span, text) {
+        return Some(format!(
+            "{call}'s span does not hold {} as written",
+            fact.id
+        ));
+    }
+    if let Some(other) = truth
+        .facts
+        .iter()
+        .filter(|f| f.id != fact.id)
+        .find(|f| holds_text(&f.value, text))
+    {
+        return Some(format!("{} holds it", other.id));
+    }
+    // The request is the evidence that the prompt was sent: a capture without its transcript, or a transcript
+    // without that call's request, proves nothing about it.
+    let Some(recorded) = truth.requests.get(fixture) else {
+        return Some(format!(
+            "{fixture} records no request, so nothing shows {call} was sent it"
+        ));
+    };
+    let user_texts = |request: &super::truth::CallRequest| -> Vec<String> {
+        request
+            .messages
+            .iter()
+            .filter(|m| m.role == "user")
+            .flat_map(|m| &m.parts)
+            .filter_map(|o| o.part["text"].as_str().map(str::to_string))
+            .collect()
+    };
+    let Some(request) = recorded.calls.get(call) else {
+        return Some(format!("no recorded request is {call}'s"));
+    };
+    if !user_texts(request)
+        .iter()
+        .any(|sent| sends_prompt(sent, text))
+    {
+        return Some(format!(
+            "{call}'s request did not send {} as written",
+            fact.id
+        ));
+    }
+    // First sent to this call: every earlier call that answered had its request recorded, and none sent it. An
+    // earlier request missing from the transcript could have, so it refuses the proof rather than passing it.
+    for early in truth
+        .calls
+        .iter()
+        .take_while(|c| c.id != call)
+        .filter(|c| c.succeeded())
+    {
+        let Some(request) = recorded.calls.get(&early.id) else {
+            return Some(format!(
+                "{}, before {call}, has no recorded request",
+                early.id
+            ));
+        };
+        if user_texts(request).iter().any(|sent| sent.contains(text)) {
+            return Some(format!("{}, before {call}, was already sent it", early.id));
+        }
+    }
+    None
 }
 
 /// When the calls before and after a fact in its conversation started, or `None` where a call has no span.
@@ -99,6 +254,7 @@ fn placed_holders(holders: &[(String, u64)], before: &[u64], after: &[u64]) -> B
 /// One raw span: its id, and every string its attributes and events hold, JSON decoded, each with when it was
 /// written - an event's own time, or the span's end for its attributes.
 struct RawSpan {
+    trace: String,
     id: String,
     strings: Vec<(String, u64)>,
 }
@@ -131,6 +287,7 @@ fn raw_spans(paths: &[PathBuf]) -> Vec<RawSpan> {
                 }
             }
             out.push(RawSpan {
+                trace: hex_digest(&span.trace_id),
                 id: hex_digest(&span.span_id),
                 strings,
             });
@@ -298,7 +455,12 @@ fn every_framework_authored_fact_is_proven() {
             let recon = super::recon::build(fixture, paths);
             let matching = super::matching::match_calls(&checked, &recon, &mut Vec::new());
             for fact in authored {
-                match refusal(&checked, fixture, fact, &recon, &matching) {
+                let refused = if fact.kind == "user_text" {
+                    prompt_refusal(&checked, fixture, fact, &recon, &matching)
+                } else {
+                    refusal(&checked, fixture, fact, &recon, &matching)
+                };
+                match refused {
                     None => proven += 1,
                     Some(why) => defects.push(format!("{key}: {} on {fixture}: {why}", fact.id)),
                 }
@@ -485,5 +647,130 @@ fn a_framework_text_explains_only_its_own_block() {
     assert!(
         new.contains(&format!("text.missing:{}", authored.id)),
         "the text missing passed: {new:?}"
+    );
+}
+
+/// The prompt proof refuses a near miss - one character off - a prompt sent to a call whose span and request do not
+/// hold it, one a script fact also holds, and one an earlier request already sent; and accepts it on the old
+/// release whose span holds it only inside a serialised value.
+#[test]
+fn a_framework_prompt_is_refused_where_it_does_not_hold() {
+    let load = |fixture: &str| {
+        let paths = crate::discover_fixtures()
+            .into_iter()
+            .find(|(label, _)| label == fixture)
+            .map(|(_, paths)| paths)
+            .expect("the capture");
+        let truth = super::truth::load_all()["smolagents/max_steps"].for_fixture(fixture);
+        let recon = super::recon::build(fixture, &paths);
+        let matching = super::matching::match_calls(&truth, &recon, &mut Vec::new());
+        (truth, recon, matching)
+    };
+    let fixture = "smolagents/native/max_steps";
+    let (truth, recon, matching) = load(fixture);
+    let prompt = truth
+        .facts
+        .iter()
+        .find(|f| f.evidence == "framework" && f.kind == "user_text")
+        .expect("a framework prompt")
+        .clone();
+    let refused =
+        |truth: &Truth, fact: &Fact| prompt_refusal(truth, fixture, fact, &recon, &matching);
+    assert_eq!(refused(&truth, &prompt), None);
+    let (old, old_recon, old_matching) = load("smolagents/native@0.1.26/max_steps");
+    assert_eq!(
+        prompt_refusal(
+            &old,
+            "smolagents/native@0.1.26/max_steps",
+            &prompt,
+            &old_recon,
+            &old_matching
+        ),
+        None,
+        "a serialised copy of the request holds it"
+    );
+    let mut near = prompt.clone();
+    near.value["text"] = prompt
+        .text()
+        .replacen("Based on the above,", "Based on the above:", 1)
+        .into();
+    assert!(refused(&truth, &near).is_some(), "a near miss");
+    let mut misplaced = truth.clone();
+    for edge in misplaced
+        .edges
+        .iter_mut()
+        .filter(|e| e.kind == "prompt_of" && e.from.as_deref() == Some(prompt.id.as_str()))
+    {
+        edge.to = Some("call-001".into());
+    }
+    assert!(
+        refused(&misplaced, &prompt).is_some(),
+        "sent to the wrong call"
+    );
+    let mut held = truth.clone();
+    let task = held
+        .facts
+        .iter_mut()
+        .find(|f| f.kind == "user_text" && f.evidence == "script")
+        .expect("the task");
+    task.value["text"] = prompt.text().into();
+    assert!(refused(&held, &prompt).is_some(), "a script fact holds it");
+    let mut early = truth.clone();
+    let request = early.requests.get_mut(fixture).expect("a recorded request");
+    let first = request
+        .calls
+        .get_mut("call-001")
+        .expect("the first request");
+    let part = first
+        .messages
+        .iter_mut()
+        .find(|m| m.role == "user")
+        .and_then(|m| m.parts.first_mut())
+        .expect("a user part");
+    part.part = serde_json::json!({"type": "text", "text": prompt.text()});
+    assert!(
+        refused(&early, &prompt).is_some(),
+        "an earlier request sent it"
+    );
+    let mut untranscribed = truth.clone();
+    untranscribed.requests.clear();
+    assert!(refused(&untranscribed, &prompt).is_some(), "no transcript");
+    let mut unrequested = truth.clone();
+    unrequested
+        .requests
+        .get_mut(fixture)
+        .expect("a recorded request")
+        .calls
+        .remove("call-002");
+    assert!(
+        refused(&unrequested, &prompt).is_some(),
+        "no request of its call"
+    );
+    let mut first_unrecorded = truth.clone();
+    first_unrecorded
+        .requests
+        .get_mut(fixture)
+        .expect("a recorded request")
+        .calls
+        .remove("call-001");
+    assert!(
+        refused(&first_unrecorded, &prompt).is_some(),
+        "an earlier request missing from the transcript"
+    );
+    // The same span id in another trace is another span: its copy is no evidence for this call's.
+    let mut elsewhere = super::matching::match_calls(&truth, &recon, &mut Vec::new());
+    let mut moved = recon.clone();
+    let at = matching
+        .span_showing("call-002")
+        .expect("the fallback's span");
+    let mut other = moved.generations[at].clone();
+    other.trace = "another-trace".into();
+    moved.generations.push(other);
+    elsewhere
+        .span_of
+        .insert("call-002".into(), moved.generations.len() - 1);
+    assert!(
+        prompt_refusal(&truth, fixture, &prompt, &moved, &elsewhere).is_some(),
+        "the span id of another trace"
     );
 }

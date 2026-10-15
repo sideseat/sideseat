@@ -1,0 +1,419 @@
+{
+  "label": "smolagents/native/max_steps",
+  "request_count": 2,
+  "span_count": 6,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/LiteLLMModel.generate/span-6": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:",
+          "content_digest": "a218109beb04f5f8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "92799a540f628b39",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Calling tools: [{'id': 'tooluse_RKoGWA8l2IX0s8dZ0GLqN5', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': {'city': 'Paris'}}}]",
+          "content_digest": "baa43696d6afcc98",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Observation: {'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}",
+          "content_digest": "e3721c01eb71a052",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Based on the above, please provide an answer to the following user task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "b79e9190d1c4e1c0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No, you probably won't need an umbrella in Paris. The forecast is sunny with a high of 21°C (about 70°F), so it should be a pleasant day. The data only covers one day, so if you're staying longer, check the forecast again closer to the time…[241 chars]",
+          "content_digest": "9c25e99d38530318",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate_stream/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "92799a540f628b39",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "df79eeffe6eea7aa",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/SimpleTool/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "dfdedaec0b8a55b4",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "a34e1fcd400dc744",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "df79eeffe6eea7aa",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "8b45ca62576342bd",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/max-steps/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "92799a540f628b39",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "df79eeffe6eea7aa",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "8b45ca62576342bd",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:",
+          "content_digest": "a218109beb04f5f8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Based on the above, please provide an answer to the following user task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "b79e9190d1c4e1c0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No, you probably won't need an umbrella in Paris. The forecast is sunny with a high of 21°C (about 70°F), so it should be a pleasant day. The data only covers one day, so if you're staying longer, check the forecast again closer to the time…[241 chars]",
+          "content_digest": "9c25e99d38530318",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-max_steps": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "92799a540f628b39",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "df79eeffe6eea7aa",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "8b45ca62576342bd",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:",
+          "content_digest": "a218109beb04f5f8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Based on the above, please provide an answer to the following user task: Check the weather in Paris and tell me whether to take an umbrella.",
+          "content_digest": "b79e9190d1c4e1c0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No, you probably won't need an umbrella in Paris. The forecast is sunny with a high of 21°C (about 70°F), so it should be a pleasant day. The data only covers one day, so if you're staying longer, check the forecast again closer to the time…[241 chars]",
+          "content_digest": "9c25e99d38530318",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer",
+      "get_weather"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "An agent tried to answer a user query but it got stuck and failed to do so. You are tasked with providing an answer instead. Here is the agent's memory:",
+        "content_digest": "a218109beb04f5f8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Based on the above, please provide an answer to the following user task: Check the weather in Paris and tell me whether to take an umbrella.",
+        "content_digest": "b79e9190d1c4e1c0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "No, you probably won't need an umbrella in Paris. The forecast is sunny with a high of 21°C (about 70°F), so it should be a pleasant day. The data only covers one day, so if you're staying longer, check the forecast again closer to the time…[241 chars]",
+        "content_digest": "9c25e99d38530318",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "8b45ca62576342bd",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+        "content_digest": "630fb2be90363606",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Check the weather in Paris and tell me whether to take an umbrella.",
+        "content_digest": "92799a540f628b39",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_RKoGWA8l2IX0s8dZ0GLqN5\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "df79eeffe6eea7aa",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

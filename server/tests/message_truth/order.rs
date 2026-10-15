@@ -135,7 +135,11 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
     }
     // A text the framework writes itself follows the response it was written after: after it in a trace or
     // session view, before it in the feed, newest first.
-    for fact in truth.facts.iter().filter(|f| f.evidence == "framework") {
+    for fact in truth
+        .facts
+        .iter()
+        .filter(|f| f.evidence == "framework" && f.kind == "text")
+    {
         let Some(conversation) = truth
             .conversations
             .iter()

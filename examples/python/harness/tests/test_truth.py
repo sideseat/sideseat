@@ -11,6 +11,7 @@ import pytest
 from harness import content
 from harness.fakes import script
 from harness.truth import derive, sources, wire
+from harness.truth.framework import Framework
 from harness.truth.wire import ModelCall
 
 
@@ -182,7 +183,7 @@ def test_encrypted_reasoning_with_no_text_at_all_is_not_required() -> None:
 
 
 def test_a_framework_text_ends_the_turn_and_is_refused_if_the_model_said_it() -> None:
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {
             "framework_authored": [
                 {
@@ -205,11 +206,11 @@ def test_a_framework_text_ends_the_turn_and_is_refused_if_the_model_said_it() ->
             "p", "chat", [model_call(wire.text_part("Done here."))], options=options
         )
     with pytest.raises(ValueError, match="needs a text, a source and scenarios"):
-        derive.Framework.of({"framework_authored": [{"text": "Done here."}]})
+        Framework.of({"framework_authored": [{"text": "Done here."}]})
     # Quoted or spanning lines, a response holding it is still the model's text.
     for said in ('Done "here".', "Done\nhere."):
         quoted = derive.Options(
-            framework=derive.Framework.of(
+            framework=Framework.of(
                 {
                     "framework_authored": [
                         {
@@ -228,7 +229,7 @@ def test_a_framework_text_ends_the_turn_and_is_refused_if_the_model_said_it() ->
 
 
 def test_a_framework_text_written_after_a_call_precedes_the_next_response() -> None:
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {
             "framework_authored": [
                 {
@@ -254,6 +255,69 @@ def test_a_framework_text_written_after_a_call_precedes_the_next_response() -> N
     sequence = builder.conversations[0]["sequence"]
     answer = builder.calls[1]["outputs"][0]
     assert sequence.index(authored["id"]) == sequence.index(answer) - 1
+
+
+def test_a_call_past_the_step_limit_is_the_fallback_sent_the_framework_s_prompt() -> (
+    None
+):
+    table = {
+        "text_answer_action": {"tool": "final_answer", "argument": "answer"},
+        "step_limits": {"max_steps": 1},
+        "framework_prompts": [
+            {
+                "template": "Answer now:\n{task}",
+                "source": "framework.py:1",
+                "scenarios": ["max_steps"],
+            }
+        ],
+    }
+    calls = [
+        model_call(
+            wire.tool_call_part("a", "get_weather", {"city": "Paris"}),
+            finish="tool_use",
+        ),
+        model_call(wire.text_part("No umbrella.")),
+    ]
+    options = derive.Options(framework=Framework.of(table))
+    builder = derive.assemble("p", "max_steps", calls, options=options)
+    (prompt,) = [f for f in builder.facts if f["evidence"] == "framework"]
+    assert prompt["kind"] == "user_text"
+    assert prompt["value"] == {"text": f"Answer now:\n{content.MAX_STEPS}"}
+    assert {
+        "kind": "prompt_of",
+        "from": prompt["id"],
+        "to": "call-002",
+    } in builder.edges
+    sequence = builder.conversations[0]["sequence"]
+    assert (
+        sequence.index(prompt["id"])
+        == sequence.index(builder.calls[1]["outputs"][0]) - 1
+    )
+    # The fallback's text is the answer as written, not a final_answer call the framework never ran.
+    assert not [
+        f
+        for f in facts_by_kind(builder, "tool_call")
+        if f["value"]["name"] == "final_answer"
+    ]
+    # Within the limit, the same text is routed through the answering tool, and no prompt is sent.
+    within = derive.Options(
+        framework=Framework.of({**table, "step_limits": {"max_steps": 2}})
+    )
+    builder = derive.assemble("p", "max_steps", calls, options=within)
+    assert not [f for f in builder.facts if f["evidence"] == "framework"]
+    assert [
+        f
+        for f in facts_by_kind(builder, "tool_call")
+        if f["value"]["name"] == "final_answer"
+    ]
+    with pytest.raises(ValueError, match="a template naming"):
+        Framework.of(
+            {
+                "framework_prompts": [
+                    {"template": "Answer now.", "source": "f", "scenarios": ["x"]}
+                ]
+            }
+        )
 
 
 def test_calculator_evaluates_arithmetic_only() -> None:
@@ -363,7 +427,7 @@ def test_a_terminal_answer_tool_ends_the_turn_without_a_result() -> None:
 def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() -> None:
     """`media` withdraws the attachments a producer's telemetry leaves out, each with a `not_exported` gap
     the rubric proves absent; `modalities` limits it, and an attachment of another modality stays asserted."""
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {"unexported": {"media": {"reason": "no bytes", "modalities": ["document"]}}}
     )
     builder = derive.assemble(
@@ -388,7 +452,7 @@ def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() ->
             "files",
             [model_call(wire.text_part("x"))],
             options=derive.Options(
-                framework=derive.Framework.of({"unexported": {"attachments": "x"}})
+                framework=Framework.of({"unexported": {"attachments": "x"}})
             ),
         )
 
@@ -396,7 +460,7 @@ def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() ->
 def test_a_tool_calling_round_missing_from_its_span_is_owed_off_it() -> None:
     """`tool_calling_round_output` owes the tool calls of a response that only calls tools off the span that
     produced it, each with an `output_not_exported` gap; a response with text keeps its calls on its span."""
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {"unexported": {"tool_calling_round_output": "records no tool-only response"}}
     )
     calls = [
@@ -441,9 +505,7 @@ def test_unexported_structured_tool_results_are_withdrawn_where_declared() -> No
     ]
 
     def derived(entry: object) -> tuple[dict[str, dict], list[dict]]:
-        framework = derive.Framework.of(
-            {"unexported": {"structured_tool_results": entry}}
-        )
+        framework = Framework.of({"unexported": {"structured_tool_results": entry}})
         builder = derive.assemble(
             "p", "tool_use", calls, options=derive.Options(framework=framework)
         )
@@ -469,7 +531,7 @@ def test_unexported_structured_tool_results_are_withdrawn_where_declared() -> No
 def test_unexported_parallel_tool_results_withdraw_all_but_the_first() -> None:
     """`parallel_tool_results` withdraws the results of every tool call of a response but the first, each
     with a `not_exported` gap the rubric proves; the first result, and a lone call's, stay asserted."""
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {"unexported": {"parallel_tool_results": "records the first tool message only"}}
     )
     calls = [
@@ -505,7 +567,7 @@ def test_unexported_withheld_reasoning_is_withdrawn_with_a_gap_the_rubric_proves
 ):
     """`withheld_reasoning` withdraws the signed reasoning with no text a producer's telemetry drops, with a
     `not_exported` gap the rubric proves; visible reasoning stays asserted."""
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {"unexported": {"withheld_reasoning": "drops reasoning it cannot show"}}
     )
     builder = derive.assemble(
@@ -538,9 +600,7 @@ def test_unexported_visible_reasoning_is_withdrawn_and_a_scoped_one_stays_owed()
     fact stays asserted in the document, and each named capture withdraws it."""
 
     def reasoning_of(declaration: object) -> tuple[dict, dict, list]:
-        framework = derive.Framework.of(
-            {"unexported": {"visible_reasoning": declaration}}
-        )
+        framework = Framework.of({"unexported": {"visible_reasoning": declaration}})
         builder = derive.assemble(
             "p",
             "chat",
@@ -562,7 +622,7 @@ def test_unexported_visible_reasoning_is_withdrawn_and_a_scoped_one_stays_owed()
     assert withheld["require"] is not None
     assert [(g["fact"], g["subject"]) for g in gaps] == [("reasoning", visible["id"])]
     # Reasoning the provider redacted has no text to search for: it is not this claim.
-    redacted_framework = derive.Framework.of(
+    redacted_framework = Framework.of(
         {"unexported": {"visible_reasoning": "drops the reasoning it shows"}}
     )
     redacted = derive.assemble(
@@ -588,7 +648,7 @@ def test_a_misreported_usage_count_is_a_metadata_gap_on_each_call_stating_one() 
     """`usage_input` and its siblings declare a usage count the producer states wrongly with the right count in
     no payload: a `metadata_not_exported` gap on `usage.<count>` for each successful call whose usage has that
     count, scoped to the modes declared, which the rubric proves per capture."""
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {
             "unexported": {
                 "usage_input": {
@@ -616,7 +676,7 @@ def test_a_misreported_usage_count_is_a_metadata_gap_on_each_call_stating_one() 
 def test_an_unexported_reasoning_signature_keeps_the_step_asserted() -> None:
     """`reasoning_signature` asserts withheld reasoning without its signature, with a
     `signature_not_exported` gap the rubric proves; the step itself stays owed."""
-    framework = derive.Framework.of(
+    framework = Framework.of(
         {"unexported": {"reasoning_signature": "drops the signature"}}
     )
     builder = derive.assemble(
@@ -647,9 +707,7 @@ def test_an_output_off_its_span_is_declared_for_a_call_a_later_one_follows() -> 
             model_call(wire.reasoning_part("", signed=True), wire.text_part("Bye.")),
         ],
         options=derive.Options(
-            framework=derive.Framework.of(
-                {"unexported": {"reasoning_output": "re-sent only"}}
-            )
+            framework=Framework.of({"unexported": {"reasoning_output": "re-sent only"}})
         ),
     )
     first, last = facts_by_kind(off_span, "reasoning")
@@ -680,7 +738,7 @@ def test_visible_reasoning_off_its_span_stays_owed_by_the_conversation() -> None
             model_call(wire.reasoning_part("", signed=True), wire.text_part("Done.")),
         ],
         options=derive.Options(
-            framework=derive.Framework.of(
+            framework=Framework.of(
                 {"unexported": {"visible_reasoning_output": "held elsewhere"}}
             )
         ),
@@ -695,7 +753,7 @@ def test_visible_reasoning_off_its_span_stays_owed_by_the_conversation() -> None
     assert not any(g.get("subject") == withheld["id"] for g in off_span.gaps)
 
 
-PLANNER = derive.Framework.of(
+PLANNER = Framework.of(
     {
         "action_plans": {"Plan": "action"},
         "turn_ending_actions": ["done"],
