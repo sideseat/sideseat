@@ -62,15 +62,15 @@
   "staged_payload_anomalies": 8192,
   "staged_payloads": 16384,
   "trace_file_confirm_stamps": 4096,
-  "trace_files": 282624,
+  "trace_files": 278528,
   "users": 12288
  },
  "media": 4322820,
  "signals": {
   "traces": {
    "items": 41052,
-   "stored_excluding_media": 22794008,
-   "per_item": 555.25
+   "stored_excluding_media": 22789912,
+   "per_item": 555.15
   },
   "logs": {
    "items": 8013,

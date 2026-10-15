@@ -255,7 +255,7 @@ class TestConverse:
     def test_converse_with_tool_results(
         self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
     ) -> None:
-        """Tool results from input messages are bundled in choice event."""
+        """Tool results the request sent are its input, never on the output choice event."""
         provider, exporter = tracer_setup
         client = MagicMock()
 
@@ -287,10 +287,18 @@ class TestConverse:
 
         spans = exporter.get_finished_spans()
         choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
-        assert "tool.result" in choice.attributes
-        tool_results = json.loads(choice.attributes["tool.result"])
-        assert len(tool_results) == 1
-        assert tool_results[0]["toolResult"]["toolUseId"] == "tu_123"
+        assert "tool.result" not in choice.attributes
+        details = next(
+            e for e in spans[0].events if e.name == "gen_ai.client.inference.operation.details"
+        )
+        sent = json.loads(details.attributes["gen_ai.input.messages"])
+        results = [
+            block["toolResult"]
+            for message in sent
+            for block in message.get("content", [])
+            if isinstance(block, dict) and "toolResult" in block
+        ]
+        assert [r["toolUseId"] for r in results] == ["tu_123"]
 
     def test_converse_error(
         self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]

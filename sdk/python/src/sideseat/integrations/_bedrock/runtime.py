@@ -192,8 +192,6 @@ def _wrap_converse_stream(original: Any, tracer: Tracer) -> Any:
         _set_request_attrs(span, model_id, kwargs)
 
         input_msgs = _build_input_messages(kwargs)
-        tool_results = _extract_tool_results(kwargs)
-
         # Emit input early so error paths retain context
         span.add_event(
             "gen_ai.client.inference.operation.details",
@@ -216,7 +214,7 @@ def _wrap_converse_stream(original: Any, tracer: Tracer) -> Any:
             context.detach(token)
             return response
 
-        wrapper = _ConverseStreamWrapper(stream, span, token, tool_results)
+        wrapper = _ConverseStreamWrapper(stream, span, token)
         response["stream"] = wrapper
         return response
 
@@ -226,19 +224,17 @@ def _wrap_converse_stream(original: Any, tracer: Tracer) -> Any:
 class _ConverseStreamWrapper:
     """Proxies the EventStream, accumulating content blocks for span events."""
 
-    __slots__ = ("_acc", "_ctx_token", "_ended", "_inner", "_span", "_tool_results")
+    __slots__ = ("_acc", "_ctx_token", "_ended", "_inner", "_span")
 
     def __init__(
         self,
         inner: Any,
         span: Span,
         ctx_token: object,
-        tool_results: list[dict[str, Any]],
     ) -> None:
         self._inner = iter(inner)
         self._span = span
         self._ctx_token = ctx_token
-        self._tool_results = tool_results
         self._ended = False
         self._acc = _ConverseAccumulator()
 
@@ -290,7 +286,6 @@ class _ConverseStreamWrapper:
                     span,
                     output_msg,
                     stop_reason=self._acc.stop_reason,
-                    tool_results=self._tool_results or None,
                 )
             except Exception:
                 logger.debug("Failed to emit stream events", exc_info=True)
@@ -400,12 +395,10 @@ def _emit_invoke_model_claude_events(
     input_msgs = _build_invoke_model_input_messages(req_body)
     output_content = body.get("content", [])
     output_msg = {"role": body.get("role", "assistant"), "content": output_content}
-    tool_results = _extract_tool_results(req_body)
     _emit_span_events(
         span,
         output_msg,
         stop_reason=body.get("stop_reason"),
-        tool_results=tool_results or None,
         input_msgs=input_msgs,
     )
 
@@ -419,12 +412,10 @@ def _emit_invoke_model_nova_events(
     req_body = _parse_invoke_model_request(kwargs)
     input_msgs = _build_invoke_model_input_messages(req_body)
     output_msg = body.get("output", {}).get("message", {})
-    tool_results = _extract_tool_results(req_body)
     _emit_span_events(
         span,
         output_msg,
         stop_reason=body.get("stopReason"),
-        tool_results=tool_results or None,
         input_msgs=input_msgs,
     )
 
@@ -651,13 +642,11 @@ class _InvokeModelStreamWrapper:
         req_body = self._req_body
         input_msgs = _build_invoke_model_input_messages(req_body)
         output_msg = {"role": "assistant", "content": content_blocks}
-        tool_results = _extract_tool_results(req_body)
 
         _emit_span_events(
             span,
             output_msg,
             stop_reason=stop_reason,
-            tool_results=tool_results or None,
             input_msgs=input_msgs,
         )
 
@@ -696,13 +685,11 @@ class _InvokeModelStreamWrapper:
         req_body = self._req_body
         input_msgs = _build_invoke_model_input_messages(req_body)
         output_msg = {"role": "assistant", "content": acc.blocks}
-        tool_results = _extract_tool_results(req_body)
 
         _emit_span_events(
             span,
             output_msg,
             stop_reason=acc.stop_reason,
-            tool_results=tool_results or None,
             input_msgs=input_msgs,
         )
 
@@ -844,25 +831,6 @@ def _build_input_messages(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
     return input_msgs
 
 
-def _extract_tool_results(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract tool result blocks from input messages.
-
-    Handles both Converse format ({"toolResult": {...}}) and
-    Claude Messages API format ({"type": "tool_result", ...}).
-    """
-    results: list[dict[str, Any]] = []
-    for msg in kwargs.get("messages", []):
-        content = msg.get("content", [])
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            if "toolResult" in block or block.get("type") == "tool_result":
-                results.append(block)
-    return results
-
-
 def _parse_invoke_model_request(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Parse JSON request body from InvokeModel kwargs."""
     try:
@@ -910,7 +878,6 @@ def _emit_span_events(
     span: Span,
     output_msg: dict[str, Any],
     stop_reason: str | None = None,
-    tool_results: list[dict[str, Any]] | None = None,
     input_msgs: list[dict[str, Any]] | None = None,
 ) -> None:
     """Emit standard gen_ai telemetry events on a span.
@@ -941,8 +908,6 @@ def _emit_span_events(
     }
     if stop_reason:
         choice_attrs["finish_reason"] = stop_reason
-    if tool_results:
-        choice_attrs["tool.result"] = json.dumps(encode_value(tool_results))
     span.add_event("gen_ai.choice", choice_attrs)
 
 
@@ -950,11 +915,9 @@ def _emit_converse_events(span: Span, kwargs: dict[str, Any], response: dict[str
     """Emit gen_ai events for a Converse response."""
     input_msgs = _build_input_messages(kwargs)
     output_msg = response.get("output", {}).get("message", {})
-    tool_results = _extract_tool_results(kwargs)
     _emit_span_events(
         span,
         output_msg,
         stop_reason=response.get("stopReason"),
-        tool_results=tool_results or None,
         input_msgs=input_msgs,
     )
