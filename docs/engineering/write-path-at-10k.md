@@ -134,12 +134,34 @@ batch alone cannot answer it unless it holds the trace's earliest span. The dele
 runs only for traces a fence names. The live-event stamp is for viewers, so it could be resolved where an event is
 delivered rather than for every span written, with the cost then following the viewers, not the writes.
 
+After the SQLite lock fix (`f4d286af`), at `f5c0ee97`, the ramp in the same container sustained 940, 974 and 974
+spans/s at one core and 972, 972 and 971 at four (2026-10-15, default and capped DuckDB threads alternating, loads
+at start 4.3 to 8.9). Four cores now match one, where they fell below it. The likely cause is the lock fix, since the
+refused associations and their redelivered payloads are gone, but other commits landed in between and it is not
+isolated.
+
+**DuckDB's threads capped at one, measured and closed.** On the ingest ramp at four cores the cap sustained the same
+972 spans/s, on 16 % less server CPU at the 1,000 step (23.9 s against 28.4 and 28.6). But the connection is the
+one API reads use, and DuckDB's `threads` is set for the whole database. Over default, cap, default, cap and default
+runs of the read gate at a million spans, the cap made the analytical reads 1.4 to 3.3 times slower, for example:
+
+| read | default (three runs) | capped (two runs) |
+| --- | --- | --- |
+| list traces | 52.9, 51.1, 53.5 ms | 99.7, 99.5 ms |
+| list sessions | 93.5, 93.1, 93.1 ms | 196.2, 198.4 ms |
+| messages of a session | 75.7, 79.5, 78.1 ms | 217.5, 217.0 ms, over its 200 ms ceiling |
+| project message feed | 226.8, 231.4, 220.9 ms | 739.0, 738.3 ms |
+| search spans | 170.7, 170.3, 172.2 ms | 565.9, 569.8 ms |
+
+Both capped runs failed the gate. The cap would need a connection for ingest of its own, which the single
+connection's WAL guarantee rules out today (`DuckdbService`), so it is not pursued.
+
 ### 1.3 What each problem needs
 
-- **Four cores below one** is configuration plus one defect. The defect is the SQLite lock: a transaction that
-  writes takes the write lock at `BEGIN IMMEDIATE`. The configuration is DuckDB's parallelism on the ingest
-  connection, which is measured before it changes, because API reads share the connection. With both fixed, four
-  cores should at least match one. Beyond that the single connection bounds the rate: persist is about 55 % of the
+- **Four cores below one** was configuration plus one defect. The defect, the SQLite lock, is fixed: a transaction
+  that writes takes the write lock before it reads. Since then four cores match one. The configuration, DuckDB's
+  parallelism on the shared connection, was measured and is kept: capping it saved CPU on ingest but slowed the
+  analytical reads two to three times. Beyond that the single connection bounds the rate: persist is about 55 % of the
   wall time at one core. Rising further needs prepare, which is parallel, to overlap persist, which is serial. The
   inline batcher awaits each batch before it cuts the next.
 - **1.3 ms of CPU a span** is design. The bulk is per-statement planning and per-row keyed reads and WAL writing in
