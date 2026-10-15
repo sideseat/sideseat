@@ -554,7 +554,9 @@ still land. The last condition is the one that needs a mechanism, and the order 
    ClickHouse reads and then writes, on one replica, so a version landing in between, or committed on a replica
    the read missed, is not seen and its check is only advisory (`server/specs/RawRewriteFiles.tla`). And it must
    make a raw rewrite's queue entry readable only once its append has landed or never will, so the rewrite's
-   derived file cleanup is complete on ClickHouse as on DuckDB (below);
+   derived file cleanup is complete on ClickHouse as on DuckDB (below). It is also what lets a dead ingest
+   writer's file registration be dropped (the pending-writer leak, below), so it must meet that design's
+   requirements too;
 3. pruning on top of it, by one rule on both backends: the lowest epoch any execution that can still land has
    read.
 
@@ -653,8 +655,32 @@ not data loss, and nothing today resets a dead writer's count. Since a skipped a
 also keeps its trace's retention cleanup recorded for as long as the trace lives: one survivor scan and release per
 trace every 80 minutes at the backoff's ceiling, bounded in cost per retry and unbounded in time. Fixing the leak
 ends those retries. A fix needs a writer's identity behind each increment, so that a
-dead one can be told apart from one in flight. A lease would bring back the stalled-writer hazard, so the fix is
-still to be designed.
+dead one can be told apart from one in flight. A lease would bring back the stalled-writer hazard.
+
+A design was modelled and reviewed and is parked: per-execution writer rows keyed to the staged payload, which
+settlement confirms or owes and then drops with the registration. The review found that settlement can drop the
+writer of an execution that is still running and lands its span afterwards - under a hold, say - so that file is
+reclaimed. The counter keeps such an execution protected. A dead writer can be dropped safely only once its
+execution can no longer land, which is what the landing fence provides. So the fix waits for the fence, and the
+fence's design must meet these requirements:
+
+- settlement drops a payload's writers only once no execution of it can land a write or a confirm afterwards;
+- `DeliberatelyAbsent` settles a payload some of whose records are stored, so what settlement does to a writer's
+  association depends on whether that association's own records are stored, not on the payload's verdict;
+- on PostgreSQL READ COMMITTED a release's `NOT EXISTS` over another table does not see a writer that committed
+  while the release waited on the association row, unlike a column of the row itself: registration and release need
+  a lock taken in a statement of its own before the predicate;
+- settlement enumerates a payload's writers and deletes its registration in one serialization with registration: a
+  foreign-key cascade removes a writer that committed after the enumeration without its association being confirmed
+  or owed;
+- the number of writer rows is bounded by a start budget that every execution reserves atomically, and the rows count
+  toward the project's quota as `raw_writers` do;
+- every media association carries its execution's identity: today the redrive, claimed-message processing and the
+  log path do not pass the staged payload on;
+- the model's invariants cover holds, raw references, and the specific execution that holds an association, and a
+  write that slips past a tombstone is not re-owed in one atomic step but by the deletion sweep's repeated checks;
+- an association is refused on a tombstoned trace in its own transaction (on PostgreSQL under the trace's advisory
+  lock, which a tombstone write also takes), and a confirm marks durable only what its own writer still holds.
 
 **Open: a replica that has not seen a rewrite keeps the file it removed.** On ClickHouse a rewritten-record pass
 reads the record's new version, but its survivor scan reads every replica, and a replica the rewrite's version has
