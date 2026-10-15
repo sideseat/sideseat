@@ -59,6 +59,11 @@ impl RawStore for ClickhouseRepository {
     /// loses its record if the caller dies before it looks again - the open defect the port names, until the
     /// transactional store arbitrates.
     /// Not one step either, for the same reason as the delete.
+    fn rewrites_queue_atomically(&self) -> bool {
+        // It reads, then appends, then queues: not one step, until the landing fence.
+        false
+    }
+
     async fn append_raw_rewrites(
         &self,
         rewrites: &[sideseat_ports::types::RawRewrite],
@@ -167,6 +172,24 @@ impl RawStore for ClickhouseRepository {
         raw::named_in_traces(&client, &spans, project_id, trace_ids)
             .await
             .map_err(Into::into)
+    }
+
+    async fn traces_indexed_under_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<String>, DataError> {
+        // On every replica, as the reads that release are: a trace a lagging replica's index misses would keep
+        // its files.
+        let traces = self.0.every_replica_table("otel_raw_traces");
+        tenant_query!(
+            self,
+            project_id,
+            raw::traces_indexed_under,
+            &traces,
+            project_id,
+            raw_id
+        )
     }
 
     async fn raw_records_indexed_under_traces(

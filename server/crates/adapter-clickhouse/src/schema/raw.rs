@@ -41,12 +41,16 @@ const TTL: &str = concat!("TTL ", expires!(), " DELETE");
 /// its expiry was reconciled, re-derived and kept media alive, and its trace owned it.
 pub(crate) const LIVE: &str = concat!(expires!(), " > now64(6, 'UTC')");
 
+/// The trace index's columns. Its key reaches a record's traces by trace; a rewritten record's file
+/// reconciliation reaches them by record (`traces_indexed_under`), which the key cannot narrow below the
+/// project, so a bloom filter on `raw_id` lets that read skip the granules that hold none of the record's rows.
 const TRACE_COLUMNS: &str = "
     project_id   LowCardinality(String),
     trace_id     String,
     raw_id       String,
     signal_until DateTime64(6, 'UTC'),
-    hold_until   Nullable(DateTime64(6, 'UTC'))";
+    hold_until   Nullable(DateTime64(6, 'UTC')),
+    INDEX raw_ids raw_id TYPE bloom_filter(0.01) GRANULARITY 1";
 
 const PENDING_COLUMNS: &str = "
     project_id   LowCardinality(String),

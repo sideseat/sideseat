@@ -631,6 +631,10 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         self.inner.raw_records_page(project_id, after, limit).await
     }
 
+    fn rewrites_queue_atomically(&self) -> bool {
+        self.inner.rewrites_queue_atomically()
+    }
+
     async fn append_raw_rewrites(
         &self,
         rewrites: &[sideseat_ports::types::RawRewrite],
@@ -691,6 +695,16 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
     ) -> Result<std::collections::HashSet<(String, String)>, DataError> {
         self.inner
             .raw_records_named_in_traces(project_id, trace_ids)
+            .await
+    }
+
+    async fn traces_indexed_under_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .traces_indexed_under_raw_record(project_id, raw_id)
             .await
     }
 

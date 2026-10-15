@@ -362,6 +362,22 @@ pub fn delete_superseded(
     })
 }
 
+/// The traces the trace index holds under one record, through its `raw_id` index (`idx_raw_traces_raw`).
+pub fn traces_indexed_under(
+    conn: &Connection,
+    project_id: &ProjectId,
+    raw_id: &str,
+) -> Result<Vec<String>, DuckdbError> {
+    let keyed = duckdb_keyed("otel_raw_traces", "raw_id", "project_id, trace_id", 1);
+    let mut statement = conn.prepare(&format!(
+        "SELECT DISTINCT trace_id FROM {keyed} WHERE project_id = ? ORDER BY trace_id"
+    ))?;
+    let rows = statement.query_map(params![raw_id, project_id.as_str()], |r| {
+        r.get::<_, String>(0)
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
+}
+
 /// The records the trace index holds under these traces.
 pub fn indexed_under_traces(
     conn: &Connection,

@@ -42,6 +42,13 @@ const RAW_LANDING_HORIZON: chrono::Duration = chrono::Duration::seconds(30);
 /// collector that is merely busy rarely sees its work repeated - repeating it is safe, only wasted.
 const RAW_COLLECTION_TAKEOVER_AGE: chrono::Duration = chrono::Duration::minutes(5);
 
+#[cfg(test)]
+thread_local! {
+    /// Traces the derived file reconciliation has handed to a survivor scan on this thread, each of which reads
+    /// the trace's raw records: what the many-trace test counts.
+    pub(super) static RECONCILED_TRACES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
 /// How often the reconciler looks at its queue. Deleted content leaves the raw store within about this long
 /// of the deletion, and an idle queue costs one indexed read per interval.
 const RAW_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
@@ -280,9 +287,69 @@ impl TracePipeline {
         if self.rewrite_without_deleted(project_id, read).await? {
             return Ok(());
         }
+        // Nothing deleted left to remove. A version that is not the received body is one a rewrite or a fence
+        // cut spans from, so files its traces were associated with may no longer be referenced; they are
+        // reconciled now, before this pass clears the entries that led here - which the rewrite's own append
+        // queued, so the reconciliation follows the rewrite whenever it landed (`RawRewriteFiles.tla`).
+        // A failure leaves the entries queued, and a later pass repeats it.
+        if read.origin != RawOrigin::Received {
+            self.reconcile_files_of_rewritten(project_id, raw_id)
+                .await?;
+        }
         self.unfenced()?;
         self.analytics
             .delete_superseded_raw_versions(project_id, raw_id, read.version)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    /// The file reconciliation a rewritten record's traces are owed: every trace the record was ever indexed
+    /// under, a removed span's included, reconciled against what references its files now.
+    async fn reconcile_files_of_rewritten(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<(), String> {
+        let indexed = self
+            .analytics
+            .traces_indexed_under_raw_record(project_id, raw_id)
+            .await
+            .map_err(|error| error.to_string())?;
+        // Only the traces associated with a file: a survivor scan reads the trace's raw records whole, and a
+        // record shared by many traces, most of which carry no media, would be read once for each of them, for
+        // nothing to release. An association made after this read is a new span's, which that span justifies.
+        let mut traces = Vec::with_capacity(indexed.len());
+        for trace_id in indexed {
+            let associated = self
+                .file_service
+                .database()
+                .get_file_hashes_for_traces(project_id, std::slice::from_ref(&trace_id))
+                .await
+                .map_err(|error| error.to_string())?;
+            if !associated.is_empty() {
+                traces.push(trace_id);
+            }
+        }
+        if traces.is_empty() {
+            return Ok(());
+        }
+        // With file storage disabled nothing can be reconciled now, but associations recorded while it was enabled
+        // are still owed: recorded as the traces' retention cleanup, which the sweep keeps until files are
+        // enabled again, so this pass does not clear its entries with the reconciliation lost.
+        if !self.file_service.is_enabled() {
+            return self
+                .file_service
+                .database()
+                .record_retention_cleanup(project_id, &traces)
+                .await
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+        }
+        self.unfenced()?;
+        #[cfg(test)]
+        RECONCILED_TRACES.with(|count| count.set(count.get() + traces.len() as u64));
+        self.file_service
+            .reconcile_trace_survivors(project_id, &traces, self.analytics.as_ref())
             .await
             .map_err(|error| error.to_string())
     }
@@ -528,13 +595,16 @@ impl TracePipeline {
             // and that pass rewrites what is left from current state.
             return Ok(());
         }
-        // The removed spans' media is no longer referenced by this record; their traces' survivors decide.
-        if let Err(error) = self
-            .file_service
-            .reconcile_trace_survivors(project_id, &traces, self.analytics.as_ref())
-            .await
+        // The removed spans' media is no longer referenced by this record. The pass the append queued reconciles
+        // it (`reconcile_files_of_rewritten`); where the store queues apart from the append, a crash between the
+        // two would leave that owed and nothing queued, so the rewrite also reconciles them itself, best effort.
+        if !self.analytics.rewrites_queue_atomically()
+            && let Err(error) = self
+                .file_service
+                .reconcile_trace_survivors(project_id, &traces, self.analytics.as_ref())
+                .await
         {
-            tracing::warn!(%error, "Could not reconcile files after a raw rewrite; the file sweep retries");
+            tracing::warn!(%error, "Could not reconcile files after a raw rewrite; its next pass retries");
         }
         Ok(())
     }

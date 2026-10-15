@@ -51,6 +51,11 @@ impl RawStore for DuckdbRepository {
         .await
     }
 
+    fn rewrites_queue_atomically(&self) -> bool {
+        // One transaction decides, appends and queues (`raw::append_rewrites`).
+        true
+    }
+
     async fn append_raw_rewrites(
         &self,
         rewrites: &[sideseat_ports::types::RawRewrite],
@@ -128,6 +133,18 @@ impl RawStore for DuckdbRepository {
         let (project_id, trace_ids) = (project_id.clone(), trace_ids.to_vec());
         run(&self.0, move |conn| {
             raw::named_in_traces(conn, &project_id, &trace_ids)
+        })
+        .await
+    }
+
+    async fn traces_indexed_under_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<String>, DataError> {
+        let (project_id, raw_id) = (project_id.clone(), raw_id.to_string());
+        run(&self.0, move |conn| {
+            raw::traces_indexed_under(conn, &project_id, &raw_id)
         })
         .await
     }

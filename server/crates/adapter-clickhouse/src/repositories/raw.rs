@@ -286,6 +286,24 @@ pub async fn delete_superseded(
     execute(client, &statement).await
 }
 
+/// The traces the trace index holds under one record.
+pub async fn traces_indexed_under(
+    client: &Client,
+    traces: &str,
+    project_id: &ProjectId,
+    raw_id: &str,
+) -> Result<Vec<String>, ClickhouseError> {
+    Ok(client
+        .query(&format!(
+            "SELECT DISTINCT trace_id FROM {traces} WHERE project_id = ? AND raw_id = ? \
+             ORDER BY trace_id SETTINGS skip_unavailable_shards = 0"
+        ))
+        .bind(project_id.as_str())
+        .bind(raw_id)
+        .fetch_all()
+        .await?)
+}
+
 /// The records the trace index holds under these traces, narrowed by its `(project_id, trace_id, ...)` key.
 pub async fn indexed_under_traces(
     client: &Client,

@@ -120,7 +120,7 @@ async fn decode_from_files(pipeline: &TracePipeline, record: &[u8]) -> Vec<u8> {
     .1
 }
 
-async fn drain(pipeline: &TracePipeline) {
+pub(super) async fn drain(pipeline: &TracePipeline) {
     for _ in 0..8 {
         pipeline.reconcile_raw_records(64).await.unwrap();
     }

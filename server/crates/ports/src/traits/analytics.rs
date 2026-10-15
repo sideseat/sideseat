@@ -613,6 +613,13 @@ pub trait RawStore: Send + Sync {
         rewrites: &[RawRewrite],
     ) -> Result<std::collections::HashSet<String>, DataError>;
 
+    /// Whether [`Self::append_raw_rewrites`] queues a record in the same step as it appends it: then the queue
+    /// entry exists exactly when the rewrite landed, and the reconciler pass it leads to owes, and does, the
+    /// rewritten record's file reconciliation (`RawRewriteFiles.tla`, `AtomicQueue`). Where it does not,
+    /// a crash between the append and the queueing leaves that reconciliation owed and nothing queued, so the
+    /// rewrite also reconciles itself, as a stopgap until a landing fence closes the gap.
+    fn rewrites_queue_atomically(&self) -> bool;
+
     /// The record each of these spans was derived from, for the winning row of each identity.
     async fn span_raw_ids(
         &self,
@@ -672,6 +679,15 @@ pub trait RawStore: Send + Sync {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<std::collections::HashSet<(String, String)>, DataError>;
+
+    /// The traces the trace index holds under this record - every trace a version of it had spans of, including
+    /// those a rewrite has since removed. What a rewritten record's file reconciliation reaches: a removed span's
+    /// trace may be named by no version the store still serves.
+    async fn traces_indexed_under_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+    ) -> Result<Vec<String>, DataError>;
 
     /// The records the trace index holds under these traces - every record with spans of them, whatever rows
     /// remain - as a deletion finds them.

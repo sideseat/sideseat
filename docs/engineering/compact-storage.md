@@ -552,7 +552,9 @@ still land. The last condition is the one that needs a mechanism, and the order 
    admission - it lands only while the version it was prepared from, key and bytes, is still the record's latest
    - one step with its append on ClickHouse, and visible across replicas, as it is in DuckDB's transaction.
    ClickHouse reads and then writes, on one replica, so a version landing in between, or committed on a replica
-   the read missed, is not seen and its check is only advisory (`server/specs/RawRewriteFiles.tla`);
+   the read missed, is not seen and its check is only advisory (`server/specs/RawRewriteFiles.tla`). And it must
+   make a raw rewrite's queue entry readable only once its append has landed or never will, so the rewrite's
+   derived file cleanup is complete on ClickHouse as on DuckDB (below);
 3. pruning on top of it, by one rule on both backends: the lowest epoch any execution that can still land has
    read.
 
@@ -563,10 +565,21 @@ scheme for one invariant, and an exception to process-local state not worth spen
 
 **A raw rewrite's file cleanup: derived, not held.** A rewrite that removes deleted spans from a raw record owes
 their traces a file reconciliation once its version lands, because the record stops referencing the removed spans'
-media. Today a failed reconciliation is only logged, and once the reconciler's entry settles nothing finds those
-traces again. The decided fix makes the owed cleanup derivable: the sweep recomputes from the stores which
-associations no live row and no latest raw version references, rather than trusting a recorded intent. It is
-designed in TLA+ first, and may share the landing fence's re-derivation cursor.
+media. Nothing records that it is owed. The reconciler pass that a rewrite's append queues finds the record holding
+no deleted content and a latest version that is not the received body (a rewrite's, or a fenced repair's). It then
+reconciles the files of every trace the record is indexed under against what references them now, and only after
+that clears the entries it read. A failure leaves the entries, and a later pass repeats it
+(`server/specs/RawRewriteFiles.tla`; its mutants show both guards needed). What makes this sound is that
+the append and its queueing are one step: then an entry exists exactly when a rewrite landed. DuckDB's
+`append_raw_rewrites` is one transaction, so the cleanup is complete there and the rewrite reconciles nothing
+itself.
+
+ClickHouse reads, appends and then queues, as three statements. A crash between the append and the queueing
+leaves the reconciliation owed with nothing queued - the model's `AtomicQueue = FALSE` counterexample - so there
+the rewrite still reconciles its traces itself, best effort, until the landing fence closes the gap. That makes
+it a requirement of the fence (item 2 above): a rewrite's queue entry must be readable only once its append has
+landed, or will never land. ClickHouse reaches a record's traces through a `raw_id` bloom filter on the trace
+index, since the index's key orders by trace.
 
 Rejected after five review rounds: a recorded intent that a rewrite **holds** from the retention sweep until its
 append lands. Each round found a way to lose the cleanup, and each fix needed a new fence:
@@ -586,6 +599,42 @@ append lands. Each round found a way to lose the cleanup, and each fix needed a 
 
 The fresh-token rule survived: tokens come from one sequence, so no row carries a token an earlier one did. The
 parked hold code and model are kept outside the tree, so nobody rebuilds them.
+
+**Open: survivor reconciliation reports success over an association it skipped.** A release keeps any
+association with `pending_writers > 0`, since a batch in flight may be about to commit a span that names it, and
+the reconciliation still returns success. The retention sweep and a rewritten record's reconciler pass then
+treat the cleanup as done. The interleaving: a redelivery associates a file that a rewrite has just stopped
+referencing (+1). The pass reconciles, skips that association and clears its entries. The redelivery's span is
+then dropped by the tombstone fence, and its compensation decrements the writer but keeps the durable
+association. The file is now associated, referenced by nothing, and owed nothing. The fix, as its own slice:
+the reconciliation reports what it deferred, and its callers keep the cleanup owed (the sweep's record, with its
+backoff), modelled with a provisional writer that commits or aborts, and a mutant showing the deferral is needed.
+
+**Open, a data-loss risk: survivor reconciliation releases before it re-checks.** `reconcile_one_trace` scans,
+releases what the scan did not keep, re-checks, and restores what a span committed in between now names. Two
+windows remain in that protocol:
+
+1. *A failed compensation loses a live span's file.* A span naming H commits between the scan and the release; the
+   release removes H; the re-check fails; and the restore fails too. H stays released. A retry sees H referenced,
+   but its release removes nothing, so it has nothing to restore, and completes. A later cleanup of H's other
+   traces can then collect bytes an acknowledged span references. Even when the restore succeeds, an orphan sweep
+   between the release and the restore can collect them.
+2. *A successful re-check can restore an association owed nothing.* The re-check finds H referenced by a span that
+   committed in between; before the restore lands, retention deletes that span and its cleanup completes while
+   H's association is absent; the restore then lands. H is associated, referenced by nothing, and nothing is
+   owed - a file kept too long, not a loss.
+
+The fix is its own slice, next, with the skipped-association deferral above folded in. Modelled, recording the
+cleanup intent before the release keeps the cleanup owed but still releases a referenced association for a while,
+so an orphan sweep in that while collects its bytes: no intent closes that. The fix chosen releases nothing a
+re-check would restore. A confirm stamps the association with a sequence value, a pass reads the sequence before
+its scan, and the release, one transaction, takes only an association no writer is pending on, the scan did not
+keep, and no confirm has stamped since that read: a writer stamped earlier wrote its span before the read, so the
+scan saw it. That removes the re-check and the compensation. It rests on a fact of both analytics stores: a span
+whose write returned before a scan starts is visible to the scan. DuckDB reads its own committed rows; ClickHouse's
+survivor scans read every replica of every shard (`clusterAllReplicas` over the `_local` tables), failing rather
+than skipping an unreachable one, and a span write returns only once a replica holds it
+(`insert_distributed_sync = 1`, async inserts pinned to wait), whatever `insert_quorum` is.
 
 **Open: an ingest batch's pending writer outlives a crash.** A file association counts its in-flight writers in
 `trace_files.pending_writers`, and survivor reconciliation releases only an association with none. An ingest

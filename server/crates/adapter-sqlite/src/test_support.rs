@@ -109,3 +109,32 @@ pub async fn staged_payload_count(service: &SqliteService) -> Result<i64, Sqlite
         .fetch_one(service.pool())
         .await?)
 }
+
+/// Make every release of a trace's file association fail, as an unreachable store would mid-reconciliation.
+pub async fn inject_trace_file_release_fault(service: &SqliteService) -> Result<(), SqliteError> {
+    sqlx::query(
+        "CREATE TRIGGER trace_file_release_fault BEFORE DELETE ON trace_files \
+         BEGIN SELECT RAISE(FAIL, 'injected trace file release fault'); END",
+    )
+    .execute(service.pool())
+    .await?;
+    Ok(())
+}
+
+pub async fn clear_trace_file_release_fault(service: &SqliteService) -> Result<(), SqliteError> {
+    sqlx::query("DROP TRIGGER IF EXISTS trace_file_release_fault")
+        .execute(service.pool())
+        .await?;
+    Ok(())
+}
+
+/// The traces whose retention cleanup is recorded and not yet completed, in order.
+pub async fn owed_retention_cleanups(
+    service: &SqliteService,
+) -> Result<Vec<(String, String)>, SqliteError> {
+    Ok(sqlx::query_as(
+        "SELECT project_id, trace_id FROM retention_cleanup ORDER BY project_id, trace_id",
+    )
+    .fetch_all(service.pool())
+    .await?)
+}

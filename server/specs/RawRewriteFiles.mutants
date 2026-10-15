@@ -2,3 +2,5 @@
 # (`scripts/check/model-mutants.sh`).
 BasedOnCheck = FALSE -> LatestMediaHeld
 KeyOnly = TRUE -> LatestMediaHeld
+AtomicQueue = FALSE -> OwedNotLost
+ClearRead = FALSE -> OwedNotLost
