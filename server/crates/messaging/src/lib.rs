@@ -8,7 +8,8 @@ use prost::Message as ProstMessage;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sideseat_ports::queue::{
-    BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
+    BroadcastChannel, BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription,
+    TopicBackend, TopicError,
 };
 
 /// Typed facade over a selected queue backend.
@@ -45,13 +46,14 @@ impl TopicService {
         }
     }
 
+    /// The broadcast channel of `kind` (one of `sideseat_ports::queue::broadcast_kinds`) for `key`: a project, a request, an instance.
     #[must_use]
-    pub fn broadcast_topic<T>(&self, name: &str) -> BroadcastTopic<T>
+    pub fn broadcast_topic<T>(&self, kind: &'static str, key: &str) -> BroadcastTopic<T>
     where
         T: Send + Sync + Serialize + DeserializeOwned + 'static,
     {
         BroadcastTopic {
-            name: name.to_string(),
+            channel: BroadcastChannel::new(kind, key),
             backend: Arc::clone(&self.backend),
             marker: PhantomData,
         }
@@ -220,7 +222,7 @@ pub struct BroadcastTopic<T>
 where
     T: Send + Sync + Serialize + DeserializeOwned + 'static,
 {
-    name: String,
+    channel: BroadcastChannel,
     backend: Arc<dyn TopicBackend>,
     marker: PhantomData<T>,
 }
@@ -232,12 +234,12 @@ where
     pub async fn publish(&self, message: &T) -> Result<(), TopicError> {
         let payload = serde_json::to_vec(message)
             .map_err(|error| TopicError::Serialization(error.to_string()))?;
-        self.backend.publish(&self.name, &payload).await
+        self.backend.publish(&self.channel, &payload).await
     }
 
     pub async fn subscribe(&self) -> Result<BroadcastTopicSubscriber<T>, TopicError> {
         Ok(BroadcastTopicSubscriber {
-            subscription: self.backend.subscribe(&self.name).await?,
+            subscription: self.backend.subscribe(&self.channel).await?,
             marker: PhantomData,
         })
     }
@@ -276,7 +278,7 @@ mod tests {
     #[test]
     fn broadcast_messages_do_not_need_to_be_cloneable() {
         fn accepts_non_clone_message(service: &TopicService) {
-            let _ = service.broadcast_topic::<NonCloneMessage>("compile-check");
+            let _ = service.broadcast_topic::<NonCloneMessage>("compile_check", "key");
         }
 
         let _: fn(&TopicService) = accepts_non_clone_message;

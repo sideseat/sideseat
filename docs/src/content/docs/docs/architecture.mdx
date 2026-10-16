@@ -187,6 +187,15 @@ sequenceDiagram
 Redis, or Redpanda adapter; stream topics carry durable ingestion work when configured, while broadcast
 topics feed live SSE subscribers.
 
+A broadcast message goes to a channel: a fixed kind (`sse_spans`, `presence`, `agent_request`,
+`connection_control`) and a key (a project, a request, an instance). A subscriber receives what is published on
+its channel after it subscribes, never earlier messages. On Redpanda each kind is one topic,
+`sideseat_broadcast_<kind>`, with 32 partitions and ten minutes of retention. A channel's messages go to the
+partition its key hashes to, and a subscriber reads that partition alone and keeps only its key's messages. So the
+number of topics stays at four, however many projects, requests and instances there are. Earlier releases created
+one topic per channel, named like `sse_spans.3A<project>`, and nothing reads those any more: an operator can
+delete them with `rpk topic delete -r '^(sse_spans|presence|agent_request|connection_control)\.3A.*'`.
+
 ## Configuration System
 
 Configuration is loaded from multiple sources with this priority (highest first):

@@ -10,8 +10,8 @@ impl TopicBackend for RedisTopicBackend {
     // Broadcast (Pub/Sub)
     // =========================================================================
 
-    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), TopicError> {
-        let channel = self.pubsub_channel(topic);
+    async fn publish(&self, channel: &BroadcastChannel, payload: &[u8]) -> Result<(), TopicError> {
+        let channel = self.pubsub_channel(&channel.name());
         let mut conn = self.pool.get().await.map_err(pool_error)?;
 
         // PUBLISH to Redis ONLY (not to local bridge)
@@ -27,7 +27,12 @@ impl TopicBackend for RedisTopicBackend {
         Ok(())
     }
 
-    async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError> {
+    async fn subscribe(
+        &self,
+        channel: &BroadcastChannel,
+    ) -> Result<BroadcastSubscription, TopicError> {
+        let topic = channel.name();
+        let topic = topic.as_str();
         // Get or create bridge
         let (bridge, is_new) = self.pubsub_manager.get_or_create_bridge(topic);
 

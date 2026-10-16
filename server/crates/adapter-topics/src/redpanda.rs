@@ -25,7 +25,8 @@ use rdkafka::util::Timeout;
 use serde::Serialize;
 use sideseat_core::config::RedpandaConfig;
 use sideseat_ports::queue::{
-    BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
+    BroadcastChannel, BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription,
+    TopicBackend, TopicError,
 };
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -35,16 +36,40 @@ use crate::ack_window::AckWindow;
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Kafka's limit on a topic name's length.
 const MAX_TOPIC_NAME_BYTES: usize = 249;
+/// Partitions of each broadcast topic. A subscriber reads one partition and drops what is not its key, so it reads
+/// about 1/BROADCAST_PARTITIONS of its kind's traffic.
+const BROADCAST_PARTITIONS: i32 = 32;
+/// Broadcast is live delivery: nothing reads a broadcast message after the moment it is published, so a topic keeps
+/// minutes, not the queue's retention.
+const BROADCAST_RETENTION_MS: u64 = 10 * 60 * 1_000;
+
+/// The one Kafka topic that carries every channel of a broadcast kind: the topic count is the number of kinds,
+/// whatever the number of projects, requests or instances.
+pub(crate) fn broadcast_topic(channel: &BroadcastChannel) -> Result<String, TopicError> {
+    kafka_topic(&format!("sideseat_broadcast_{}", channel.kind()))
+}
+
+/// The partition of its kind's topic a channel's messages go to: chosen here, by a hash of the key that does not
+/// change between processes or releases (64-bit FNV-1a), so a subscriber can read that partition alone. One key, one
+/// partition, so a channel's messages keep their order.
+pub(crate) fn broadcast_partition(channel: &BroadcastChannel) -> i32 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in channel.key().bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    i32::try_from(hash % BROADCAST_PARTITIONS as u64).unwrap_or(0)
+}
 const RETENTION_MONITOR_INTERVAL: Duration = Duration::from_secs(30);
 
 type KafkaConsumer = StreamConsumer<DefaultConsumerContext>;
 
 /// The Kafka topic that carries the port topic `name`.
 ///
-/// Port topic names are free text - `sse_spans:<project>`, `presence:<project>` - while a Kafka topic name allows only
-/// `[A-Za-z0-9._-]` and at most 249 bytes, and a broker refuses any other with `InvalidTopic`. Every byte outside
+/// Port topic names are free text, while a Kafka topic name allows only `[A-Za-z0-9._-]` and at most 249 bytes, and a
+/// broker refuses any other with `InvalidTopic`. Every byte outside
 /// `[A-Za-z0-9_-]` is therefore written as `.` and two uppercase hex digits. The mapping is injective, so two port
-/// topics - two projects' event streams - never share a Kafka topic. Names already valid without a `.` (`traces`)
+/// topics never share a Kafka topic. Names already valid without a `.` (`traces`)
 /// map to themselves. And since an escape is never followed by a lowercase letter, the adapter's own
 /// `{topic}.dead-letter` names cannot collide with any port topic. A name too long to carry is refused rather than
 /// shortened: shortening could merge two topics.
@@ -69,39 +94,43 @@ pub(crate) fn kafka_topic(name: &str) -> Result<String, TopicError> {
     Ok(topic)
 }
 
-/// Assign `consumer` every partition of `topic` at its current high watermark. A topic created a moment ago can be
-/// missing from the metadata, or listed without partitions, until the broker has propagated it: retried within the
-/// client timeout.
-fn assign_at_high_watermarks(consumer: &KafkaConsumer, topic: &str) -> Result<(), TopicError> {
+/// Assign `consumer` partition `partition` of `topic` at its current high watermark. A topic created a moment ago
+/// can be missing from the metadata, or listed without that partition, until the broker has propagated it: retried
+/// within the client timeout.
+fn assign_at_high_watermark(
+    consumer: &KafkaConsumer,
+    topic: &str,
+    partition: i32,
+) -> Result<(), TopicError> {
     let deadline = std::time::Instant::now() + CLIENT_TIMEOUT;
-    let partitions = loop {
+    loop {
         let metadata = consumer
             .fetch_metadata(Some(topic), CLIENT_TIMEOUT)
             .map_err(|error| TopicError::Stream(error.to_string()))?;
-        let partitions: Vec<i32> = metadata
-            .topics()
-            .iter()
-            .filter(|entry| entry.name() == topic && entry.error().is_none())
-            .flat_map(|entry| entry.partitions().iter().map(|partition| partition.id()))
-            .collect();
-        if !partitions.is_empty() {
-            break partitions;
+        let listed = metadata.topics().iter().any(|entry| {
+            entry.name() == topic
+                && entry.error().is_none()
+                && entry
+                    .partitions()
+                    .iter()
+                    .any(|entry| entry.id() == partition)
+        });
+        if listed {
+            break;
         }
         if std::time::Instant::now() >= deadline {
             return Err(TopicError::Stream(format!(
-                "topic {topic} has no partitions in the broker's metadata"
+                "partition {partition} of topic {topic} is not in the broker's metadata"
             )));
         }
         std::thread::sleep(Duration::from_millis(50));
-    };
-    let mut list = TopicPartitionList::new();
-    for partition in partitions {
-        let (_, high) = consumer
-            .fetch_watermarks(topic, partition, CLIENT_TIMEOUT)
-            .map_err(|error| TopicError::Stream(error.to_string()))?;
-        list.add_partition_offset(topic, partition, Offset::Offset(high))
-            .map_err(|error| TopicError::ConsumerGroup(error.to_string()))?;
     }
+    let (_, high) = consumer
+        .fetch_watermarks(topic, partition, CLIENT_TIMEOUT)
+        .map_err(|error| TopicError::Stream(error.to_string()))?;
+    let mut list = TopicPartitionList::new();
+    list.add_partition_offset(topic, partition, Offset::Offset(high))
+        .map_err(|error| TopicError::ConsumerGroup(error.to_string()))?;
     consumer
         .assign(&list)
         .map_err(|error| TopicError::ConsumerGroup(error.to_string()))
@@ -188,14 +217,24 @@ impl RedpandaTopicBackend {
     }
 
     async fn ensure_topic(&self, topic: &str) -> Result<(), TopicError> {
+        self.ensure_topic_with(topic, self.partitions, self.retention_ms)
+            .await
+    }
+
+    async fn ensure_topic_with(
+        &self,
+        topic: &str,
+        partitions: i32,
+        retention_ms: u64,
+    ) -> Result<(), TopicError> {
         if self.topics.contains(topic) {
             return Ok(());
         }
 
-        let retention_ms = self.retention_ms.to_string();
+        let retention_ms = retention_ms.to_string();
         let topic_spec = NewTopic::new(
             topic,
-            self.partitions,
+            partitions,
             TopicReplication::Fixed(self.replication_factor),
         )
         .set("cleanup.policy", "delete")
@@ -383,31 +422,53 @@ impl RedpandaTopicBackend {
 
 #[async_trait]
 impl TopicBackend for RedpandaTopicBackend {
-    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), TopicError> {
-        self.produce(&kafka_topic(topic)?, "", payload)
+    async fn publish(&self, channel: &BroadcastChannel, payload: &[u8]) -> Result<(), TopicError> {
+        let topic = broadcast_topic(channel)?;
+        self.ensure_topic_with(&topic, BROADCAST_PARTITIONS, BROADCAST_RETENTION_MS)
+            .await?;
+        self.producer
+            .send(
+                FutureRecord::to(&topic)
+                    .key(channel.key())
+                    .partition(broadcast_partition(channel))
+                    .payload(payload),
+                Timeout::After(CLIENT_TIMEOUT),
+            )
             .await
-            .map(|_| ())
+            .map_err(|(error, _)| TopicError::Stream(error.to_string()))?;
+        Ok(())
     }
 
-    async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError> {
-        let topic = kafka_topic(topic)?;
-        self.ensure_topic(&topic).await?;
+    async fn subscribe(
+        &self,
+        channel: &BroadcastChannel,
+    ) -> Result<BroadcastSubscription, TopicError> {
+        let topic = broadcast_topic(channel)?;
+        self.ensure_topic_with(&topic, BROADCAST_PARTITIONS, BROADCAST_RETENTION_MS)
+            .await?;
         // Broadcast is live delivery: a subscriber receives what is published after it subscribes, never the
         // topic's retained history. It joins no consumer group - a fresh group with `auto.offset.reset` would
-        // either replay the history (`earliest`) or, read from the end only once the group's assignment arrives
-        // (`latest`), drop what is published in between. Every partition is assigned directly at its high
+        // either replay the history (`earliest`) or, reading from the end only once the group's assignment arrives
+        // (`latest`), drop what is published in between. Its channel's partition is assigned directly at the high
         // watermark read here, so a message published once this returns is at or above it and is delivered.
         let group = format!("sideseat-broadcast-{}", uuid::Uuid::new_v4());
         let consumer = Arc::new(self.consumer(&group, &group)?);
         let assigned = Arc::clone(&consumer);
         let name = topic.clone();
-        tokio::task::spawn_blocking(move || assign_at_high_watermarks(&assigned, &name))
+        let partition = broadcast_partition(channel);
+        tokio::task::spawn_blocking(move || assign_at_high_watermark(&assigned, &name, partition))
             .await
             .map_err(|error| TopicError::ConsumerGroup(error.to_string()))??;
+        // The partition carries other keys too: only an exact match is this channel's, so nothing of another
+        // project's or request's is ever yielded.
+        let key = channel.key().as_bytes().to_vec();
         let receiver = stream! {
             loop {
                 match consumer.recv().await {
                     Ok(message) => {
+                        if message.key() != Some(key.as_slice()) {
+                            continue;
+                        }
                         if let Some(payload) = message.payload() {
                             yield Ok(payload.to_vec());
                         }

@@ -23,7 +23,6 @@ use sideseat_ports::queue::TopicError;
 use sideseat_ports::registrations::PresenceEvent;
 
 use super::listing::ListingResponse;
-use super::presence::presence_topic_name;
 use super::state::WsState;
 
 /// Stream the project's registrations as SDKs come and go
@@ -42,9 +41,10 @@ pub async fn stream_presence(
     access: ProjectRead,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
     let project_id = access.project_id;
-    let topic = state
-        .topics
-        .broadcast_topic::<PresenceEvent>(&presence_topic_name(&project_id));
+    let topic = state.topics.broadcast_topic::<PresenceEvent>(
+        sideseat_ports::queue::broadcast_kinds::PRESENCE,
+        &project_id,
+    );
     let mut subscriber = topic
         .subscribe()
         .await

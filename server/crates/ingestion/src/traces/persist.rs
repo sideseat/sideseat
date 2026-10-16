@@ -185,8 +185,10 @@ pub(super) fn prepare_batch(
 pub(super) async fn publish_sse_events(events: &[SseSpanEvent], topics: &TopicService) {
     for event in events {
         if let Some(ref project_id) = event.project_id {
-            let topic_name = format!("sse_spans:{}", project_id);
-            let topic = topics.broadcast_topic::<SseSpanEvent>(&topic_name);
+            let topic = topics.broadcast_topic::<SseSpanEvent>(
+                sideseat_ports::queue::broadcast_kinds::SSE_SPANS,
+                project_id,
+            );
             if let Err(e) = topic.publish(event).await {
                 tracing::warn!(error = %e, project_id, "Failed to publish SSE event");
             }

@@ -49,11 +49,13 @@ pub async fn sse(
     Query(query): Query<SseQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
     let project_id = auth.project_id.clone();
-    let topic_name = format!("sse_spans:{}", project_id);
 
     // Subscribe to broadcast topic for distributed SSE
     // In Redis mode, this uses Redis Pub/Sub to receive events from any worker
-    let topic = state.topics.broadcast_topic::<SseSpanEvent>(&topic_name);
+    let topic = state.topics.broadcast_topic::<SseSpanEvent>(
+        sideseat_ports::queue::broadcast_kinds::SSE_SPANS,
+        project_id.as_str(),
+    );
     let subscriber_result = topic.subscribe().await;
     let mut shutdown_rx = state.shutdown_rx.clone();
 

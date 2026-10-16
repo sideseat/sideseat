@@ -7,7 +7,7 @@
 //!
 //! Routes the call to whichever SDK owns `(project, kind=Agent, name)` via
 //! the per-instance `connection_control` topic, fans replies back through a
-//! per-request `agent_request:{request_id}` broadcast topic, synthesises a
+//! per-request `agent_request` broadcast channel, synthesises a
 //! terminal `RunErrorEvent` if the SDK fails before any AG-UI event flowed,
 //! cancels the SDK on HTTP-client disconnect.
 
@@ -41,7 +41,7 @@ use sideseat_ports::types::ProjectId;
 const AGUI_HTTP_BODY_LIMIT: usize = WS_MAX_MESSAGE_BYTES - 8 * 1024;
 
 use super::ws::WsState;
-use super::ws::invoke::{InvokeReply, invoke_topic_name};
+use super::ws::invoke::InvokeReply;
 use super::ws::protocol::ErrorCode;
 
 #[derive(Debug, Deserialize)]
@@ -172,18 +172,20 @@ pub(crate) async fn run_agent(
 
     // 2. Subscribe BEFORE publishing the invoke control message so we
     //    don't race the SDK's first reply.
-    let topic = state
-        .topics
-        .broadcast_topic::<InvokeReply>(&invoke_topic_name(&request_id));
+    let topic = state.topics.broadcast_topic::<InvokeReply>(
+        sideseat_ports::queue::broadcast_kinds::AGENT_REQUEST,
+        &request_id,
+    );
     let mut sub = topic
         .subscribe()
         .await
         .map_err(|e| ErrorResponse::internal(format!("subscribe failed: {e}")))?;
 
     // 3. Publish the invoke onto the owning instance's control topic.
-    let control = state
-        .topics
-        .broadcast_topic::<ConnectionControl>(&format!("connection_control:{}", owning_instance));
+    let control = state.topics.broadcast_topic::<ConnectionControl>(
+        sideseat_ports::queue::broadcast_kinds::CONNECTION_CONTROL,
+        &owning_instance,
+    );
     if let Err(e) = control
         .publish(&ConnectionControl::Invoke {
             project_id: project_id.clone(),
@@ -312,9 +314,10 @@ async fn publish_cancel(
     target_client_id: &str,
     request_id: &str,
 ) {
-    let control = state
-        .topics
-        .broadcast_topic::<ConnectionControl>(&format!("connection_control:{}", owning_instance));
+    let control = state.topics.broadcast_topic::<ConnectionControl>(
+        sideseat_ports::queue::broadcast_kinds::CONNECTION_CONTROL,
+        owning_instance,
+    );
     if let Err(e) = control
         .publish(&ConnectionControl::Cancel {
             project_id: project_id.clone(),

@@ -38,11 +38,6 @@ fn fresh_frame<P: serde::Serialize>(r#type: &str, payload: &P) -> String {
 }
 
 /// Build a connection_control topic name. Single source of truth for the
-/// `connection_control:{instance_id}` convention used in two places.
-fn connection_control_topic(instance_id: &str) -> String {
-    format!("connection_control:{}", instance_id)
-}
-
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Open the WebSocket an SDK registers its agents, MCP servers, swarms and graphs over
@@ -114,9 +109,10 @@ async fn run_connection(
 
     // Subscribe to the per-instance control topic to receive `replaced`
     // notices for sockets we own.
-    let control_topic = state
-        .topics
-        .broadcast_topic::<ConnectionControl>(&connection_control_topic(&state.instance_id));
+    let control_topic = state.topics.broadcast_topic::<ConnectionControl>(
+        sideseat_ports::queue::broadcast_kinds::CONNECTION_CONTROL,
+        &state.instance_id,
+    );
     let mut control_sub = match control_topic.subscribe().await {
         Ok(sub) => Some(sub),
         Err(e) => {
@@ -555,9 +551,10 @@ async fn handle_register(
         Ok(UpsertOutcome::Replaced(prev)) => {
             send_ack(out_tx, ref_id).await;
             // Tell the previous owner's instance to displace its socket.
-            let control_topic = state
-                .topics
-                .broadcast_topic::<ConnectionControl>(&connection_control_topic(&prev.instance_id));
+            let control_topic = state.topics.broadcast_topic::<ConnectionControl>(
+                sideseat_ports::queue::broadcast_kinds::CONNECTION_CONTROL,
+                &prev.instance_id,
+            );
             if let Err(e) = control_topic
                 .publish(&ConnectionControl::Replaced {
                     project_id: entry.project_id.clone(),

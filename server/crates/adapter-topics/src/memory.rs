@@ -29,7 +29,8 @@ use sideseat_core::constants::{
 };
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::queue::{
-    BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
+    BroadcastChannel, BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription,
+    TopicBackend,
 };
 
 /// Default broadcast channel capacity
@@ -282,15 +283,18 @@ impl TopicBackend for MemoryTopicBackend {
     // Broadcast
     // =========================================================================
 
-    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), TopicError> {
-        let sender = self.get_or_create_broadcast(topic);
+    async fn publish(&self, channel: &BroadcastChannel, payload: &[u8]) -> Result<(), TopicError> {
+        let sender = self.get_or_create_broadcast(&channel.name());
         // Ignore send errors - means no active subscribers
         let _ = sender.send(payload.to_vec());
         Ok(())
     }
 
-    async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError> {
-        let sender = self.get_or_create_broadcast(topic);
+    async fn subscribe(
+        &self,
+        channel: &BroadcastChannel,
+    ) -> Result<BroadcastSubscription, TopicError> {
+        let sender = self.get_or_create_broadcast(&channel.name());
         let mut receiver = sender.subscribe();
 
         let stream = stream! {

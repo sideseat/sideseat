@@ -4,7 +4,7 @@
 //! Chunks arrive as `agent.event.chunk` frames keyed by `(request_id,
 //! group_id)`. We collect them under a per-process `DashMap`, time-out
 //! stale partials, and forward the assembled event onto the existing
-//! `agent_request:{request_id}` per-request topic as a regular
+//! request's `agent_request` broadcast channel as a regular
 //! `InvokeReply::Event` so the SSE handler stays oblivious.
 //!
 //! Concurrency model:

@@ -48,7 +48,8 @@ use futures::StreamExt;
 use super::pubsub::{ManagedSubscription, PubSubManager};
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::queue::{
-    BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
+    BroadcastChannel, BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription,
+    TopicBackend,
 };
 
 mod backend;

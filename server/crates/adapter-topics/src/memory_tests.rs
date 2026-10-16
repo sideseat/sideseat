@@ -6,11 +6,12 @@ async fn test_broadcast_publish_subscribe() {
     let backend = MemoryTopicBackend::new();
 
     // Subscribe first
-    let sub = backend.subscribe("test").await.unwrap();
+    let channel = BroadcastChannel::new("test", "key");
+    let sub = backend.subscribe(&channel).await.unwrap();
     let mut receiver = sub.receiver;
 
     // Publish
-    backend.publish("test", b"hello").await.unwrap();
+    backend.publish(&channel, b"hello").await.unwrap();
 
     // Receive with timeout
     let msg = tokio::time::timeout(tokio::time::Duration::from_millis(100), receiver.next())

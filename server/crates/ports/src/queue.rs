@@ -78,6 +78,51 @@ pub struct StreamSubscription {
     pub receiver: Pin<Box<dyn Stream<Item = Result<StreamMessage, TopicError>> + Send>>,
 }
 
+/// The kinds of broadcast channel the server publishes on. A kind is fixed and few; what varies is the key.
+pub mod broadcast_kinds {
+    /// Stored spans, keyed by project: the live (SSE) span stream.
+    pub const SSE_SPANS: &str = "sse_spans";
+    /// SDK presence, keyed by project.
+    pub const PRESENCE: &str = "presence";
+    /// Replies to an agent invocation, keyed by request id.
+    pub const AGENT_REQUEST: &str = "agent_request";
+    /// Control of an instance's WebSocket connections, keyed by instance id.
+    pub const CONNECTION_CONTROL: &str = "connection_control";
+}
+
+/// Where a broadcast message goes: a kind of event and the one thing it is about - `sse_spans` and a project,
+/// `agent_request` and a request id. A subscriber receives the messages of exactly its channel.
+///
+/// The kind is one of a few fixed names and the key is open-ended, which is what lets a backend whose topics are
+/// persistent objects (Redpanda) keep one topic per kind rather than one per key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastChannel {
+    kind: &'static str,
+    key: String,
+}
+
+impl BroadcastChannel {
+    pub fn new(kind: &'static str, key: impl Into<String>) -> Self {
+        Self {
+            kind,
+            key: key.into(),
+        }
+    }
+
+    pub fn kind(&self) -> &'static str {
+        self.kind
+    }
+
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    /// `kind:key`: the channel's name on a backend that names every channel, such as Redis Pub/Sub.
+    pub fn name(&self) -> String {
+        format!("{}:{}", self.kind, self.key)
+    }
+}
+
 /// Topic backend trait
 ///
 /// Defines the interface for topic implementations.
@@ -94,17 +139,18 @@ pub struct StreamSubscription {
 ///   Ideal for critical data like OTLP traces.
 #[async_trait]
 pub trait TopicBackend: Send + Sync {
-    /// Publish message to broadcast topic (fire-and-forget)
+    /// Publish a message on a broadcast channel (fire-and-forget).
     ///
-    /// All active subscribers receive the message. If no subscribers exist,
-    /// the message is silently dropped.
-    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), TopicError>;
+    /// Every active subscriber of the channel receives it; with none, it is dropped.
+    async fn publish(&self, channel: &BroadcastChannel, payload: &[u8]) -> Result<(), TopicError>;
 
-    /// Subscribe to broadcast topic
+    /// Subscribe to a broadcast channel: the messages published on it after this returns, and no others.
     ///
-    /// Returns a stream of messages. Lagging subscribers may miss messages
-    /// (bounded buffer overflow).
-    async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError>;
+    /// Lagging subscribers may miss messages (bounded buffer overflow).
+    async fn subscribe(
+        &self,
+        channel: &BroadcastChannel,
+    ) -> Result<BroadcastSubscription, TopicError>;
 
     /// Publish message to stream topic, under a **partition key**.
     ///
