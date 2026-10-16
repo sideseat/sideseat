@@ -41,7 +41,8 @@ pub(super) fn check(
 struct Allowance<'a> {
     system_prompt: bool,
     routing: bool,
-    /// Traces any truth call ran in; routing and system prompts are bounded to them.
+    /// Traces any truth call ran in - by its own span, or by the spans recording a silent call's parts; routing and
+    /// system prompts are bounded to them.
     traces: BTreeSet<String>,
     /// (class, trace, fact id) slots for unknowable facts; the trace is `None` when the fact's call has no
     /// span. The fact id bounds a span scope to its own calls' slots.
@@ -104,11 +105,27 @@ impl<'a> Allowance<'a> {
         Allowance {
             system_prompt: gap("request_body_unrecorded") || gap("request_modelled"),
             routing: gap("multi_agent_routing"),
+            // A call with a span ran in its span's trace; one whose request span is silent
+            // (`call_span_records_no_output`) ran where the spans recording its parts are - in a trace that holds a
+            // model request span, since a part's carrier alone, an orphan record, says no call ran there.
             traces: context
                 .matching
                 .span_of
                 .values()
                 .map(|&i| context.recon.generations[i].trace.clone())
+                .chain(
+                    context
+                        .carried_spans
+                        .values()
+                        .flat_map(|spans| spans.iter().map(|(trace, _)| trace.clone()))
+                        .filter(|trace| {
+                            context
+                                .recon
+                                .generations
+                                .iter()
+                                .any(|g| g.typed && g.trace == *trace)
+                        }),
+                )
                 .collect(),
             slots,
             user_text: truth
@@ -713,4 +730,42 @@ fn check_attribution(
             ));
         }
     }
+}
+
+/// A routed user text is explained only in a trace a call of the conversation ran in. Codex's calls have no span
+/// of their own, so they ran where the spans recording their parts are - and only where a model request was made:
+/// the same text in a trace with no model request span stays unexplained.
+#[test]
+fn routing_is_explained_only_where_a_call_ran() {
+    let (truth, recon, baseline) = super::mutations::baseline("codex/native/multi_agent");
+    let routed = recon
+        .views
+        .iter()
+        .flat_map(|view| &view.blocks)
+        .find(|b| {
+            b.is("user", "text")
+                && b.text()
+                    .is_some_and(|t| t.starts_with("Read forecast.json"))
+        })
+        .expect("the sub-agent's prompt")
+        .clone();
+    let Some(v) = recon.views.iter().position(|view| {
+        view.kind == super::recon::ViewKind::Trace
+            && !recon
+                .generations
+                .iter()
+                .any(|g| g.typed && g.trace == view.key)
+    }) else {
+        panic!("a trace with no model request span");
+    };
+    let mut elsewhere = recon.clone();
+    let mut block = routed;
+    block.trace = elsewhere.views[v].key.clone();
+    block.refresh();
+    elsewhere.views[v].blocks.push(block);
+    let new = super::mutations::added(&truth, &elsewhere, &baseline);
+    assert!(
+        new.iter().any(|a| a.starts_with("extra.unexplained:")),
+        "a routed text in a trace no call ran in passed: {new:?}"
+    );
 }
