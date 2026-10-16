@@ -84,9 +84,38 @@ async fn assert_server_topics_deliver_and_stay_apart(backend: Arc<dyn TopicBacke
     }
 }
 
+/// A subscriber receives what is published after it subscribes, and nothing published before: a viewer opening a
+/// live stream must not first replay the topic's history (Redpanda's broadcast once joined a fresh consumer group at
+/// the earliest offset and did exactly that).
+async fn assert_a_new_subscriber_sees_no_history(backend: Arc<dyn TopicBackend>) {
+    let topic = format!("sse_spans:h{}", uuid::Uuid::new_v4().simple());
+    // An earlier viewer keeps the topic live, as one would in production, while the history is published.
+    let mut earlier = backend.subscribe(&topic).await.expect("subscribe");
+    publish_until_received(backend.as_ref(), &topic, &mut earlier, b"history").await;
+    for _ in 0..20 {
+        backend
+            .publish(&topic, b"history")
+            .await
+            .expect("publish history");
+    }
+    let mut viewer = backend.subscribe(&topic).await.expect("subscribe");
+    publish_until_received(backend.as_ref(), &topic, &mut viewer, b"live").await;
+    while let Some(message) = next_within(&mut viewer, Duration::from_secs(2)).await {
+        assert_eq!(
+            message, b"live",
+            "a new viewer of {topic} received what was published before it"
+        );
+    }
+}
+
 #[tokio::test]
 async fn memory_delivers_every_server_topic_and_keeps_projects_apart() {
     assert_server_topics_deliver_and_stay_apart(Arc::new(MemoryTopicBackend::new())).await;
+}
+
+#[tokio::test]
+async fn memory_gives_a_new_subscriber_no_history() {
+    assert_a_new_subscriber_sees_no_history(Arc::new(MemoryTopicBackend::new())).await;
 }
 
 #[tokio::test]
@@ -111,16 +140,34 @@ async fn redpanda_delivers_every_server_topic_and_keeps_projects_apart() {
         );
         return;
     };
-    let backend = RedpandaTopicBackend::new(&RedpandaConfig {
-        brokers,
-        partitions: 1,
-        replication_factor: 1,
-        retention_ms: 10 * 60 * 1_000,
-        retention_warning_ms: 60 * 1_000,
-    })
-    .await
-    .expect("connect to RedPanda");
-    assert_server_topics_deliver_and_stay_apart(Arc::new(backend)).await;
+    let backend = Arc::new(
+        RedpandaTopicBackend::new(&RedpandaConfig {
+            brokers,
+            partitions: 3,
+            replication_factor: 1,
+            retention_ms: 10 * 60 * 1_000,
+            retention_warning_ms: 60 * 1_000,
+        })
+        .await
+        .expect("connect to RedPanda"),
+    );
+    assert_server_topics_deliver_and_stay_apart(backend.clone()).await;
+    assert_a_new_subscriber_sees_no_history(backend.clone()).await;
+
+    // Exactly once, with no retry: a message published as soon as `subscribe` returns is delivered, on whichever
+    // partition it lands - the subscription starts at each partition's high watermark, not when a group's
+    // assignment arrives.
+    for round in 0..5 {
+        let topic = format!("sse_spans:o{}", uuid::Uuid::new_v4().simple());
+        let mut viewer = backend.subscribe(&topic).await.expect("subscribe");
+        backend.publish(&topic, b"first").await.expect("publish");
+        let message = next_within(&mut viewer, Duration::from_secs(15)).await;
+        assert_eq!(
+            message.as_deref(),
+            Some(&b"first"[..]),
+            "round {round}: the first message after subscribe was lost"
+        );
+    }
 }
 
 /// Kafka's own rule for a topic name.

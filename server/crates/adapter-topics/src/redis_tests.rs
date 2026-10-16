@@ -101,3 +101,14 @@ fn test_sanitize_redis_url() {
         "redis://user:***@localhost:6379"
     );
 }
+
+/// The advice a refused Redis gets names only settings the probe accepts: it once offered `everysec`, which the
+/// probe refuses, so an operator following it was refused again.
+#[test]
+fn durability_advice_names_only_accepted_settings() {
+    assert!(DURABILITY_ADVICE.contains("`appendfsync always`"));
+    assert!(
+        !DURABILITY_ADVICE.contains("everysec"),
+        "{DURABILITY_ADVICE}"
+    );
+}

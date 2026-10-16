@@ -69,6 +69,44 @@ pub(crate) fn kafka_topic(name: &str) -> Result<String, TopicError> {
     Ok(topic)
 }
 
+/// Assign `consumer` every partition of `topic` at its current high watermark. A topic created a moment ago can be
+/// missing from the metadata, or listed without partitions, until the broker has propagated it: retried within the
+/// client timeout.
+fn assign_at_high_watermarks(consumer: &KafkaConsumer, topic: &str) -> Result<(), TopicError> {
+    let deadline = std::time::Instant::now() + CLIENT_TIMEOUT;
+    let partitions = loop {
+        let metadata = consumer
+            .fetch_metadata(Some(topic), CLIENT_TIMEOUT)
+            .map_err(|error| TopicError::Stream(error.to_string()))?;
+        let partitions: Vec<i32> = metadata
+            .topics()
+            .iter()
+            .filter(|entry| entry.name() == topic && entry.error().is_none())
+            .flat_map(|entry| entry.partitions().iter().map(|partition| partition.id()))
+            .collect();
+        if !partitions.is_empty() {
+            break partitions;
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(TopicError::Stream(format!(
+                "topic {topic} has no partitions in the broker's metadata"
+            )));
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    let mut list = TopicPartitionList::new();
+    for partition in partitions {
+        let (_, high) = consumer
+            .fetch_watermarks(topic, partition, CLIENT_TIMEOUT)
+            .map_err(|error| TopicError::Stream(error.to_string()))?;
+        list.add_partition_offset(topic, partition, Offset::Offset(high))
+            .map_err(|error| TopicError::ConsumerGroup(error.to_string()))?;
+    }
+    consumer
+        .assign(&list)
+        .map_err(|error| TopicError::ConsumerGroup(error.to_string()))
+}
+
 #[derive(Debug)]
 struct AckState {
     window: AckWindow,
@@ -353,13 +391,19 @@ impl TopicBackend for RedpandaTopicBackend {
 
     async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError> {
         let topic = kafka_topic(topic)?;
-        let topic = topic.as_str();
-        self.ensure_topic(topic).await?;
+        self.ensure_topic(&topic).await?;
+        // Broadcast is live delivery: a subscriber receives what is published after it subscribes, never the
+        // topic's retained history. It joins no consumer group - a fresh group with `auto.offset.reset` would
+        // either replay the history (`earliest`) or, read from the end only once the group's assignment arrives
+        // (`latest`), drop what is published in between. Every partition is assigned directly at its high
+        // watermark read here, so a message published once this returns is at or above it and is delivered.
         let group = format!("sideseat-broadcast-{}", uuid::Uuid::new_v4());
         let consumer = Arc::new(self.consumer(&group, &group)?);
-        consumer
-            .subscribe(&[topic])
-            .map_err(|error| TopicError::ConsumerGroup(error.to_string()))?;
+        let assigned = Arc::clone(&consumer);
+        let name = topic.clone();
+        tokio::task::spawn_blocking(move || assign_at_high_watermarks(&assigned, &name))
+            .await
+            .map_err(|error| TopicError::ConsumerGroup(error.to_string()))??;
         let receiver = stream! {
             loop {
                 match consumer.recv().await {

@@ -90,6 +90,10 @@ const XREADGROUP_BLOCK_MS: u64 = 5000;
 /// Reconnection delay for pub/sub after error
 const PUBSUB_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
+/// What a Redis that fails the durability probe must be set to: exactly the settings the probe accepts.
+pub(crate) const DURABILITY_ADVICE: &str = "Set `appendonly yes` with `appendfsync always` and a \
+     `maxmemory-policy` of `noeviction` or one of the `*-with-ttl` variants.";
+
 /// Default broadcast channel capacity
 const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
 
@@ -184,9 +188,9 @@ impl RedisTopicBackend {
         // A durable queue's promise rests on the server's persistence and eviction settings, not on the
         // wire protocol - `PING` says nothing about either. The two failure modes:
         //
-        //   * AOF off or `appendfsync no`: a host failure loses whatever was in the fsync window, which
-        //     may include entries an exporter was already told 200 for. `everysec` bounds the loss to
-        //     one second, which is the minimum a durable queue can claim.
+        //   * AOF off, or `appendfsync` anything but `always`: a host failure loses whatever was in the
+        //     fsync window, which may include entries an exporter was already told 200 for. `everysec`
+        //     only bounds that loss to a second, so it is refused too (`probe_redis_durability`).
         //   * An LRU or LFU `maxmemory-policy` on a keyspace that includes streams: memory pressure
         //     silently evicts stream entries, or the stream key itself, before any consumer has read it.
         //     The queue effectively acknowledges storage it may later delete.
@@ -196,9 +200,7 @@ impl RedisTopicBackend {
         // an explicit choice, and getting it wrong means the queue lies about durability.
         probe_redis_durability(&mut conn).await.map_err(|e| {
             TopicError::Connection(format!(
-                "Redis persistence probe failed for {sanitized_url}: {e}. Set `appendonly yes` \
-                 with `appendfsync everysec` (or `always`) and a `maxmemory-policy` of `noeviction` \
-                 or one of the `*-with-ttl` variants."
+                "Redis persistence probe failed for {sanitized_url}: {e}. {DURABILITY_ADVICE}"
             ))
         })?;
 

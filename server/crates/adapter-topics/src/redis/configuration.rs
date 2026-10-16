@@ -36,16 +36,16 @@ pub(super) async fn connected_replicas(
 
 /// Persistence and eviction settings that make the queue's durability promise honest.
 ///
-/// Returns `Ok(())` when the server is configured for at least "one-second data loss on host failure"
-/// (AOF on with `everysec` or `always`), and refuses when memory pressure could evict a queue entry.
+/// Returns `Ok(())` when every acknowledged entry is on disk before the 200 (AOF on with `appendfsync always`),
+/// and refuses when memory pressure could evict a queue entry.
 ///
 /// # Why these are the right knobs to check, and not others
 ///
 /// `PING` says the server is *reachable*, not that it is durable. The two properties we depend on:
 ///
 /// * **AOF.** RDB alone is a periodic snapshot; a crash between snapshots loses everything since. AOF
-///   `everysec` bounds that to one second, which is the minimum for a queue whose 200 has to mean
-///   "durably stored". `always` is stricter.
+///   `everysec` only bounds that to one second, which still lets a 200 precede the fsync; a queue whose
+///   200 has to mean "durably stored" needs `always`.
 /// * **Eviction.** A stream is a key, and an LRU/LFU policy over the whole keyspace can evict it under
 ///   memory pressure - which is exactly when a queue is most likely to be under pressure. `noeviction`
 ///   refuses new writes instead, which the OTLP path already handles as backpressure. The `-with-ttl`
