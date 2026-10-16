@@ -1,5 +1,5 @@
 
-Ÿm
+ãl
 ë
 !
 process.runtime.name	
@@ -52,12 +52,12 @@ $10df6c60-02e1-423f-98b9-ae5a5a266990
 logfire.version
 5.1.1
 
-process.pidÃÅ½f
+process.pidÃÅf
 
-logfire.openai_agents5.1.1±O
-¡	€ng¦ó÷HÓäx€*K»õÙ$ş¥"`vw˜Ùb*+Responses API with {gen_ai.request.model!r}09pÎ¨|ÛAëß¼|ÛJˆ
-code.filepathw
-u/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a19a68f1975c89c48/examples/python/harness/harness/cli.pyJ
+logfire.openai_agents5.1.1õN
+¡	€ng¦ó÷HÓäx€*K»õÙ$ş¥"`vw˜Ùb*+Responses API with {gen_ai.request.model!r}09pÎ¨|ÛAëß¼|ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J

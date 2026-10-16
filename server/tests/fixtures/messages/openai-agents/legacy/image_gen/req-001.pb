@@ -1,5 +1,5 @@
 
-¬«
+©
 Á
 !
 process.runtime.name	
@@ -45,7 +45,7 @@ $bb617d97-204c-4b3f-a51e-160a09ba0aef
 logfire.version
 4.41.0
 
-process.pid²ºä¦
+process.pid²ºÇ¤
 
 logfire.openai_agents4.41.0±Q
  BPÚU€`hO^>¥^îæèeu½×¯"œY™^uFÑ*+Responses API with {gen_ai.request.model!r}09HhH8æ›ÏA0àñæ›ÏJ'
@@ -83,7 +83,7 @@ $bb617d97-204c-4b3f-a51e-160a09ba0aef
 logfire.msg-
 +Responses API with 'us.openai.gpt-5.6-luna'JÌ
 logfire.json_schema´
-±{"type":"object","properties":{"response_id":{},"usage":{"type":"object"},"gen_ai.system":{},"model_settings":{"type":"object","title":"ModelSettings","x-python-datatype":"dataclass"},"gen_ai.request.model":{},"gen_ai.response.model":{},"response":{"type":"object","title":"Response","x-python-datatype":"PydanticModel","properties":{"output":{"type":"array","prefixItems":[{"type":"object","title":"ResponseReasoningItem","x-python-datatype":"PydanticModel"},{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"},{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"},{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"}]},"tools":{"type":"array","items":{"type":"object","title":"FunctionTool","x-python-datatype":"PydanticModel"}},"reasoning":{"type":"object","title":"Reasoning","x-python-datatype":"PydanticModel"},"text":{"type":"object","title":"ResponseTextConfig","x-python-datatype":"PydanticModel","properties":{"format":{"type":"object","title":"ResponseFormatText","x-python-datatype":"PydanticModel"}}},"usage":{"type":"object","title":"ResponseUsage","x-python-datatype":"PydanticModel","properties":{"input_tokens_details":{"type":"object","title":"InputTokensDetails","x-python-datatype":"PydanticModel"},"output_tokens_details":{"type":"object","title":"OutputTokensDetails","x-python-datatype":"PydanticModel"}}}}},"gen_ai.operation.name":{},"raw_input":{"type":"array"},"events":{"type":"array"},"gen_ai.usage.input_tokens":{},"gen_ai.usage.output_tokens":{}}}z …   ¸
+±{"type":"object","properties":{"response_id":{},"usage":{"type":"object"},"gen_ai.system":{},"model_settings":{"type":"object","title":"ModelSettings","x-python-datatype":"dataclass"},"gen_ai.request.model":{},"gen_ai.response.model":{},"response":{"type":"object","title":"Response","x-python-datatype":"PydanticModel","properties":{"output":{"type":"array","prefixItems":[{"type":"object","title":"ResponseReasoningItem","x-python-datatype":"PydanticModel"},{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"},{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"},{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"}]},"tools":{"type":"array","items":{"type":"object","title":"FunctionTool","x-python-datatype":"PydanticModel"}},"reasoning":{"type":"object","title":"Reasoning","x-python-datatype":"PydanticModel"},"text":{"type":"object","title":"ResponseTextConfig","x-python-datatype":"PydanticModel","properties":{"format":{"type":"object","title":"ResponseFormatText","x-python-datatype":"PydanticModel"}}},"usage":{"type":"object","title":"ResponseUsage","x-python-datatype":"PydanticModel","properties":{"input_tokens_details":{"type":"object","title":"InputTokensDetails","x-python-datatype":"PydanticModel"},"output_tokens_details":{"type":"object","title":"OutputTokensDetails","x-python-datatype":"PydanticModel"}}}}},"gen_ai.operation.name":{},"raw_input":{"type":"array"},"events":{"type":"array"},"gen_ai.usage.input_tokens":{},"gen_ai.usage.output_tokens":{}}}z …   Ù
  BPÚU€`hO^>¥^îag ÂA¹"œY™^uFÑ*Function: {name}09P’4ñæ›ÏAý¶ñæ›ÏJ'
 code.filepath
 samples/image_gen.pyJ
@@ -112,37 +112,37 @@ $bb617d97-204c-4b3f-a51e-160a09ba0aef
 logfire.json_schemaŒ
 ‰{"type":"object","properties":{"name":{},"input":{},"output":{},"mcp_data":{"type":"null"},"gen_ai.system":{},"error":{"type":"object"}}}J¶
 logfire.scrubbed¡
-ž[{"path": ["attributes", "output"], "matched_substring": "credential"}, {"path": ["attributes", "error", "data", "error"], "matched_substring": "credential"}]Zà	ˆíFñæ›Ï	exception&
+ž[{"path": ["attributes", "output"], "matched_substring": "credential"}, {"path": ["attributes", "error", "data", "error"], "matched_substring": "credential"}]Z	ˆíFñæ›Ï	exception&
 exception.type
 openai.OpenAIErrorµ
 exception.messageŸ
-œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.Ë
-exception.stacktrace²
-¯Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
+œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.ì
+exception.stacktraceÓ
+ÐTraceback (most recent call last):
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
     return await self._invoke_tool_impl(ctx, input)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
     result = await asyncio.to_thread(the_func, *args, **kwargs_dict)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/home/user/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
     return await loop.run_in_executor(None, func_call)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/home/user/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
     result = self.fn(*self.args, **self.kwargs)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
     return func()
            ^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
+  File "/home/user/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
     client = OpenAI()
              ^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
     raise OpenAIError(
 openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.
 
 exception.escaped
-Falsez…   È
+Falsez…   é
  BPÚU€`hO^>¥^îØƒ$êÖBº"œY™^uFÑ*Function: {name}09[8ñæ›ÏA˜Íºñæ›ÏJ'
 code.filepath
 samples/image_gen.pyJ
@@ -171,37 +171,37 @@ openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_ide
 logfire.json_schemaŒ
 ‰{"type":"object","properties":{"name":{},"input":{},"output":{},"mcp_data":{"type":"null"},"gen_ai.system":{},"error":{"type":"object"}}}J¶
 logfire.scrubbed¡
-ž[{"path": ["attributes", "output"], "matched_substring": "credential"}, {"path": ["attributes", "error", "data", "error"], "matched_substring": "credential"}]Zà	 ;¬ñæ›Ï	exception&
+ž[{"path": ["attributes", "output"], "matched_substring": "credential"}, {"path": ["attributes", "error", "data", "error"], "matched_substring": "credential"}]Z	 ;¬ñæ›Ï	exception&
 exception.type
 openai.OpenAIErrorµ
 exception.messageŸ
-œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.Ë
-exception.stacktrace²
-¯Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
+œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.ì
+exception.stacktraceÓ
+ÐTraceback (most recent call last):
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
     return await self._invoke_tool_impl(ctx, input)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
     result = await asyncio.to_thread(the_func, *args, **kwargs_dict)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/home/user/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
     return await loop.run_in_executor(None, func_call)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/home/user/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
     result = self.fn(*self.args, **self.kwargs)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
     return func()
            ^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
+  File "/home/user/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
     client = OpenAI()
              ^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
     raise OpenAIError(
 openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.
 
 exception.escaped
-Falsez…   À
+Falsez…   á
  BPÚU€`hO^>¥^î4¼È&<ãG"œY™^uFÑ*Function: {name}09Pë:ñæ›ÏAˆ”½ñæ›ÏJ'
 code.filepath
 samples/image_gen.pyJ
@@ -230,32 +230,32 @@ openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_ide
 logfire.json_schemaŒ
 ‰{"type":"object","properties":{"name":{},"input":{},"output":{},"mcp_data":{"type":"null"},"gen_ai.system":{},"error":{"type":"object"}}}J¶
 logfire.scrubbed¡
-ž[{"path": ["attributes", "output"], "matched_substring": "credential"}, {"path": ["attributes", "error", "data", "error"], "matched_substring": "credential"}]Zà	`¿°ñæ›Ï	exception&
+ž[{"path": ["attributes", "output"], "matched_substring": "credential"}, {"path": ["attributes", "error", "data", "error"], "matched_substring": "credential"}]Z	`¿°ñæ›Ï	exception&
 exception.type
 openai.OpenAIErrorµ
 exception.messageŸ
-œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.Ë
-exception.stacktrace²
-¯Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
+œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.ì
+exception.stacktraceÓ
+ÐTraceback (most recent call last):
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
     return await self._invoke_tool_impl(ctx, input)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
     result = await asyncio.to_thread(the_func, *args, **kwargs_dict)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/home/user/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
     return await loop.run_in_executor(None, func_call)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/home/user/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
     result = self.fn(*self.args, **self.kwargs)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
     return func()
            ^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
+  File "/home/user/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
     client = OpenAI()
              ^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
+  File "/home/user/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
     raise OpenAIError(
 openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.
 

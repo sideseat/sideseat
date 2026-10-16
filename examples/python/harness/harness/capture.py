@@ -57,6 +57,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from harness.paths import NotNormalisable, normalise_otlp
 from harness.scrub import scrub_account
 
 REPO = Path(__file__).resolve().parents[4]
@@ -145,7 +146,9 @@ def anonymise(raw: bytes, pins: Pins | None = None) -> bytes:
     per-run attachment directory and subagent ids, Browser Use's tab names and Laminar's span ids
     become fixed ones, so the native and SDK runs of a scenario compare. Every replacement has the
     same length: protobuf payloads are length-prefixed, so any other length would require re-encoding,
-    and a re-encoded payload is no longer what the producer sent.
+    and a re-encoded payload is no longer what the producer sent. Home and checkout paths, which change
+    lengths, are replaced afterwards by ``harness.paths``, which re-encodes a protobuf payload only when
+    it round-trips byte for byte.
     """
     raw = _CLI_ATTACHMENT_DIR.sub(rb"\g<1>" + _FIXED_SESSION + rb"\g<2>", raw)
     raw = _CLI_SUBAGENT_DURATION.sub(lambda m: m[1] + b"0" * len(m[2]), raw)
@@ -185,6 +188,57 @@ def recorded_prefix(
     return None
 
 
+class RecorderServer(ThreadingHTTPServer):
+    """The telemetry recorder's server, counting every connection from the moment it is accepted - before its
+    handler thread starts, let alone parses a header - until that thread ends, so ``drain`` waits for all of
+    them."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        #: The run this server records: ``drain`` ends it, after which its handlers write nothing.
+        self.generation = _Recorder.generation
+        #: This server's connections accepted and not yet finished: its own, so a connection an earlier run's
+        #: drain gave up on cannot hold up a later run's.
+        self.inflight = 0
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        with _Recorder.settled:
+            self.inflight += 1
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._settle()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._settle()
+
+    def _settle(self) -> None:
+        with _Recorder.settled:
+            self.inflight -= 1
+            _Recorder.settled.notify_all()
+
+
+def drain(server: RecorderServer, timeout: float = 30.0) -> list[str]:
+    """Stop the telemetry recorder and wait for every connection it accepted; the exports it refused.
+
+    Its handler threads are daemons, which closing the server does not join, so a refusal could otherwise land
+    after the run was judged. Once the accept loop has stopped no connection is uncounted: ``RecorderServer``
+    counts each as it is accepted."""
+    server.shutdown()
+    with _Recorder.settled:
+        if not _Recorder.settled.wait_for(lambda: server.inflight == 0, timeout):
+            _Recorder.refused.append(f"{server.inflight} export(s) still being handled")
+    # Whatever is still in flight now belongs to a judged run: it is dropped rather than written.
+    with _Recorder.lock:
+        if getattr(server, "generation", None) == _Recorder.generation:
+            _Recorder.generation += 1
+    return list(_Recorder.refused)
+
+
 class _Recorder(BaseHTTPRequestHandler):
     out: Path
     forward: str | None
@@ -192,7 +246,13 @@ class _Recorder(BaseHTTPRequestHandler):
     count = 0
     counts: dict[str, int] = {}
     pins = Pins()
+    #: Exports the path normalisation refused: any one fails the whole capture, so a run never replaces a
+    #: fixture with the exports that happened to survive.
+    refused: list[str] = []
     lock = threading.Lock()
+    #: The run being recorded, which ``drain`` advances (``RecorderServer.generation``).
+    generation = 0
+    settled = threading.Condition()
 
     def log_message(self, fmt: str, *args: object) -> None:
         pass
@@ -215,24 +275,34 @@ class _Recorder(BaseHTTPRequestHandler):
         body = self._body()
         prefix = recorded_prefix(self.path, _Recorder.signals)
         if prefix and body:
-            raw = body
-            if self.headers.get("Content-Encoding") == "gzip":
-                raw = gzip.decompress(body)
             suffix = (
                 "json"
                 if self.headers.get("Content-Type", "").startswith("application/json")
                 else "pb"
             )
             # One sequence per signal, so trace requests keep the numbering the golden runner replays in
-            # whether or not the run also exported logs.
+            # whether or not the run also exported logs. Numbered, normalised and written under the lock, and
+            # only for the run whose server accepted it: a connection a drain gave up on is from a run already
+            # judged, and its export must not land in the next run's staging directory.
             with _Recorder.lock:
+                if getattr(self.server, "generation", None) != _Recorder.generation:
+                    return
                 number = _Recorder.counts.get(prefix, 0) + 1
                 _Recorder.counts[prefix] = number
                 if prefix == "req":
                     _Recorder.count = number
                 path = self.out / f"{prefix}-{number:03d}.{suffix}"
-                payload = anonymise(raw, _Recorder.pins)
-            path.write_bytes(payload)
+                try:
+                    raw = body
+                    if self.headers.get("Content-Encoding") == "gzip":
+                        raw = gzip.decompress(body)
+                    payload = normalise_otlp(
+                        anonymise(raw, _Recorder.pins), prefix, suffix
+                    )
+                except Exception as refusal:  # noqa: BLE001 - any export not recorded fails the run
+                    _Recorder.refused.append(f"{path.name}: {refusal!r}")
+                else:
+                    path.write_bytes(payload)
         status, reply = 200, b"{}"
         if self.forward:
             status, reply = self._forward(body)
@@ -456,9 +526,10 @@ def capture_one(
     staging = Path(tempfile.mkdtemp(prefix=f"capture-{producer}-{scenario}-"))
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, forward, 0
     _Recorder.counts = {}
+    _Recorder.refused = []
     _Recorder.signals = METRIC_SIGNALS if metrics else RECORDED_SIGNALS
     _Recorder.pins = Pins()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
+    server = RecorderServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     arguments = [scenario]
     if mode == "sdk":
@@ -516,6 +587,9 @@ def capture_one(
                     ).returncode
                     == 0
                 )
+                # A refused export voids the run, recording included: its cassette would answer for
+                # telemetry that is not committed. Judged once the last export has been handled.
+                proxy.discard = bool(drain(server))
         if not deterministic and proxy.misses:
             print(
                 f"[capture] the scenario made requests the cassette has no answer for: {proxy.misses}"
@@ -527,6 +601,12 @@ def capture_one(
             os.environ.pop(transcript.ENV, None)
         else:
             os.environ[transcript.ENV] = previous_log
+    if drain(server):
+        print(
+            f"[capture] {producer}/{mode}/{scenario}: exports the path normalisation refused: "
+            f"{_Recorder.refused}"
+        )
+        ok = False
     requests_document = (
         json.dumps(
             transcript.finish(request_log, lambda raw: anonymise(raw, _Recorder.pins)),

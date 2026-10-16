@@ -21,6 +21,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from harness.paths import normalise_body
 from harness.scrub import scrub_body
 
 FORMAT = "sideseat.transcript/1"
@@ -32,7 +33,17 @@ _lock = threading.Lock()
 
 
 def digest(method: str, path: str, body: bytes) -> str:
-    """The request digest a cassette pairs answers by - of the unscrubbed bytes."""
+    """The request digest a cassette pairs answers by: of the request as any machine sends it - the account
+    scrubbed, home and checkout paths normalised - so a request pairs with its recording from any checkout and
+    any account, and a committed transcript body hashes to the digest its live request has."""
+    clean = normalise_body(scrub_body(body, ""), "")
+    return hashlib.sha256(
+        method.encode() + b" " + path.encode() + b"\n" + clean
+    ).hexdigest()
+
+
+def raw_digest(method: str, path: str, body: bytes) -> str:
+    """The digest cassettes recorded before ``digest`` normalised: of the request's own bytes."""
     return hashlib.sha256(
         method.encode() + b" " + path.encode() + b"\n" + body
     ).hexdigest()
@@ -83,7 +94,8 @@ def finish(
             raw = base64.b64decode(entry["body"])
             if anonymise is not None:
                 raw = anonymise(raw)
-            clean = scrub_body(raw, entry.get("content_type", ""))
+            content_type = entry.get("content_type", "")
+            clean = normalise_body(scrub_body(raw, content_type), content_type)
             entry["body"] = base64.b64encode(clean).decode("ascii")
             interactions.append(entry)
     return {"format": FORMAT, "interactions": interactions}

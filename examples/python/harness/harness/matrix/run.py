@@ -18,7 +18,9 @@ from harness import transcript
 from harness.capture import (
     Pins,
     Suite,
+    RecorderServer,
     _Recorder,
+    drain,
     anonymise,
     credential_in,
     uses_fake_model,
@@ -40,6 +42,9 @@ class Replay:
     unanswered: list[str] = field(default_factory=list)
     leaked: str | None = None
     output: str = ""
+    #: A live recording the proxy left unwritten (an export was refused): the cassette there is the previous
+    #: one, still good, which a failed run must not delete.
+    kept_cassette: bool = False
 
     @property
     def requests(self) -> list[Path]:
@@ -103,8 +108,9 @@ def replay(
     os.environ[transcript.ENV] = str(request_log)
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, None, 0
     _Recorder.counts = {}
+    _Recorder.refused = []
     _Recorder.pins = Pins()
-    recorder = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
+    recorder = RecorderServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=recorder.serve_forever, daemon=True).start()
     arguments = [scenario] + (["--sideseat"] if mode == "sdk" else [])
     run_env = {
@@ -181,9 +187,17 @@ def replay(
             with ModelProxy(cassette, record=live) as proxy:
                 run_env.update(client_environment(proxy.url))
                 completed = _run(command, workdir, run_env, timeout)
+                proxy.discard = result.kept_cassette = bool(drain(recorder))
             result.exact, result.by_order = proxy.exact, proxy.by_order
             result.misses, result.unanswered = proxy.misses, proxy.unanswered()
         result.returncode, result.output = completed
+        if drain(recorder):
+            # An export the path normalisation refused is missing from the staging directory, so the run's
+            # telemetry is incomplete whatever the scenario's exit status.
+            result.returncode = -1
+            result.output += (
+                f"\nexports the path normalisation refused: {_Recorder.refused}"
+            )
     finally:
         recorder.shutdown()
         if previous_log is None:

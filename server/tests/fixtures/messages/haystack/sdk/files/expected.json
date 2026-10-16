@@ -44,8 +44,8 @@
           "index": 2,
           "role": "user",
           "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
-          "content_digest": "9c8145a1e365a99d",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
+          "content_digest": "861c3bc408cb3549",
           "observation_type": "agent"
         },
         {
@@ -98,8 +98,8 @@
           "index": 2,
           "role": "user",
           "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
-          "content_digest": "9c8145a1e365a99d",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
+          "content_digest": "861c3bc408cb3549",
           "observation_type": "generation"
         },
         {
@@ -161,8 +161,8 @@
           "index": 2,
           "role": "user",
           "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
-          "content_digest": "9c8145a1e365a99d",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
+          "content_digest": "861c3bc408cb3549",
           "observation_type": "generation"
         },
         {
@@ -217,8 +217,8 @@
           "index": 2,
           "role": "user",
           "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
-          "content_digest": "9c8145a1e365a99d",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
+          "content_digest": "861c3bc408cb3549",
           "observation_type": "generation"
         },
         {
@@ -272,8 +272,8 @@
         "index": 2,
         "role": "user",
         "entry_type": "unknown",
-        "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
-        "content_digest": "9c8145a1e365a99d",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
+        "content_digest": "861c3bc408cb3549",
         "observation_type": "generation"
       },
       {

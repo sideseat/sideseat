@@ -1,5 +1,5 @@
 
-ş½
+©½
 ½
 !
 process.runtime.name	
@@ -45,13 +45,13 @@ $38170197-170c-48dd-99c4-e5c42cb5a2ef
 logfire.version
 5.1.1
 
-process.pidª›ì·
+process.pidª›—·
 
-logfire.openai_agents5.1.1Ø:
+logfire.openai_agents5.1.1Ç:
 ¡.!„«ïi÷LB{‚€´µsTÑŸ"cŸÓÚ
-*+Responses API with {gen_ai.request.model!r}09¸¯ş‹×ÛAô°IŒ×ÛJ^
-code.filepathM
-K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
+*+Responses API with {gen_ai.request.model!r}09¸¯ş‹×ÛAô°IŒ×ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–JË
@@ -89,11 +89,11 @@ K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
 logfire.json_schemaÉ
 
 Æ
-{"type":"object","properties":{"response_id":{},"usage":{"type":"object"},"gen_ai.system":{},"model_settings":{"type":"object","title":"ModelSettings","x-python-datatype":"dataclass"},"gen_ai.request.model":{},"gen_ai.response.model":{},"response":{"type":"object","title":"Response","x-python-datatype":"PydanticModel","properties":{"output":{"type":"array","items":{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"}},"tools":{"type":"array","items":{"type":"object","title":"FunctionTool","x-python-datatype":"PydanticModel"}},"reasoning":{"type":"object","title":"Reasoning","x-python-datatype":"PydanticModel"},"text":{"type":"object","title":"ResponseTextConfig","x-python-datatype":"PydanticModel","properties":{"format":{"type":"object","title":"ResponseFormatText","x-python-datatype":"PydanticModel"}}},"usage":{"type":"object","title":"ResponseUsage","x-python-datatype":"PydanticModel","properties":{"input_tokens_details":{"type":"object","title":"InputTokensDetails","x-python-datatype":"PydanticModel"},"output_tokens_details":{"type":"object","title":"OutputTokensDetails","x-python-datatype":"PydanticModel"}}}}},"gen_ai.operation.name":{},"raw_input":{"type":"array"},"events":{"type":"array"},"gen_ai.usage.input_tokens":{},"gen_ai.usage.output_tokens":{},"gen_ai.usage.raw":{"type":"object"}}}z …   Ú
+{"type":"object","properties":{"response_id":{},"usage":{"type":"object"},"gen_ai.system":{},"model_settings":{"type":"object","title":"ModelSettings","x-python-datatype":"dataclass"},"gen_ai.request.model":{},"gen_ai.response.model":{},"response":{"type":"object","title":"Response","x-python-datatype":"PydanticModel","properties":{"output":{"type":"array","items":{"type":"object","title":"ResponseFunctionToolCall","x-python-datatype":"PydanticModel"}},"tools":{"type":"array","items":{"type":"object","title":"FunctionTool","x-python-datatype":"PydanticModel"}},"reasoning":{"type":"object","title":"Reasoning","x-python-datatype":"PydanticModel"},"text":{"type":"object","title":"ResponseTextConfig","x-python-datatype":"PydanticModel","properties":{"format":{"type":"object","title":"ResponseFormatText","x-python-datatype":"PydanticModel"}}},"usage":{"type":"object","title":"ResponseUsage","x-python-datatype":"PydanticModel","properties":{"input_tokens_details":{"type":"object","title":"InputTokensDetails","x-python-datatype":"PydanticModel"},"output_tokens_details":{"type":"object","title":"OutputTokensDetails","x-python-datatype":"PydanticModel"}}}}},"gen_ai.operation.name":{},"raw_input":{"type":"array"},"events":{"type":"array"},"gen_ai.usage.input_tokens":{},"gen_ai.usage.output_tokens":{},"gen_ai.usage.raw":{"type":"object"}}}z …   É
 ¡.!„«ïi÷LB{‚€Å|'®eRÌ?"cŸÓÚ
-*Function: {name}09 JÚIŒ×ÛA`¯øIŒ×ÛJ^
-code.filepathM
-K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
+*Function: {name}09 JÚIŒ×ÛA`¯øIŒ×ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J*
@@ -114,11 +114,11 @@ p{"city":"Tokyo","forecast":[{"day":1,"condition":"rain","high_c":21},{"day":2,"
 logfire.msg
 Function: get_weatherJ˜
 logfire.json_schema€
-~{"type":"object","properties":{"name":{},"input":{},"output":{"type":"object"},"mcp_data":{"type":"null"},"gen_ai.system":{}}}z …   Û
+~{"type":"object","properties":{"name":{},"input":{},"output":{"type":"object"},"mcp_data":{"type":"null"},"gen_ai.system":{}}}z …   Ê
 ¡.!„«ïi÷LB{‚€<iˆ.ŸP³Ã"cŸÓÚ
-*Function: {name}09èšÕIŒ×ÛA rıIŒ×ÛJ^
-code.filepathM
-K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
+*Function: {name}09èšÕIŒ×ÛA rıIŒ×ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J*
@@ -139,12 +139,12 @@ q{"city":"Paris","forecast":[{"day":1,"condition":"sunny","high_c":21},{"day":2,
 logfire.msg
 Function: get_weatherJ˜
 logfire.json_schema€
-~{"type":"object","properties":{"name":{},"input":{},"output":{"type":"object"},"mcp_data":{"type":"null"},"gen_ai.system":{}}}z …   ‚
+~{"type":"object","properties":{"name":{},"input":{},"output":{"type":"object"},"mcp_data":{"type":"null"},"gen_ai.system":{}}}z …   ñ
 ¡.!„«ïi÷LB{‚€”>¨
 »¬«¬"cŸÓÚ
-*Function: {name}090YŞIŒ×ÛA  JŒ×ÛJ^
-code.filepathM
-K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
+*Function: {name}090YŞIŒ×ÛA  JŒ×ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J*
@@ -165,11 +165,11 @@ K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
 logfire.msg
 Function: get_precipitationJˆ
 logfire.json_schemaq
-o{"type":"object","properties":{"name":{},"input":{},"output":{},"mcp_data":{"type":"null"},"gen_ai.system":{}}}z …   ‚
+o{"type":"object","properties":{"name":{},"input":{},"output":{},"mcp_data":{"type":"null"},"gen_ai.system":{}}}z …   ñ
 ¡.!„«ïi÷LB{‚€!">« "cŸÓÚ
-*Function: {name}09(ÜIŒ×ÛAJŒ×ÛJ^
-code.filepathM
-K/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/cli.pyJ
+*Function: {name}09(ÜIŒ×ÛAJŒ×ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J*

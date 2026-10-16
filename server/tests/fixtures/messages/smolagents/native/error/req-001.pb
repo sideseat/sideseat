@@ -1,5 +1,5 @@
 
-Á∑
+Û™
 À
 "
 telemetry.sdk.language
@@ -16,7 +16,7 @@ $a0f9bf1a-717d-42d0-8e4d-90f7eb50bd45
 
 service.name
 
-smolagentsï∂
+smolagents°©
 2
 (openinference.instrumentation.smolagents0.1.42û\
 z˛˛
@@ -171,7 +171,7 @@ A{"origin": "London", "destination": "Oslo", "date": "2026-11-14"}Jù
 output.value¬
 ø{"role": "assistant", "content": "", "tool_calls": [{"function": {"arguments": "{\"origin\": \"London\", \"destination\": \"Oslo\", \"date\": \"2026-11-14\"}", "name": "book_flight", "description": null}, "id": "tooluse_u9zL60LC34rxhkCRhkfTRV", "type": "function"}], "raw": "ModelResponse(id='chatcmpl-19073265-856c-4231-b417-4afbd02dfc95', created=1791152503, model='global.anthropic.claude-sonnet-5-5', object='chat.completion', system_fingerprint=None, choices=[Choices(finish_reason='tool_calls', index=0, message=Message(content='', role='assistant', tool_calls=[ChatCompletionMessageToolCall(index=0, function=Function(arguments='{\"origin\": \"London\", \"destination\": \"Oslo\", \"date\": \"2026-11-14\"}', name='book_flight'), id='tooluse_u9zL60LC34rxhkCRhkfTRV', type='function')], function_call=None, provider_specific_fields=None))], usage=Usage(completion_tokens=100, prompt_tokens=1832, total_tokens=1932, completion_tokens_details=CompletionTokensDetailsWrapper(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=0, rejected_prediction_tokens=None, text_tokens=100, image_tokens=None, video_tokens=None), prompt_tokens_details=PromptTokensDetailsWrapper(audio_tokens=None, cache_write_tokens=0, cached_tokens=0, text_tokens=1832, image_tokens=None, video_tokens=None, cache_creation_tokens=0), cache_creation_input_tokens=0, cache_read_input_tokens=0))", "token_usage": {"input_tokens": 1832, "output_tokens": 100, "total_tokens": 1932}}J 
 openinference.span.kind
-LLMzÖ   ˆ
+LLMzÖ   î
 z˛˛
 ‚g¡Ìtıeêèx
 Çù™-"mT¶«–M≤*
@@ -185,54 +185,57 @@ z{"args": [], "sanitize_inputs_outputs": true, "kwargs": {"origin": "London", "d
 tool.parameters¡
 æ{"origin": {"type": "string", "description": "Departure city."}, "destination": {"type": "string", "description": "Arrival city."}, "date": {"type": "string", "description": "Travel date."}}J!
 openinference.span.kind
-TOOLZ¯	êØ%J∂s€	exception6
+TOOLZñ	êØ%J∂s€	exception6
 exception.type$
 "harness.content.BookingUnavailablea
 exception.messageL
-JNo seats from London to Oslo on 2026-11-14: the booking system is offline.®
-exception.stacktraceè
-åTraceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/opentelemetry/trace/__init__.py", line 602, in use_span
+JNo seats from London to Oslo on 2026-11-14: the booking system is offline.∆
+
+exception.stacktrace≠
+
+™
+Traceback (most recent call last):
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/opentelemetry/trace/__init__.py", line 602, in use_span
     yield span
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/_tracers.py", line 142, in start_as_current_span
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/_tracers.py", line 142, in start_as_current_span
     yield cast(OpenInferenceSpan, current_span)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 667, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 667, in __call__
     response = wrapped(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 246, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 246, in __call__
     outputs = self.forward(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 1098, in wrapped_function
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 1098, in wrapped_function
     return tool_function(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/harness/harness/content.py", line 111, in book_flight
+  File "/home/user/sideseat/examples/python/harness/harness/content.py", line 111, in book_flight
     raise BookingUnavailable(
         f"No seats from {origin} to {destination} on {date}: the booking system is offline."
     )
 harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.
 
 exception.escaped
-Falsezb^BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.Ö   ƒE
+Falsezb^BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.Ö   ≤;
 z˛˛
 ‚g¡ÌtıeêmT¶«–M≤"Åö/¥‹*Step 1098Ú}ôµs€A–‹vJ∂s€JÏ
 input.value‹
 Ÿ{"memory_step": "ActionStep(step_number=1, timing=Timing(start_time=1791152500.610872, end_time=None, duration=None), model_input_messages=None, tool_calls=None, error=None, model_output_message=None, model_output=None, code_action=None, observations=None, observations_images=None, action_output=None, token_usage=None, is_final_answer=False)"}J"
 openinference.span.kind
-CHAINZÌ	»“jJ∂s€	exception<
+CHAINZü	»“jJ∂s€	exception<
 exception.type*
 (smolagents.utils.AgentToolExecutionErrorë
 exception.message˚
 ¯Error executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.
-Please try again or use another toolÊ
-exception.stacktraceÕ
- Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1486, in execute_tool_call
+Please try again or use another toolò
+exception.stacktraceˇ
+¸Traceback (most recent call last):
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1486, in execute_tool_call
     return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
                                                       ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 667, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 667, in __call__
     response = wrapped(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 246, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 246, in __call__
     outputs = self.forward(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 1098, in wrapped_function
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 1098, in wrapped_function
     return tool_function(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/harness/harness/content.py", line 111, in book_flight
+  File "/home/user/sideseat/examples/python/harness/harness/content.py", line 111, in book_flight
     raise BookingUnavailable(
         f"No seats from {origin} to {destination} on {date}: the booking system is offline."
     )
@@ -241,39 +244,39 @@ harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: 
 The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 323, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 323, in __call__
     yield from wrapped(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1336, in _step_stream
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1336, in _step_stream
     for output in self.process_tool_calls(chat_message, memory_step):
                   ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1421, in process_tool_calls
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1421, in process_tool_calls
     tool_output = process_single_tool_call(tool_call)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1390, in process_single_tool_call
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1390, in process_single_tool_call
     tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1502, in execute_tool_call
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1502, in execute_tool_call
     raise AgentToolExecutionError(error_msg, self.logger) from e
 smolagents.utils.AgentToolExecutionError: Error executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.
 Please try again or use another tool
 
 exception.escaped
-FalseZ›!	 ¶vJ∂s€	exception<
+FalseZô	 ¶vJ∂s€	exception<
 exception.type*
 (smolagents.utils.AgentToolExecutionErrorë
 exception.message˚
 ¯Error executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.
-Please try again or use another tool÷
-exception.stacktraceΩ
-∫Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1486, in execute_tool_call
+Please try again or use another toolí
+exception.stacktrace˘
+ˆTraceback (most recent call last):
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1486, in execute_tool_call
     return tool(**arguments) if is_managed_agent else tool(**arguments, sanitize_inputs_outputs=True)
                                                       ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 667, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 667, in __call__
     response = wrapped(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 246, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 246, in __call__
     outputs = self.forward(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 1098, in wrapped_function
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/tools.py", line 1098, in wrapped_function
     return tool_function(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/harness/harness/content.py", line 111, in book_flight
+  File "/home/user/sideseat/examples/python/harness/harness/content.py", line 111, in book_flight
     raise BookingUnavailable(
         f"No seats from {origin} to {destination} on {date}: the booking system is offline."
     )
@@ -282,20 +285,20 @@ harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: 
 The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/opentelemetry/trace/__init__.py", line 602, in use_span
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/opentelemetry/trace/__init__.py", line 602, in use_span
     yield span
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/_tracers.py", line 142, in start_as_current_span
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/_tracers.py", line 142, in start_as_current_span
     yield cast(OpenInferenceSpan, current_span)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 323, in __call__
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/openinference/instrumentation/smolagents/_wrappers.py", line 323, in __call__
     yield from wrapped(*args, **kwargs)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1336, in _step_stream
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1336, in _step_stream
     for output in self.process_tool_calls(chat_message, memory_step):
                   ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1421, in process_tool_calls
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1421, in process_tool_calls
     tool_output = process_single_tool_call(tool_call)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1390, in process_single_tool_call
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1390, in process_single_tool_call
     tool_call_result = self.execute_tool_call(tool_name, tool_arguments)
-  File "/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a5917963f2590a710/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1502, in execute_tool_call
+  File "/home/user/sideseat/examples/python/smolagents/.venv/lib/python3.14/site-packages/smolagents/agents.py", line 1502, in execute_tool_call
     raise AgentToolExecutionError(error_msg, self.logger) from e
 smolagents.utils.AgentToolExecutionError: Error executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.
 Please try again or use another tool

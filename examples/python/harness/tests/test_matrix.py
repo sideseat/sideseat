@@ -492,3 +492,47 @@ def test_every_committed_matrix_covers_its_window_with_fresh_fixtures() -> None:
         p for producer, (_, matrix) in found.items() for p in check(producer, matrix)
     ]
     assert problems == []
+
+
+def test_a_request_naming_a_home_pairs_by_either_digest(tmp_path: Path) -> None:
+    from harness import transcript
+
+    # Built at run time, so this file names no home itself.
+    home = "/" + "Users"
+    here = f'{{"f": "{home}/someone/x"}}'.encode()
+    there = f'{{"f": "{home}/other/x"}}'.encode()
+    raw = _interaction("/model/m/converse", here, "raw")
+    normalised = {
+        **_interaction("/model/m/converse", b"", "normalised"),
+        "request_sha256": transcript.digest("POST", "/model/m/converse", here),
+    }
+    cassette = tmp_path / "c.json"
+    cassette.write_text(json.dumps({"interactions": [normalised, raw]}))
+    with ModelProxy(cassette, record=False) as proxy:
+        # Recorded from another checkout or account, the request still pairs exactly by its normalised digest...
+        assert _post(proxy.url + "/model/m/converse", there) == "normalised"
+        # ...and one a cassette recorded before digests were normalised pairs by its raw digest.
+        assert _post(proxy.url + "/model/m/converse", here) == "raw"
+        assert (proxy.exact, proxy.by_order) == (2, 0)
+
+
+def test_a_raw_digest_wins_over_a_normalised_one(tmp_path: Path) -> None:
+    home = "/" + "Users"
+    named = f'{{"f": "{home}/someone/x"}}'.encode()
+    placeholder = b'{"f": "/home/user/x"}'
+    cassette = tmp_path / "c.json"
+    cassette.write_text(
+        json.dumps(
+            {
+                "interactions": [
+                    _interaction("/model/m/converse", placeholder, "placeholder"),
+                    _interaction("/model/m/converse", named, "named"),
+                ]
+            }
+        )
+    )
+    with ModelProxy(cassette, record=False) as proxy:
+        # Normalised, the first request is the second's bytes; its own raw digest is what pairs it.
+        assert _post(proxy.url + "/model/m/converse", named) == "named"
+        assert _post(proxy.url + "/model/m/converse", placeholder) == "placeholder"
+        assert (proxy.exact, proxy.by_order) == (2, 0)

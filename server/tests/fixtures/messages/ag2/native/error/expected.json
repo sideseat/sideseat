@@ -65,8 +65,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
-          "content_digest": "b332f1529dd47f62",
+          "content": "Traceback (most recent call last): File \"/home/user/sideseat/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result = await self.model.asolve( ^^^^^^^^^^^^^^^^^^^^^^^^ ...<4 li…[2250 chars]",
+          "content_digest": "dc29e61657233fba",
           "observation_type": "generation"
         },
         {
@@ -171,8 +171,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
-          "content_digest": "b332f1529dd47f62",
+          "content": "Traceback (most recent call last): File \"/home/user/sideseat/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result = await self.model.asolve( ^^^^^^^^^^^^^^^^^^^^^^^^ ...<4 li…[2250 chars]",
+          "content_digest": "dc29e61657233fba",
           "observation_type": "generation"
         },
         {
@@ -219,8 +219,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
-          "content_digest": "b332f1529dd47f62",
+          "content": "Traceback (most recent call last): File \"/home/user/sideseat/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result = await self.model.asolve( ^^^^^^^^^^^^^^^^^^^^^^^^ ...<4 li…[2250 chars]",
+          "content_digest": "dc29e61657233fba",
           "observation_type": "generation"
         },
         {
@@ -249,8 +249,8 @@
         "index": 0,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
-        "content_digest": "b332f1529dd47f62",
+        "content": "Traceback (most recent call last): File \"/home/user/sideseat/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result = await self.model.asolve( ^^^^^^^^^^^^^^^^^^^^^^^^ ...<4 li…[2250 chars]",
+        "content_digest": "dc29e61657233fba",
         "observation_type": "generation"
       },
       {

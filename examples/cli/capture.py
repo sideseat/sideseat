@@ -38,7 +38,6 @@ import tempfile
 import threading
 import uuid
 from dataclasses import dataclass
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -360,7 +359,8 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
         {},
     )
     recorder.pins = capture.Pins()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), recorder)
+    recorder.refused = []
+    server = capture.RecorderServer(("127.0.0.1", 0), recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     telemetry = f"http://127.0.0.1:{server.server_address[1]}"
     action = "recording" if record else "replaying"
@@ -395,6 +395,15 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
                     print(result.stderr[-2000:], file=sys.stderr)
                     ok = False
                     break
+            # Exporters flush on exit, but a slow flush can still be in flight; the run is judged on all of it,
+            # before the proxy writes its cassette: a refused export leaves the previous recording in place.
+            threading.Event().wait(2)
+            if refused := capture.drain(server):
+                print(
+                    f"[cli] {label}: exports the path normalisation refused: {refused}"
+                )
+                ok = False
+                proxy.discard = True
         # A 403 ExpiredToken answer is recorded like any other; the run it belongs to is void.
         expired = any(
             item["status"] == 403 and b"ExpiredToken" in base64.b64decode(item["body"])
@@ -406,8 +415,6 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
             )
             ok = False
     finally:
-        # Exporters flush on exit, but a slow flush can still be in flight.
-        threading.Event().wait(2)
         server.shutdown()
         shutil.rmtree(root, ignore_errors=True)
         if previous_log is None:
@@ -435,7 +442,8 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
         )
         print(f"[cli] {label}: DISCARDED ({reason}); nothing written")
         shutil.rmtree(staging)
-        if record and cassette.exists() and (expired or not ok):
+        # A recording the run wrote is void with it; one the proxy discarded was never replaced.
+        if record and cassette.exists() and (expired or not ok) and not proxy.discard:
             cassette.unlink()
         return False
     for payload in payloads:

@@ -17,7 +17,6 @@ re-signs each request for the real endpoint with the ambient AWS credentials.
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import threading
 import urllib.error
@@ -29,6 +28,7 @@ from typing import Any
 
 from harness import litellm_models, transcript
 from harness.models import region
+from harness.paths import normalise_response
 from harness.scrub import scrub_body
 
 # Headers that describe the payload rather than the transport; everything a client needs to parse
@@ -61,6 +61,8 @@ class ModelProxy:
         #: which :meth:`unanswered` lets a caller check.
         self.exact = 0
         self.by_order = 0
+        #: Set by a caller whose run failed after recording: the cassette is then left as it was.
+        self.discard = False
         self._recorded: list[dict[str, Any]] = []
         self._by_digest: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
         self._by_path: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
@@ -84,7 +86,7 @@ class ModelProxy:
 
     def __exit__(self, *exc: object) -> None:
         self._server.shutdown()
-        if self.record and self._recorded:
+        if self.record and self._recorded and not self.discard:
             self.cassette.parent.mkdir(parents=True, exist_ok=True)
             self.cassette.write_text(
                 json.dumps(
@@ -96,10 +98,8 @@ class ModelProxy:
     def _respond(
         self, method: str, path: str, body: bytes, headers: dict[str, str]
     ) -> dict[str, Any]:
-        digest = hashlib.sha256(
-            method.encode() + b" " + path.encode() + b"\n" + body
-        ).hexdigest()
         content_type = headers.get("content-type", "")
+        digest = transcript.digest(method, path, body)
         if self.record:
             item = self._forward(method, path, body, headers)
             item["request_sha256"] = digest
@@ -111,7 +111,13 @@ class ModelProxy:
         with self._lock:
             # An identical request gets its own recorded answer, which keeps concurrent requests
             # paired; a request that changed (a new framework version) falls back to arrival order.
-            queue = self._by_digest.get(digest)
+            # A cassette recorded before digests were normalised holds the digest of the raw request, which
+            # this account's replay from the recording checkout still reproduces. Asked first: two recorded
+            # requests that differ only in a path have distinct raw digests, and the normalised digest of one
+            # can equal the raw digest of the other.
+            queue = self._by_digest.get(
+                transcript.raw_digest(method, path, body)
+            ) or self._by_digest.get(digest)
             item = queue.popleft() if queue else None
             if item is not None:
                 self._by_path[f"{method} {path}"].remove(item)
@@ -224,14 +230,15 @@ class ModelProxy:
 
 
 def _scrubbed(item: dict[str, Any]) -> dict[str, Any]:
-    """A recorded interaction with the capturing account's name removed from its decoded body.
+    """A recorded interaction with the capturing account's name removed from its decoded body, and its home and
+    checkout paths normalised (``harness.paths``), refused where a path is split across streamed events.
 
     Scrubbed only as the cassette is written: the live run must see what the model said, or a tool
     whose name the model echoes would no longer match. A replay then answers with the placeholder.
     """
     body = base64.b64decode(item["body"])
     clean = scrub_body(body, item.get("headers", {}).get("content-type", ""))
-    return item if clean == body else {**item, "body": _b64(clean)}
+    return normalise_response(item if clean == body else {**item, "body": _b64(clean)})
 
 
 def _b64(raw: bytes) -> str:

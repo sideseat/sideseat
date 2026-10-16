@@ -76,7 +76,7 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn absolute_windows_paths_are_unchanged() {
-        for path in ["C:\\Users\\sideseat", "D:\\data"] {
+        for path in ["C:\\Users\\user", "D:\\data"] {
             assert_eq!(expand_path(path), PathBuf::from(path));
         }
     }

@@ -7,6 +7,7 @@
     uv run --locked --directory examples/python/harness python -m harness truth --all --check
     uv run --locked --directory examples/python/harness python -m harness matrix strands
     uv run --locked --directory examples/python/harness python -m harness matrix --check
+    uv run --locked --directory examples/python/harness python -m harness normalise [--check]
 """
 
 from __future__ import annotations
@@ -21,10 +22,16 @@ def main(argv: list[str] | None = None) -> None:
 
         matrix(args[1:])
         return
+    if args and args[0] == "normalise":
+        from harness.normalise import main as normalise
+
+        normalise(args[1:])
+        return
     if not args or args[0] != "truth":
         raise SystemExit(
             "usage: python -m harness truth [<producer>/<scenario> ...] [--all] [--check]\n"
-            "       python -m harness matrix [<producer> [<variant> ...]] [--census | --check | --list]"
+            "       python -m harness matrix [<producer> [<variant> ...]] [--census | --check | --list]\n"
+            "       python -m harness normalise [--check]"
         )
     from harness.truth.cli import main as truth
 

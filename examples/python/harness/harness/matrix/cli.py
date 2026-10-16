@@ -226,7 +226,8 @@ def record_live(suite: capture.Suite, matrix: Matrix, versions: list[str]) -> li
             if not result.ok:
                 print(f"[matrix] {label}: FAILED - {'; '.join(result.problems)}")
                 print(result.output[-1500:], file=sys.stderr)
-                (target / f"{scenario}.json").unlink(missing_ok=True)
+                if not result.kept_cassette:
+                    (target / f"{scenario}.json").unlink(missing_ok=True)
                 failed.append(label)
             else:
                 print(

@@ -1,5 +1,5 @@
 
-æ²
+î±
 ë
 !
 process.runtime.name	
@@ -52,12 +52,12 @@ $812177fb-d3a0-4fc3-b29d-4945b337c454
 logfire.version
 5.1.1
 
-process.pidˆ¼Èª
+process.pidˆ¼Ğ©
 
-logfire.openai_agents5.1.1¶?
-¡	…(Â¨æh¦ÈÚ»ÀL³í‡M"GôA(Ü*+Responses API with {gen_ai.request.model!r}09ˆ[ë­|ÛAÀr…µ|ÛJˆ
-code.filepathw
-u/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a19a68f1975c89c48/examples/python/harness/harness/cli.pyJ
+logfire.openai_agents5.1.1ú>
+¡	…(Â¨æh¦ÈÚ»ÀL³í‡M"GôA(Ü*+Responses API with {gen_ai.request.model!r}09ˆ[ë­|ÛAÀr…µ|ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J
@@ -218,10 +218,10 @@ session.id
 agent_trace_id(
 &trace_10599559c8af493ea789f56551751ecdJ©
 logfire.json_schema‘
-{"type":"object","properties":{"name":{},"agent_trace_id":{},"group_id":{"type":"null"},"metadata":{"type":"null"},"tracing":{"type":"null"}}}z …   ´>
-¡	…¹YãL‚»Î$B~6×/V4P;"£)éñ[,Ö*+Responses API with {gen_ai.request.model!r}09ˆ›Úµ|ÛApœ¶|ÛJˆ
-code.filepathw
-u/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a19a68f1975c89c48/examples/python/harness/harness/cli.pyJ
+{"type":"object","properties":{"name":{},"agent_trace_id":{},"group_id":{"type":"null"},"metadata":{"type":"null"},"tracing":{"type":"null"}}}z …   ø=
+¡	…¹YãL‚»Î$B~6×/V4P;"£)éñ[,Ö*+Responses API with {gen_ai.request.model!r}09ˆ›Úµ|ÛApœ¶|ÛJM
+code.filepath<
+:/home/user/sideseat/examples/python/harness/harness/cli.pyJ
 code.function	
 _invokeJ
 code.lineno–J

@@ -199,8 +199,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-          "content_digest": "33a1568607367e30",
+          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+          "content_digest": "c71f0c18d3014831",
           "finish_reason": "Error",
           "observation_type": "tool"
         }
@@ -218,8 +218,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-          "content_digest": "33a1568607367e30",
+          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+          "content_digest": "c71f0c18d3014831",
           "finish_reason": "Error",
           "observation_type": "tool"
         }
@@ -336,8 +336,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-          "content_digest": "33a1568607367e30",
+          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+          "content_digest": "c71f0c18d3014831",
           "finish_reason": "Error",
           "observation_type": "tool"
         },
@@ -370,8 +370,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-          "content_digest": "33a1568607367e30",
+          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+          "content_digest": "c71f0c18d3014831",
           "finish_reason": "Error",
           "observation_type": "tool"
         },
@@ -441,8 +441,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-          "content_digest": "33a1568607367e30",
+          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+          "content_digest": "c71f0c18d3014831",
           "finish_reason": "Error",
           "observation_type": "tool"
         },
@@ -475,8 +475,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-          "content_digest": "33a1568607367e30",
+          "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+          "content_digest": "c71f0c18d3014831",
           "finish_reason": "Error",
           "observation_type": "tool"
         },
@@ -536,8 +536,8 @@
         "index": 2,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-        "content_digest": "33a1568607367e30",
+        "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+        "content_digest": "c71f0c18d3014831",
         "finish_reason": "Error",
         "observation_type": "tool"
       },
@@ -570,8 +570,8 @@
         "index": 6,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-pac…[912 chars]",
-        "content_digest": "33a1568607367e30",
+        "content": "Exception: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')Traceback (most recent call last): File \"/home/user/sideseat/examples/python/langsmith/.venv/lib/python3.14/site-packages/langchain_c…[861 chars]",
+        "content_digest": "c71f0c18d3014831",
         "finish_reason": "Error",
         "observation_type": "tool"
       },

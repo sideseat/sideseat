@@ -365,7 +365,7 @@ def test_conformance_truth_describes_the_canonical_conversation() -> None:
 def test_an_echoed_account_name_is_anonymised_whoever_regenerates() -> None:
     assert (
         sources.anonymise("/Users/someone/x and /home/a.b/y")
-        == "/Users/sideseat/x and /home/sideseat/y"
+        == "/home/user/x and /home/user/y"
     )
     # Cut or padded to the name's length, as the fixture capture does to its protobuf payloads.
     assert sources.anonymise("directory_users_jdoe_aa4c") == "directory_users_side_aa4c"

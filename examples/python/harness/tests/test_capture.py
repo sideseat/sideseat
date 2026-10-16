@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from harness.paths import normalise_otlp
 from harness.capture import (
     METRIC_SIGNALS,
     Pins,
+    RecorderServer,
     Suite,
     _Recorder,
     anonymise,
@@ -69,7 +71,7 @@ def test_a_log_export_is_written_beside_the_requests_and_anonymised(
     _Recorder.out, _Recorder.forward, _Recorder.count = tmp_path, None, 0
     _Recorder.counts = {}
     _Recorder.pins = Pins()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
+    server = RecorderServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     named = (
         b'{"resourceLogs": [], "path": "/Users/' + getpass.getuser().encode() + b'/x"}'
@@ -97,7 +99,11 @@ def test_a_log_export_is_written_beside_the_requests_and_anonymised(
         "logs-002.json",
         "req-001.json",
     ]
-    assert (tmp_path / "logs-001.json").read_bytes() == anonymise(named)
+    # The account scrubbed, then the home normalised: what any checkout writes for this export.
+    assert (tmp_path / "logs-001.json").read_bytes() == normalise_otlp(
+        anonymise(named), "logs", "json"
+    )
+    assert b'"path": "/home/user/x"' in (tmp_path / "logs-001.json").read_bytes()
 
 
 def test_every_other_harness_reads_what_this_harness_says() -> None:
@@ -241,3 +247,51 @@ def test_a_scenario_pinned_to_a_model_runs_on_it_whatever_is_requested() -> None
     assert uses_fake_model(suite, suite.model_for("server_tools", None))
     assert not uses_fake_model(suite, suite.model_for("chat", None))
     assert models.scenario_model({}, "server_tools", None) is None
+
+
+def test_draining_waits_for_a_connection_accepted_but_not_yet_read() -> None:
+    import socket
+    import threading
+    import time
+
+    from harness.capture import RecorderServer, _Recorder, drain
+
+    _Recorder.refused = []
+    server = RecorderServer(("127.0.0.1", 0), _Recorder)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    client = socket.create_connection(server.server_address)
+    try:
+        # Accepted, its handler waiting on a request line that has not come.
+        deadline = time.monotonic() + 5
+        while server.inflight == 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert server.inflight == 1
+        assert drain(server, timeout=0.2) == ["1 export(s) still being handled"]
+    finally:
+        client.close()
+        _Recorder.refused = []
+
+
+def test_a_connection_an_earlier_drain_gave_up_on_holds_up_no_later_run() -> None:
+    import socket
+    import threading
+    import time
+
+    from harness.capture import RecorderServer, _Recorder, drain
+
+    _Recorder.refused = []
+    first = RecorderServer(("127.0.0.1", 0), _Recorder)
+    threading.Thread(target=first.serve_forever, daemon=True).start()
+    stale = socket.create_connection(first.server_address)
+    try:
+        deadline = time.monotonic() + 5
+        while first.inflight == 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert drain(first, timeout=0.2)
+        _Recorder.refused = []
+        second = RecorderServer(("127.0.0.1", 0), _Recorder)
+        threading.Thread(target=second.serve_forever, daemon=True).start()
+        assert drain(second, timeout=0.2) == []
+    finally:
+        stale.close()
+        _Recorder.refused = []
