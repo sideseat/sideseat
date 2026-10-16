@@ -39,6 +39,8 @@ struct Proven {
     /// The results both truths leave in one open batch (`open_order`): their calls' order unknown, the order they
     /// arrive in is the run's, as `open_order` already holds for a release that differs there alone.
     batches: Vec<BTreeSet<String>>,
+    /// `result_encoding`: results the release encodes its own way (`python_str`), compared by their value.
+    recoded: BTreeSet<String>,
 }
 
 impl Proven {
@@ -47,6 +49,7 @@ impl Proven {
             && self.no_id.is_empty()
             && self.elsewhere.is_empty()
             && self.unordered.is_empty()
+            && self.recoded.is_empty()
     }
 }
 
@@ -80,6 +83,9 @@ fn proven(release: &Truth, current: &Truth) -> Proven {
             }
             "id_not_exported" => {
                 out.no_id.insert(subject);
+            }
+            "result_encoding" => {
+                out.recoded.insert(subject);
             }
             "output_not_exported" => {
                 out.elsewhere.insert(subject);
@@ -195,6 +201,28 @@ fn named_as(block: &Block, fact: &Fact) -> Block {
 
 /// A block's identity, without the call id where the release proves it cannot carry one.
 fn identity(block: &Block, facts: &[&Fact], truth: &Truth, proven: &Proven) -> String {
+    // A result the release encodes its own way is the value it encodes: its content becomes the first reading of
+    // it that is a value rather than a text, and every other member of the block stays compared.
+    if block.is_tool_result()
+        && !facts.is_empty()
+        && facts.iter().all(|f| proven.recoded.contains(&f.id))
+    {
+        let readings = super::super::predicates::interpretations(&block.content["content"], 0);
+        let value = readings
+            .iter()
+            .find(|v| !v.is_string())
+            .unwrap_or(&readings[0])
+            .clone();
+        let mut content = block.content.clone();
+        content["content"] = value;
+        return format!(
+            "{}/{}/{}/value:{}",
+            block.role,
+            block.kind,
+            block.result_call_id().unwrap_or(""),
+            crate::content_digest(&content)
+        );
+    }
     let unnamed_call = facts
         .iter()
         .any(|f| f.kind == "tool_call" && proven.no_id.contains(&f.id));

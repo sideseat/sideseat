@@ -26,7 +26,7 @@ use super::{Violation, ViolationView};
 mod merge_tests;
 mod neighbours;
 pub(super) mod parts;
-mod python;
+pub(super) mod python;
 mod rewrites;
 #[cfg(test)]
 mod tests;

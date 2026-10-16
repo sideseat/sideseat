@@ -35,6 +35,7 @@ from harness.truth.framework import (
     Framework,
     rendered_results,
     unsent_gaps,
+    encoding_gaps,
     unwrap_result_envelopes,
 )
 from harness.truth import request_truth
@@ -277,6 +278,7 @@ def build(target: Target) -> dict[str, Any]:
         document_["gaps"].extend(unsent_gaps(framework, target.scenario, requests))
         unwrap_result_envelopes(framework, target.scenario, document_, requests)
         rendered_results(framework, target.scenario, document_, requests)
+        document_["gaps"].extend(encoding_gaps(framework, target.scenario, document_))
     return document_
 
 

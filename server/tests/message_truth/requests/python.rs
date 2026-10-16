@@ -4,7 +4,7 @@ use serde_json::Value;
 
 /// What Python's `repr` writes for this value, or `None` where this rendering does not claim to match it: a
 /// float outside the range in which Python and Rust write the same digits.
-pub(super) fn repr(value: &Value) -> Option<String> {
+pub(in super::super) fn repr(value: &Value) -> Option<String> {
     Some(match value {
         Value::Null => "None".to_string(),
         Value::Bool(true) => "True".to_string(),

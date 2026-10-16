@@ -130,6 +130,13 @@ class Framework:
     #: envelope is the result fact it carries: the tool of that name whose output, as the script computed it,
     #: is the envelope's content, and the part states that content (``unwrap_result_envelopes``).
     result_envelopes: tuple[dict[str, Any], ...] = ()
+    #: Tool results some releases encode their own way: each ``{format, reason, source, scenarios, modes}``.
+    #: ``format`` is a closed vocabulary - ``python_str``, the release sending the model ``str()`` of the value
+    #: where the current release sends JSON - ``source`` cites the release's encoder, and ``modes`` names the
+    #: releases per scenario. Each result fact of those releases gets a ``result_encoding`` gap: the rubric
+    #: proves the release's payloads hold that encoding of the value, and release invariance compares those
+    #: results by value (``encoding_gaps``).
+    result_encodings: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -166,6 +173,9 @@ class Framework:
             ),
             result_envelopes=tuple(
                 _result_envelope(entry) for entry in table.get("result_envelopes", ())
+            ),
+            result_encodings=tuple(
+                _result_encoding(entry) for entry in table.get("result_encodings", ())
             ),
         )
 
@@ -280,6 +290,62 @@ def _states_unsent(entry: dict[str, Any]) -> dict[str, Any]:
             f"{entry!r}"
         )
     return entry
+
+
+ENCODINGS = frozenset({"python_str"})
+
+
+def _result_encoding(entry: dict[str, Any]) -> dict[str, Any]:
+    """One declared result encoding, refused unless its format is known and it states a reason, a source,
+    scenarios and the releases of each: an encoding every release uses is the current one, not a release's."""
+    modes = entry.get("modes")
+    scenarios = entry.get("scenarios")
+    if not (
+        entry.get("format") in ENCODINGS
+        and all(
+            isinstance(entry.get(k), str) and entry[k] for k in ("reason", "source")
+        )
+        and isinstance(scenarios, list)
+        and scenarios
+        and isinstance(modes, dict)
+        and set(modes) == set(scenarios)
+        and all(isinstance(m, list) and m for m in modes.values())
+    ):
+        raise ValueError(
+            "a result_encodings entry needs a known format, a reason, a source, scenarios and the modes of "
+            f"each: {entry!r}"
+        )
+    return entry
+
+
+def encoding_gaps(
+    framework: Framework, scenario: str, document: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """The ``result_encoding`` gaps of a scenario: every asserted result whose value is not a text, for the
+    releases a declared encoding names - a text is the same under every encoding."""
+    gaps = []
+    for entry in framework.result_encodings:
+        if scenario not in entry["scenarios"]:
+            continue
+        for fact in document["facts"]:
+            value = fact["value"].get("value")
+            if (
+                fact["kind"] != "tool_result"
+                or fact["require"] is None
+                or isinstance(value, str)
+            ):
+                continue
+            gaps.append(
+                {
+                    "fact": "tool_result",
+                    "reason": "result_encoding",
+                    "detail": f"{entry['reason']} ({entry['source']})",
+                    "subject": fact["id"],
+                    "modes": list(entry["modes"][scenario]),
+                    "text": entry["format"],
+                }
+            )
+    return gaps
 
 
 def unsent_gaps(

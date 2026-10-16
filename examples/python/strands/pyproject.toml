@@ -17,6 +17,13 @@ integrations = ["strands"]
 # choice is `str(result)`, which for a structured run is the parsed model's JSON. A fact on framework evidence,
 # proven per capture by the rubric: byte for byte in the agent span's payload, placed after the call, and sent to
 # the model by no request.
+[[tool.sideseat-example.truth.result_encodings]]
+format = "python_str"
+reason = "Strands 1.12.0 sends the model a tool's returned value as its Python `str()`, where the current release sends its JSON"
+source = "strands-agents 1.12.0, strands/tools/decorator.py:517 (`{\"text\": str(result)}`); strands-agents 1.57.2, strands/tools/decorator.py:704-707 (`json.dumps(result, ensure_ascii=False)`)"
+scenarios = ["streaming", "tool_use"]
+modes = { streaming = ["native@1.12.0", "native@1.12.0+semconv-latest"], tool_use = ["native@1.12.0", "native@1.12.0+semconv-latest"] }
+
 [[tool.sideseat-example.truth.framework_authored]]
 returns_arguments_of = "TripPlan"
 source = "strands-agents 1.57.2, strands/agent/agent_result.py:79 (AgentResult.__str__ returns `structured_output.model_dump_json()`) and strands/telemetry/tracer.py:841 (end_agent_span records `str(response)` as the gen_ai.choice message)"

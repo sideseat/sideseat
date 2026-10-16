@@ -116,7 +116,9 @@ must, each gap kind setting aside one thing (`invariance/proven.rs`): a fact it 
 (`not_exported`) is left out of the current side, a call whose id it does not carry (`id_not_exported`) is
 compared without the id, a part read from another span (`output_not_exported`, `call_not_exported`,
 `call_span_not_exported`) may move in the feed within its response, and parallel calls whose order no payload
-holds (`call_order_not_exported`) are compared as a set, with the results of a batch both truths leave open.
+holds (`call_order_not_exported`) are compared as a set, with the results of a batch both truths leave open; and
+a result a release declares it encodes its own way (`result_encoding`, cited from the release's encoder and proven
+by `every_result_encoding_is_in_its_release`) is compared by its value.
 
 What the truth cannot know is not asserted, and says so: which agent made a call and what one agent
 passed another (`multi_agent_routing`), a system prompt the cassette never recorded

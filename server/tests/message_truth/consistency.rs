@@ -318,6 +318,20 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                 gap.reason, fact.id
             ));
         }
+        // A release's own encoding is a result's, for named releases, in a known format.
+        if gap.reason == "result_encoding"
+            && !(fact.kind == "tool_result"
+                && fact.require.is_some()
+                && !fact.value["value"].is_string()
+                && gap.text.as_deref() == Some("python_str")
+                && !gap.modes.is_empty())
+        {
+            bad(format!(
+                "gap result_encoding on {} needs an asserted structured result, a known format and the \
+                 releases it holds for",
+                fact.id
+            ));
+        }
         // Unexported bytes are an attachment's that the truth states by digest; checking then owes it withheld.
         if gap.reason == "bytes_not_exported"
             && !(fact.kind == "user_media"

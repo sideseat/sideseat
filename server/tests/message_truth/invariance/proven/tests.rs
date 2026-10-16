@@ -1,6 +1,6 @@
 //! The proven gaps set aside exactly what they prove, and nothing else.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::json;
@@ -364,4 +364,208 @@ fn a_block_from_outside_a_set_cannot_stand_in_for_a_member() {
         }
     }
     assert!(!holds(&release, &current));
+}
+
+/// Every declared result encoding is what its release sent: each fixture it holds for carries, as a tool result the
+/// rules read for the call it answers, the result's value in that encoding - for `python_str`, the value's Python
+/// `repr`, as the result's text.
+#[test]
+fn every_result_encoding_is_in_its_release() {
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = crate::discover_fixtures().into_iter().collect();
+    let mut proven = 0;
+    let mut defects = Vec::new();
+    for truth in super::super::super::truth::load_all().values() {
+        for gap in truth.gaps.iter().filter(|g| g.reason == "result_encoding") {
+            let fact = truth
+                .facts
+                .iter()
+                .find(|f| Some(&f.id) == gap.subject.as_ref())
+                .expect("the gap names a fact");
+            let encoded = super::super::super::requests::python::repr(&fact.value["value"])
+                .expect("a structured value has a repr");
+            let call_id = fact.value["call_id"]
+                .as_str()
+                .expect("a result names its call");
+            for fixture in truth.fixtures.iter().filter(|f| gap.holds_for(f)) {
+                let Some(paths) = fixtures.get(fixture) else {
+                    continue;
+                };
+                let (recon, _) = reconstruction(fixture, paths);
+                let haystack = super::super::super::absence::haystack::Haystack::of_fixture(paths);
+                if recorded_as(&recon, &haystack, call_id, &encoded) {
+                    proven += 1;
+                } else {
+                    defects.push(format!("{fixture}: {} is not sent as {encoded}", fact.id));
+                }
+            }
+        }
+    }
+    assert!(
+        defects.is_empty(),
+        "result encodings the payloads do not show:\n  {}",
+        defects.join("\n  ")
+    );
+    assert!(proven > 0, "no declared result encoding was checked");
+}
+
+/// Whether a span the rules read a result answering `call_id` from carries `text` exactly as a bare text part in the
+/// `content` of an object naming that call by one of its own members - the shape of an exported tool result - so
+/// the witness is not the same characters on another span, in a resource attribute, or beside the text in a part.
+///
+/// A supporting proof, not the gate: the declaration rests on the release's cited encoder, and release invariance is
+/// held by its own mutants. The residual hole: a payload holding, on such a span, the exact Python repr of the
+/// tool's value inside an object that names the call and has a `content` list - somewhere other than the result's
+/// own text - would satisfy it. Closing it means locating the occurrence the rules read the result from (the
+/// block's carrier and position) in the payload, which the rubric cannot yet do (rule-language-program#170).
+fn recorded_as(
+    recon: &Recon,
+    haystack: &super::super::super::absence::haystack::Haystack,
+    call_id: &str,
+    text: &str,
+) -> bool {
+    fn result(value: &serde_json::Value, call_id: &str, text: &str) -> bool {
+        let bare = |part: &serde_json::Value| {
+            part.as_object().is_some_and(|m| {
+                m.get("text").and_then(serde_json::Value::as_str) == Some(text)
+                    && m.keys().all(|k| k == "text" || k == "type")
+            })
+        };
+        match value {
+            serde_json::Value::Object(map) => {
+                (map.values().any(|v| v.as_str() == Some(call_id))
+                    && map
+                        .get("content")
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|parts| parts.iter().any(bare)))
+                    || map.values().any(|v| result(v, call_id, text))
+            }
+            serde_json::Value::Array(items) => items.iter().any(|v| result(v, call_id, text)),
+            _ => false,
+        }
+    }
+    let spans: BTreeSet<(&str, &str)> = recon
+        .views
+        .iter()
+        .flat_map(|v| &v.blocks)
+        .filter(|b| b.is_tool_result() && b.result_call_id() == Some(call_id))
+        .map(|b| (b.trace.as_str(), b.span.as_str()))
+        .collect();
+    haystack.carriers.iter().any(|carrier| {
+        carrier
+            .trace
+            .as_deref()
+            .zip(carrier.span.as_deref())
+            .is_some_and(|key| spans.contains(&key))
+            && carrier
+                .nodes
+                .iter()
+                .any(|(_, node)| result(node, call_id, text))
+    })
+}
+
+/// M6: a result the release encodes its own way is still held to its value.
+#[test]
+fn a_recoded_result_is_held_to_its_value() {
+    let current = side("strands/native/tool_use");
+    let release = side("strands/native@1.12.0/tool_use");
+    assert!(
+        holds(&release, &current),
+        "the declared release is the same conversation"
+    );
+    let mut release = release;
+    let truth = release.2.clone();
+    for view in release.0.views.iter_mut() {
+        for block in view.blocks.iter_mut() {
+            let shows_result = truth
+                .facts
+                .iter()
+                .any(|f| f.kind == "tool_result" && shows(f, block, None) != Shows::No);
+            if shows_result && let Some(result) = block.content["content"].as_object_mut() {
+                result.insert("city".into(), json!("Atlantis"));
+                block.refresh();
+            }
+        }
+    }
+    assert!(!holds(&release, &current));
+}
+
+/// A release that declares no encoding is compared by digest: the same value written another way is a difference.
+#[test]
+fn an_undeclared_release_is_compared_by_digest() {
+    let current = side("strands/native/tool_use");
+    let mut release = side("strands/native@1.33.0/tool_use");
+    let truth = release.2.clone();
+    let mut recoded = 0;
+    for view in release.0.views.iter_mut() {
+        for block in view.blocks.iter_mut() {
+            let text = block.content["content"].as_str().map(str::to_string);
+            if let Some(text) = text
+                && truth
+                    .facts
+                    .iter()
+                    .any(|f| f.kind == "tool_result" && shows(f, block, None) != Shows::No)
+                && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
+            {
+                block.content["content"] = value;
+                block.refresh();
+                recoded += 1;
+            }
+        }
+    }
+    assert!(recoded > 0, "the release shows its results as JSON text");
+    assert!(!holds(&release, &current));
+}
+
+/// A recoded result is compared by value only in its content: any other member of the block - who ran the tool -
+/// still has to agree.
+#[test]
+fn a_recoded_result_keeps_every_other_member_compared() {
+    let current = side("strands/native/tool_use");
+    let mut release = side("strands/native@1.12.0/tool_use");
+    let truth = release.2.clone();
+    for view in release.0.views.iter_mut() {
+        for block in view.blocks.iter_mut() {
+            if truth
+                .facts
+                .iter()
+                .any(|f| f.kind == "tool_result" && shows(f, block, None) != Shows::No)
+            {
+                block.content["provider_executed"] = json!(true);
+                block.refresh();
+            }
+        }
+    }
+    assert!(!holds(&release, &current));
+}
+
+/// The proof's witness is on a span the result was read from: the release's own payload holds it there, and no other
+/// span's payload - or a part carrying more than the text - stands in for it.
+#[test]
+fn an_encoding_is_proven_only_where_the_result_was_read() {
+    let label = "strands/native@1.12.0/streaming";
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = crate::discover_fixtures().into_iter().collect();
+    let (recon, _) = reconstruction(label, &fixtures[label]);
+    let haystack = super::super::super::absence::haystack::Haystack::of_fixture(&fixtures[label]);
+    let call = recon
+        .views
+        .iter()
+        .flat_map(|v| &v.blocks)
+        .find_map(|b| b.is_tool_result().then(|| b.result_call_id()).flatten())
+        .expect("a result")
+        .to_string();
+    let repr = "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}";
+    assert!(recorded_as(&recon, &haystack, &call, repr));
+    assert!(!recorded_as(&recon, &haystack, "another-call", repr));
+    // The same characters only on spans no result was read from.
+    let mut elsewhere =
+        super::super::super::absence::haystack::Haystack::of_fixture(&fixtures[label]);
+    let spans: BTreeSet<Option<String>> = recon
+        .views
+        .iter()
+        .flat_map(|v| &v.blocks)
+        .filter(|b| b.is_tool_result())
+        .map(|b| Some(b.span.clone()))
+        .collect();
+    elsewhere.carriers.retain(|c| !spans.contains(&c.span));
+    assert!(!recorded_as(&recon, &elsewhere, &call, repr));
 }

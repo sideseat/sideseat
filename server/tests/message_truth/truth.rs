@@ -542,6 +542,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // Only withheld reasoning's signature is missing from the span that produced it - another carrier
         // holds it: that span's view owes the step unsigned, the conversation views signed.
         "span_signature_not_exported" => effects(GapSubject::Fact, false, false, true),
+        // A result a release sends the model in its own encoding (`python_str`), proven from the release's
+        // payloads (`every_result_encoding_is_in_its_release`): release invariance compares it by value.
+        "result_encoding" => effects(GapSubject::Fact, false, false, false),
         // A response's part is missing from the span that produced it - a later request re-sends it: only
         // that span's view stops owing it; the conversation views still do.
         "output_not_exported" => effects(GapSubject::Fact, false, false, true),

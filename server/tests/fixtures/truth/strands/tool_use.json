@@ -436,6 +436,28 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "result_encoding",
+   "detail": "Strands 1.12.0 sends the model a tool's returned value as its Python `str()`, where the current release sends its JSON (strands-agents 1.12.0, strands/tools/decorator.py:517 (`{\"text\": str(result)}`); strands-agents 1.57.2, strands/tools/decorator.py:704-707 (`json.dumps(result, ensure_ascii=False)`))",
+   "subject": "fact-006",
+   "modes": [
+    "native@1.12.0",
+    "native@1.12.0+semconv-latest"
+   ],
+   "text": "python_str"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "result_encoding",
+   "detail": "Strands 1.12.0 sends the model a tool's returned value as its Python `str()`, where the current release sends its JSON (strands-agents 1.12.0, strands/tools/decorator.py:517 (`{\"text\": str(result)}`); strands-agents 1.57.2, strands/tools/decorator.py:704-707 (`json.dumps(result, ensure_ascii=False)`))",
+   "subject": "fact-007",
+   "modes": [
+    "native@1.12.0",
+    "native@1.12.0+semconv-latest"
+   ],
+   "text": "python_str"
   }
  ],
  "requests": {

@@ -184,3 +184,65 @@ def test_a_result_sent_another_way_by_another_fixture_is_refused() -> None:
     part["part"]["content"].append({"type": "text", "text": "more"})
     with pytest.raises(ValueError):
         rendered_results(_RENDERS, "mcp_tools", document, requests)
+
+
+def test_a_declared_result_encoding_is_a_gap_on_each_structured_result_of_its_releases() -> (
+    None
+):
+    from harness.truth.framework import encoding_gaps
+
+    framework = Framework.of(
+        {
+            "result_encodings": [
+                {
+                    "format": "python_str",
+                    "reason": "str() of the value",
+                    "source": "f.py:1",
+                    "scenarios": ["tool_use"],
+                    "modes": {"tool_use": ["native@1.0"]},
+                }
+            ]
+        }
+    )
+    fact = {"kind": "tool_result", "require": {"match": "semantic"}}
+    document = {
+        "facts": [
+            {**fact, "id": "fact-1", "value": {"value": {"city": "Rome"}}},
+            {**fact, "id": "fact-2", "value": {"value": "a text"}},
+            {
+                **fact,
+                "id": "fact-3",
+                "require": None,
+                "value": {"value": {"city": "Paris"}},
+            },
+        ]
+    }
+    assert encoding_gaps(framework, "tool_use", document) == [
+        {
+            "fact": "tool_result",
+            "reason": "result_encoding",
+            "detail": "str() of the value (f.py:1)",
+            "subject": "fact-1",
+            "modes": ["native@1.0"],
+            "text": "python_str",
+        }
+    ]
+    assert encoding_gaps(framework, "streaming", document) == []
+    for broken in (
+        {
+            "format": "base64",
+            "reason": "r",
+            "source": "s",
+            "scenarios": ["a"],
+            "modes": {"a": ["m"]},
+        },
+        {
+            "format": "python_str",
+            "reason": "r",
+            "source": "s",
+            "scenarios": ["a"],
+            "modes": {},
+        },
+    ):
+        with pytest.raises(ValueError):
+            Framework.of({"result_encodings": [broken]})
