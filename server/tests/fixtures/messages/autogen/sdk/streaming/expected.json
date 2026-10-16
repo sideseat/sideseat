@@ -43,11 +43,12 @@
       ]
     },
     "trace-1/OpenAIChatCompletionClient.create_stream/span-8": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -80,6 +81,15 @@
         },
         {
           "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}",
+          "content_digest": "51932873e7aa0f7a",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}. Wear light layers and sunglasses.",

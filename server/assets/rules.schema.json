@@ -1447,6 +1447,17 @@
             }
           ]
         },
+        "list_members": {
+          "description": "Members of each entry that are one list flattened a level further - `<prefix>.0`, `<prefix>.1` - gathered,\nin index order, into one list member of the entry, before `decode` reads it: an entry whose content is not\nunder the name the message vocabulary reads, but a list of items each written as its own key.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ListMembers"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "overlay": {
           "description": "A richer copy of these same messages, held by another carrier and matched by position.",
           "anyOf": [
@@ -1644,6 +1655,41 @@
       "required": [
         "select",
         "parse"
+      ]
+    },
+    "ListMembers": {
+      "description": "The pattern of [`ReadSpec::list_members`]: which entry members are a list's items, and the member that list\nbecomes.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "prefix": {
+          "description": "The items' common name before their index, ending in `.`: `function.` gathers `function.0`, `function.1`.",
+          "type": "string"
+        },
+        "as_member": {
+          "description": "The member the gathered list is written as. An entry already holding it keeps both as they are: two\nstatements of one member are not this shape.",
+          "type": "string"
+        },
+        "item_type": {
+          "description": "The `type` each gathered object is given where it declares none: what the rule that reads these items knows\nthem to be, so a content-block case can recognise them by that declaration rather than by a shape any\nproducer's JSON might have. A type of the asset's own, which no canonical block passthrough claims.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "prefix",
+        "as_member"
       ]
     },
     "OverlaySpec": {

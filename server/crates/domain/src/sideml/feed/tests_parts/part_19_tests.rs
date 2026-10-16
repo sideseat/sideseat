@@ -107,3 +107,37 @@ fn a_tie_across_tools_is_decided_alike_in_every_order() {
     assert!(survivors.windows(2).all(|w| w[0] == w[1]), "{survivors:?}");
     assert_eq!(survivors[0].len(), 1, "{survivors:?}");
 }
+
+/// A result a rule declared `autogen.function_execution_result` keeps the call id it states; JSON of the same
+/// shape that declares nothing is data.
+#[test]
+fn a_declared_function_result_keeps_its_call_id_and_undeclared_json_stays_data() {
+    let t0 = chrono::DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
+        .expect("a time")
+        .with_timezone(&Utc);
+    let at = |key: &str| json!({"attribute": {"key": key, "time": t0.to_rfc3339()}});
+    let declared = json!({"type": "autogen.function_execution_result", "call_id": "B", "name": "lookup", "content": "ok", "is_error": false});
+    let undeclared =
+        json!({"call_id": "C", "name": "lookup", "content": "ok", "is_error": false, "extra": 1});
+    let messages = json!([
+        {"source": at("llm.input_messages"), "content": {"role": "tool", "content": [declared]}},
+        {"source": at("llm.output_messages"), "content": {"role": "assistant", "content": [undeclared]}}
+    ]);
+    let row = make_span_row_with_timestamps(
+        "trace-results",
+        "generation",
+        Some("root"),
+        &messages.to_string(),
+        t0,
+        Some(t0 + chrono::Duration::milliseconds(1)),
+    );
+    let results: Vec<Option<String>> = process_span(vec![row], &FeedOptions::new())
+        .messages
+        .iter()
+        .filter_map(|block| match &block.content {
+            ContentBlock::ToolResult { tool_use_id, .. } => Some(tool_use_id.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(results, [Some("B".to_string())]);
+}

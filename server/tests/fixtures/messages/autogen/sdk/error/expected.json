@@ -43,11 +43,12 @@
       ]
     },
     "trace-1/OpenAIChatCompletionClient.create/span-8": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -80,6 +81,15 @@
         },
         {
           "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "04e0d882e3704548",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "I could not book that flight: No seats from London to Oslo on 2026-11-14: the booking system is offline. Please try again later.",
@@ -198,7 +208,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-          "content_digest": "3fd44cb659315715",
+          "content_digest": "04e0d882e3704548",
           "tool_name": "book_flight",
           "observation_type": "tool"
         },
@@ -256,7 +266,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-          "content_digest": "3fd44cb659315715",
+          "content_digest": "04e0d882e3704548",
           "tool_name": "book_flight",
           "observation_type": "tool"
         },
@@ -296,7 +306,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-        "content_digest": "3fd44cb659315715",
+        "content_digest": "04e0d882e3704548",
         "tool_name": "book_flight",
         "observation_type": "tool"
       },

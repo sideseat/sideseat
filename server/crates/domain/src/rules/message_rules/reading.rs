@@ -540,7 +540,7 @@ pub(super) fn built(
 /// entry and one member, which of them won followed the attribute map's hash order, and the entry's consumed key
 /// was rebuilt as `msgs.1.role` whichever was read. A segment spelled any other way is not an index of the family,
 /// so its key is not read here and stays unclaimed.
-fn canonical_index(segment: &str) -> Option<usize> {
+pub(super) fn canonical_index(segment: &str) -> Option<usize> {
     let canonical = !segment.is_empty()
         && segment.bytes().all(|byte| byte.is_ascii_digit())
         && (segment == "0" || !segment.starts_with('0'));
@@ -622,8 +622,18 @@ pub(super) fn indexed_entries(
 
         // An index exists as soon as any key mentions it, and a family holds keys that are not messages.
         // Asked of this index's bucket, so a requirement costs the bucket rather than the whole span.
+        // Items `list_members` gathers count as the member they become, wherever in the entry they sit.
+        let gathered =
+            super::list_members::gathered_member(read.list_members.as_ref(), members, entry_member);
+        let with_gathered = gathered
+            .as_deref()
+            .map(|name| super::list_members::with_member(members, name));
         if let Some(require) = require
-            && !bucket_members_present(members, entry_member, require)
+            && !bucket_members_present(
+                with_gathered.as_deref().unwrap_or(members),
+                entry_member,
+                require,
+            )
         {
             continue;
         }
@@ -663,6 +673,9 @@ pub(super) fn indexed_entries(
                 consumed.push(format!("{entry_dot}{member}"));
                 object.insert(member.to_string(), member_value(member, value, numeric));
             }
+        }
+        if let Some(list) = &read.list_members {
+            super::list_members::gather(&mut object, list);
         }
         // The entry's own serialised member, read once the entry is whole and **before** the overlay, which then
         // sees the entry as decoded: the entry's own statement first, the richer copy's improvement on it second.

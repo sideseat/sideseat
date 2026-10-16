@@ -43,11 +43,12 @@
       ]
     },
     "trace-1/OpenAIChatCompletionClient.create/span-8": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -80,6 +81,15 @@
         },
         {
           "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "983f47e9d96563cc",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "The result is 395.0.",

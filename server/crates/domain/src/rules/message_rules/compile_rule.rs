@@ -584,6 +584,21 @@ pub(super) fn compile_rule(
              names an aggregate's one observation",
         ));
     }
+    if let Some(list) = &read.list_members {
+        if read.indexed_family.is_none() {
+            return Err(inexpressible(
+                "`list_members` gathers members of an indexed entry and means nothing without \
+                 `indexed_family`",
+            ));
+        }
+        if !list.prefix.ends_with('.') || list.prefix.len() < 2 || list.as_member.trim().is_empty()
+        {
+            return Err(inexpressible(
+                "`list_members` needs a `prefix` naming the items before their index (ending in `.`) and \
+                 a member to gather them into",
+            ));
+        }
+    }
     if read.entry_member.is_some() && read.indexed_family.is_none() {
         return Err(inexpressible(
             "`entry_member` is a sub-level of an indexed entry and means nothing without \

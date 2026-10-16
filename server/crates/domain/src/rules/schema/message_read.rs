@@ -290,9 +290,35 @@ pub struct ReadSpec {
     /// printed object, beside the `role` that stays as it is.
     #[serde(default)]
     pub decode: Option<MemberDecode>,
+    /// Members of each entry that are one list flattened a level further - `<prefix>.0`, `<prefix>.1` - gathered,
+    /// in index order, into one list member of the entry, before `decode` reads it: an entry whose content is not
+    /// under the name the message vocabulary reads, but a list of items each written as its own key.
+    #[serde(default)]
+    pub list_members: Option<ListMembers>,
     /// A richer copy of these same messages, held by another carrier and matched by position.
     #[serde(default)]
     pub overlay: Option<OverlaySpec>,
+}
+
+/// The pattern of [`ReadSpec::list_members`]: which entry members are a list's items, and the member that list
+/// becomes.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ListMembers {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The items' common name before their index, ending in `.`: `function.` gathers `function.0`, `function.1`.
+    pub prefix: String,
+    /// The member the gathered list is written as. An entry already holding it keeps both as they are: two
+    /// statements of one member are not this shape.
+    pub as_member: String,
+    /// The `type` each gathered object is given where it declares none: what the rule that reads these items knows
+    /// them to be, so a content-block case can recognise them by that declaration rather than by a shape any
+    /// producer's JSON might have. A type of the asset's own, which no canonical block passthrough claims.
+    #[serde(default)]
+    pub item_type: Option<String>,
 }
 
 /// One dialect's evidence for a fact about a span.

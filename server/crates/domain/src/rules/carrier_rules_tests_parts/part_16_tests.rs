@@ -515,3 +515,97 @@ fn no_asset_reads_inside_an_opaque_python_object() {
         ]
     );
 }
+
+/// **`list_members` gathers an entry's items into one list member**, in index order (`10` after `2`, which a
+/// member's name order does not give), counts them toward `require_members` as the member they become, leaves an
+/// entry already stating that member as it is, and is refused without an indexed family.
+#[test]
+fn list_members_gathers_an_entry_s_items_in_index_order() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "list_members":{"prefix":"item.","as_member":"content"}},
+            "require_members":{"all_of":[{"name":"role"}],"any_of":[{"name":"content"}]}}]}"#,
+    )
+    .expect("a gathering read compiles");
+    let mut pairs: Vec<(String, String)> = vec![("fam.0.message.role".into(), "function".into())];
+    for index in [10usize, 2, 0, 1] {
+        pairs.push((format!("fam.0.item.{index}"), format!("{{\"n\": {index}}}")));
+    }
+    pairs.push(("fam.1.message.role".into(), "user".into()));
+    pairs.push(("fam.1.message.content".into(), "hello".into()));
+    pairs.push(("fam.1.item.0".into(), "{\"n\": 0}".into()));
+    let borrowed: Vec<(&str, &str)> = pairs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    let attrs = probe_attrs(&borrowed);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let entries: Vec<serde_json::Value> = plan.run(&ctx).into_iter().map(|e| e.value).collect();
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    let gathered: Vec<i64> = entries[0]["content"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|item| item["n"].as_i64().expect("a number"))
+        .collect();
+    assert_eq!(gathered, [0, 1, 2, 10]);
+    // An entry already stating the member keeps both as they are.
+    assert_eq!(entries[1]["content"], serde_json::json!("hello"));
+    assert_eq!(entries[1]["item.0"], serde_json::json!({"n": 0}));
+
+    let refused = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"attribute":"x","list_members":{"prefix":"item.","as_member":"content"}}}]}"#,
+    );
+    assert!(
+        refused.is_err(),
+        "list_members without an indexed family compiled"
+    );
+    let refused = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","list_members":{"prefix":"item","as_member":"content"}}}]}"#,
+    );
+    assert!(refused.is_err(), "a prefix without its `.` compiled");
+}
+
+/// Only an item a `list_members` read gathers admits its entry - `<prefix>` and a canonical index - and each
+/// gathered object that declares no type is given the rule's `item_type`.
+#[test]
+fn list_members_admits_only_what_it_gathers_and_types_its_items() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "list_members":{"prefix":"item.","as_member":"content","item_type":"tool_result"}},
+            "require_members":{"all_of":[{"name":"role"}],"any_of":[{"name":"content"}]}}]}"#,
+    )
+    .expect("a gathering read compiles");
+    let run = |pairs: &[(&str, &str)]| {
+        let attrs = probe_attrs(pairs);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| e.value)
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        run(&[
+            ("fam.0.message.role", "user"),
+            ("fam.0.item.01", "{\"n\": 1}")
+        ])
+        .is_empty()
+    );
+    assert!(run(&[("fam.0.message.role", "user"), ("fam.0.item.0.text", "x")]).is_empty());
+    let typed = run(&[
+        ("fam.0.message.role", "function"),
+        ("fam.0.item.0", "{\"call_id\": \"c\"}"),
+        ("fam.0.item.1", "{\"type\": \"text\", \"text\": \"t\"}"),
+    ]);
+    assert_eq!(
+        typed[0]["content"][0]["type"],
+        serde_json::json!("tool_result")
+    );
+    assert_eq!(typed[0]["content"][1]["type"], serde_json::json!("text"));
+}

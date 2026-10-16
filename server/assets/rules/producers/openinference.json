@@ -205,6 +205,12 @@
             "read": {
               "indexed_family": "llm.input_messages",
               "entry_member": "message",
+              "list_members": {
+                "doc": "The AutoGen instrumentor writes a function-role message's results beside the message rather than in it, one key each: `llm.input_messages.3.function.0` is one result object `{name, content, call_id, is_error}`. Gathered as the message's content, they are the results the request sent.",
+                "prefix": "function.",
+                "as_member": "content",
+                "item_type": "autogen.function_execution_result"
+              },
               "rendering": {
                 "path": "$.role",
                 "one_of": [
@@ -796,6 +802,36 @@
     }
   ],
   "content_blocks": [
+    {
+      "id": "openinference.function_execution_result",
+      "doc": "AutoGen's result object (`{name, content, call_id, is_error}`), which the OpenInference instrumentor writes one key each beside a function-role message and `list_members` gathers, declaring each `autogen.function_execution_result`. Recognised only by that declaration, never by the shape alone - a producer's JSON with the same members is data - and under a type of its own, which the canonical `tool_result` passthrough does not claim and strip of its `call_id`. The call id is what pairs it with its call and with the tool span's copy.",
+      "at": "before_provider_formats",
+      "priority": 97,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "autogen.function_execution_result"
+            ]
+          },
+          {
+            "path": "$.call_id",
+            "kind": "string"
+          },
+          {
+            "path": "$.tool_use_id",
+            "exists": false
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.call_id",
+        "name": "$.name",
+        "content": "$.content",
+        "is_error": "$.is_error"
+      }
+    },
     {
       "id": "openinference.signed_reasoning_content",
       "doc": "OpenInference flattens a reasoning block as `message_content.type: reasoning` beside its `text` and the provider's `signature`, a member the semconv reasoning part does not have. Read as that part, reasoning whose text the model withheld showed unsigned, though the span carries its signature.",

@@ -1203,6 +1203,7 @@ than a field to un-refuse.
 | `entry_value` | string | Read one *value* out of each indexed entry, rather than the entry's assembled members. |
 | `entry_value_parse` | [`ParseMode`](#parsemode) or null | How the projected value is read. `json` **drops** an entry whose payload does not parse, which is what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a malformed schema would be emitted as the string it is, reported as a tool definition. |
 | `decode` | [`MemberDecode`](#memberdecode) or null | One member of each entry that is itself serialised, decoded in place once the entry is assembled, before an `overlay` improves it and before `entry_value` projects it: an entry whose `content` is a framework's printed object, beside the `role` that stays as it is. |
+| `list_members` | [`ListMembers`](#listmembers) or null | Members of each entry that are one list flattened a level further - `<prefix>.0`, `<prefix>.1` - gathered, in index order, into one list member of the entry, before `decode` reads it: an entry whose content is not under the name the message vocabulary reads, but a list of items each written as its own key. |
 | `overlay` | [`OverlaySpec`](#overlayspec) or null | A richer copy of these same messages, held by another carrier and matched by position. |
 
 ### `FirstPresent_string`
@@ -1251,6 +1252,18 @@ truncated object is never read as a partial one.
 | `select` (required) | string | The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole value is decoded by the carrier's own `parse`. |
 | `parse` (required) | [`ParseMode`](#parsemode) | How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a selection then finds nothing in. |
 | `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What the value must be, **with the member decoded in it**, for the decode to stand: the class a framework prints its own message as, and what its siblings say (an entry's `role`). Asked of the whole value, so its paths run through the member (`$.content.__java_class`). A value that does not hold it keeps the member as the text it was, so prose that happens to read as some printed object is not taken for one. Empty holds. |
+
+### `ListMembers`
+
+The pattern of [`ReadSpec::list_members`]: which entry members are a list's items, and the member that list
+becomes.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `prefix` (required) | string | The items' common name before their index, ending in `.`: `function.` gathers `function.0`, `function.1`. |
+| `as_member` (required) | string | The member the gathered list is written as. An entry already holding it keeps both as they are: two statements of one member are not this shape. |
+| `item_type` | string | The `type` each gathered object is given where it declares none: what the rule that reads these items knows them to be, so a content-block case can recognise them by that declaration rather than by a shape any producer's JSON might have. A type of the asset's own, which no canonical block passthrough claims. |
 
 ### `OverlaySpec`
 

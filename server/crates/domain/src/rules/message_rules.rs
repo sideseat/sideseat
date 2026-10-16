@@ -680,6 +680,7 @@ mod compile_plan;
 mod compile_rule;
 mod decode;
 mod emit;
+mod list_members;
 mod plan;
 mod predicates;
 mod reading;
