@@ -23,6 +23,10 @@
             "exists": true
           },
           {
+            "only_members": ["content", "isError"],
+            "doc": "A result carrying more - `structuredContent`, `_meta` - is shown as the server sent it: its one part is not all it said, and the model was given the rest too."
+          },
+          {
             "path": "$[?$.isError == true]",
             "exists": false,
             "doc": "Selects every member when the flag is true, and nothing otherwise."

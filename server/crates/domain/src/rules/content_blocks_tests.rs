@@ -962,3 +962,18 @@ fn a_citation_offset_steps_over_an_unusable_primary_alias() {
         ])
     );
 }
+
+/// An MCP `CallToolResult` holding one part and nothing else is that part; one that also carries what the server
+/// structured or annotated is shown as sent, because the part is not all the model was given.
+#[test]
+fn an_mcp_result_is_unwrapped_only_when_its_part_is_all_it_holds() {
+    let normalize = crate::sideml::content::normalize_content_block;
+    let part = serde_json::json!({"type": "text", "text": "395.0"});
+    let plain = serde_json::json!({"content": [part], "isError": false});
+    assert_eq!(normalize(&plain), Some(part.clone()));
+    let structured = serde_json::json!({"content": [part], "structuredContent": {"result": 395.0}, "isError": false});
+    assert_ne!(normalize(&structured), Some(part.clone()));
+    let annotated =
+        serde_json::json!({"meta": {"server": {"x": true}}, "content": [part], "isError": false});
+    assert_ne!(normalize(&annotated), Some(part));
+}

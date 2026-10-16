@@ -3877,37 +3877,6 @@
    }
   },
   {
-   "asset": "assets/rules/vocabulary/content-blocks-mcp.json",
-   "path": [
-    "content_blocks",
-    {
-     "id": "mcp.call_tool_result"
-    },
-    "where"
-   ],
-   "retired": {
-    "all": [
-     {
-      "path": "$.content",
-      "kind": "array"
-     },
-     {
-      "path": "$.content[1]",
-      "exists": false
-     },
-     {
-      "path": "$.isError",
-      "exists": true
-     },
-     {
-      "path": "$[?$.isError == true]",
-      "exists": false,
-      "doc": "Selects every member when the flag is true, and nothing otherwise."
-     }
-    ]
-   }
-  },
-  {
    "asset": "assets/rules/vocabulary/content-blocks-mistral.json",
    "path": [
     "content_blocks",

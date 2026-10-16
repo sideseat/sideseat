@@ -16,7 +16,9 @@ use crate::rules::schema::{PredicateSet, ValueCondition};
 /// rules' records left with the rules, deleted because no ingest path writes the carriers they read onto a span.
 /// And CrewAI's `crewai.output` `messages` set was split by role into two readings, `request` for the system
 /// and user turns, which declares them the span's input, and `messages` for the rest; each keeps the retired
-/// set's shape test, so the two together read exactly the turns it read.
+/// set's shape test, so the two together read exactly the turns it read. And the MCP `CallToolResult` unwrap left
+/// because its condition changed: it now also requires the result to hold nothing beyond its content and error
+/// flag, so a result carrying `structuredContent` or metadata is shown as the server sent it.
 #[test]
 fn every_value_where_lowers_as_the_set_it_replaced() {
     let frozen: serde_json::Value = serde_json::from_slice(

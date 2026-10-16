@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use super::absence::haystack::Haystack;
 use super::absence::{Proof, prove};
 use super::matching::Matching;
-use super::predicates::{Shows, shows};
+use super::predicates::{Shows, shows, shows_sent};
 use super::recon::{Block, Recon, ViewKind};
 use super::truth::{CallRequest, Fact, Requirement, Truth};
 use super::{Violation, ViolationView};
@@ -257,31 +257,36 @@ pub(super) fn expected(
 /// The part, judged as if it had been sent under the role the block shows: the same content, another role.
 fn shown_under(expected: &Expected, block: &Block) -> bool {
     let role = shown_role(&block.role, &expected.part);
-    as_fact(&expected.label, role, &expected.part, &BTreeMap::new())
-        .is_some_and(|fact| matches!(shows(&fact, block, None), Shows::Yes | Shows::Assigned(_)))
+    as_fact(&expected.label, role, &expected.part, &BTreeMap::new()).is_some_and(|fact| {
+        matches!(
+            shows_sent(&fact, block, None),
+            Shows::Yes | Shows::Assigned(_)
+        )
+    })
 }
 
 pub(super) fn matches(expected: &Expected, block: &Block) -> bool {
     block.role == expected.role
-        && (!matches!(shows(&expected.fact, block, None), Shows::No)
+        && (!matches!(shows_sent(&expected.fact, block, None), Shows::No)
             || renders_as_sent(expected, block)
             || reduced_as_sent(expected, block))
 }
 
 /// A tool result the request sent in an encoding of its own - a text part holding the JSON of its content
-/// list - shown in the canonical form the view reduces a result to. The sent value is read through the same
-/// encodings the view's side is, and one of them must be the shown value exactly.
+/// list - shown in the canonical form the view reduces a result to. The sent value is read through the encodings
+/// that lose nothing of it, and one of them must be the shown value exactly: an MCP result that carried more than
+/// its part is not sent as that part.
 fn reduced_as_sent(expected: &Expected, block: &Block) -> bool {
     if expected.fact.kind != "tool_result" || !block.is_tool_result() {
         return false;
     }
-    super::predicates::interpretations(&expected.fact.value["value"], 0)
+    super::predicates::lossless_interpretations(&expected.fact.value["value"])
         .into_iter()
         .skip(1)
         .any(|value| {
             let mut fact = expected.fact.clone();
             fact.value["value"] = value;
-            !matches!(shows(&fact, block, None), Shows::No)
+            !matches!(shows_sent(&fact, block, None), Shows::No)
         })
 }
 
@@ -303,7 +308,7 @@ fn renders_as_sent(expected: &Expected, block: &Block) -> bool {
     };
     // Through the same encodings the semantic comparison reads a shown result in - JSON in a string, text
     // parts, an envelope - so a result the view holds in any of them is the value it holds.
-    super::predicates::interpretations(shown, 0)
+    super::predicates::lossless_interpretations(shown)
         .into_iter()
         .filter(|value| !value.is_string())
         .any(|value| {
@@ -312,7 +317,7 @@ fn renders_as_sent(expected: &Expected, block: &Block) -> bool {
             }
             let mut fact = expected.fact.clone();
             fact.value["value"] = value;
-            !matches!(shows(&fact, block, None), Shows::No)
+            !matches!(shows_sent(&fact, block, None), Shows::No)
         })
 }
 

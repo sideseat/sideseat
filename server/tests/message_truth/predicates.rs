@@ -40,6 +40,16 @@ pub(super) enum Shows {
 /// Whether `block` shows `fact`. A tool result is paired by the id its call carries in this view,
 /// `call_id`, which is the truth's id unless the framework rewrote it.
 pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows {
+    shows_reading(fact, block, call_id, Mcp::Reduced)
+}
+
+/// Whether `block` shows what a request sent, `fact` being the sent part: a tool result is read only in the ways
+/// that lose nothing of it, so an MCP result shown whole is not a part sent alone, nor the reverse.
+pub(super) fn shows_sent(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows {
+    shows_reading(fact, block, call_id, Mcp::Lossless)
+}
+
+fn shows_reading(fact: &Fact, block: &Block, call_id: Option<&str>, mcp: Mcp) -> Shows {
     let Some(require) = &fact.require else {
         return Shows::No;
     };
@@ -135,7 +145,9 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
                     .as_str()
                     .is_some_and(|message| rendered_text(content).contains(message))
             } else {
-                semantic_eq(content, expected)
+                readings(content, 0, mcp)
+                    .iter()
+                    .any(|candidate| json_eq(candidate, expected))
             })
         }
         _ => Shows::No,
@@ -446,6 +458,24 @@ pub(super) fn semantic_eq(content: &Value, expected: &Value) -> bool {
 
 /// Every reading of a tool result's content the encodings above allow, the content itself first.
 pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
+    readings(value, depth, Mcp::Reduced)
+}
+
+/// Every reading that loses nothing the content says: an MCP result reads as its part only when it holds nothing
+/// else. What a request sent is read this way, so a result shown as less than was sent is never the sent result.
+pub(super) fn lossless_interpretations(value: &Value) -> Vec<Value> {
+    readings(value, 0, Mcp::Lossless)
+}
+
+/// How an MCP `CallToolResult` is read: as its structured result or its one text whatever else it carries - the
+/// value a conversation fact is - or only where it carries nothing else: a success holding one bare text part.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mcp {
+    Reduced,
+    Lossless,
+}
+
+fn readings(value: &Value, depth: usize, mcp: Mcp) -> Vec<Value> {
     let mut out = vec![value.clone()];
     if depth > 6 {
         return out;
@@ -455,7 +485,7 @@ pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
             if let Ok(parsed) = serde_json::from_str::<Value>(text)
                 && parsed != *value
             {
-                out.extend(interpretations(&parsed, depth + 1));
+                out.extend(readings(&parsed, depth + 1, mcp));
             }
         }
         Value::Array(items) if !items.is_empty() && items.iter().all(is_text_part) => {
@@ -463,22 +493,27 @@ pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
                 .iter()
                 .filter_map(|item| item.get("text").and_then(Value::as_str))
                 .collect();
-            out.extend(interpretations(&Value::String(joined), depth + 1));
+            out.extend(readings(&Value::String(joined), depth + 1, mcp));
         }
         // SideML's own structured part: `[{type: json, data}]`.
         Value::Array(items) if items.len() == 1 && is_json_part(&items[0]) => {
-            out.extend(interpretations(&items[0]["data"], depth + 1));
+            out.extend(readings(&items[0]["data"], depth + 1, mcp));
         }
         // An MCP tool's result as the protocol returns it (`CallToolResult`): exactly its structured result, or
-        // exactly its one text content - never a value found somewhere inside the envelope.
-        Value::Object(map) if is_mcp_tool_result(map) => {
+        // exactly its one text content - never a value found somewhere inside the envelope. A failed result is
+        // never read as a value: its text is the failure's message, however it is encoded around it.
+        Value::Object(map)
+            if is_mcp_tool_result(map)
+                && map.get("isError") == Some(&Value::Bool(false))
+                && (mcp == Mcp::Reduced || is_bare_success(map)) =>
+        {
             if let Some(result) = map
                 .get("structuredContent")
                 .and_then(Value::as_object)
                 .filter(|structured| structured.len() == 1)
                 .and_then(|structured| structured.get("result"))
             {
-                out.extend(interpretations(result, depth + 1));
+                out.extend(readings(result, depth + 1, mcp));
             }
             if let Some([only]) = map
                 .get("content")
@@ -487,18 +522,18 @@ pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
                 && only.get("type").and_then(Value::as_str) == Some("text")
                 && let Some(text) = only.get("text").filter(|t| t.is_string())
             {
-                out.extend(interpretations(text, depth + 1));
+                out.extend(readings(text, depth + 1, mcp));
             }
         }
         Value::Object(map) if is_text_part(value) => {
             if let Some(text) = map.get("text") {
-                out.extend(interpretations(text, depth + 1));
+                out.extend(readings(text, depth + 1, mcp));
             }
         }
         Value::Object(map) if map.len() == 1 => {
             let (key, inner) = map.iter().next().expect("one member");
             if ["result", "error", "content", "output"].contains(&key.as_str()) {
-                out.extend(interpretations(inner, depth + 1));
+                out.extend(readings(inner, depth + 1, mcp));
             }
         }
         _ => {}
@@ -506,20 +541,34 @@ pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
     out
 }
 
-/// The members of an MCP `CallToolResult`: its content list and error flag, and nothing it does not define.
+/// The members of an MCP `CallToolResult`: its content list and error flag, and nothing it does not define. Its
+/// metadata is `_meta` on the wire and `meta` in the MCP Python SDK's model, whose dump a client may hand on.
 fn is_mcp_tool_result(map: &serde_json::Map<String, Value>) -> bool {
     map.get("content").is_some_and(Value::is_array)
         && map.get("isError").is_some_and(Value::is_boolean)
+        && !(map.contains_key("_meta") && map.contains_key("meta"))
         && map.keys().all(|key| {
             [
                 "content",
                 "structuredContent",
                 "isError",
                 "_meta",
+                "meta",
                 "resultType",
             ]
             .contains(&key.as_str())
         })
+}
+
+/// An MCP result that says nothing but its one text: no structured value, no metadata, no failure, and a part
+/// holding only its text.
+fn is_bare_success(map: &serde_json::Map<String, Value>) -> bool {
+    map.keys().all(|key| key == "content" || key == "isError")
+        && map.get("isError") == Some(&Value::Bool(false))
+        && map
+            .get("content")
+            .and_then(Value::as_array)
+            .is_some_and(|parts| parts.len() == 1 && is_text_part(&parts[0]))
 }
 
 fn is_json_part(value: &Value) -> bool {

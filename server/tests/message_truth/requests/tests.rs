@@ -343,3 +343,83 @@ fn a_result_sent_encoded_is_shown_by_the_value_it_reduces_to() {
     assert!(!matches(&sent, &shown_result(json!("396.0"))));
     assert!(!matches(&sent, &shown_result(json!("the answer is 395.0"))));
 }
+
+/// A client that hands an MCP result on whole sends more than its part: the structured value and the metadata. Shown
+/// as the part, or with another structured value or other metadata, it is not what was sent; a result holding
+/// nothing but its part is that part.
+#[test]
+fn an_mcp_result_sent_whole_is_shown_only_whole() {
+    let whole = json!({
+        "meta": {"fastmcp": {"wrap_result": true}},
+        "content": [{"type": "text", "text": "395.0"}],
+        "structuredContent": {"result": 395.0},
+        "isError": false,
+    });
+    let sent = sent_result(&whole.to_string());
+    assert!(matches(&sent, &shown_result(whole.clone())));
+    assert!(!matches(
+        &sent,
+        &shown_result(json!({"type": "text", "text": "395.0"}))
+    ));
+    let mut restructured = whole.clone();
+    restructured["structuredContent"]["result"] = json!(999);
+    assert!(!matches(&sent, &shown_result(restructured)));
+    let mut remeta = whole;
+    remeta["meta"] = json!({"other": 1});
+    assert!(!matches(&sent, &shown_result(remeta)));
+    let plain = json!({"content": [{"type": "text", "text": "395.0"}], "isError": false});
+    assert!(matches(
+        &sent_result(&plain.to_string()),
+        &shown_result(json!({"type": "text", "text": "395.0"}))
+    ));
+}
+
+/// The inverse: a client that sent only the part is not shown sending a whole MCP result, whose structured value
+/// and metadata the model never saw.
+#[test]
+fn a_part_sent_alone_is_not_shown_by_a_whole_mcp_result() {
+    let whole = json!({
+        "meta": {"fastmcp": {"wrap_result": true}},
+        "content": [{"type": "text", "text": "395.0"}],
+        "structuredContent": {"result": 395.0},
+        "isError": false,
+    });
+    assert!(!matches(&sent_result("395.0"), &shown_result(whole)));
+    assert!(matches(
+        &sent_result("395.0"),
+        &shown_result(json!({"content": [{"type": "text", "text": "395.0"}], "isError": false}))
+    ));
+}
+
+/// Losslessly, an MCP result is its part only as a success whose part holds nothing but its text: a failure, or a
+/// part carrying metadata, is not the bare text.
+#[test]
+fn an_mcp_result_is_its_text_only_as_a_bare_success() {
+    let failed = json!({"content": [{"type": "text", "text": "395.0"}], "isError": true});
+    assert!(!matches(
+        &sent_result(&failed.to_string()),
+        &shown_result(json!({"type": "text", "text": "395.0"}))
+    ));
+    assert!(!matches(&sent_result("395.0"), &shown_result(failed)));
+    // Read as a conversation fact, a failed result never shows a success, though its text is the value - as an
+    // object, or as JSON text; and a failed result sent whole is shown by itself.
+    let failed =
+        json!({"meta": {"x": 1}, "content": [{"type": "text", "text": "395.0"}], "isError": true});
+    let success = sent_result("395.0").fact;
+    assert_eq!(
+        shows(&success, &shown_result(failed.clone()), None),
+        Shows::No
+    );
+    let encoded = json!([{"type": "text", "text": failed.to_string()}]);
+    assert_eq!(shows(&success, &shown_result(encoded), None), Shows::No);
+    assert!(matches(
+        &sent_result(&failed.to_string()),
+        &shown_result(failed)
+    ));
+    let annotated =
+        json!({"content": [{"type": "text", "text": "395.0", "meta": {"x": 1}}], "isError": false});
+    assert!(!matches(
+        &sent_result(&annotated.to_string()),
+        &shown_result(json!("395"))
+    ));
+}
