@@ -679,6 +679,8 @@ mod derived_round_trip_tests;
 #[cfg(test)]
 mod fan_out_tests;
 #[cfg(test)]
+mod fenced_settlement_tests;
+#[cfg(test)]
 mod missing_reference_tests;
 #[cfg(test)]
 mod pipeline_tests;

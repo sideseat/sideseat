@@ -620,7 +620,7 @@ impl StagingService {
         let pass = self.fence.enter("staging settlement");
         let disposition = self.disposition(payload).await?;
         if disposition != StagingDisposition::Pending {
-            self.release_in(pass.as_ref(), payload).await?;
+            self.retire_in(pass.as_ref(), payload).await?;
         }
         Ok(disposition)
     }
@@ -668,21 +668,36 @@ impl StagingService {
     /// Release a terminal payload, in a pass of its own.
     pub async fn release(&self, payload: &StagedPayload) -> Result<(), StagingError> {
         let pass = self.fence.enter("staging release");
-        self.release_in(pass.as_ref(), payload).await
+        self.release_in(pass.as_ref(), payload).await.map(|_| ())
+    }
+
+    /// Release a payload a settlement found terminal, or fail with [`StagingError::Fenced`] if the fence kept it
+    /// staged: a payload is settled only once retired, so a caller never acknowledges one the fence held back.
+    pub(crate) async fn retire_in(
+        &self,
+        pass: Option<&Pass>,
+        payload: &StagedPayload,
+    ) -> Result<(), StagingError> {
+        if self.release_in(pass, payload).await? {
+            Ok(())
+        } else {
+            Err(StagingError::Fenced)
+        }
     }
 
     /// Release a payload a pass found terminal. A staged payload's bytes are under a name a restore brings back
     /// with the registry row that names them: released on a decision from before the restore, the restored row
     /// would name nothing. So without a pass - the fence was closed when the decision began - or with the fence
-    /// closed now, the payload stays staged, and the sweep releases it once the lease is held again.
+    /// closed now, the payload stays staged, and the sweep releases it once the lease is held again. Answers whether
+    /// it released.
     async fn release_in(
         &self,
         pass: Option<&Pass>,
         payload: &StagedPayload,
-    ) -> Result<(), StagingError> {
+    ) -> Result<bool, StagingError> {
         if pass.is_none() || !self.fence.is_open() {
             tracing::debug!(staged_payload_id = %payload.id, "Collection is fenced; the payload stays staged");
-            return Ok(());
+            return Ok(false);
         }
         // Registry first: a crash after it leaves an unreferenced blob, while
         // the opposite order leaves a live registry row pointing at no bytes.
@@ -704,7 +719,7 @@ impl StagingService {
                 "Could not remove a terminal staging blob; it is now an orphan"
             );
         }
-        Ok(())
+        Ok(true)
     }
 
     /// Reconcile one page of registry rows. This repairs both queue loss and
@@ -723,6 +738,7 @@ impl StagingService {
         for payload in payloads {
             match self.disposition(&payload).await? {
                 StagingDisposition::Confirmed | StagingDisposition::DeliberatelyAbsent => {
+                    // Fenced meanwhile, it stays staged for the next sweep that holds the lease.
                     self.release_in(Some(&pass), &payload).await?;
                     continue;
                 }
@@ -820,8 +836,14 @@ impl StagingService {
                 }
             };
 
-            if write_ok && self.settle(&current).await? != StagingDisposition::Pending {
-                continue;
+            if write_ok {
+                match self.settle(&current).await {
+                    Ok(StagingDisposition::Pending) => {}
+                    Ok(_) => continue,
+                    // The lease was lost during the sweep: nothing more settles in this pass, nor counts.
+                    Err(StagingError::Fenced) => return Ok(count),
+                    Err(error) => return Err(error),
+                }
             }
             let _ = self.note_failed_attempt(&current.id).await?;
         }

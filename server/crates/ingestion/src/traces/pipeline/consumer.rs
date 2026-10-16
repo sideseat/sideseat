@@ -288,7 +288,7 @@ impl TracePipeline {
                     // Each message by its own export's outcome: a fence that dropped another export's spans
                     // says nothing about this one.
                     for ((msg_id, payload, _, _), answer) in ready.into_iter().zip(answers) {
-                        if answer.outcome.is_final() && answer.settled {
+                        if Self::acknowledges(&answer) {
                             ack_ids.push(msg_id);
                         } else if answer.fenced {
                             // Left pending, uncounted, for a consumer that holds the lease.
@@ -309,6 +309,14 @@ impl TracePipeline {
 
             tracing::debug!("TracePipeline shutdown complete");
         })
+    }
+
+    /// Whether a delivery's message may be acknowledged on its wave's answer.
+    ///
+    /// Only an export settled - retired - by a wave that held the lease throughout: a fenced wave's message stays
+    /// pending for a consumer that holds it, which writes the export again rather than trusting a read (`waves.rs`).
+    pub(super) fn acknowledges(answer: &super::waves::WaveAnswer) -> bool {
+        answer.outcome.is_final() && answer.settled && !answer.fenced
     }
 
     /// Claim and process stuck messages from other consumers.
@@ -402,10 +410,6 @@ impl TracePipeline {
         Ok(Some((payload, request, received)))
     }
 
-    pub(super) async fn settle_staged_trace(&self, payload: &StagedPayload) -> bool {
-        Self::settled(payload, self.staging.settle(payload).await)
-    }
-
     /// Settle a wave's staged payloads, `(payload, written)` - written when the batch vouched for its export
     /// (`BatchAnswer::written`) - one answer per payload, in order: whether it settled.
     pub(super) async fn settle_staged_traces(
@@ -443,6 +447,10 @@ impl TracePipeline {
                 true
             }
             Ok(StagingDisposition::Pending) => false,
+            Err(crate::staging::StagingError::Fenced) => {
+                tracing::debug!(staged_payload_id = %payload.id, "Settlement fenced; the payload stays staged");
+                false
+            }
             Err(error) => {
                 tracing::warn!(
                     staged_payload_id = %payload.id,
@@ -511,13 +519,24 @@ impl TracePipeline {
                 return self.note_staging_failure(&payload_ref.id).await;
             }
         };
-        if !self.run(&request, &received).await.is_final() {
-            return self.note_staging_failure(&payload.id).await;
-        }
-        if self.settle_staged_trace(&payload).await {
-            true
-        } else {
-            self.note_staging_failure(&payload.id).await
+        // Written and settled in one wave, as a batch is: the lease held from before the write to after the
+        // settlement, or nothing settles. Writing and then settling in a pass of its own would let a lease lost
+        // during the write and taken again before the settlement retire a payload the write may have lost media of.
+        let answer = self
+            .run_waves(
+                std::slice::from_ref(&request),
+                std::slice::from_ref(&received),
+                &[Some(payload.clone())],
+                false,
+            )
+            .await
+            .into_iter()
+            .next();
+        match answer {
+            Some(answer) if Self::acknowledges(&answer) => true,
+            // Left pending, uncounted, for a consumer that holds the lease.
+            Some(answer) if answer.fenced => false,
+            _ => self.note_staging_failure(&payload.id).await,
         }
     }
 }

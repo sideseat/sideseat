@@ -49,7 +49,7 @@ impl StagingService {
             return self.settle(payload).await;
         }
         let pass = self.fence.enter("staging settlement");
-        self.release_in(pass.as_ref(), payload).await?;
+        self.retire_in(pass.as_ref(), payload).await?;
         Ok(StagingDisposition::Confirmed)
     }
 
@@ -112,7 +112,7 @@ impl StagingService {
         let mut answers = Vec::with_capacity(payloads.len());
         for (payload, together) in payloads.iter().zip(settled_together) {
             answers.push(if together {
-                self.release_in(pass.as_ref(), payload)
+                self.retire_in(pass.as_ref(), payload)
                     .await
                     .map(|()| StagingDisposition::Confirmed)
             } else {
