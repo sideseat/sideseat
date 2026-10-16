@@ -17,7 +17,9 @@
 //!   conversation as the current release's - every trace view, session view and the feed, block by block.
 //!   Span names may differ; what the model said did not. Results of one response's parallel calls arrive in
 //!   completion order, which is the run's and not the conversation's: a difference only there, in a batch
-//!   both fixtures' truths leave open, is not a release difference (`open_order`).
+//!   both fixtures' truths leave open, is not a release difference (`open_order`); nor is one the release's own
+//!   proven gaps account for - a part it does not export, an id it does not carry, a part read from another
+//!   span (`proven`).
 //!
 //! A sub-millisecond jitter is not asserted: the pipeline's stated tolerance (`SPAN_CLOCK_SKEW`, 1 ms)
 //! decides ties between spans, so moving a span across it legitimately changes what it decides. Log
@@ -33,6 +35,7 @@ use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use sideseat_ports::types::MessageSpanRow;
 
 mod open_order;
+mod proven;
 
 use super::{Violation, ViolationView};
 use crate::{attach_log_messages, build_golden, decode_request, describe_diff, normalize_for_test};
@@ -278,6 +281,7 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
         };
         if conversation(golden) != conversation(current)
             && !open_order_explains(&truths, &paths_of, label, &current_label)
+            && !proven_explains(&truths, &paths_of, label, &current_label)
         {
             let diff = describe_diff(label, current, golden);
             let summary = conversation_lines(&diff);
@@ -325,6 +329,26 @@ fn open_order_explains(
     let (release_recon, release_labels) = open_order::reconstruction(release, paths_of[release]);
     let (current_recon, current_labels) = open_order::reconstruction(current, paths_of[current]);
     open_order::explains(
+        (&release_recon, &release_labels, &release_truth),
+        (&current_recon, &current_labels, &current_truth),
+    )
+}
+
+/// Whether a release's conversation differs from the current release's only where the release's own proven gaps
+/// say it must (`proven`). A fixture no truth describes explains nothing.
+fn proven_explains(
+    truths: &super::Truths,
+    paths_of: &std::collections::BTreeMap<&String, &Vec<PathBuf>>,
+    release: &String,
+    current: &String,
+) -> bool {
+    let (Some(release_truth), Some(current_truth)) = (truths.of(release), truths.of(current))
+    else {
+        return false;
+    };
+    let (release_recon, release_labels) = open_order::reconstruction(release, paths_of[release]);
+    let (current_recon, current_labels) = open_order::reconstruction(current, paths_of[current]);
+    proven::explains(
         (&release_recon, &release_labels, &release_truth),
         (&current_recon, &current_labels, &current_truth),
     )

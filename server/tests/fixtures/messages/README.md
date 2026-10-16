@@ -111,7 +111,12 @@ Two properties are checked over every fixture in `make test`
 arrive reversed, when every span is delivered twice, when every span is exported in a request of its
 own, or when every timestamp is offset uniformly; and a scenario captured on another release of its
 framework (`<producer>/<mode>@<version>/<scenario>`, replayed from the same recorded responses) holds
-the same conversation as the current release's.
+the same conversation as the current release's. It differs only where that release's own proven gaps say it
+must, each gap kind setting aside one thing (`invariance/proven.rs`): a fact it does not export
+(`not_exported`) is left out of the current side, a call whose id it does not carry (`id_not_exported`) is
+compared without the id, a part read from another span (`output_not_exported`, `call_not_exported`,
+`call_span_not_exported`) may move in the feed within its response, and parallel calls whose order no payload
+holds (`call_order_not_exported`) are compared as a set, with the results of a batch both truths leave open.
 
 What the truth cannot know is not asserted, and says so: which agent made a call and what one agent
 passed another (`multi_agent_routing`), a system prompt the cassette never recorded

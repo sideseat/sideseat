@@ -219,7 +219,7 @@ pub(super) fn reconstruction(label: &str, paths: &[PathBuf]) -> (Recon, BTreeMap
 /// shows more than one result, or it holds a member's value under another call id - a view that names the call
 /// its own way - so which member it is, and where it sits, cannot be told. Neither the batch's order nor its
 /// uniqueness can then be checked, and it is not set aside.
-fn ambiguous(recon: &Recon, truth: &Truth, open: &BTreeSet<Batch>) -> BTreeSet<Batch> {
+pub(super) fn ambiguous(recon: &Recon, truth: &Truth, open: &BTreeSet<Batch>) -> BTreeSet<Batch> {
     let results: Vec<_> = truth
         .facts
         .iter()
