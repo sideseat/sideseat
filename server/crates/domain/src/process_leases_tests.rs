@@ -309,7 +309,7 @@ async fn a_lost_lease_closes_the_fence_until_it_is_taken_again() {
 }
 
 /// A renewal that hangs - the store neither answers nor fails - closes the fence on time all the same.
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_renewal_that_hangs_closes_the_fence_by_its_deadline() {
     struct Hanging;
     #[async_trait]
@@ -470,7 +470,7 @@ fn slow_renewer(delay: Duration) -> (Arc<SlowLeases>, CollectionFence, watch::Se
 
 /// A store slower than the renewal interval but faster than the loss bound - a loaded host - keeps the lease: each
 /// renewal is waited out to the loss deadline, not abandoned at the next tick, and renews from when it was sent.
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_renewal_slower_than_its_interval_but_inside_the_loss_bound_keeps_the_lease() {
     let (leases, fence, stop) = slow_renewer(Duration::from_millis(45));
     let term = fence.term().expect("held");
@@ -495,7 +495,7 @@ async fn a_renewal_slower_than_its_interval_but_inside_the_loss_bound_keeps_the_
 /// A store slower than the loss bound still loses the lease: waiting out a renewal never holds the fence open past
 /// the deadline of the last one that landed, every attempt is abandoned at its bound rather than waited out, and
 /// the lease stays lost.
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_renewal_slower_than_the_loss_bound_still_loses_the_lease() {
     let started = Instant::now();
     let (leases, fence, stop) = slow_renewer(Duration::from_millis(150));

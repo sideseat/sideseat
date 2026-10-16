@@ -36,6 +36,9 @@ uuid = { workspace = true }
 sideseat-workspace-hack.workspace = true
 
 [dev-dependencies]
+# A paused clock for the lease tests whose store answers after a delay: their margins are tens of milliseconds, which
+# a loaded host's scheduler can eat, so they run on tokio's virtual time instead of the wall clock.
+tokio = { workspace = true, features = ["test-util"] }
 sideseat-adapter-blob-storage = { path = "../adapter-blob-storage" }
 sideseat-adapter-cache = { path = "../adapter-cache" }
 sideseat-adapter-duckdb = { path = "../adapter-duckdb" }
