@@ -152,6 +152,7 @@ pub(super) fn as_fact(
         call: None,
         fixtures: None,
         seal: None,
+        kept_from_model: false,
     })
 }
 

@@ -228,6 +228,7 @@ fn a_provider_run_call_is_shown_only_by_the_whole_values_it_searched_for() {
         call: None,
         fixtures: None,
         seal: None,
+        kept_from_model: false,
     };
     let call = |input: Value| {
         let content = json!({"type": "tool_use", "id": "ws_1", "name": "web_search", "input": input,
@@ -278,6 +279,7 @@ fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
         call: None,
         fixtures: None,
         seal: None,
+        kept_from_model: false,
     };
     let result_of = |call_id: &str, shown: Value| {
         let content = json!({"type": "tool_result", "tool_use_id": call_id, "content": shown,

@@ -257,6 +257,36 @@ def test_a_framework_text_written_after_a_call_precedes_the_next_response() -> N
     assert sequence.index(authored["id"]) == sequence.index(answer) - 1
 
 
+def test_a_framework_reply_kept_from_the_model_is_marked_so() -> None:
+    entry = {
+        "text": "Waiting for the tool.",
+        "source": "framework.py:1",
+        "scenarios": ["tool_use"],
+        "after": 1,
+    }
+    calls = [
+        model_call(
+            wire.tool_call_part("a", "get_weather", {"city": "Tokyo", "days": 1}),
+            finish="tool_use",
+        ),
+        model_call(wire.text_part("Pack an umbrella.")),
+    ]
+
+    def authored(table_entry: dict[str, object]) -> dict[str, object]:
+        options = derive.Options(
+            framework=Framework.of({"framework_authored": [table_entry]})
+        )
+        builder = derive.assemble("p", "tool_use", calls, options=options)
+        (fact,) = [f for f in builder.facts if f["evidence"] == "framework"]
+        return fact
+
+    assert "kept_from_model" not in authored(entry)
+    assert "kept_from_model" not in authored({**entry, "reaches_model": True})
+    assert authored({**entry, "reaches_model": False})["kept_from_model"] is True
+    with pytest.raises(ValueError, match="needs a text, a source and scenarios"):
+        Framework.of({"framework_authored": [{**entry, "reaches_model": "no"}]})
+
+
 def test_a_call_past_the_step_limit_is_the_fallback_sent_the_framework_s_prompt() -> (
     None
 ):

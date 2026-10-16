@@ -84,11 +84,12 @@ class Framework:
     #: telemetry leaves it out.
     unexported: dict[str, Any] = field(default_factory=dict)
     #: Text the framework writes into the conversation itself rather than the model: each ``{text, source,
-    #: scenarios[, after]}``, ``source`` citing the line of the framework that writes it and ``after`` the
-    #: successful call it is written after (the last by default). It becomes a fact resting on ``framework``
-    #: evidence, which the rubric proves per capture (``message_truth::authored``): byte for byte in a span's
-    #: payload, held by no other fact, sent by no request as user or system content, placed where the raw
-    #: timing says, and carried by every later request.
+    #: scenarios[, after, reaches_model]}``, ``source`` citing the line of the framework that writes it and
+    #: ``after`` the successful call it is written after (the last by default). It becomes a fact resting on
+    #: ``framework`` evidence, which the rubric proves per capture (``message_truth::authored``): byte for byte in
+    #: a span's payload, held by no other fact, sent by no request as user or system content, placed where the
+    #: raw timing says, and carried by every later request - or, with ``reaches_model = false``, a reply the
+    #: framework hands its caller and keeps out of the model's context, carried by none.
     framework_authored: tuple[dict[str, Any], ...] = ()
     #: Scenario -> how many model calls one turn's steps may make. A call past the limit is the framework's
     #: fallback rather than a step: it asks for the answer without the step's tools, so its text is the turn's
@@ -195,7 +196,8 @@ def _authored(entry: dict[str, Any]) -> dict[str, Any]:
     """One declared framework text, refused unless it states its text, its source and its scenarios.
 
     ``after`` is the ordinal of the successful call the framework writes it after, from 1; without it, the
-    scenario's last. The rubric checks the place against the raw payload's timing.
+    scenario's last. The rubric checks the place against the raw payload's timing. ``reaches_model`` (true by
+    default) says whether the framework sends the text to the model later, which the rubric also checks.
     """
     after = entry.get("after")
     if not (
@@ -206,6 +208,7 @@ def _authored(entry: dict[str, Any]) -> dict[str, Any]:
         and isinstance(entry.get("scenarios"), list)
         and entry["scenarios"]
         and (after is None or (isinstance(after, int) and after >= 1))
+        and isinstance(entry.get("reaches_model", True), bool)
     ):
         raise ValueError(
             f"a framework_authored entry needs a text, a source and scenarios: {entry!r}"

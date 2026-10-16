@@ -33,6 +33,19 @@ text = "The required structured output is generated."
 source = "agentscope 2.0.9, agentscope/agent/_agent.py:3571 (Agent._next_action)"
 scenarios = ["structured_output"]
 
+# The exit message `Agent._next_action` returns while a tool call awaits permission or external execution: a team
+# leader's `TeamAssign` is an external tool (agentscope/pipeline/_team_pipeline.py:57, `is_external_tool = True`),
+# so the leader replies with it after the call that assigns the research, and the pipeline runs the member.
+# Proven per capture like the other: verbatim in the payload, in no model response, and sent by no later request.
+[[tool.sideseat-example.truth.framework_authored]]
+text = "I'm waiting for your permission or the external execution to finish."
+source = "agentscope 2.0.9, agentscope/agent/_agent.py:3545 (Agent._next_action)"
+scenarios = ["multi_agent"]
+after = 1
+# An exit message, exported by the tracing middleware and kept out of the agent's memory: the leader's next
+# request is that memory, which does not hold it.
+reaches_model = false
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

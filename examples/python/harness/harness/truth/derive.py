@@ -685,7 +685,9 @@ def assemble(
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
     for entry in framework.authored(scenario):
-        _framework_text(builder, entry["text"], entry.get("after"))
+        _framework_text(
+            builder, entry["text"], entry.get("after"), entry.get("reaches_model", True)
+        )
     unexported.apply(builder, framework)
     return builder
 
@@ -701,8 +703,13 @@ def _strings(value: Any) -> list[str]:
     return []
 
 
-def _framework_text(builder: Builder, text: str, after: int | None) -> None:
+def _framework_text(
+    builder: Builder, text: str, after: int | None, reaches_model: bool
+) -> None:
     """A text the framework writes itself, placed after the response of its ``after``-th successful call.
+
+    One the framework never sends the model (``reaches_model`` false) is marked ``kept_from_model``, so the
+    rubric holds every later request to not carrying it rather than to carrying it.
 
     No model said it, so a response of the scenario holding it - as text, reasoning or inside a tool call's
     arguments - refuses the declaration: that text is the model's, and already a fact.
@@ -734,6 +741,8 @@ def _framework_text(builder: Builder, text: str, after: int | None) -> None:
         {"text": text},
         require=_conversation_requirement("exact"),
     )
+    if not reaches_model:
+        next(f for f in builder.facts if f["id"] == fact)["kept_from_model"] = True
     sequence = conversation["sequence"]
     sequence.remove(fact)
     at = next((i for i, f in enumerate(sequence) if f in later), len(sequence))

@@ -230,6 +230,10 @@ pub(super) struct Fact {
     /// neither has text. Outside `value`, because no view shows it.
     #[serde(default)]
     pub seal: Option<String>,
+    /// A framework-written text the framework hands its caller and keeps out of the model's context: every later
+    /// request is held to not carrying it, where one written into the conversation must be carried by each.
+    #[serde(default)]
+    pub kept_from_model: bool,
 }
 
 impl Fact {

@@ -12,6 +12,9 @@ use super::matching::Matching;
 use super::recon::Recon;
 use super::truth::{Fact, Truth, hex_digest};
 
+// The proof of a reply the framework keeps from the model, tested apart to keep this file short.
+mod kept_from_model;
+
 /// For each framework-written fact, the spans whose raw payload holds its text byte for byte, written where its
 /// place in the conversation says (`placed_holders`): where the views must attribute it.
 pub(super) fn emitting_spans(
@@ -332,7 +335,8 @@ fn collect_json(value: &Value, out: &mut Vec<String>) {
 /// - no recorded request sent it as user or system content;
 /// - its place is the one the raw payload's timing says: every call before it started before a span that
 ///   holds it ended, and every call after it started after that span ended;
-/// - every call after it whose request was recorded was sent it.
+/// - every call after it whose request was recorded was sent it - or, for a reply the framework keeps from the
+///   model (`kept_from_model`), no recorded request was, under its lineage or as written.
 pub(super) fn refusal(
     truth: &Truth,
     fixture: &str,
@@ -406,6 +410,9 @@ pub(super) fn refusal(
             fact.id
         ));
     }
+    if fact.kept_from_model {
+        return carried_anywhere(fact, recorded);
+    }
     for call in after {
         let Some(request) = recorded.and_then(|r| r.calls.get(call)) else {
             continue;
@@ -420,6 +427,81 @@ pub(super) fn refusal(
         }
     }
     None
+}
+
+/// Why a reply kept from the model is refused by the recorded requests, if it is: one carries it anyhow - as its
+/// lineage (a part stating, replaying or rendering it), or as written, whitespace aside, in any part or in the
+/// text of the system content or of one message read whole, however its parts split it. Every recorded request
+/// counts, whatever conversation or order: a reply the framework keeps from the model is in none, and one an
+/// earlier request held was no reply the framework wrote.
+fn carried_anywhere(
+    fact: &Fact,
+    recorded: Option<&super::truth::FixtureRequests>,
+) -> Option<String> {
+    let text = unspaced(fact.text());
+    let names = |o: &super::truth::Occurrence| {
+        [&o.new_fact, &o.replay_of]
+            .iter()
+            .any(|l| l.as_deref() == Some(fact.id.as_str()))
+            || o.renders.contains(&fact.id)
+    };
+    recorded
+        .into_iter()
+        .flat_map(|r| &r.calls)
+        .find(|(_, request)| {
+            std::iter::once(&request.system)
+                .chain(request.messages.iter().map(|m| &m.parts))
+                .any(|parts| {
+                    // Read whole, whitespace aside, so a reply split across parts - mid-word, between words, or
+                    // both - is still the reply.
+                    let mut whole = String::new();
+                    for part in parts {
+                        strings(&part.part, &mut whole);
+                    }
+                    parts
+                        .iter()
+                        .any(|o| names(o) || holds_unspaced(&o.part, &text))
+                        || unspaced(&whole).contains(&text)
+                })
+        })
+        .map(|(call, _)| {
+            format!("{call}'s request was sent it, which a reply kept from the model is not")
+        })
+}
+
+/// The texts a part holds, in order: the part itself where it is a string, and the value of every `text` member
+/// at any depth - a block's text, not its type or other members, which would sit between two halves of a split
+/// reply.
+fn strings(value: &serde_json::Value, out: &mut String) {
+    match value {
+        serde_json::Value::String(s) => out.push_str(s),
+        serde_json::Value::Array(items) => items.iter().for_each(|v| strings(v, out)),
+        serde_json::Value::Object(members) => {
+            for (key, member) in members {
+                if key == "text" || member.is_array() || member.is_object() {
+                    strings(member, out);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The text without its whitespace, so a copy re-wrapped or split at a word break still reads as the text.
+fn unspaced(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// Whether any string inside the value holds the text, whitespace aside on both sides.
+fn holds_unspaced(value: &serde_json::Value, unspaced_text: &str) -> bool {
+    match value {
+        serde_json::Value::String(s) => unspaced(s).contains(unspaced_text),
+        serde_json::Value::Array(items) => items.iter().any(|v| holds_unspaced(v, unspaced_text)),
+        serde_json::Value::Object(members) => {
+            members.values().any(|v| holds_unspaced(v, unspaced_text))
+        }
+        _ => false,
+    }
 }
 
 /// Whether any string inside the value - a text, an argument, a nested member - contains the text.
