@@ -151,9 +151,12 @@ pub(super) struct Generation {
     pub span: String,
     /// Typed `generation` by the pipeline.
     pub typed: bool,
+    /// Typed `agent` by the pipeline: the span of an agent's run.
+    pub agent: bool,
     /// Every ancestor span id, nearest first.
     pub ancestors: Vec<String>,
     pub start: chrono::DateTime<chrono::Utc>,
+    pub end: Option<chrono::DateTime<chrono::Utc>>,
     pub request_model: Option<String>,
     pub response_model: Option<String>,
     pub response_id: Option<String>,
@@ -356,8 +359,10 @@ pub(super) fn from_built(
                 trace: trace_id.clone(),
                 span: span_id.clone(),
                 typed: span.observation_type == Some(ObservationType::Generation),
+                agent: span.observation_type == Some(ObservationType::Agent),
                 ancestors,
                 start: span.timestamp_start,
+                end: span.timestamp_end,
                 request_model: span.gen_ai_request_model.clone(),
                 response_model: span.gen_ai_response_model.clone(),
                 response_id: span.gen_ai_response_id.clone(),

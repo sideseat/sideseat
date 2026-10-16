@@ -83,6 +83,8 @@ pub(super) struct Context<'a> {
     pub accounted: super::requests::Accounted,
     /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
     pub trace_label: BTreeMap<String, String>,
+    /// For each call span recorded beside its run (`nesting`), the run's span, which counts as enclosing it.
+    pub runs: super::nesting::Runs,
 }
 
 impl<'a> Context<'a> {
@@ -107,6 +109,7 @@ impl<'a> Context<'a> {
             carried_spans: BTreeMap::new(),
             accounted,
             trace_label: BTreeMap::new(),
+            runs: super::nesting::Runs::of(truth, recon, matching),
         };
         for (fact, calls) in super::requests::sent_to(truth, recon) {
             let spans: Vec<usize> = calls

@@ -568,6 +568,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         "input_not_exported" => effects(GapSubject::Call, false, false, true),
         // A call the producer started a new trace for: what it was sent is at home in that trace too.
         "trace_not_propagated" => effects(GapSubject::Call, false, false, true),
+        // A call the producer records beside the agent run that made it, under the run's parent: what it was sent
+        // is at home on the run's span too, as on one enclosing it.
+        "call_not_nested_under_its_run" => effects(GapSubject::Call, false, false, true),
         // A call's model or finish the producer states wrongly, where the right one is in no payload:
         // the span cannot state what the telemetry never carried.
         "metadata_not_exported" => effects(GapSubject::Call, false, false, true),

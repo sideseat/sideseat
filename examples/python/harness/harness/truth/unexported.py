@@ -49,6 +49,7 @@ UNEXPORTED = frozenset(
         "tool_round_call_spans",
         "tool_round_run_spans",
         "tool_round_traces",
+        "run_call_spans",
         "media",
         "media_bytes",
         *METADATA,
@@ -287,6 +288,11 @@ def apply(builder: Builder, framework: Framework) -> None:
         # the previous call's.
         for record in _tool_round_answers(builder.calls, facts):
             gap("response", "trace_not_propagated", detail, record["id"])
+    if detail := declared("run_call_spans"):
+        # Every call of the run sits beside the run's span rather than under it: the rubric proves per capture
+        # that the call's span shares its parent with the one agent span of the trace that lasts as long as it.
+        for record in builder.calls:
+            gap("response", "call_not_nested_under_its_run", detail, record["id"])
     if detail := declared("structured_tool_results"):
         # A text result is exported and stays owed; one the tool returned as data is proven absent per fact.
         # Declared for some releases only, the fact stays asserted and the rubric withdraws it in those

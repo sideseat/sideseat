@@ -668,12 +668,14 @@ fn check_attribution(
         if fact.call.as_deref().is_some_and(|c| context.unexported(c)) {
             continue;
         }
-        let Some(generation) = context.home_call(fact).and_then(span_of_call) else {
+        let home = context.home_call(fact);
+        let Some(generation) = home.and_then(span_of_call) else {
             continue;
         };
         // A fact the requests re-sent belongs on a span that was sent it, or an enclosing one, and nowhere
         // else: a client's preamble goes with every request, so any of those spans is right, and the
         // conversation's first call - the ordinary home of a system prompt - is right only if it was sent it.
+        // The run a call was recorded beside (`nesting`) encloses its own home as an ancestor would, in its trace.
         let allowed = match sent {
             Some(spans) => {
                 spans.contains(&block.span)
@@ -684,7 +686,11 @@ fn check_attribution(
             }
             None => {
                 block.span == generation.span
-                    || (fact.call.is_none() && generation.ancestors.contains(&block.span))
+                    || (fact.call.is_none()
+                        && (generation.ancestors.contains(&block.span)
+                            || home.is_some_and(|c| {
+                                context.runs.of_call(c, &block.trace, &block.span)
+                            })))
             }
         };
         if !allowed {

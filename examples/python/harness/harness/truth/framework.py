@@ -76,7 +76,9 @@ class Framework:
     #: ``tool_round_run_spans`` - the own span of a call that answers a tool round, where the producer
     #: records a whole run of calls on one model-call span, the run's first call's (``call_folded_into_run_span``);
     #: ``tool_round_traces`` - the trace context of such a call, which the producer starts a new trace for
-    #: (``trace_not_propagated``);
+    #: (``trace_not_propagated``); ``run_call_spans`` - the place of every model call in the agent run that
+    #: made it, where the producer opens the run's span without making it current, so its calls are the run's
+    #: siblings rather than its children (``call_not_nested_under_its_run``);
     #: ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
     #: those modalities, and it withdraws the fact, so it holds for every capture or none); ``media_bytes`` - only

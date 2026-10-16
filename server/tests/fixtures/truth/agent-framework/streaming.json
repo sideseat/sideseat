@@ -279,6 +279,24 @@
     "native@1.8.1",
     "native@1.9.0"
    ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_not_nested_under_its_run",
+   "detail": "the place of a model call in the agent run that made it: Agent Framework 1.0.1 opens a streamed run's invoke_agent span with start_span and never makes it current (agent_framework/observability.py, AgentTelemetryLayer._trace_agent_invocation's streaming branch), so the run's chat spans open under the caller's span, as its siblings",
+   "subject": "call-001",
+   "modes": [
+    "native@1.0.1"
+   ]
+  },
+  {
+   "fact": "response",
+   "reason": "call_not_nested_under_its_run",
+   "detail": "the place of a model call in the agent run that made it: Agent Framework 1.0.1 opens a streamed run's invoke_agent span with start_span and never makes it current (agent_framework/observability.py, AgentTelemetryLayer._trace_agent_invocation's streaming branch), so the run's chat spans open under the caller's span, as its siblings",
+   "subject": "call-002",
+   "modes": [
+    "native@1.0.1"
+   ]
   }
  ],
  "requests": {

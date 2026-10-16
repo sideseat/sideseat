@@ -35,6 +35,11 @@ reason = "the call's output tokens: Agent Framework 1.0.1 to 1.9.0, streaming th
 scenarios = ["streaming"]
 modes = { streaming = ["native@1.0.1", "native@1.8.1", "native@1.9.0"] }
 
+[tool.sideseat-example.truth.unexported.run_call_spans]
+reason = "the place of a model call in the agent run that made it: Agent Framework 1.0.1 opens a streamed run's invoke_agent span with start_span and never makes it current (agent_framework/observability.py, AgentTelemetryLayer._trace_agent_invocation's streaming branch), so the run's chat spans open under the caller's span, as its siblings"
+scenarios = ["streaming"]
+modes = { streaming = ["native@1.0.1"] }
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

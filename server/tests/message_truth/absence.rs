@@ -374,6 +374,8 @@ pub(super) enum Claim<'t> {
     /// A call's trace context (`trace_not_propagated`): its span has no parent, in a trace other than the
     /// conversation's previous call's.
     Untraced(&'t str),
+    /// A call recorded beside its run (`call_not_nested_under_its_run`): its span shares the run's parent.
+    Unnested(&'t str),
     /// A call's request span is silent (`call_span_records_no_output`): every candidate model-request span
     /// records none of its output and nothing identifying it.
     RequestSpan(&'t str),
@@ -388,6 +390,22 @@ pub(super) enum Claim<'t> {
 }
 
 impl Claim<'_> {
+    /// Whether the claim is proven on the spans the capture's calls are tied to, not by a search alone.
+    fn on_span(&self) -> bool {
+        matches!(
+            self,
+            Claim::Output(_)
+                | Claim::SpanSignature(_)
+                | Claim::CallSpan(_)
+                | Claim::Untraced(_)
+                | Claim::Unnested(_)
+                | Claim::RequestSpan(_)
+                | Claim::Input(_)
+                | Claim::FoldedCall(_)
+                | Claim::Unsent(..)
+        )
+    }
+
     fn label(&self) -> &'static str {
         match self {
             Claim::Fact(fact) => kind_label(&fact.kind),
@@ -399,6 +417,7 @@ impl Claim<'_> {
             Claim::SpanSignature(_) => "reasoning signature, on the span that produced it",
             Claim::CallSpan(_) => "model call's own span",
             Claim::Untraced(_) => "model call's trace context",
+            Claim::Unnested(_) => "model call's place in its run",
             Claim::RequestSpan(_) => "model call's output, on its request span",
             Claim::CallOrder(_) => "order of a response's parallel calls",
             Claim::Input(_) => "model call's request, on its span",
@@ -444,6 +463,7 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                 "call_span_not_exported" => Claim::CallSpan(subject),
                 "call_folded_into_run_span" => Claim::FoldedCall(subject),
                 "trace_not_propagated" => Claim::Untraced(subject),
+                "call_not_nested_under_its_run" => Claim::Unnested(subject),
                 "call_span_records_no_output" => Claim::RequestSpan(subject),
                 "call_order_not_exported" => Claim::CallOrder(subject),
                 "input_not_exported" => Claim::Input(subject),
@@ -489,16 +509,6 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         ),
         Claim::Kind(fact) => prove_kind(fact, haystack),
         Claim::Signature(fact) => prove_signature(fact.seal.as_deref(), haystack),
-        Claim::Output(_)
-        | Claim::SpanSignature(_)
-        | Claim::CallSpan(_)
-        | Claim::Untraced(_)
-        | Claim::RequestSpan(_)
-        | Claim::Input(_)
-        | Claim::FoldedCall(_)
-        | Claim::Unsent(..) => Proof::Unprovable(
-            "this absence is searched for on the spans the capture's calls are tied to".to_string(),
-        ),
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
         // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
         // which only a copy of the response would. A response with any other part, or a call with no
@@ -559,6 +569,10 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
             }
             Proof::Absent
         }
+        // Every other claim is one `Claim::on_span` names.
+        _ => Proof::Unprovable(
+            "this absence is searched for on the spans the capture's calls are tied to".to_string(),
+        ),
     }
 }
 
@@ -824,20 +838,9 @@ fn every_absence_gap_is_proven() {
             let haystack = Haystack::of_fixture(paths);
             // The span each call was recorded by, for an output proven absent from it: matched as the checks
             // match it, by the call's output.
-            let on_span = gaps.iter().any(|(gap, claim)| {
-                gap.holds_for(fixture)
-                    && matches!(
-                        claim,
-                        Claim::Output(_)
-                            | Claim::SpanSignature(_)
-                            | Claim::CallSpan(_)
-                            | Claim::Untraced(_)
-                            | Claim::RequestSpan(_)
-                            | Claim::Input(_)
-                            | Claim::FoldedCall(_)
-                            | Claim::Unsent(..)
-                    )
-            });
+            let on_span = gaps
+                .iter()
+                .any(|(gap, claim)| gap.holds_for(fixture) && claim.on_span());
             let checked = truth.for_fixture(fixture);
             let matched = on_span.then(|| {
                 let recon = super::recon::build(fixture, paths);
@@ -877,9 +880,12 @@ fn every_absence_gap_is_proven() {
                         ),
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
-                    Claim::Untraced(call) => match &matched {
-                        Some((recon, matching)) => {
+                    Claim::Untraced(call) | Claim::Unnested(call) => match &matched {
+                        Some((recon, matching)) if matches!(claim, Claim::Untraced(_)) => {
                             super::propagation::prove_untraced(&checked, call, recon, matching)
+                        }
+                        Some((recon, matching)) => {
+                            super::nesting::prove_unnested(&checked, call, recon, matching)
                         }
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
