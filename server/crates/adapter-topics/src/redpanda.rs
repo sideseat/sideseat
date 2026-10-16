@@ -33,9 +33,41 @@ use tokio::task::JoinHandle;
 use crate::ack_window::AckWindow;
 
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Kafka's limit on a topic name's length.
+const MAX_TOPIC_NAME_BYTES: usize = 249;
 const RETENTION_MONITOR_INTERVAL: Duration = Duration::from_secs(30);
 
 type KafkaConsumer = StreamConsumer<DefaultConsumerContext>;
+
+/// The Kafka topic that carries the port topic `name`.
+///
+/// Port topic names are free text - `sse_spans:<project>`, `presence:<project>` - while a Kafka topic name allows only
+/// `[A-Za-z0-9._-]` and at most 249 bytes, and a broker refuses any other with `InvalidTopic`. Every byte outside
+/// `[A-Za-z0-9_-]` is therefore written as `.` and two uppercase hex digits. The mapping is injective, so two port
+/// topics - two projects' event streams - never share a Kafka topic. Names already valid without a `.` (`traces`)
+/// map to themselves. And since an escape is never followed by a lowercase letter, the adapter's own
+/// `{topic}.dead-letter` names cannot collide with any port topic. A name too long to carry is refused rather than
+/// shortened: shortening could merge two topics.
+pub(crate) fn kafka_topic(name: &str) -> Result<String, TopicError> {
+    use std::fmt::Write as _;
+    let mut topic = String::with_capacity(name.len());
+    for byte in name.bytes() {
+        if byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-' {
+            topic.push(char::from(byte));
+        } else {
+            // Writing to a `String` cannot fail.
+            let _ = write!(topic, ".{byte:02X}");
+        }
+    }
+    if topic.is_empty() || topic.len() > MAX_TOPIC_NAME_BYTES {
+        return Err(TopicError::Config(format!(
+            "topic {name:?} has no RedPanda name: encoded it is {} bytes, and a Kafka topic takes 1 to \
+             {MAX_TOPIC_NAME_BYTES}",
+            topic.len()
+        )));
+    }
+    Ok(topic)
+}
 
 #[derive(Debug)]
 struct AckState {
@@ -314,10 +346,14 @@ impl RedpandaTopicBackend {
 #[async_trait]
 impl TopicBackend for RedpandaTopicBackend {
     async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), TopicError> {
-        self.produce(topic, "", payload).await.map(|_| ())
+        self.produce(&kafka_topic(topic)?, "", payload)
+            .await
+            .map(|_| ())
     }
 
     async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError> {
+        let topic = kafka_topic(topic)?;
+        let topic = topic.as_str();
         self.ensure_topic(topic).await?;
         let group = format!("sideseat-broadcast-{}", uuid::Uuid::new_v4());
         let consumer = Arc::new(self.consumer(&group, &group)?);
@@ -347,7 +383,8 @@ impl TopicBackend for RedpandaTopicBackend {
         partition_key: &str,
         payload: &[u8],
     ) -> Result<String, TopicError> {
-        self.produce(topic, partition_key, payload).await
+        self.produce(&kafka_topic(topic)?, partition_key, payload)
+            .await
     }
 
     async fn stream_subscribe(
@@ -356,6 +393,8 @@ impl TopicBackend for RedpandaTopicBackend {
         group: &str,
         consumer_name: &str,
     ) -> Result<StreamSubscription, TopicError> {
+        let topic = kafka_topic(topic)?;
+        let topic = topic.as_str();
         self.ensure_topic(topic).await?;
         self.start_retention_monitor();
         let consumer = Arc::new(self.consumer(group, consumer_name)?);
@@ -423,7 +462,7 @@ impl TopicBackend for RedpandaTopicBackend {
             let (partition, offset) = parse_message_id(id)?;
             offsets.entry(partition).or_default().push(offset);
         }
-        self.complete_offsets(topic, group, &offsets)
+        self.complete_offsets(&kafka_topic(topic)?, group, &offsets)
     }
 
     async fn stream_claim(
@@ -438,6 +477,8 @@ impl TopicBackend for RedpandaTopicBackend {
     }
 
     async fn stream_stats(&self, topic: &str, group: &str) -> Result<StreamStats, TopicError> {
+        let topic = kafka_topic(topic)?;
+        let topic = topic.as_str();
         let consumer = self
             .consumers
             .get(&(topic.to_string(), group.to_string()))
@@ -505,7 +546,7 @@ impl TopicBackend for RedpandaTopicBackend {
         reason: &str,
         payload: &[u8],
     ) -> Result<(), TopicError> {
-        let dead_letter_topic = format!("{topic}.dead-letter");
+        let dead_letter_topic = format!("{}.dead-letter", kafka_topic(topic)?);
         let encoded = rmp_serde::to_vec_named(&DeadLetter {
             original_id: id,
             reason,

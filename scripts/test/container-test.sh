@@ -313,7 +313,7 @@ case "$scenario" in
     fi
 
     SIDESEAT_TEST_REDIS_URL="redis://127.0.0.1:$REDIS_TEST_PORT" \
-      cargo test --locked -p sideseat-adapter-topics redis_stream_tests -- --test-threads=1
+      cargo test --locked -p sideseat-adapter-topics -- --test-threads=1 redis_stream_tests broadcast_parity_tests::redis
     ;;
 
   redpanda)
@@ -343,6 +343,7 @@ case "$scenario" in
     fi
 
     SIDESEAT_TEST_REDPANDA_BROKERS="127.0.0.1:$REDPANDA_TEST_PORT" \
-      cargo test --locked -p sideseat-adapter-topics redpanda_tests -- --test-threads=1 --nocapture
+      cargo test --locked -p sideseat-adapter-topics -- --test-threads=1 --nocapture redpanda_tests \
+        broadcast_parity_tests::redpanda
     ;;
 esac

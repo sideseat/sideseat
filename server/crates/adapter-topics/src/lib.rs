@@ -9,6 +9,8 @@
 #![deny(clippy::iter_over_hash_type)]
 
 mod ack_window;
+#[cfg(test)]
+mod broadcast_parity_tests;
 mod memory;
 mod pubsub;
 mod redis;
