@@ -6,9 +6,10 @@ per-table bytes held by the storage gate's deterministic replay; and the new wri
 targets. Until then the write path is tuned, and only by changes with a measured win: fewer statements per export
 did not show one (section 1.1). Before more tuning comes a diagnosis of where an export's time goes, because the
 rate does not rise with cores (section 1.1). The target was first put as one Ampere A1 core; AGENTS.md now
-states it as decided: sustained ingest of at least 10,000 spans a second on one four-core Ampere A1 machine, with
-the server and its embedded backend inside 2 GB, and identical rows and answers for identical receipts whatever
-the core count.
+states it as decided: sustained ingest of at least 10,000 spans a second on one four-core Ampere A1 machine with
+the distributed backend (ClickHouse), the server inside 2 GB, and identical rows and answers for identical receipts
+whatever the core count. The embedded backend serves local development and carries no throughput target, so the
+DuckDB figures below describe it rather than a gap to close.
 
 ## 1. What tuning reaches
 

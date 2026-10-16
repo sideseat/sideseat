@@ -18,7 +18,8 @@ This is what distinguishes SideSeat. Every change is judged on all three, and no
   corpus's share of media cannot flatter them: at most 480 bytes stored per span, 300 per log record, and 150
   per metric point, excluding media, which is stored once per project, losslessly, and reported separately (the
   baseline was 13,230 bytes per span); and sustained ingest of at least 10,000 spans per second on one four-core
-  Ampere A1 machine (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM, with the
+  Ampere A1 machine (aarch64, Neoverse N1) with the distributed backend (ClickHouse), the server inside 2 GB of
+  RAM - the embedded backend serves local development and carries no throughput target - with the
   throughput curve over 1, 2, 4 and 8 cores measured, and identical receipts giving identical rows and answers
   whatever the core count, the stored bytes held by the storage gate's deterministic replay. Each figure has a
   regression gate, and each release should improve on it. Redundancy is a defect: repeated attributes, re-sent
