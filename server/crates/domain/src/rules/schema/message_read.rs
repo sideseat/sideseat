@@ -500,6 +500,11 @@ pub struct OverlaySpec {
     #[serde(default, rename = "prepend_from")]
     #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
     pub prepend_any_of: FirstOf<JsonPath, false>,
+    /// Roles of family entries the copy does not list: a copy that sends the system prompt beside its message list
+    /// rather than in it (Converse, Messages) is one position behind the family from its first such entry on, and
+    /// an entry of these roles has no counterpart. Each one before an entry shifts its counterpart back by one.
+    #[serde(default)]
+    pub unlisted_roles: Vec<String>,
 }
 
 /// One member of an already-parsed value, decoded **in place**: its text becomes the value it decodes to and its

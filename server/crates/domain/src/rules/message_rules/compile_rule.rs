@@ -685,6 +685,15 @@ pub(super) fn compile_rule(
         }
         // `as_member` is what the replacing form writes; a prepending overlay renumbers the flattened members
         // instead, so an `as_member` beside a prepend-only overlay names a member nothing writes.
+        if overlay
+            .unlisted_roles
+            .iter()
+            .any(|role| role.trim().is_empty())
+        {
+            return Err(inexpressible(
+                "an overlay's `unlisted_roles` name the roles its copy does not list; an empty one names none",
+            ));
+        }
         if overlay.content_any_of.is_empty() && !overlay.as_member.is_empty() {
             return Err(inexpressible(
                 "an overlay that only prepends keeps the flattened members and renumbers them, so \

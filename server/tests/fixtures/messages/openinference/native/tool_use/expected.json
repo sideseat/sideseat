@@ -73,7 +73,7 @@
       ]
     },
     "trace-1/bedrock.converse/span-8": {
-      "message_count": 8,
+      "message_count": 11,
       "role_sequence": [
         "system",
         "user",
@@ -81,6 +81,9 @@
         "assistant",
         "assistant",
         "assistant",
+        "tool",
+        "tool",
+        "tool",
         "tool",
         "assistant"
       ],
@@ -143,12 +146,36 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
+          "content": "{\"city\": \"Paris\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "0d19d8a0bda0013d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"city\": \"Tokyo\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "c6bdea5e00f9947b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "69b90695941e5c71",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
           "content_digest": "8f04a03e101816ee",
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris looks sunny both days, with highs of 21°C and 22°C. Tokyo has rain on day 1 (21°C) and sun on day 2 (22°C). You can skip the umbrella for Paris, where tomorrow's rain chance is 10%. Pack one for Tokyo, where tomorrow's rain chance is …[244 chars]",

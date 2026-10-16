@@ -609,3 +609,156 @@ fn list_members_admits_only_what_it_gathers_and_types_its_items() {
     );
     assert_eq!(typed[0]["content"][1]["type"], serde_json::json!("text"));
 }
+
+/// **An overlay's `unlisted_roles` shift its join**: a copy that sends the system prompt beside its list is one
+/// position behind the family from that entry on, and the system entry has no counterpart.
+#[test]
+fn an_overlay_joins_past_entries_its_copy_does_not_list() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "overlay":{"from":"rich","parse":"json","select":"$",
+                "witness":{"path":"$[*].content","kind":"array"},
+                "when_member_prefix":"content","content_from":"$.content","as_member":"content",
+                "unlisted_roles":["system"]}},
+            "require_members":{"all_of":[{"name":"role"}]}}]}"#,
+    )
+    .expect("an overlay with unlisted roles compiles");
+    let rich = serde_json::json!([
+        {"role": "user", "content": [{"text": "question"}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "a"}}, {"toolResult": {"toolUseId": "b"}}]},
+    ]);
+    let attrs = probe_attrs(&[
+        ("fam.0.message.role", "system"),
+        ("fam.0.message.content", "be brief"),
+        ("fam.1.message.role", "user"),
+        ("fam.1.message.content", "question"),
+        ("fam.2.message.role", "user"),
+        ("fam.2.message.content", "last result only"),
+        ("fam.2.message.tool_call_id", "b"),
+        ("rich", &rich.to_string()),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let entries: Vec<serde_json::Value> = plan.run(&ctx).into_iter().map(|e| e.value).collect();
+    assert_eq!(entries[0]["content"], serde_json::json!("be brief"));
+    assert_eq!(entries[1]["content"], rich[0]["content"]);
+    assert_eq!(entries[2]["content"], rich[1]["content"]);
+
+    for bad in [r#""unlisted_roles":[""]"#, r#""unlisted_roles":[" "]"#] {
+        let rule = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.in","priority":1,"emit":"message",
+                "read":{{"indexed_family":"fam","entry_member":"message",
+                  "overlay":{{"from":"rich","parse":"json","select":"$",
+                    "when_member_prefix":"content","content_from":"$.content","as_member":"content",{bad}}}}}}}]}}"#
+        );
+        assert!(probe_compile(&rule).is_err(), "{bad} compiled");
+    }
+}
+
+/// An entry a requirement leaves out still holds its place: a system entry stating only its role shifts the join
+/// as one with content does.
+#[test]
+fn an_unlisted_entry_a_requirement_leaves_out_still_shifts_the_join() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "overlay":{"from":"rich","parse":"json","select":"$",
+                "witness":{"path":"$[*].content","kind":"array"},
+                "when_member_prefix":"tool_call_id","content_from":"$.content","as_member":"content",
+                "unlisted_roles":["system"]}},
+            "require_members":{"all_of":[{"name":"role"}],"any_of":[{"name":"content"},{"name":"tool_call_id"}]}}]}"#,
+    )
+    .expect("compiles");
+    let rich = serde_json::json!([
+        {"role": "user", "content": [{"text": "question"}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "a"}}, {"toolResult": {"toolUseId": "b"}}]},
+    ]);
+    let attrs = probe_attrs(&[
+        ("fam.0.message.role", "system"),
+        ("fam.1.message.role", "user"),
+        ("fam.1.message.content", "question"),
+        ("fam.2.message.role", "user"),
+        ("fam.2.message.content", "last result only"),
+        ("fam.2.message.tool_call_id", "b"),
+        ("rich", &rich.to_string()),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let entries: Vec<serde_json::Value> = plan.run(&ctx).into_iter().map(|e| e.value).collect();
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    assert_eq!(entries[1]["content"], rich[1]["content"]);
+}
+
+/// A witness asked of every member by filter refuses a copy one member of which is of another shape: a list with a
+/// system turn in it is not one that sends its system prompt beside it.
+#[test]
+fn a_filter_witness_refuses_a_copy_with_one_member_of_another_role() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "overlay":{"from":"rich","parse":"json","select":"$",
+                "witness":{"not":{"path":"$[?@.role != 'user' && @.role != 'assistant']","exists":true}},
+                "when_member_prefix":"tool_call_id","content_from":"$.content","as_member":"content",
+                "unlisted_roles":["system"]}},
+            "require_members":{"all_of":[{"name":"role"}]}}]}"#,
+    )
+    .expect("compiles");
+    let rich = serde_json::json!([
+        {"role": "system", "content": [{"text": "be brief"}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "a"}}]},
+    ]);
+    let attrs = probe_attrs(&[
+        ("fam.0.message.role", "system"),
+        ("fam.0.message.content", "be brief"),
+        ("fam.1.message.role", "user"),
+        ("fam.1.message.content", "flattened"),
+        ("fam.1.message.tool_call_id", "a"),
+        ("rich", &rich.to_string()),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let entries: Vec<serde_json::Value> = plan.run(&ctx).into_iter().map(|e| e.value).collect();
+    assert_eq!(entries[1]["content"], serde_json::json!("flattened"));
+}
+
+/// A filter witness on every member's first content block refuses a copy one turn of which holds text, null or an
+/// empty list where a content list belongs.
+#[test]
+fn a_filter_witness_refuses_a_copy_with_one_scalar_content() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.in","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "overlay":{"from":"rich","parse":"json","select":"$",
+                "witness":{"not":{"path":"$[?!@.content[0]]","exists":true}},
+                "when_member_prefix":"tool_call_id","content_from":"$.content","as_member":"content"}},
+            "require_members":{"all_of":[{"name":"role"}]}}]}"#,
+    )
+    .expect("compiles");
+    for first in [
+        serde_json::json!("text"),
+        serde_json::json!(null),
+        serde_json::json!([]),
+    ] {
+        let rich = serde_json::json!([
+            {"role": "user", "content": first},
+            {"role": "user", "content": [{"toolResult": {"toolUseId": "a"}}]},
+        ]);
+        let attrs = probe_attrs(&[
+            ("fam.0.message.role", "user"),
+            ("fam.0.message.content", "question"),
+            ("fam.1.message.role", "user"),
+            ("fam.1.message.content", "flattened"),
+            ("fam.1.message.tool_call_id", "a"),
+            ("rich", &rich.to_string()),
+        ]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        let entries: Vec<serde_json::Value> = plan.run(&ctx).into_iter().map(|e| e.value).collect();
+        assert_eq!(
+            entries[1]["content"],
+            serde_json::json!("flattened"),
+            "{rich}"
+        );
+    }
+}

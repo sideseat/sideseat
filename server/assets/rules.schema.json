@@ -1760,6 +1760,14 @@
         "prepend_from": {
           "description": "Ordered paths to blocks of the counterpart that go **before** the flattened content, which is kept.\n\nFor a flattened family that loses a *kind* of block rather than the content itself: a dialect that\nflattens an answer but has no name for the reasoning that preceded it, where the serialised copy holds\nboth in order. Replacing would drop the answer, so these are prepended and the flattened members are\nrenumbered after them - one content list, in the order the provider sent it. Where the paths resolve to\nnothing, or to an empty list, the flattened form stands.",
           "$ref": "#/$defs/FirstPresent_string"
+        },
+        "unlisted_roles": {
+          "description": "Roles of family entries the copy does not list: a copy that sends the system prompt beside its message list\nrather than in it (Converse, Messages) is one position behind the family from its first such entry on, and\nan entry of these roles has no counterpart. Each one before an entry shifts its counterpart back by one.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "additionalProperties": false,

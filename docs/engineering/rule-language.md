@@ -1288,6 +1288,7 @@ beside it keeps them, so where both describe one message the richer one is prefe
 | `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What that content must be for the overlay to be an improvement. |
 | `as_member` | string | The member the content becomes, replacing every member under `when_member_prefix`. Empty where the overlay only prepends, which keeps those members and renumbers them. |
 | `prepend_from` | [`FirstPresent_string`](#firstpresent_string) | Ordered paths to blocks of the counterpart that go **before** the flattened content, which is kept. |
+| `unlisted_roles` | list of string | Roles of family entries the copy does not list: a copy that sends the system prompt beside its message list rather than in it (Converse, Messages) is one position behind the family from its first such entry on, and an entry of these roles has no counterpart. Each one before an entry shifts its counterpart back by one. |
 
 ### `FirstUsable_string`
 

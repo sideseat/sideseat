@@ -116,6 +116,74 @@
         "doc": "Primary: LangChain4j's spans, whose user message may be printed. Fallback: every span the primary did not read.",
         "primary": [
           {
+            "id": "openinference.input_messages_bedrock",
+            "doc": "The conversation the Bedrock instrumentor's Converse span received. It flattens a user turn of several tool results into one entry holding only the last result's text and call id, while `input.value` holds the request's whole Converse message list - without the system prompt, which Converse sends beside the list. So such a turn - the one entry that carries a `tool_call_id` - takes the copy's content in place of its flattened text and single call id, matched by position from the first non-system entry; every other entry is what the family says, since the copy prints media as Python bytes.",
+            "where": {
+              "source": "scope.name",
+              "equals": "openinference.instrumentation.bedrock"
+            },
+            "read": {
+              "indexed_family": "llm.input_messages",
+              "entry_member": "message",
+              "overlay": {
+                "doc": "Converse's request list, each message's content a list of content blocks (text, toolUse, toolResult, ...): what the family flattened.",
+                "from": "input.value",
+                "parse": "json",
+                "select": "$",
+                "witness": {
+                  "doc": "Asked of every member, by filters: a Converse list holds only user and assistant turns, each with a content list - its system prompt is sent beside it.",
+                  "all": [
+                    {
+                      "not": {
+                        "path": "$[?@.role != 'user' && @.role != 'assistant']",
+                        "exists": true
+                      }
+                    },
+                    {
+                      "not": {
+                        "doc": "Every member's content a list with a first block: an index selects nothing from text, null or an empty list.",
+                        "path": "$[?!@.content[0]]",
+                        "exists": true
+                      }
+                    }
+                  ]
+                },
+                "when_member_prefix": "tool_call_id",
+                "content_from": "$.content",
+                "where": {
+                  "kind": "array"
+                },
+                "as_member": "content",
+                "unlisted_roles": [
+                  "system"
+                ]
+              }
+            },
+            "require_members": {
+              "all_of": [
+                {
+                  "name": "role"
+                }
+              ],
+              "any_of": [
+                {
+                  "name": "content"
+                },
+                {
+                  "name": "contents",
+                  "presence": "nested"
+                },
+                {
+                  "name": "tool_calls",
+                  "presence": "nested"
+                },
+                {
+                  "name": "tool_call_id"
+                }
+              ]
+            }
+          },
+          {
             "id": "openinference.input_messages_langchain4j",
             "doc": "The conversation a LangChain4j span received. A user message holding more than text is written as the message object's Java `toString`, decoded here and on no other producer's span: the same text from anyone else is what they sent. Its family arrives whole, with nothing flattened for a richer copy to improve, and none of the pseudo-roles another producer writes back.",
             "where": {
