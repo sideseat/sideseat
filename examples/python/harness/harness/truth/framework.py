@@ -91,7 +91,9 @@ class Framework:
     unexported: dict[str, Any] = field(default_factory=dict)
     #: Text the framework writes into the conversation itself rather than the model: each ``{text, source,
     #: scenarios[, after, reaches_model]}``, ``source`` citing the line of the framework that writes it and
-    #: ``after`` the successful call it is written after (the last by default). It becomes a fact resting on
+    #: ``after`` the successful call it is written after (the last by default) - or ``{returns_arguments_of,
+    #: source, scenarios[, reaches_model]}``, a structured result the framework returns: the arguments of the
+    #: model's one call of that tool as their compact JSON, written after that call and owed as JSON. It becomes a fact resting on
     #: ``framework`` evidence, which the rubric proves per capture (``message_truth::authored``): byte for byte in
     #: a span's payload, held by no other fact, sent by no request as user or system content, placed where the
     #: raw timing says, and carried by every later request - or, with ``reaches_model = false``, a reply the
@@ -214,11 +216,20 @@ def _authored(entry: dict[str, Any]) -> dict[str, Any]:
     ``after`` is the ordinal of the successful call the framework writes it after, from 1; without it, the
     scenario's last. The rubric checks the place against the raw payload's timing. ``reaches_model`` (true by
     default) says whether the framework sends the text to the model later, which the rubric also checks.
+    ``returns_arguments_of`` names a tool instead of a text: the framework returns the arguments of the model's
+    one call of it as the run's structured result, written as their compact JSON after that call.
     """
     after = entry.get("after")
+    returned = entry.get("returns_arguments_of")
+    if returned is not None and ("text" in entry or "after" in entry):
+        raise ValueError(
+            f"a framework_authored entry returning a call's arguments states no text and no place: {entry!r}"
+        )
     if not (
-        isinstance(entry.get("text"), str)
-        and entry["text"]
+        (
+            (isinstance(entry.get("text"), str) and entry["text"])
+            or (isinstance(returned, str) and returned)
+        )
         and isinstance(entry.get("source"), str)
         and entry["source"]
         and isinstance(entry.get("scenarios"), list)

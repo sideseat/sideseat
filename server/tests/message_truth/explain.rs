@@ -603,9 +603,10 @@ fn check_attribution(
             }
             continue;
         }
-        // A text the framework writes itself is shown on a span whose payload holds it as written.
+        // A text the framework writes itself is shown on a span whose payload holds it as written. (A reply it writes
+        // as its own is only ever matched to such a span's output - `checks::written_by_its_span`.)
         if let Some(spans) = context.authored_spans.get(fact_id) {
-            if !spans.contains(&block.span) {
+            if !spans.contains(&(block.trace.clone(), block.span.clone())) {
                 out.push(Violation::new(
                     ViolationView::from(scope.kind),
                     "attribution.span",

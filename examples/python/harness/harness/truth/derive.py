@@ -685,6 +685,12 @@ def assemble(
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
     for entry in framework.authored(scenario):
+        if "returns_arguments_of" in entry:
+            text, after = _returned_arguments(builder, entry["returns_arguments_of"])
+            _framework_text(
+                builder, text, after, entry.get("reaches_model", True), match="json"
+            )
+            continue
         _framework_text(
             builder, entry["text"], entry.get("after"), entry.get("reaches_model", True)
         )
@@ -703,8 +709,36 @@ def _strings(value: Any) -> list[str]:
     return []
 
 
+def _returned_arguments(builder: Builder, tool: str) -> tuple[str, int]:
+    """The structured result a framework returns from the model's one call of ``tool``: the call's arguments as
+    their compact JSON, in the member order the wire gave them, and the ordinal of the successful call that made
+    it. Several calls of the tool refuse the declaration: the framework returns one result, and which one is not
+    the truth's to say. The rubric proves the text byte for byte against the capture, so a framework that reorders
+    the members or coerces a value when it serialises its result (a model's field order, ``350.0`` as ``350``)
+    is refused there, never accepted."""
+    calls = [
+        f
+        for f in builder.facts
+        if f["kind"] == "tool_call" and f["value"].get("name") == tool
+    ]
+    if len(calls) != 1 or not isinstance(calls[0]["value"].get("arguments"), dict):
+        raise ValueError(
+            f"{len(calls)} calls of {tool!r} with arguments: one result is returned"
+        )
+    succeeded = [c for c in builder.calls if c["outcome"] == "success"]
+    made = next(i for i, c in enumerate(succeeded) if c["id"] == calls[0]["call"])
+    text = json.dumps(
+        calls[0]["value"]["arguments"], separators=(",", ":"), ensure_ascii=False
+    )
+    return text, made + 1
+
+
 def _framework_text(
-    builder: Builder, text: str, after: int | None, reaches_model: bool
+    builder: Builder,
+    text: str,
+    after: int | None,
+    reaches_model: bool,
+    match: str = "exact",
 ) -> None:
     """A text the framework writes itself, placed after the response of its ``after``-th successful call.
 
@@ -739,7 +773,7 @@ def _framework_text(
         "assistant",
         "framework",
         {"text": text},
-        require=_conversation_requirement("exact"),
+        require=_conversation_requirement(match),
     )
     if not reaches_model:
         next(f for f in builder.facts if f["id"] == fact)["kept_from_model"] = True

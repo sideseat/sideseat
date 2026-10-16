@@ -13,6 +13,16 @@ dependencies = [
 producer = "strands"
 integrations = ["strands"]
 
+# The structured result a Strands agent returns is the model's call of the output tool, parsed: the agent span's
+# choice is `str(result)`, which for a structured run is the parsed model's JSON. A fact on framework evidence,
+# proven per capture by the rubric: byte for byte in the agent span's payload, placed after the call, and sent to
+# the model by no request.
+[[tool.sideseat-example.truth.framework_authored]]
+returns_arguments_of = "TripPlan"
+source = "strands-agents 1.57.2, strands/agent/agent_result.py:79 (AgentResult.__str__ returns `structured_output.model_dump_json()`) and strands/telemetry/tracer.py:841 (end_agent_span records `str(response)` as the gen_ai.choice message)"
+scenarios = ["structured_output"]
+reaches_model = false
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

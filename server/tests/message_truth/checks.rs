@@ -74,7 +74,7 @@ pub(super) struct Context<'a> {
     pub splits: super::propagation::Splits,
     /// For each text its framework writes itself (`evidence: framework`), the spans whose raw payload holds it
     /// as written: where the views must attribute it (`authored`).
-    pub authored_spans: BTreeMap<String, BTreeSet<String>>,
+    pub authored_spans: BTreeMap<String, BTreeSet<(String, String)>>,
     /// For each part of a call whose request span is silent (`call_span_records_no_output`), the spans whose
     /// own raw carriers hold it: the call has no span, so where the telemetry records the part is where the
     /// views must attribute it.
@@ -481,6 +481,7 @@ fn assign(context: &Context<'_>, scope: &Scope<'_>) -> Assigned {
                         },
                     )
                     .filter(|&(_, at)| in_home(context, scope, fact, at))
+                    .filter(|&(_, at)| written_by_its_span(context, scope, fact, at))
                     .collect();
                 candidates.sort_by_key(|&(rewritten, _)| rewritten);
                 candidates.into_iter().map(|(_, at)| at).collect()
@@ -535,6 +536,20 @@ pub(super) fn in_home(context: &Context<'_>, scope: &Scope<'_>, fact: &Fact, at:
         return true;
     };
     at_home(trace)
+}
+
+/// A reply the framework writes itself can only be shown as the output of a span that wrote it: matched anywhere
+/// else, it could take the block of a model answer saying the same thing and leave that answer unassigned.
+fn written_by_its_span(context: &Context<'_>, scope: &Scope<'_>, fact: &Fact, at: usize) -> bool {
+    let block = scope.blocks[at].2;
+    fact.evidence != "framework"
+        || fact.role != "assistant"
+        || context
+            .authored_spans
+            .get(fact.id.as_str())
+            .is_some_and(|spans| {
+                block.output && spans.contains(&(block.trace.clone(), block.span.clone()))
+            })
 }
 
 /// The id a result must carry: its call's, as the call appears in this scope.
@@ -698,11 +713,19 @@ fn report_assignment(
             .collect();
         let kind = fact.kind.as_str();
         let Some(&at) = assigned.block_of.get(&fact.id) else {
-            let home: Vec<&usize> = anywhere
+            // Only a block the fact could be given says where it went: a framework's reply on a span that did not
+            // write it, or as context sent to it, is no block of the reply's, so the reply is missing rather than
+            // claimed elsewhere. Every copy still counts below, as a duplicate or a leak.
+            let eligible: Vec<usize> = anywhere
+                .iter()
+                .copied()
+                .filter(|&at| written_by_its_span(context, scope, fact, at))
+                .collect();
+            let home: Vec<&usize> = eligible
                 .iter()
                 .filter(|&&at| in_home(context, scope, fact, at))
                 .collect();
-            let (assertion, detail) = if anywhere.is_empty() {
+            let (assertion, detail) = if eligible.is_empty() {
                 (format!("{kind}.missing"), missing_hint(fact, scope))
             } else if home.is_empty() {
                 (

@@ -5,15 +5,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use opentelemetry_proto::tonic::common::v1::{AnyValue, any_value::Value as Otlp};
 use serde_json::Value;
 
 use super::matching::Matching;
 use super::recon::Recon;
 use super::truth::{Fact, Truth, hex_digest};
+use raw::{RawSpan, raw_spans};
 
 // The proof of a reply the framework keeps from the model, tested apart to keep this file short.
 mod kept_from_model;
+mod raw;
+mod returned_result;
 
 /// For each framework-written fact, the spans whose raw payload holds its text byte for byte, written where its
 /// place in the conversation says (`placed_holders`): where the views must attribute it.
@@ -21,7 +23,7 @@ pub(super) fn emitting_spans(
     truth: &Truth,
     recon: &Recon,
     matching: &Matching,
-) -> BTreeMap<String, BTreeSet<String>> {
+) -> BTreeMap<String, BTreeSet<(String, String)>> {
     let authored: Vec<&Fact> = truth
         .facts
         .iter()
@@ -37,8 +39,7 @@ pub(super) fn emitting_spans(
             if fact.kind == "user_text" {
                 // A prompt is the request of the call it was sent to, so that call's span is where it is shown.
                 let held = prompted_span(truth, fact, recon, matching)
-                    .filter(|at| span_holds(recon, at, fact.text()))
-                    .map(|(_, span)| span);
+                    .filter(|at| span_holds(recon, at, fact.text()));
                 return (fact.id.clone(), held.into_iter().collect());
             }
             let (before, after) = call_starts(truth, fact, recon, matching).unwrap_or_default();
@@ -232,100 +233,32 @@ fn call_starts(
 
 /// Where the text is held as an attribute's whole string, or a string anywhere inside an attribute that is
 /// JSON: each holding span with when that copy was written.
-fn holders(spans: &[RawSpan], text: &str) -> Vec<(String, u64)> {
+/// The spans, by trace and id, that state the text, as written, as their own output: in one of their output
+/// carriers, whole or as a content member of an assistant's message inside it.
+fn holders(spans: &[RawSpan], text: &str) -> Vec<((String, String), u64)> {
     spans
         .iter()
         .flat_map(|span| {
-            span.strings
+            span.outputs
                 .iter()
                 .filter(|(s, _)| s == text)
-                .map(|(_, at)| (span.id.clone(), *at))
+                .map(|(_, at)| ((span.trace.clone(), span.id.clone()), *at))
         })
         .collect()
 }
 
 /// The spans whose copy of the text was written where its place in the conversation says: after every call
 /// before it started, and before every call after it started.
-fn placed_holders(holders: &[(String, u64)], before: &[u64], after: &[u64]) -> BTreeSet<String> {
+fn placed_holders(
+    holders: &[((String, String), u64)],
+    before: &[u64],
+    after: &[u64],
+) -> BTreeSet<(String, String)> {
     holders
         .iter()
         .filter(|(_, at)| before.iter().all(|t| t < at) && after.iter().all(|t| t >= at))
         .map(|(span, _)| span.clone())
         .collect()
-}
-
-/// One raw span: its id, and every string its attributes and events hold, JSON decoded, each with when it was
-/// written - an event's own time, or the span's end for its attributes.
-struct RawSpan {
-    trace: String,
-    id: String,
-    strings: Vec<(String, u64)>,
-}
-
-fn raw_spans(paths: &[PathBuf]) -> Vec<RawSpan> {
-    let mut out = Vec::new();
-    for path in paths {
-        let request = crate::decode_request(path);
-        for span in request
-            .resource_spans
-            .iter()
-            .flat_map(|r| &r.scope_spans)
-            .flat_map(|s| &s.spans)
-        {
-            let mut strings = Vec::new();
-            for kv in &span.attributes {
-                if let Some(value) = &kv.value {
-                    let mut found = Vec::new();
-                    collect_otlp(value, &mut found);
-                    strings.extend(found.into_iter().map(|s| (s, span.end_time_unix_nano)));
-                }
-            }
-            for event in &span.events {
-                for kv in &event.attributes {
-                    if let Some(value) = &kv.value {
-                        let mut found = Vec::new();
-                        collect_otlp(value, &mut found);
-                        strings.extend(found.into_iter().map(|s| (s, event.time_unix_nano)));
-                    }
-                }
-            }
-            out.push(RawSpan {
-                trace: hex_digest(&span.trace_id),
-                id: hex_digest(&span.span_id),
-                strings,
-            });
-        }
-    }
-    out
-}
-
-fn collect_otlp(value: &AnyValue, out: &mut Vec<String>) {
-    match &value.value {
-        Some(Otlp::StringValue(s)) => {
-            if let Ok(parsed) = serde_json::from_str::<Value>(s)
-                && (parsed.is_object() || parsed.is_array())
-            {
-                collect_json(&parsed, out);
-            }
-            out.push(s.clone());
-        }
-        Some(Otlp::ArrayValue(items)) => items.values.iter().for_each(|v| collect_otlp(v, out)),
-        Some(Otlp::KvlistValue(list)) => list
-            .values
-            .iter()
-            .filter_map(|kv| kv.value.as_ref())
-            .for_each(|v| collect_otlp(v, out)),
-        _ => {}
-    }
-}
-
-fn collect_json(value: &Value, out: &mut Vec<String>) {
-    match value {
-        Value::String(s) => out.push(s.clone()),
-        Value::Array(items) => items.iter().for_each(|v| collect_json(v, out)),
-        Value::Object(members) => members.values().for_each(|v| collect_json(v, out)),
-        _ => {}
-    }
 }
 
 /// Why a framework-authored fact does not hold for one capture, or `None` when it does. It holds where:
@@ -698,12 +631,16 @@ fn a_framework_text_explains_only_its_own_block() {
         new.contains(&format!("text.duplicated:{}", authored.id)),
         "a second copy passed: {new:?}"
     );
-    // Shown on a span that did not write it, or listed behind the response it was written after in the feed.
+    // Shown on a span that did not write it - which owes it as missing there - or listed behind the response it was
+    // written after in the feed.
     let mut elsewhere = recon.clone();
     elsewhere.views[v].blocks[b].span = "a-span-that-did-not-write-it".into();
     let new = added(&truth, &elsewhere, &baseline);
     assert!(
-        new.contains(&format!("attribution.span:{}", authored.id)),
+        new.contains(&format!(
+            "extra.unexplained:{}",
+            elsewhere.views[v].blocks[b].digest
+        )),
         "the text on another span passed: {new:?}"
     );
     let mut last = recon.clone();

@@ -47,9 +47,10 @@
   {
    "id": "conv-1",
    "sequence": [
-    "fact-003",
+    "fact-004",
     "fact-001",
-    "fact-002"
+    "fact-002",
+    "fact-003"
    ],
    "final_answers": []
   }
@@ -108,6 +109,27 @@
   },
   {
    "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "framework",
+   "value": {
+    "text": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening stroll along the Ringstrasse.\",\"Day 2: Visit Schönbrunn Palace and its gardens in the morning, then the Belvedere (Klimt's The Kiss) and the Naschmarkt for lunch before departure.\"],\"budget_eur\":350}"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "json"
+   },
+   "kept_from_model": true
+  },
+  {
+   "id": "fact-004",
    "kind": "system",
    "role": "system",
    "conversation": "conv-1",
@@ -163,7 +185,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new_fact": "fact-003"
+       "new_fact": "fact-004"
       }
      ],
      "messages": [
@@ -198,7 +220,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new_fact": "fact-003"
+       "new_fact": "fact-004"
       }
      ],
      "messages": [
