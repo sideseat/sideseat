@@ -31,7 +31,12 @@ from harness.scrub import PLACEHOLDER_USER
 from harness.truth import derive
 from harness.truth.derive import Builder, Options, assemble, document
 from harness.paths import normalise_text
-from harness.truth.framework import Framework, rendered_results, unsent_gaps
+from harness.truth.framework import (
+    Framework,
+    rendered_results,
+    unsent_gaps,
+    unwrap_result_envelopes,
+)
 from harness.truth import request_truth
 from harness.truth.wire import ModelCall, decode, decode_cassette
 
@@ -270,6 +275,7 @@ def build(target: Target) -> dict[str, Any]:
     if suite is not None:
         framework = Framework.of(suite.manifest.get("truth"))
         document_["gaps"].extend(unsent_gaps(framework, target.scenario, requests))
+        unwrap_result_envelopes(framework, target.scenario, document_, requests)
         rendered_results(framework, target.scenario, document_, requests)
     return document_
 

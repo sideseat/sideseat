@@ -557,16 +557,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "new": "rq-001"
+         "new_fact": "fact-004"
         },
         {
          "part": {
@@ -574,16 +571,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "new": "rq-002"
+         "new_fact": "fact-005"
         }
        ]
       }
@@ -655,16 +649,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "replay_of": "rq-001"
+         "replay_of": "fact-004"
         },
         {
          "part": {
@@ -672,16 +663,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "replay_of": "rq-002"
+         "replay_of": "fact-005"
         }
        ]
       },
@@ -721,16 +709,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "10% chance of rain in Paris tomorrow.",
-             "name": "get_precipitation"
-            }
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
            }
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new_fact": "fact-008"
         },
         {
          "part": {
@@ -738,16 +723,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "80% chance of rain in Tokyo tomorrow.",
-             "name": "get_precipitation"
-            }
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
            }
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new_fact": "fact-009"
         }
        ]
       }
@@ -855,16 +837,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "new": "rq-001"
+         "new_fact": "fact-004"
         },
         {
          "part": {
@@ -872,16 +851,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "new": "rq-002"
+         "new_fact": "fact-005"
         }
        ]
       }
@@ -953,16 +929,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "replay_of": "rq-001"
+         "replay_of": "fact-004"
         },
         {
          "part": {
@@ -970,16 +943,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
            }
           ],
           "is_error": false
          },
-         "replay_of": "rq-002"
+         "replay_of": "fact-005"
         }
        ]
       },
@@ -1019,16 +989,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "10% chance of rain in Paris tomorrow.",
-             "name": "get_precipitation"
-            }
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
            }
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new_fact": "fact-008"
         },
         {
          "part": {
@@ -1036,16 +1003,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "80% chance of rain in Tokyo tomorrow.",
-             "name": "get_precipitation"
-            }
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
            }
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new_fact": "fact-009"
         }
        ]
       }

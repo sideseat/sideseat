@@ -2,5 +2,18 @@
   "producer": "genkit-go",
   "integrations": ["genkit"],
   "default-model": "fake-gemini",
-  "service-name": "genkit-go"
+  "service-name": "genkit-go",
+  "truth": {
+    "result_envelopes": [
+      {
+        "format": "genkit_googleai_tool_output",
+        "source": "github.com/firebase/genkit/go v1.13.1, plugins/googlegenai/gemini.go:751-761 (toGeminiParts): a tool output that is not a map is sent as the function response {\"name\": toolResp.Name, \"content\": toolResp.Output}",
+        "scenarios": [
+          "error",
+          "streaming",
+          "tool_use"
+        ]
+      }
+    ]
+  }
 }

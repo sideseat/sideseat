@@ -7,6 +7,8 @@ telemetry leaves out.
 
 from __future__ import annotations
 
+import json
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -115,6 +117,13 @@ class Framework:
     #: result fact of those scenarios becomes the text the recorded requests sent, checked against the format
     #: and the script's value (``rendered_results``), so a rendering of anything else is refused.
     result_renderings: tuple[dict[str, Any], ...] = ()
+    #: Tool results the framework sends inside an envelope of its own: each ``{format, source, scenarios}``.
+    #: ``format`` is a closed vocabulary - ``genkit_googleai_tool_output``, Genkit's Google AI plugin sending a
+    #: tool output that is not a map as the function response ``{"name": <tool>, "content": <output>}`` - and
+    #: ``source`` cites where the framework builds it. In those scenarios a request part holding exactly that
+    #: envelope is the result fact it carries: the tool of that name whose output, as the script computed it,
+    #: is the envelope's content, and the part states that content (``unwrap_result_envelopes``).
+    result_envelopes: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -148,6 +157,9 @@ class Framework:
             ),
             result_renderings=tuple(
                 _result_rendering(entry) for entry in table.get("result_renderings", ())
+            ),
+            result_envelopes=tuple(
+                _result_envelope(entry) for entry in table.get("result_envelopes", ())
             ),
         )
 
@@ -295,6 +307,162 @@ def unsent_gaps(
 
 #: The renderings a framework may declare it hands the model instead of a tool's returned value.
 RENDERINGS = frozenset({"mcp_call_tool_result_str"})
+ENVELOPES = frozenset({"genkit_googleai_tool_output"})
+
+
+def _result_envelope(entry: dict[str, Any]) -> dict[str, Any]:
+    """One declared result envelope, refused unless its format is known and it states a source and scenarios."""
+    if not (
+        entry.get("format") in ENVELOPES
+        and isinstance(entry.get("source"), str)
+        and entry["source"]
+        and isinstance(entry.get("scenarios"), list)
+        and entry["scenarios"]
+    ):
+        raise ValueError(
+            f"a result_envelopes entry needs a known format, a source and scenarios: {entry!r}"
+        )
+    return entry
+
+
+def _enveloped(part: dict[str, Any]) -> tuple[str, Any] | None:
+    """``(tool, output)`` of a tool-result part that holds exactly the Genkit envelope, else ``None``."""
+    content = part.get("content")
+    if not (
+        part.get("type") == "tool_result"
+        and isinstance(content, list)
+        and len(content) == 1
+        and content[0].get("type") == "json"
+    ):
+        return None
+    value = content[0].get("value")
+    if not (
+        isinstance(value, dict)
+        and set(value) == {"name", "content"}
+        and isinstance(value["name"], str)
+    ):
+        return None
+    return value["name"], value["content"]
+
+
+def _same(a: Any, b: Any) -> bool:
+    """JSON equality as the rubric's: numbers by value (`7` is `7.0`), a boolean never a number (`True == 1` in
+    Python), objects by their members and lists in order."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return isinstance(a, bool) and isinstance(b, bool) and a == b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return a == b
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b))
+    return type(a) is type(b) and a == b
+
+
+def _is_output(sent: Any, value: Any) -> bool:
+    """Whether what the envelope carries is the script's output: the value itself, or its JSON text."""
+    if _same(sent, value):
+        return True
+    if isinstance(sent, str):
+        try:
+            return _same(json.loads(sent), value)
+        except ValueError:
+            return False
+    return False
+
+
+def unwrap_result_envelopes(
+    framework: Framework,
+    scenario: str,
+    document: dict[str, Any],
+    requests: dict[str, Any],
+) -> None:
+    """In the scenarios a framework declares an envelope for, each request part holding exactly that envelope is
+    the result fact it carries - the tool named in it whose script output is its content, the one such fact - and
+    states the content the framework enveloped.
+
+    Decided per fixture, and only where every occurrence agrees: each occurrence must hold the envelope and name
+    the one fact; a request-only id (``rq-*``) is renamed to that fact only if every part holding it does, and a
+    part already tied to a fact must be tied to that one. A part that is also exactly some result's whole value -
+    a map output, which the plugin sends as it is - is that map and is left alone."""
+    if not any(scenario in e["scenarios"] for e in framework.result_envelopes):
+        return
+    facts = [fact for fact in document["facts"] if fact["kind"] == "tool_result"]
+
+    def answering(part: dict[str, Any]) -> str | None:
+        enveloped = _enveloped(part)
+        if enveloped is None:
+            return None
+        tool, output = enveloped
+        whole = part["content"][0]["value"]
+        if any(_same(fact["value"].get("value"), whole) for fact in facts):
+            return None
+        found = [
+            fact["id"]
+            for fact in facts
+            if fact["value"].get("name") == tool
+            and _is_output(output, fact["value"].get("value"))
+        ]
+        return found[0] if len(found) == 1 else None
+
+    for recorded in requests.values():
+        occurrences = [
+            part
+            for request in recorded["calls"].values()
+            for message in request["messages"]
+            for part in message["parts"]
+        ]
+        # Every lineage's verdict over all its occurrences in this fixture: one fact, or none at all.
+        verdicts: dict[str, set[str | None]] = {}
+        for occurrence in occurrences:
+            lineage = (
+                occurrence.get("new")
+                or occurrence.get("new_fact")
+                or occurrence.get("replay_of")
+            )
+            if isinstance(lineage, str) and _enveloped(occurrence["part"]) is not None:
+                verdicts.setdefault(lineage, set()).add(answering(occurrence["part"]))
+            elif isinstance(lineage, str):
+                verdicts.setdefault(lineage, set()).add(None)
+        agreed: dict[str, str] = {}
+        for lineage, found in verdicts.items():
+            if len(found) != 1 or None in found:
+                continue
+            (fact,) = found
+            # A part already tied to a fact must be tied to the one its envelope names.
+            if not lineage.startswith("rq-") and lineage != fact:
+                continue
+            agreed[lineage] = fact
+        for occurrence in occurrences:
+            lineage = (
+                occurrence.get("new")
+                or occurrence.get("new_fact")
+                or occurrence.get("replay_of")
+            )
+            if lineage not in agreed:
+                continue
+            _, output = _enveloped(occurrence["part"])  # type: ignore[misc]
+            occurrence["part"]["content"] = (
+                [{"type": "text", "text": output}]
+                if isinstance(output, str)
+                else [{"type": "json", "value": output}]
+            )
+            if "new" in occurrence:
+                del occurrence["new"]
+                occurrence["new_fact"] = agreed[lineage]
+            elif "replay_of" in occurrence:
+                occurrence["replay_of"] = agreed[lineage]
+        # A fact is introduced once: the first occurrence in the fixture's call order states it new, every later one
+        # - of whichever lineage it was renamed from - replays it.
+        established: set[str] = set()
+        for occurrence in occurrences:
+            if (fact := occurrence.get("new_fact")) is not None:
+                if fact in established:
+                    del occurrence["new_fact"]
+                    occurrence["replay_of"] = fact
+                established.add(fact)
+            elif isinstance(occurrence.get("replay_of"), str):
+                established.add(occurrence["replay_of"])
 
 
 def _result_rendering(entry: dict[str, Any]) -> dict[str, Any]:

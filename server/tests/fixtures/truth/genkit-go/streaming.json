@@ -324,16 +324,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}"
            }
           ],
           "is_error": false
          },
-         "new": "rq-001"
+         "new_fact": "fact-003"
         }
        ]
       }
@@ -427,16 +424,13 @@
           "id": null,
           "content": [
            {
-            "type": "json",
-            "value": {
-             "content": "{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}",
-             "name": "get_weather"
-            }
+            "type": "text",
+            "text": "{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}"
            }
           ],
           "is_error": false
          },
-         "new": "rq-001"
+         "new_fact": "fact-003"
         }
        ]
       }
