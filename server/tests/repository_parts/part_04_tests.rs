@@ -8,7 +8,7 @@ fn container_tests_share_trapped_cleanup() {
         "trap 'exit 143' TERM",
         "local exit_code=$?",
         "if ((exit_code == 0 && cleanup_failed != 0))",
-        "cargo test --locked -p sideseat-adapter-topics redis_stream_tests",
+        "cargo test --locked -p sideseat-adapter-topics -- --test-threads=1 redis_stream_tests",
     ] {
         assert!(
             script.contains(required),
