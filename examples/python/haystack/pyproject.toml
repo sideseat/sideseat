@@ -19,7 +19,7 @@ integrations = ["haystack"]
 # What Haystack's telemetry leaves out, for the truth derivation (`python -m harness truth`); proven absent from
 # every capture by the rubric.
 [tool.sideseat-example.truth.unexported]
-media = "the attachments the user sent: the telemetry replaces their bytes with a placeholder of their length (`Base64 string (N characters)`)"
+media_bytes = { reason = "the bytes of the attachments the user sent: the telemetry replaces them with a note of their length (`Base64 string (N characters)`, haystack-ai 3.3.0 `ImageContent._to_trace_dict` and `FileContent._to_trace_dict`)", stand_in = "Base64 string ({base64_length} characters)", named = ["document"] }
 
 [tool.uv]
 required-version = "==0.12.13"

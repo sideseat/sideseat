@@ -349,15 +349,32 @@ fn json_answer_matches(fact: &Fact, block: &Block) -> bool {
 /// An attachment of the fact's modality, with the same bytes wherever the reconstruction kept them.
 ///
 /// Inline base64 is decoded and digested. Data that does not decode - a URL, a placeholder an
-/// instrumentation writes in place of the bytes - can only be checked by modality and media type.
+/// instrumentation writes in place of the bytes - can only be checked by modality and media type, and a block
+/// that says its bytes were withheld shows only an attachment the truth says is owed that way.
 fn media_matches(value: &Value, block: &Block) -> bool {
     if value.get("modality").and_then(Value::as_str) != Some(block.kind.as_str()) {
         return false;
     }
-    // The media type is part of the attachment: where the bytes are kept, shown absent is shown
-    // wrong; a placeholder for dropped bytes may have lost it with them.
     let shown = block.content.get("media_type").and_then(Value::as_str);
     let stated = value.get("media_type").and_then(Value::as_str);
+    // An attachment whose bytes the telemetry does not carry (`bytes_not_exported`, proven) is owed as a
+    // withheld block, and only it is: with no bytes to compare, the producer's stand-in for them, the name it
+    // shows, its kind and its media type - stated - are what tell it from another attachment, and its place is
+    // held by the checks that place every fact.
+    let withheld = block.content.get("source").and_then(Value::as_str) == Some("withheld");
+    let mark = value.get(super::truth::WITHHELD);
+    if withheld || mark.is_some() {
+        let Some(mark) = mark.filter(|m| m["data"].is_string()) else {
+            return false;
+        };
+        return withheld
+            && block.content.get("data") == Some(&mark["data"])
+            && block.content.get("name").unwrap_or(&Value::Null) == &mark["name"]
+            && stated.is_some()
+            && shown == stated;
+    }
+    // The media type is part of the attachment: where the bytes are kept, shown absent is shown
+    // wrong; a placeholder for dropped bytes may have lost it with them.
     if shown != stated && (shown.is_some() || block.media_sha256.is_some()) {
         return false;
     }

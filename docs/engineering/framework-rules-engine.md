@@ -69,7 +69,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **61 assets holding 745 clauses** in three groups:
+The embedded corpus currently contains **61 assets holding 747 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -256,7 +256,10 @@ member source is a JSONPath, or `{"path": ..., "pipe": [step]}` with exactly one
 selected, joined), `parse` (the carriers' decoding modes), `prepend`, or a closed `map`. A step that
 cannot apply leaves the source absent, so a list of sources means "the first usable spelling". Media cases
 declare what the format states - a block kind, whether the data is a location, bytes or an identifier, what
-a missing media type means - and derive the rest from the value. Their `where` conditions add `equals` (any
+a missing media type means - and derive the rest from the value. A producer that exports a stand-in in place
+of the bytes is declared with `source: "withheld"`, by a case whose condition recognises the stand-in: the
+block keeps its kind, media type and name, and SideML says the bytes were withheld rather than offering the
+stand-in as content. Their `where` conditions add `equals` (any
 JSON value) and `only_members` (an object with no member outside a set) to the value vocabulary.
 
 ## Carrier semantics

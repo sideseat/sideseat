@@ -6,9 +6,7 @@
     {
       "id": "haystack.agent_step_llm_input",
       "doc": "The conversation and tools handed to one model step. It is a request snapshot and may repeat earlier turns.",
-      "match": {
-        "attribute": "haystack.agent.step.llm.input"
-      },
+      "match": {"attribute": "haystack.agent.step.llm.input"},
       "facts": {
         "preset": "snapshot",
         "carrier_holds_span_input": true
@@ -17,19 +15,13 @@
     {
       "id": "haystack.agent_step_llm_output",
       "doc": "The replies produced by one model step.",
-      "match": {
-        "attribute": "haystack.agent.step.llm.output"
-      },
-      "facts": {
-        "preset": "emission"
-      }
+      "match": {"attribute": "haystack.agent.step.llm.output"},
+      "facts": {"preset": "emission"}
     },
     {
       "id": "haystack.agent_input",
       "doc": "The conversation handed to an Agent invocation.",
-      "match": {
-        "attribute": "haystack.agent.input"
-      },
+      "match": {"attribute": "haystack.agent.input"},
       "facts": {
         "preset": "snapshot",
         "carrier_holds_span_input": true
@@ -38,9 +30,7 @@
     {
       "id": "haystack.agent_output",
       "doc": "The Agent's accumulated state after the invocation, including the full conversation.",
-      "match": {
-        "attribute": "haystack.agent.output"
-      },
+      "match": {"attribute": "haystack.agent.output"},
       "facts": {
         "preset": "accumulated_state",
         "history_positions_provide_sequence_order": true
@@ -49,9 +39,7 @@
     {
       "id": "haystack.component_input",
       "doc": "The input snapshot for one component invocation.",
-      "match": {
-        "attribute": "haystack.component.input"
-      },
+      "match": {"attribute": "haystack.component.input"},
       "facts": {
         "preset": "snapshot",
         "carrier_holds_span_input": true
@@ -60,9 +48,7 @@
     {
       "id": "haystack.component_output",
       "doc": "A component's output state. Agent components repeat the accumulated conversation while chat generators carry their replies here.",
-      "match": {
-        "attribute": "haystack.component.output"
-      },
+      "match": {"attribute": "haystack.component.output"},
       "facts": {
         "preset": "accumulated_state",
         "history_positions_provide_sequence_order": true
@@ -71,9 +57,7 @@
     {
       "id": "haystack.pipeline_input",
       "doc": "The pipeline input snapshot, keyed by component name.",
-      "match": {
-        "attribute": "haystack.pipeline.input_data"
-      },
+      "match": {"attribute": "haystack.pipeline.input_data"},
       "facts": {
         "preset": "snapshot",
         "carrier_holds_span_input": true
@@ -82,9 +66,7 @@
     {
       "id": "haystack.pipeline_output",
       "doc": "The pipeline output state, keyed by component name.",
-      "match": {
-        "attribute": "haystack.pipeline.output_data"
-      },
+      "match": {"attribute": "haystack.pipeline.output_data"},
       "facts": {
         "preset": "accumulated_state",
         "history_positions_provide_sequence_order": true
@@ -93,9 +75,7 @@
     {
       "id": "haystack.agent_step_tool_input",
       "doc": "The arguments handed to one tool execution.",
-      "match": {
-        "attribute": "haystack.agent.step.tool.input"
-      },
+      "match": {"attribute": "haystack.agent.step.tool.input"},
       "facts": {
         "preset": "emission",
         "carrier_holds_span_output": false,
@@ -105,12 +85,8 @@
     {
       "id": "haystack.agent_step_tool_output",
       "doc": "The result produced by one tool execution.",
-      "match": {
-        "attribute": "haystack.agent.step.tool.output"
-      },
-      "facts": {
-        "preset": "emission"
-      }
+      "match": {"attribute": "haystack.agent.step.tool.output"},
+      "facts": {"preset": "emission"}
     }
   ],
   "detect": [
@@ -377,9 +353,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.step.llm.input"
-      },
+      "read": {"attribute": "haystack.agent.step.llm.input"},
       "parse": "json",
       "also": [
         {
@@ -387,12 +361,8 @@
           "select": "$.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         },
@@ -420,9 +390,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.step.llm.input"
-      },
+      "read": {"attribute": "haystack.agent.step.llm.input"},
       "parse": "python_repr",
       "also": [
         {
@@ -467,9 +435,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.step.llm.output"
-      },
+      "read": {"attribute": "haystack.agent.step.llm.output"},
       "parse": "json",
       "alternatives": [
         {
@@ -477,12 +443,8 @@
           "select": "$.replies[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         }
@@ -504,9 +466,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.input"
-      },
+      "read": {"attribute": "haystack.agent.input"},
       "parse": "json",
       "alternatives": [
         {
@@ -514,12 +474,8 @@
           "select": "$.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         }
@@ -541,9 +497,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.output"
-      },
+      "read": {"attribute": "haystack.agent.output"},
       "parse": "json",
       "alternatives": [
         {
@@ -551,12 +505,8 @@
           "select": "$.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         }
@@ -578,9 +528,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.component.input"
-      },
+      "read": {"attribute": "haystack.component.input"},
       "parse": "json",
       "also": [
         {
@@ -588,12 +536,8 @@
           "select": "$.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         },
@@ -620,9 +564,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.component.output"
-      },
+      "read": {"attribute": "haystack.component.output"},
       "parse": "json",
       "also": [
         {
@@ -630,12 +572,8 @@
           "select": "$.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         },
@@ -644,12 +582,8 @@
           "select": "$.replies[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         }
@@ -671,9 +605,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.pipeline.input_data"
-      },
+      "read": {"attribute": "haystack.pipeline.input_data"},
       "parse": "json",
       "also": [
         {
@@ -681,12 +613,8 @@
           "select": "$.*.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         },
@@ -713,9 +641,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.pipeline.output_data"
-      },
+      "read": {"attribute": "haystack.pipeline.output_data"},
       "parse": "json",
       "also": [
         {
@@ -723,12 +649,8 @@
           "select": "$.*.messages[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         },
@@ -737,12 +659,8 @@
           "select": "$.*.replies[*]",
           "where": {
             "all": [
-              {
-                "path": "$.role"
-              },
-              {
-                "path": "$.content"
-              }
+              {"path": "$.role"},
+              {"path": "$.content"}
             ]
           }
         }
@@ -764,9 +682,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.step.tool.input"
-      },
+      "read": {"attribute": "haystack.agent.step.tool.input"},
       "parse": "json_or_string",
       "wrap": {
         "role": "assistant",
@@ -801,9 +717,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.step.tool.output"
-      },
+      "read": {"attribute": "haystack.agent.step.tool.output"},
       "parse": "json_or_string",
       "wrap": {
         "role": "tool",
@@ -836,9 +750,7 @@
           }
         ]
       },
-      "read": {
-        "attribute": "haystack.agent.tools"
-      },
+      "read": {"attribute": "haystack.agent.tools"},
       "parse": "json",
       "emit": "tool_definitions",
       "aggregate_into_array": true,
@@ -855,6 +767,48 @@
     }
   ],
   "content_blocks": [
+    {
+      "id": "haystack.withheld_image",
+      "doc": "An `ImageContent` as Haystack's tracer writes it: `_to_trace_dict` replaces the bytes with a note of their length, `Base64 string (N characters)` (haystack-ai 3.3.0, `haystack/dataclasses/image_content.py:145-156`). The image is shown without its content. Base64 never holds a space or a parenthesis, so the note cannot be bytes.",
+      "at": "before_provider_formats",
+      "priority": 98,
+      "where": {
+        "all": [
+          {"path": "$.image.base64_image", "kind": "string"},
+          {"path": "$.image.base64_image", "starts_with": "Base64 string ("}
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "media_type": "$.image.mime_type",
+        "missing_media_type": "null",
+        "data": "$.image.base64_image",
+        "source": "withheld",
+        "detail": "$.image.detail"
+      }
+    },
+    {
+      "id": "haystack.withheld_file",
+      "doc": "A `FileContent` as Haystack's tracer writes it: `_to_trace_dict` replaces the bytes with a note of their length, `Base64 string (N characters)` (haystack-ai 3.3.0, `haystack/dataclasses/file_content.py:88-98`). The file is shown without its content, under its filename; its kind follows its media type. A file whose media type makes it an image, audio or video is left as it was written, because those blocks keep no filename and the name is what tells two equal-length stand-ins apart.",
+      "at": "before_provider_formats",
+      "priority": 99,
+      "where": {
+        "all": [
+          {"path": "$.file.base64_data", "kind": "string"},
+          {"path": "$.file.base64_data", "starts_with": "Base64 string ("},
+          {"path": "$.file.mime_type", "lacks_prefix": "image/"},
+          {"path": "$.file.mime_type", "lacks_prefix": "audio/"},
+          {"path": "$.file.mime_type", "lacks_prefix": "video/"}
+        ]
+      },
+      "media": {
+        "media_type": "$.file.mime_type",
+        "missing_media_type": "null",
+        "data": "$.file.base64_data",
+        "source": "withheld",
+        "name": "$.file.filename"
+      }
+    },
     {
       "id": "haystack.tool_call",
       "doc": "Haystack wraps a model tool call in a `tool_call` member.",
@@ -917,9 +871,7 @@
           }
         ]
       },
-      "text": {
-        "text": "$.text"
-      }
+      "text": {"text": "$.text"}
     },
     {
       "id": "haystack.repr_tool_call",

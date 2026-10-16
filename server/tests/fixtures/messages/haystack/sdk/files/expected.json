@@ -43,17 +43,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
-          "content_digest": "861c3bc408cb3549",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"withheld\",\"data\":\"Base64 string (218624 characters)\"}",
+          "content_digest": "3b1a63bad1b6148f",
           "observation_type": "agent"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
-          "content_digest": "a0cc44bfe786df95",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"withheld\",\"data\":\"Base64 string (17612 characters)\"}",
+          "content_digest": "4c836fe6f47cec12",
+          "tool_name": "task.pdf",
           "observation_type": "agent"
         },
         {
@@ -97,17 +98,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
-          "content_digest": "861c3bc408cb3549",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"withheld\",\"data\":\"Base64 string (218624 characters)\"}",
+          "content_digest": "3b1a63bad1b6148f",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
-          "content_digest": "a0cc44bfe786df95",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"withheld\",\"data\":\"Base64 string (17612 characters)\"}",
+          "content_digest": "4c836fe6f47cec12",
+          "tool_name": "task.pdf",
           "observation_type": "generation"
         },
         {
@@ -160,17 +162,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
-          "content_digest": "861c3bc408cb3549",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"withheld\",\"data\":\"Base64 string (218624 characters)\"}",
+          "content_digest": "3b1a63bad1b6148f",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
-          "content_digest": "a0cc44bfe786df95",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"withheld\",\"data\":\"Base64 string (17612 characters)\"}",
+          "content_digest": "4c836fe6f47cec12",
+          "tool_name": "task.pdf",
           "observation_type": "generation"
         },
         {
@@ -216,17 +219,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
-          "content_digest": "861c3bc408cb3549",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"withheld\",\"data\":\"Base64 string (218624 characters)\"}",
+          "content_digest": "3b1a63bad1b6148f",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
-          "content_digest": "a0cc44bfe786df95",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"withheld\",\"data\":\"Base64 string (17612 characters)\"}",
+          "content_digest": "4c836fe6f47cec12",
+          "tool_name": "task.pdf",
           "observation_type": "generation"
         },
         {
@@ -271,17 +275,18 @@
       {
         "index": 2,
         "role": "user",
-        "entry_type": "unknown",
-        "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/home/user/sideseat/examples/assets/img.jpg\"},\"validation\":true}}}",
-        "content_digest": "861c3bc408cb3549",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"withheld\",\"data\":\"Base64 string (218624 characters)\"}",
+        "content_digest": "3b1a63bad1b6148f",
         "observation_type": "generation"
       },
       {
         "index": 3,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
-        "content_digest": "a0cc44bfe786df95",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"withheld\",\"data\":\"Base64 string (17612 characters)\"}",
+        "content_digest": "4c836fe6f47cec12",
+        "tool_name": "task.pdf",
         "observation_type": "generation"
       },
       {

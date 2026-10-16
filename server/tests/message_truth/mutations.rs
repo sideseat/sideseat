@@ -21,7 +21,7 @@ use super::truth::Truth;
 /// Reconstructions the catalogue edits: clean or nearly clean fixtures that between them hold
 /// parallel tool calls, sessions, visible reasoning, attachments with bytes, an echoed system
 /// prompt, a failed-then-retried attempt, a terminal answer tool, and requests opened with a frame
-/// recorded apart from them.
+/// recorded apart from them, and attachments the producer exported without their bytes.
 const POOL: &[&str] = &[
     "strands/sdk/tool_use",
     "strands/sdk/session",
@@ -35,6 +35,7 @@ const POOL: &[&str] = &[
     "claude-agent-sdk/sdk/streaming",
     "logfire/sdk/files",
     "claude-code/native/multi_turn",
+    "haystack/sdk/files",
 ];
 
 #[derive(Clone, Copy)]
@@ -74,6 +75,71 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         edit_text(t, r, 0, |s| s.replacen(' ', "  ", 1))
     }),
     ("alter an attachment's bytes", Expect::Caught, alter_media),
+    // An attachment shown without its bytes is told from another only by its kind, its media type and its place.
+    (
+        "show a withheld attachment under another media type",
+        Expect::Caught,
+        |_, r| {
+            edit_withheld(r, |b| {
+                let other = if b.content["media_type"] == "image/png" {
+                    "image/gif"
+                } else {
+                    "image/png"
+                };
+                set(b, "media_type", json!(other));
+            })
+        },
+    ),
+    (
+        "show a withheld attachment as another kind",
+        Expect::Caught,
+        |_, r| {
+            edit_withheld(r, |b| {
+                let other = if b.kind == "document" {
+                    "image"
+                } else {
+                    "document"
+                };
+                b.kind = other.into();
+                set(b, "type", json!(other));
+            })
+        },
+    ),
+    // Two attachments of one kind and type differ by their stand-ins, which state their lengths.
+    (
+        "show a withheld attachment under another's stand-in",
+        Expect::Caught,
+        |_, r| edit_withheld(r, |b| set(b, "data", json!("Base64 string (4 characters)"))),
+    ),
+    (
+        "show a withheld attachment under another name",
+        Expect::Caught,
+        |_, r| {
+            edit_withheld(r, |b| {
+                let other = if b.content.get("name").is_some() {
+                    json!(null)
+                } else {
+                    json!("other.pdf")
+                };
+                set(b, "name", other);
+            })
+        },
+    ),
+    (
+        "show a withheld attachment as its bytes",
+        Expect::Caught,
+        |_, r| edit_withheld(r, |b| set(b, "source", json!("base64"))),
+    ),
+    (
+        "move a withheld attachment within its request",
+        Expect::Only(&["request.order"]),
+        |_, r| move_withheld_in_request(r),
+    ),
+    (
+        "move a withheld attachment past the response to it",
+        Expect::Caught,
+        |_, r| move_withheld_past_response(r),
+    ),
     ("alter a tool name", Expect::Caught, |t, r| {
         edit_fact(
             t,

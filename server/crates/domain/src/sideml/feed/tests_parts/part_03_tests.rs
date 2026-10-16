@@ -903,3 +903,29 @@ fn a_document_is_identified_by_its_bytes_not_its_name() {
         super::block_hash::compute_block_hash(&document(None))
     );
 }
+
+/// Attachments whose bytes the producer withheld share a stand-in whenever their lengths agree, so the media type
+/// and the filename tell them apart: two PDFs of one length are two documents, and one re-sent is one.
+#[test]
+fn a_withheld_attachment_is_identified_by_its_stand_in_type_and_name() {
+    use crate::sideml::types::ContentBlock;
+    let document = |name: &str, media_type: &str| ContentBlock::Document {
+        media_type: Some(media_type.to_string()),
+        name: Some(name.to_string()),
+        source: crate::sideml::WITHHELD_SOURCE.to_string(),
+        data: "Base64 string (17612 characters)".to_string(),
+    };
+    let hash = super::block_hash::compute_block_hash;
+    assert_eq!(
+        hash(&document("a.pdf", "application/pdf")),
+        hash(&document("a.pdf", "application/pdf"))
+    );
+    assert_ne!(
+        hash(&document("a.pdf", "application/pdf")),
+        hash(&document("b.pdf", "application/pdf"))
+    );
+    assert_ne!(
+        hash(&document("a.pdf", "application/pdf")),
+        hash(&document("a.pdf", "text/plain"))
+    );
+}

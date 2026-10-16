@@ -23,6 +23,9 @@ pub enum FinishReason {
     Error,
 }
 
+/// A SideML content block. A media block's `source` says what its `data` is: `base64` (the bytes), `url` (a
+/// location), `file` (a stored reference), `file_id` (a provider's identifier), or `withheld` (the producer's
+/// stand-in for bytes it did not export, which no reader can fetch or decode).
 #[derive(Serialize, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {

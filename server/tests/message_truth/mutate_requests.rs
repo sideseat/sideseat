@@ -438,3 +438,61 @@ pub(super) fn relabel_a_frame_carrier(_truth: &mut Truth, recon: &mut Recon) -> 
     recon.views[at].blocks[index].carrier = "acme.invented".to_string();
     true
 }
+
+/// Whether a block is an attachment shown without its bytes.
+fn is_withheld(block: &Block) -> bool {
+    block.content.get("source").and_then(Value::as_str) == Some("withheld")
+}
+
+/// Edits every attachment a reconstruction shows withheld, in every view.
+pub(super) fn edit_withheld(recon: &mut Recon, edit: fn(&mut Block)) -> bool {
+    let mut found = false;
+    for block in recon
+        .views
+        .iter_mut()
+        .flat_map(|view| view.blocks.iter_mut())
+        .filter(|block| is_withheld(block))
+    {
+        edit(block);
+        block.refresh();
+        found = true;
+    }
+    found
+}
+
+/// Moves the first withheld attachment of each span view one place earlier, ahead of the block before it: the
+/// same attachment, of the same kind and media type, in another place in the request.
+pub(super) fn move_withheld_in_request(recon: &mut Recon) -> bool {
+    let mut moved = false;
+    for view in recon.views.iter_mut().filter(|v| v.kind == ViewKind::Span) {
+        if let Some(at) = view.blocks.iter().position(is_withheld)
+            && at > 0
+            && view.blocks[at - 1].output == view.blocks[at].output
+        {
+            view.blocks.swap(at - 1, at);
+            moved = true;
+        }
+    }
+    moved
+}
+
+/// Moves the first withheld attachment of each trace and session view past everything after it, into the
+/// turn the response opened: the same attachment, sent after the answer to it. Within its turn a prompt's
+/// attachments may permute, so only another turn is another place there.
+pub(super) fn move_withheld_past_response(recon: &mut Recon) -> bool {
+    let mut moved = false;
+    for view in recon
+        .views
+        .iter_mut()
+        .filter(|v| matches!(v.kind, ViewKind::Trace | ViewKind::Session))
+    {
+        if let Some(at) = view.blocks.iter().position(is_withheld)
+            && view.blocks[at + 1..].iter().any(|b| b.role == "assistant")
+        {
+            let block = view.blocks.remove(at);
+            view.blocks.push(block);
+            moved = true;
+        }
+    }
+    moved
+}

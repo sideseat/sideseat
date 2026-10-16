@@ -4632,6 +4632,11 @@
             "literal"
           ],
           "additionalProperties": false
+        },
+        {
+          "description": "The producer exported a stand-in in place of the bytes - a note of their length, say - so the block\nis the attachment without its content: `source: \"withheld\"`, with the stand-in as its data. A case\ndeclares it only where its condition recognises the stand-in, never for data that could be bytes.",
+          "type": "string",
+          "const": "withheld"
         }
       ]
     },

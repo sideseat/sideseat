@@ -136,6 +136,7 @@ pub(super) fn media_block(block: &JsonValue, spec: &MediaBlock) -> Option<JsonVa
             (source, None, data)
         }
         MediaSource::Literal(source) => (source.as_str(), None, data),
+        MediaSource::Withheld => (crate::sideml::WITHHELD_SOURCE, None, data),
     };
     // **One authority.** A stored reference carries the media type the bytes were stored under, and a
     // declared one beside it could disagree - `media_type: image/png` against `#!B64!#application/pdf::HASH`

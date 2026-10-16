@@ -70,34 +70,62 @@ pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
             "redacted_thinking".hash(&mut hasher);
             data.hash(&mut hasher);
         }
-        ContentBlock::Image { source, data, .. } => {
+        ContentBlock::Image {
+            source,
+            data,
+            media_type,
+            ..
+        } => {
             "image".hash(&mut hasher);
             source.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
+            hash_withheld_label(source, media_type, None, &mut hasher);
         }
-        ContentBlock::Audio { source, data, .. } => {
+        ContentBlock::Audio {
+            source,
+            data,
+            media_type,
+        } => {
             "audio".hash(&mut hasher);
             source.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
+            hash_withheld_label(source, media_type, None, &mut hasher);
         }
-        ContentBlock::Video { source, data, .. } => {
+        ContentBlock::Video {
+            source,
+            data,
+            media_type,
+        } => {
             "video".hash(&mut hasher);
             source.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
+            hash_withheld_label(source, media_type, None, &mut hasher);
         }
         // A display name is the copy's label, not the content: one instrumentation keeps the filename
         // beside the bytes and another drops it, and the two are one attachment.
-        ContentBlock::Document { source, data, .. } => {
+        ContentBlock::Document {
+            source,
+            data,
+            media_type,
+            name,
+        } => {
             "document".hash(&mut hasher);
             source.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
+            hash_withheld_label(source, media_type, name.as_deref(), &mut hasher);
         }
         // A display name is the copy's label, not the content: one instrumentation keeps the filename
         // beside the bytes and another drops it, and the two are one attachment.
-        ContentBlock::File { source, data, .. } => {
+        ContentBlock::File {
+            source,
+            data,
+            media_type,
+            name,
+        } => {
             "file".hash(&mut hasher);
             source.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
+            hash_withheld_label(source, media_type, name.as_deref(), &mut hasher);
         }
         ContentBlock::ToolDefinitions { tools, .. } => {
             "tool_definitions".hash(&mut hasher);
@@ -125,4 +153,21 @@ pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
     }
 
     hasher.finish()
+}
+
+/// What tells apart attachments whose bytes the producer withheld. Their data is a stand-in - a note of the bytes'
+/// length - that two different attachments can share, so the media type and the name join it: two PDFs of one
+/// length under two filenames stay two. Attachments with their bytes are identified by the bytes alone, which a
+/// copy without its filename shares.
+fn hash_withheld_label(
+    source: &str,
+    media_type: &Option<String>,
+    name: Option<&str>,
+    hasher: &mut impl std::hash::Hasher,
+) {
+    use std::hash::Hash;
+    if source == crate::sideml::WITHHELD_SOURCE {
+        media_type.hash(hasher);
+        name.hash(hasher);
+    }
 }

@@ -91,7 +91,16 @@
     "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a",
     "bytes": 163966
    },
-   "require": null
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
   },
   {
    "id": "fact-003",
@@ -105,7 +114,16 @@
     "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
     "bytes": 13207
    },
-   "require": null
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
   },
   {
    "id": "fact-004",
@@ -169,15 +187,18 @@
   },
   {
    "fact": "user_media",
-   "reason": "not_exported",
-   "detail": "the attachments the user sent: the telemetry replaces their bytes with a placeholder of their length (`Base64 string (N characters)`)",
-   "subject": "fact-002"
+   "reason": "bytes_not_exported",
+   "detail": "the bytes of the attachments the user sent: the telemetry replaces them with a note of their length (`Base64 string (N characters)`, haystack-ai 3.3.0 `ImageContent._to_trace_dict` and `FileContent._to_trace_dict`)",
+   "subject": "fact-002",
+   "text": "Base64 string (218624 characters)"
   },
   {
    "fact": "user_media",
-   "reason": "not_exported",
-   "detail": "the attachments the user sent: the telemetry replaces their bytes with a placeholder of their length (`Base64 string (N characters)`)",
-   "subject": "fact-003"
+   "reason": "bytes_not_exported",
+   "detail": "the bytes of the attachments the user sent: the telemetry replaces them with a note of their length (`Base64 string (N characters)`, haystack-ai 3.3.0 `ImageContent._to_trace_dict` and `FileContent._to_trace_dict`)",
+   "subject": "fact-003",
+   "text": "Base64 string (17612 characters)",
+   "name": "task.pdf"
   }
  ],
  "requests": {

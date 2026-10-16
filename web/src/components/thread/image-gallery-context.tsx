@@ -17,10 +17,9 @@ import {
   downloadFromUrl,
   formatBytes,
   getExtensionForMediaType,
-  isPlaceholderData,
   getMediaTypeLabel,
 } from "@/lib/utils";
-import { getDataUrlByteLength } from "@/lib/media";
+import { getDataUrlByteLength, holdsMediaContent, WITHHELD_SOURCE } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import { useFilesClient } from "@/lib/app-context";
 import type { FilesClient } from "@/api/files/client";
@@ -63,7 +62,7 @@ function resolveMediaUrl(
   data: string,
   mediaType?: string,
 ): string | null {
-  if (isPlaceholderData(data)) return null;
+  if (!holdsMediaContent(source, data)) return null;
 
   if (!projectId) {
     if (source === "url") return data;
@@ -174,9 +173,10 @@ function findEmbeddedMedia(
     }
   }
 
-  // Check for base64 image data in common field patterns
+  // Check for base64 image data in common field patterns. A block that says its bytes were withheld has no
+  // content to find, whatever its stand-in looks like.
   const dataField = obj.data ?? obj.image ?? obj.base64 ?? obj.content;
-  if (typeof dataField === "string") {
+  if (typeof dataField === "string" && obj.source !== WITHHELD_SOURCE) {
     const mediaType = (obj.media_type ?? obj.mediaType ?? obj.mime_type ?? obj.mimeType) as
       string | undefined;
     // Check if it looks like base64 image data or a URL
@@ -211,7 +211,7 @@ function findEmbeddedMedia(
 }
 
 /** Extract all media (images and PDFs) from blocks */
-function extractMediaFromBlocks(
+export function extractMediaFromBlocks(
   blocks: Block[],
   filesClient: FilesClient,
   projectId?: string,

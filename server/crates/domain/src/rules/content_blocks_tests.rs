@@ -887,6 +887,32 @@ fn a_named_kind_answers_only_where_no_media_type_is_stated() {
     );
 }
 
+/// An attachment exported as a stand-in for its bytes is a media block of its kind and type whose source says the
+/// bytes were withheld, and that block is canonical SideML: read again, it is itself.
+#[test]
+fn a_withheld_attachment_keeps_its_kind_and_type_and_says_its_bytes_were_withheld() {
+    let plan = plan_from(serde_json::json!({
+        "id": "probe.withheld",
+        "at": "provider_formats",
+        "priority": 1,
+        "where": {"path": "$.blob", "starts_with": "stand-in"},
+        "media": {"media_type": "$.mime", "data": "$.blob", "source": "withheld", "name": "$.file"},
+    }));
+    let block = plan
+        .normalize(
+            &serde_json::json!({"blob": "stand-in (12 characters)", "mime": "application/pdf", "file": "a.pdf"}),
+            ChainPosition::ProviderFormats,
+        )
+        .expect("the stand-in is read");
+    let expected = serde_json::json!({"type": "document", "media_type": "application/pdf",
+        "source": crate::sideml::WITHHELD_SOURCE, "data": "stand-in (12 characters)", "name": "a.pdf"});
+    assert_eq!(block, expected);
+    assert_eq!(
+        crate::sideml::content::normalize_content_block(&expected),
+        Some(expected.clone())
+    );
+}
+
 /// A map that answers one matching block with *two* of them is bounded by work, not only by depth: each
 /// branch stays within the depth bound while the tree doubles per level, which without a work ceiling is
 /// 2^32 evaluations from one small literal - this validation would simply never return. With the ceiling the

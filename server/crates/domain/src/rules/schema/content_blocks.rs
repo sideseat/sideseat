@@ -566,4 +566,8 @@ pub enum MediaSource {
     ReferenceOr(String),
     /// Always this, for a member that holds an identifier rather than content.
     Literal(String),
+    /// The producer exported a stand-in in place of the bytes - a note of their length, say - so the block
+    /// is the attachment without its content: `source: "withheld"`, with the stand-in as its data. A case
+    /// declares it only where its condition recognises the stand-in, never for data that could be bytes.
+    Withheld,
 }

@@ -7,6 +7,7 @@ fixture (``message_truth::absence``); the vocabulary and what each item withdraw
 
 from __future__ import annotations
 
+import hashlib
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -49,10 +50,37 @@ UNEXPORTED = frozenset(
         "tool_round_run_spans",
         "tool_round_traces",
         "media",
+        "media_bytes",
         *METADATA,
         *USAGE,
     }
 )
+
+
+def stand_in(entry: Any, value: dict[str, Any]) -> str:
+    """The text a producer writes in place of an attachment's bytes, from the suite's template: ``{bytes}`` is
+    the attachment's length and ``{base64_length}`` the length of its base64 encoding."""
+    if not isinstance(entry, dict) or not isinstance(entry.get("stand_in"), str):
+        raise ValueError("`media_bytes` declares the producer's stand-in as `stand_in`")
+    size = value["bytes"]
+    return entry["stand_in"].format(bytes=size, base64_length=4 * -(-size // 3))
+
+
+def file_name(scenario: str, value: dict[str, Any]) -> str:
+    """The name of the scenario's input file an attachment was read from, which a producer naming it by its
+    path shows. Two input files of the same bytes cannot be told apart by the attachment, so they are refused."""
+    from harness.truth.derive import ASSETS, MEDIA
+
+    names = [
+        name
+        for _, _, name in MEDIA.get(scenario, ())
+        if hashlib.sha256((ASSETS / name).read_bytes()).hexdigest() == value["sha256"]
+    ]
+    if len(names) != 1:
+        raise ValueError(
+            f"the attachment {value['sha256']} is read from {len(names)} input files, not one"
+        )
+    return names[0]
 
 
 def apply(builder: Builder, framework: Framework) -> None:
@@ -74,7 +102,12 @@ def apply(builder: Builder, framework: Framework) -> None:
         return (entry, []) if entry else None
 
     def gap(
-        fact: str, reason: str, detail: tuple[str, list[str]], subject: str
+        fact: str,
+        reason: str,
+        detail: tuple[str, list[str]],
+        subject: str,
+        text: str | None = None,
+        name: str | None = None,
     ) -> None:
         entry: dict[str, Any] = {
             "fact": fact,
@@ -84,6 +117,10 @@ def apply(builder: Builder, framework: Framework) -> None:
         }
         if detail[1]:
             entry["modes"] = detail[1]
+        if text is not None:
+            entry["text"] = text
+        if name is not None:
+            entry["name"] = name
         if entry not in builder.gaps:
             builder.gaps.append(entry)
 
@@ -274,6 +311,23 @@ def apply(builder: Builder, framework: Framework) -> None:
             ):
                 fact["require"] = None
                 gap("user_media", "not_exported", detail, fact["id"])
+    if detail := declared("media_bytes"):
+        # Only the bytes: the producer exports a stand-in for them, so the attachment stays owed, shown withheld
+        # under the stand-in the producer writes for its bytes - what tells two attachments of one type apart.
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "user_media"
+                and fact["require"] is not None
+                and isinstance(fact["value"].get("sha256"), str)
+            ):
+                entry = framework.unexported["media_bytes"]
+                text = stand_in(entry, fact["value"])
+                name = (
+                    file_name(builder.scenario, fact["value"])
+                    if fact["value"]["modality"] in entry.get("named", ())
+                    else None
+                )
+                gap("user_media", "bytes_not_exported", detail, fact["id"], text, name)
     if detail := declared("tool_call_ids"):
         for fact in builder.facts:
             if fact["kind"] == "tool_call" and isinstance(fact["value"].get("id"), str):

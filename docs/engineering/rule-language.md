@@ -2178,6 +2178,7 @@ What a media block's data is.
 - `"decoded"`: Derived from the value: a stored file reference, a `data:` URL (whose payload alone is kept), a URL, or the bytes themselves. A stored reference's or data URL's media type wins over a declared one.
 - object with `reference_or` (string, required): A stored file reference where the value is one, else this: for a member the format defines as holding bytes (`base64`) or a location (`url`), which a value's shape must not second-guess. The declared media type stands.
 - object with `literal` (string, required): Always this, for a member that holds an identifier rather than content.
+- `"withheld"`: The producer exported a stand-in in place of the bytes - a note of their length, say - so the block is the attachment without its content: `source: "withheld"`, with the stand-in as its data. A case declares it only where its condition recognises the stand-in, never for data that could be bytes.
 
 ### `ThinkingBlock`
 

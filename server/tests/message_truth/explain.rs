@@ -277,13 +277,13 @@ fn check_unexplained(
     let scope_requests: Option<Vec<super::requests::Expected>> =
         scope.own.as_ref().and_then(|own| {
             let recorded = context.truth.requests.get(&context.recon.fixture)?;
-            let unsigned = super::requests::unsigned(context.truth);
+            let marks = super::requests::marks(context.truth);
             Some(
                 own.calls
                     .iter()
                     .filter_map(|call| Some((call, recorded.calls.get(*call)?)))
                     .flat_map(|(call, request)| {
-                        super::requests::expected(call, request, &BTreeMap::new(), &unsigned)
+                        super::requests::expected(call, request, &BTreeMap::new(), &marks)
                     })
                     .collect::<Vec<super::requests::Expected>>(),
             )

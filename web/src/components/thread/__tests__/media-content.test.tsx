@@ -56,3 +56,40 @@ describe("MediaContent", () => {
     expect(container.textContent).toContain("Content not captured");
   });
 });
+
+describe("MediaContent for an attachment the producer withheld", () => {
+  async function renderWithheld(props: {
+    type: "image" | "document";
+    mediaType: string;
+    name?: string;
+  }) {
+    await act(async () =>
+      root.render(
+        <AppProvider>
+          <MediaGalleryProvider blocks={[]}>
+            <MediaContent source="withheld" data="Base64 string (218624 characters)" {...props} />
+          </MediaGalleryProvider>
+        </AppProvider>,
+      ),
+    );
+  }
+
+  it("shows a placeholder naming the image's type, never a broken image", async () => {
+    await renderWithheld({ type: "image", mediaType: "image/jpeg" });
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("Image");
+    expect(container.textContent).toContain("JPEG");
+    expect(container.textContent).toContain("Not exported by the producer");
+    expect(container.textContent).not.toContain("Base64 string");
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("names a withheld document by its filename and offers nothing to open or download", async () => {
+    await renderWithheld({ type: "document", mediaType: "application/pdf", name: "task.pdf" });
+    expect(container.textContent).toContain("task.pdf");
+    expect(container.textContent).toContain("PDF");
+    expect(container.textContent).toContain("Not exported by the producer");
+    expect(container.querySelector("button")).toBeNull();
+    expect(container.querySelector(".text-muted-foreground")).not.toBeNull();
+  });
+});

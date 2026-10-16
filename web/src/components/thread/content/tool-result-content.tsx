@@ -152,7 +152,7 @@ export function ToolResultContent({
  */
 function renderEmbeddedMedia(media: EmbeddedMedia, projectId?: string): React.ReactNode {
   const { data, mediaType, name, type, rest } = media;
-  const source = inferSource(data);
+  const source = media.source ?? inferSource(data);
   const hasOtherFields = Object.keys(rest).length > 0;
 
   return (

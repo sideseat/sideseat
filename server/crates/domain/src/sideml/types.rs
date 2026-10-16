@@ -195,7 +195,16 @@ fn canonical_citations<'de, D: serde::Deserializer<'de>>(
     Ok(serde_json::from_value(value).unwrap_or_default())
 }
 
+/// The media source of an attachment the producer exported without its bytes: the block keeps the attachment's
+/// kind, media type and name, and its `data` is the producer's stand-in for the bytes, which no reader can
+/// fetch or decode.
+pub const WITHHELD_SOURCE: &str = "withheld";
+
 /// Unified content block types for multimodal messages.
+///
+/// A media block's `source` says what its `data` is: `base64` (the bytes), `url` (a location), `file` (a
+/// stored reference), `file_id` (a provider's identifier), or [`WITHHELD_SOURCE`] (a stand-in for bytes the
+/// producer did not export).
 ///
 /// Uses custom deserialization to preserve unknown content block types.
 /// Known types are deserialized normally; unknown types are captured in
@@ -214,7 +223,7 @@ pub enum ContentBlock {
     Image {
         #[serde(skip_serializing_if = "Option::is_none")]
         media_type: Option<String>,
-        /// Source type: "base64" or "url"
+        /// What `data` is; see the type's documentation.
         source: String,
         data: String,
         /// Detail level for vision models (auto, low, high)
@@ -226,7 +235,7 @@ pub enum ContentBlock {
     Audio {
         #[serde(skip_serializing_if = "Option::is_none")]
         media_type: Option<String>,
-        /// Source type: "base64" or "url"
+        /// What `data` is; see the type's documentation.
         source: String,
         data: String,
     },
@@ -237,7 +246,7 @@ pub enum ContentBlock {
         media_type: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<String>,
-        /// Source type: "base64" or "url"
+        /// What `data` is; see the type's documentation.
         source: String,
         data: String,
     },
@@ -246,7 +255,7 @@ pub enum ContentBlock {
     Video {
         #[serde(skip_serializing_if = "Option::is_none")]
         media_type: Option<String>,
-        /// Source type: "base64" or "url"
+        /// What `data` is; see the type's documentation.
         source: String,
         data: String,
     },
@@ -257,7 +266,7 @@ pub enum ContentBlock {
         media_type: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<String>,
-        /// Source type: "base64" or "url"
+        /// What `data` is; see the type's documentation.
         source: String,
         data: String,
     },

@@ -3,6 +3,7 @@
  */
 
 import { parseFileUri } from "./file-uri";
+import { isPlaceholderData } from "./utils";
 
 /** Field names that typically contain media/MIME types */
 const MEDIA_TYPE_FIELDS = new Set([
@@ -27,6 +28,17 @@ export type MediaType = "image" | "audio" | "video" | "document" | "file";
 /** Data source types */
 type SourceType = "file" | "url" | "base64";
 
+/**
+ * The source of an attachment the producer exported without its bytes: the block keeps its kind, media type
+ * and name, and its data is the producer's stand-in, which is neither fetchable nor decodable.
+ */
+export const WITHHELD_SOURCE = "withheld";
+
+/** Whether a media block's data can be resolved to content: not withheld by the producer, and not a placeholder. */
+export function holdsMediaContent(source: string, data: string): boolean {
+  return source !== WITHHELD_SOURCE && !isPlaceholderData(data);
+}
+
 /** Detected embedded media in an object */
 export interface EmbeddedMedia {
   /** The data value (with #!B64!# prefix or base64) */
@@ -39,6 +51,8 @@ export interface EmbeddedMedia {
   type: MediaType;
   /** Remaining fields after extracting media-related ones */
   rest: Record<string, unknown>;
+  /** The source the object declares, where it declares one the data cannot be read for (`withheld`) */
+  source?: string;
 }
 
 /**
@@ -111,6 +125,24 @@ function looksLikeBase64(str: string): boolean {
  * Returns null if no embedded media found.
  */
 export function findEmbeddedMedia(obj: Record<string, unknown>): EmbeddedMedia | null {
+  // A media block whose bytes the producer withheld is that attachment as it stands: its stand-in is never
+  // read for content, however much it looks like base64.
+  if (
+    obj.source === WITHHELD_SOURCE &&
+    typeof obj.data === "string" &&
+    typeof obj.type === "string" &&
+    MEDIA_TYPES.has(obj.type)
+  ) {
+    const { type, source, data, media_type, name, ...rest } = obj;
+    return {
+      data: data as string,
+      mediaType: typeof media_type === "string" ? media_type : undefined,
+      name: typeof name === "string" ? name : undefined,
+      type: type as MediaType,
+      rest,
+      source: source as string,
+    };
+  }
   let dataKey: string | null = null;
   let data: string | null = null;
   let mediaTypeKey: string | null = null;

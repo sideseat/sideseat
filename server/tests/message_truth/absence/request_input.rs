@@ -34,8 +34,8 @@ pub(super) fn prove_input_unexported(
     else {
         return Proof::Unprovable(format!("{call_id} has no recorded request"));
     };
-    let unsigned = requests::unsigned(truth);
-    let parts = requests::expected(call_id, request, &BTreeMap::new(), &unsigned);
+    let marks = requests::marks(truth);
+    let parts = requests::expected(call_id, request, &BTreeMap::new(), &marks);
     if parts.is_empty() {
         return Proof::Unprovable(format!("{call_id}'s request sent nothing to look for"));
     }

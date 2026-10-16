@@ -131,7 +131,10 @@ its witness is found (a call's id with its arguments or name, a result's value w
 text or a long fragment of it, an attachment's digest), when only part of it is found, or when the
 content is too weak to search for. Two narrower absences are proven the same way: `id_not_exported`,
 a tool call's wire id that no payload carries, where no payload gives the call another id either (the
-call is still asserted, under whatever id it is shown), and `call_not_exported`, a model call whose
+call is still asserted, under whatever id it is shown), `bytes_not_exported`, an attachment whose bytes
+the producer replaced with a stand-in, its digest in no payload (the attachment is still asserted, as a
+block whose `source` is `withheld`, of the same modality and media type, in its place, and no other block
+shows it), and `call_not_exported`, a model call whose
 response no payload carries as a unit - every part a tool call whose id is absent, no message (an
 object stating a role) holding any of its calls' arguments, no carrier holding two of its calls - as
 when automatic function calling records one span for a whole run. Such a call needs no span; its

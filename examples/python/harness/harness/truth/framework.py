@@ -79,7 +79,11 @@ class Framework:
     #: (``trace_not_propagated``);
     #: ``media`` - the
     #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
-    #: those modalities, and it withdraws the fact, so it holds for every capture or none)
+    #: those modalities, and it withdraws the fact, so it holds for every capture or none); ``media_bytes`` - only
+    #: the bytes of those attachments, the producer exporting a stand-in in their place
+    #: (``bytes_not_exported``; the attachment stays owed, shown withheld under the stand-in, declared as
+    #: ``{reason, stand_in[, named]}`` with ``stand_in`` a template of ``{bytes}`` and ``{base64_length}``, and
+    #: ``named`` the modalities the producer shows under the name of the file they were read from)
     #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
     #: value is the reason, or ``{reason, scenarios, modes}`` when only
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -

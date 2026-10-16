@@ -77,7 +77,7 @@ pub mod feed;
 
 pub use types::{
     CacheControl, ChatMessage, ChatRole, Citation, CitationKind, ContentBlock, FinishReason,
-    JsonSchemaDetails, ResponseFormat, ToolChoice,
+    JsonSchemaDetails, ResponseFormat, ToolChoice, WITHHELD_SOURCE,
 };
 
 pub use feed::{

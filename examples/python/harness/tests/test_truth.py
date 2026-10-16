@@ -487,6 +487,63 @@ def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() ->
         )
 
 
+def test_an_attachment_exported_without_its_bytes_stays_owed_as_withheld() -> None:
+    """`media_bytes` keeps every attachment asserted and declares only its bytes unexported, with a
+    `bytes_not_exported` gap the rubric proves by the attachment's digest, stating the producer's stand-in and,
+    for the modalities it names, the input file's name."""
+    framework = Framework.of(
+        {
+            "unexported": {
+                "media_bytes": {
+                    "reason": "a note",
+                    "stand_in": "{base64_length} of {bytes}",
+                    "named": ["document"],
+                }
+            }
+        }
+    )
+    builder = derive.assemble(
+        "p",
+        "files",
+        [model_call(wire.text_part("An image and a page."))],
+        options=derive.Options(framework=framework),
+    )
+    media = facts_by_kind(builder, "user_media")
+    assert len(media) == 2
+    assert all(fact["require"] is not None for fact in media)
+    assert sorted(
+        (gap["fact"], gap["reason"], gap["subject"], gap["text"])
+        for gap in builder.gaps
+        if gap["fact"] == "user_media"
+    ) == sorted(
+        (
+            "user_media",
+            "bytes_not_exported",
+            fact["id"],
+            f"{4 * -(-fact['value']['bytes'] // 3)} of {fact['value']['bytes']}",
+        )
+        for fact in media
+    )
+    names = {
+        gap["subject"]: gap.get("name")
+        for gap in builder.gaps
+        if gap["fact"] == "user_media"
+    }
+    assert sorted((fact["value"]["modality"], names[fact["id"]]) for fact in media) == [
+        ("document", "task.pdf"),
+        ("image", None),
+    ]
+    with pytest.raises(ValueError, match="stand_in"):
+        derive.assemble(
+            "p",
+            "files",
+            [model_call(wire.text_part("x"))],
+            options=derive.Options(
+                framework=Framework.of({"unexported": {"media_bytes": "no template"}})
+            ),
+        )
+
+
 def test_a_tool_calling_round_missing_from_its_span_is_owed_off_it() -> None:
     """`tool_calling_round_output` owes the tool calls of a response that only calls tools off the span that
     produced it, each with an `output_not_exported` gap; a response with text keeps its calls on its span."""

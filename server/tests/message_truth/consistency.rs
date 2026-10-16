@@ -318,6 +318,19 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                 gap.reason, fact.id
             ));
         }
+        // Unexported bytes are an attachment's that the truth states by digest; checking then owes it withheld.
+        if gap.reason == "bytes_not_exported"
+            && !(fact.kind == "user_media"
+                && fact.require.is_some()
+                && fact.value.get("sha256").is_some_and(Value::is_string)
+                && gap.text.as_deref().is_some_and(|t| !t.is_empty()))
+        {
+            bad(format!(
+                "gap bytes_not_exported on {} needs an asserted attachment with its digest, and the \
+                 producer's stand-in for its bytes",
+                fact.id
+            ));
+        }
         // An output unexported on its own span is a response's part, owed there until the gap says not.
         if gap.reason == "output_not_exported"
             && !(fact.call.is_some()

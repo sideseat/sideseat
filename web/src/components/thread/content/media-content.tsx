@@ -7,10 +7,9 @@ import {
   downloadFromUrl,
   formatBytes,
   getExtensionForMediaType,
-  isPlaceholderData,
   getMediaTypeLabel,
 } from "@/lib/utils";
-import { getDataUrlByteLength } from "@/lib/media";
+import { getDataUrlByteLength, holdsMediaContent, WITHHELD_SOURCE } from "@/lib/media";
 import { useMediaGallery } from "../image-gallery-context";
 
 interface BaseMediaProps {
@@ -233,8 +232,9 @@ export function MediaContent(props: MediaContentProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const { openMedia } = useMediaGallery();
 
-  // Check if data is a placeholder (not actual content)
-  const isPlaceholder = isPlaceholderData(data);
+  // Data that is not the content: bytes the producer withheld, or a placeholder written in their place
+  const isWithheld = source === WITHHELD_SOURCE;
+  const isPlaceholder = !holdsMediaContent(source, data);
   const isPdf = mediaType === "application/pdf";
 
   // Resolve the media URL using FilesClient
@@ -354,9 +354,11 @@ export function MediaContent(props: MediaContentProps) {
   const canDownload = resolvedUrl && (type === "document" || type === "file" || loadFailed);
   const status = loadFailed
     ? "Could not be loaded"
-    : isPlaceholder
-      ? "Content not captured"
-      : undefined;
+    : isWithheld
+      ? "Not exported by the producer"
+      : isPlaceholder
+        ? "Content not captured"
+        : undefined;
 
   return (
     <div

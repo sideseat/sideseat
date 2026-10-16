@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findEmbeddedMedia, getDataUrlByteLength, inferSource } from "../media";
+import { findEmbeddedMedia, getDataUrlByteLength, holdsMediaContent, inferSource } from "../media";
 
 const hash = "a".repeat(64);
 
@@ -103,5 +103,54 @@ describe("findEmbeddedMedia", () => {
   it("returns null for objects without media", () => {
     const result = findEmbeddedMedia({ key: "value", count: "42" });
     expect(result).toBeNull();
+  });
+});
+
+describe("holdsMediaContent", () => {
+  it("is false for bytes the producer withheld, whatever their stand-in looks like", () => {
+    expect(holdsMediaContent("withheld", "Base64 string (218624 characters)")).toBe(false);
+    expect(holdsMediaContent("withheld", "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ")).toBe(
+      false,
+    );
+  });
+
+  it("is false for a placeholder and true for content", () => {
+    expect(holdsMediaContent("base64", "<replaced>")).toBe(false);
+    expect(holdsMediaContent("base64", "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ")).toBe(true);
+    expect(holdsMediaContent("url", "https://example.com/a.png")).toBe(true);
+  });
+});
+
+describe("findEmbeddedMedia for an attachment the producer withheld", () => {
+  it("keeps the declared source, even for a stand-in that looks like base64", () => {
+    const standIn = "A".repeat(120);
+    const found = findEmbeddedMedia({
+      type: "image",
+      media_type: "image/jpeg",
+      source: "withheld",
+      data: standIn,
+      detail: "auto",
+    });
+    expect(found).toEqual({
+      data: standIn,
+      mediaType: "image/jpeg",
+      name: undefined,
+      type: "image",
+      rest: { detail: "auto" },
+      source: "withheld",
+    });
+  });
+
+  it("names a withheld document by its filename", () => {
+    const found = findEmbeddedMedia({
+      type: "document",
+      media_type: "application/pdf",
+      name: "task.pdf",
+      source: "withheld",
+      data: "Base64 string (17612 characters)",
+    });
+    expect(found?.source).toBe("withheld");
+    expect(found?.name).toBe("task.pdf");
+    expect(found?.type).toBe("document");
   });
 });

@@ -120,6 +120,11 @@ checks it against the project's own stored files, shows the media where the proj
 replaces it with `[content not stored (<media type>)]` where it does not. Bytes stored by another project are never
 shown. The stored raw telemetry is unaffected: it keeps the string exactly as your application wrote it.
 
+Some frameworks export an attachment without its bytes, writing a stand-in in their place (Haystack writes
+`Base64 string (N characters)`). SideSeat shows such an attachment as a media block of its kind, with its media type
+and filename where the framework kept them, and `source: "withheld"`; its `data` is the framework's stand-in, which
+cannot be fetched or decoded. The web UI shows it as a placeholder saying it was not exported by the producer.
+
 ## Sessions
 
 A **session** groups related runs together (for example, multi-turn conversations).

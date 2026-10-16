@@ -278,10 +278,14 @@ pub(super) struct Gap {
     /// release that exports what another omits is told apart here, never by weakening the fact.
     #[serde(default)]
     pub modes: Vec<String>,
-    /// The text a `producer_states_unsent` gap is about: what the producer's telemetry states the call was
-    /// sent and its request never carried. Absent on every other gap.
+    /// The text a `producer_states_unsent` gap is about - what the producer's telemetry states the call was
+    /// sent and its request never carried - or, on a `bytes_not_exported` gap, the stand-in the producer writes
+    /// in place of the attachment's bytes. Absent on every other gap.
     #[serde(default)]
     pub text: Option<String>,
+    /// On a `bytes_not_exported` gap, the name the producer shows the attachment under, where it shows one.
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 impl Gap {
@@ -329,7 +333,8 @@ impl Truth {
     /// The truth as one fixture is checked against it: only the gaps that hold for it, a tool call
     /// whose id that fixture's telemetry does not carry (`id_not_exported`) asserted without it - its
     /// wire id kept aside as `wire_id` - withheld reasoning whose signature it does not carry
-    /// (`signature_not_exported`) asserted unsigned, and a response part its producing span does not carry
+    /// (`signature_not_exported`) asserted unsigned, an attachment whose bytes it does not carry
+    /// (`bytes_not_exported`) asserted withheld, and a response part its producing span does not carry
     /// (`output_not_exported`) owed by the conversation views only.
     pub fn for_fixture(&self, fixture: &str) -> Truth {
         let mut truth = self.clone();
@@ -387,6 +392,20 @@ impl Truth {
         for fact in truth.facts.iter_mut().filter(|f| unsigned.contains(&f.id)) {
             fact.value["signed"] = Value::Bool(false);
         }
+        let withheld: BTreeMap<String, Value> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "bytes_not_exported")
+            .filter_map(|g| {
+                let mark = serde_json::json!({"data": g.text.clone()?, "name": g.name});
+                Some((g.subject.clone()?, mark))
+            })
+            .collect();
+        for fact in truth.facts.iter_mut() {
+            if let Some(stand_in) = withheld.get(&fact.id) {
+                fact.value[WITHHELD] = stand_in.clone();
+            }
+        }
         let unsigned_on_span: BTreeSet<String> = truth
             .gaps
             .iter()
@@ -434,6 +453,7 @@ impl Gap {
             subject: Some(fact.to_string()),
             modes: Vec::new(),
             text: None,
+            name: None,
         }
     }
 }
@@ -460,6 +480,11 @@ pub(super) struct GapEffects {
     /// The fact's content must be shown absent from every captured payload of every fixture.
     pub needs_absence_proof: bool,
 }
+
+/// The member checking marks an attachment with whose bytes the telemetry does not carry (`bytes_not_exported`):
+/// `{data, name}`, the stand-in the producer writes in their place and the name it shows the attachment under
+/// (`null` for none). It is owed as a block whose source says the bytes were withheld, with that data and name.
+pub(super) const WITHHELD: &str = "withheld";
 
 /// The member checking marks withheld reasoning with whose signature its producing span does not carry
 /// (`span_signature_not_exported`): that span's view owes it unsigned.
@@ -511,6 +536,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         "id_not_exported" => effects(GapSubject::Fact, false, false, true),
         // Only withheld reasoning's signature is missing: the step is still asserted, shown unsigned.
         "signature_not_exported" => effects(GapSubject::Fact, false, false, true),
+        // Only an attachment's bytes are missing - the producer exported a stand-in for them: the attachment is
+        // still asserted, shown withheld, by its modality, media type and place.
+        "bytes_not_exported" => effects(GapSubject::Fact, false, false, true),
         // Only withheld reasoning's signature is missing from the span that produced it - another carrier
         // holds it: that span's view owes the step unsigned, the conversation views signed.
         "span_signature_not_exported" => effects(GapSubject::Fact, false, false, true),
