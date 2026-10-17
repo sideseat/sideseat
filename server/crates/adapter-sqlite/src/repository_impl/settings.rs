@@ -492,8 +492,12 @@ impl StagedPayloadStore for SqliteRepository {
         staging::get(self.0.pool(), id).await.map_err(Into::into)
     }
 
-    async fn pending_staged_payloads(&self, limit: usize) -> Result<Vec<StagedPayload>, DataError> {
-        staging::pending(self.0.pool(), limit)
+    async fn pending_staged_payloads(
+        &self,
+        after: Option<(chrono::DateTime<chrono::Utc>, &str)>,
+        limit: usize,
+    ) -> Result<Vec<StagedPayload>, DataError> {
+        staging::pending(self.0.pool(), after, limit)
             .await
             .map_err(Into::into)
     }

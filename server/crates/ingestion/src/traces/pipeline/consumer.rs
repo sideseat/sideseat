@@ -1,5 +1,8 @@
 use super::*;
-use crate::staging::MissingReference;
+use crate::staging::{MissingReference, StagingError};
+
+/// How long a batch's loads may retry an unavailable registry: well inside Redpanda's five-minute poll interval.
+const LOAD_RETRY_BUDGET: Duration = Duration::from_secs(60);
 
 impl TracePipeline {
     pub fn new(
@@ -247,8 +250,18 @@ impl TracePipeline {
                 // Load the selected batch before handing it to the persistence port.
                 let mut ready = Vec::with_capacity(batch.len());
                 let mut ack_ids = Vec::new();
+                // Load failures acknowledged only while the lease held when their load began still holds: the waves
+                // and the other loads run before the acknowledgement, and a restore meanwhile may have removed the
+                // registration such a reference is the only record of.
+                let mut ack_if_held: Vec<(_, Option<u64>)> = Vec::new();
+                // One retry budget for the batch's loads, well inside Redpanda's poll interval.
+                let retry_until = tokio::time::Instant::now() + LOAD_RETRY_BUDGET;
                 for (msg_id, payload_ref) in batch {
-                    match self.load_staged_trace(&payload_ref).await {
+                    let term = self.staging.lease_term();
+                    match self
+                        .load_staged_trace_retrying(&payload_ref, retry_until, Some(&shutdown_rx))
+                        .await
+                    {
                         Ok(Some((payload, request, received))) => {
                             ready.push((msg_id, payload, request, received));
                         }
@@ -263,8 +276,8 @@ impl TracePipeline {
                                 %error,
                                 "Could not load a staged trace payload"
                             );
-                            if self.note_staging_failure(&payload_ref.id).await {
-                                ack_ids.push(msg_id);
+                            if self.note_load_failure(&payload_ref.id, &error, term).await {
+                                ack_if_held.push((msg_id, term));
                             }
                         }
                     }
@@ -300,6 +313,12 @@ impl TracePipeline {
                     }
                 }
 
+                ack_ids.extend(
+                    ack_if_held
+                        .into_iter()
+                        .filter(|(_, term)| self.staging.lease_held_through(*term))
+                        .map(|(msg_id, _)| msg_id),
+                );
                 if !ack_ids.is_empty()
                     && let Err(e) = acker.ack_batch(&ack_ids).await
                 {
@@ -384,29 +403,69 @@ impl TracePipeline {
         }
     }
 
+    /// [`Self::load_staged_trace`], retried while the registry cannot be reached and `deadline` has not passed:
+    /// whether the payload is still registered is not known then, so its reference is kept - not acknowledged, not
+    /// counted - and retrying here is what gives it another chance before this consumer moves on. The deadline is
+    /// shared by a batch and short of Redpanda's poll interval, which a consumer that stops polling for longer
+    /// leaves its group over; past it, or once shutdown begins, the message stays unacknowledged.
+    async fn load_staged_trace_retrying(
+        &self,
+        payload_ref: &StagedPayloadRef,
+        deadline: tokio::time::Instant,
+        shutdown: Option<&watch::Receiver<bool>>,
+    ) -> Result<Option<(StagedPayload, ExportTraceServiceRequest, ReceivedPayload)>, StagingError>
+    {
+        let mut delay = Duration::from_millis(200);
+        loop {
+            // The deadline bounds the wait itself, not only the retries: a load blocked on an exhausted pool must
+            // not hold the consumer past it either.
+            let loaded = match tokio::time::timeout_at(
+                deadline,
+                self.load_staged_trace(payload_ref),
+            )
+            .await
+            {
+                Ok(loaded) => loaded,
+                Err(_) => {
+                    return Err(StagingError::RegistryUnavailable(
+                        "the batch's load budget ran out".to_string(),
+                    ));
+                }
+            };
+            let Err(StagingError::RegistryUnavailable(_)) = &loaded else {
+                return loaded;
+            };
+            let stopping = shutdown.is_some_and(|shutdown| *shutdown.borrow());
+            if stopping || tokio::time::Instant::now() + delay > deadline {
+                return loaded;
+            }
+            tracing::warn!(
+                staged_payload_id = %payload_ref.id,
+                retry_in_ms = delay.as_millis() as u64,
+                "The staging registry is unavailable; retrying the load"
+            );
+            tokio::time::sleep(delay).await;
+            delay = (delay * 2).min(Duration::from_secs(5));
+        }
+    }
+
     async fn load_staged_trace(
         &self,
         payload_ref: &StagedPayloadRef,
-    ) -> Result<Option<(StagedPayload, ExportTraceServiceRequest, ReceivedPayload)>, String> {
-        let Some((payload, bytes)) = self
-            .staging
-            .load(&payload_ref.id)
-            .await
-            .map_err(|error| error.to_string())?
-        else {
+    ) -> Result<Option<(StagedPayload, ExportTraceServiceRequest, ReceivedPayload)>, StagingError>
+    {
+        let Some((payload, bytes)) = self.staging.load(&payload_ref.id).await? else {
             return Ok(None);
         };
         if payload.signal != StagedSignal::Traces {
-            return Err(format!(
+            return Err(StagingError::Unreadable(format!(
                 "queue reference names a {:?} payload on the trace topic",
                 payload.signal
-            ));
+            )));
         }
-        let (request, received) = crate::received::staged_traces(
-            &bytes,
-            payload.project_id.as_str(),
-            payload.created_at,
-        )?;
+        let (request, received) =
+            crate::received::staged_traces(&bytes, payload.project_id.as_str(), payload.created_at)
+                .map_err(StagingError::Unreadable)?;
         Ok(Some((payload, request, received)))
     }
 
@@ -492,6 +551,22 @@ impl TracePipeline {
         }
     }
 
+    /// Note a failed load (`StagingService::note_load_failure`): whether to acknowledge the message - a store that
+    /// was unavailable leaves the payload staged, uncounted, for the staging sweep.
+    async fn note_load_failure(&self, id: &str, failure: &StagingError, term: Option<u64>) -> bool {
+        match self.staging.note_load_failure(id, failure, term).await {
+            Ok(exhausted) => exhausted,
+            Err(error) => {
+                tracing::error!(
+                    staged_payload_id = id,
+                    %error,
+                    "Could not update staged-payload redrive state"
+                );
+                false
+            }
+        }
+    }
+
     async fn note_staging_failure(&self, id: &str) -> bool {
         match self.staging.note_failed_attempt(id).await {
             Ok(exhausted) => exhausted,
@@ -507,7 +582,15 @@ impl TracePipeline {
     }
 
     pub(super) async fn process_staged_reference(&self, payload_ref: &StagedPayloadRef) -> bool {
-        let (payload, request, received) = match self.load_staged_trace(payload_ref).await {
+        let term = self.staging.lease_term();
+        let (payload, request, received) = match self
+            .load_staged_trace_retrying(
+                payload_ref,
+                tokio::time::Instant::now() + Duration::from_secs(2),
+                None,
+            )
+            .await
+        {
             Ok(Some(loaded)) => loaded,
             Ok(None) => return self.settle_missing(payload_ref).await,
             Err(error) => {
@@ -516,7 +599,7 @@ impl TracePipeline {
                     %error,
                     "Could not load staged trace reference"
                 );
-                return self.note_staging_failure(&payload_ref.id).await;
+                return self.note_load_failure(&payload_ref.id, &error, term).await;
             }
         };
         // Written and settled in one wave, as a batch is: the lease held from before the write to after the

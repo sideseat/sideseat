@@ -163,7 +163,14 @@ impl StagingService {
             Some(governance) => Ok(governance
                 .current_hold(project_id)
                 .await
-                .map_err(|error| StagingError::Registry(error.to_string()))?
+                .map_err(|error| match error {
+                    // The hold could not be read: nothing about the payload.
+                    sideseat_domain::storage_governance::GovernanceError::Unavailable(_)
+                    | sideseat_domain::storage_governance::GovernanceError::Busy => {
+                        StagingError::RegistryUnavailable(error.to_string())
+                    }
+                    _ => StagingError::Registry(error.to_string()),
+                })?
                 .is_none()),
             // Without the holds, only the configured age, as before: the horizon is never assumed.
             None => Ok(past_age),
@@ -209,6 +216,6 @@ impl StagingService {
                 return Ok(false);
             }
         };
-        journaled.map_err(|error| StagingError::Registry(error.to_string()))
+        journaled.map_err(super::registry_error)
     }
 }

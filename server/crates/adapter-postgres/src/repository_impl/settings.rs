@@ -503,8 +503,19 @@ impl StagedPayloadStore for PostgresRepository {
         maintenance_transaction!(self, |connection| staging::get(connection, id))
     }
 
-    async fn pending_staged_payloads(&self, limit: usize) -> Result<Vec<StagedPayload>, DataError> {
-        maintenance_transaction!(self, |connection| staging::pending(connection, limit))
+    async fn pending_staged_payloads(
+        &self,
+        after: Option<(chrono::DateTime<chrono::Utc>, &str)>,
+        limit: usize,
+    ) -> Result<Vec<StagedPayload>, DataError> {
+        let after = after.map(|(at, id)| (at, id.to_string()));
+        maintenance_transaction!(self, |connection| {
+            staging::pending(
+                connection,
+                after.as_ref().map(|(at, id)| (*at, id.as_str())),
+                limit,
+            )
+        })
     }
 
     async fn increment_staged_redrive_attempts(&self, id: &str) -> Result<u32, DataError> {

@@ -94,6 +94,18 @@ pub enum StagingError {
     Blob(String),
     #[error("staged payload {0} has no blob")]
     MissingBlob(String),
+    /// The registry could not be reached - a dropped or stale connection, a timeout. Nothing about the payload,
+    /// and not counted against it; nor is it known whether the payload is still registered, so its queue reference
+    /// is kept and the load retried.
+    #[error("staging registry unavailable: {0}")]
+    RegistryUnavailable(String),
+    /// The blob store could not be reached for a payload the registry holds. Nothing about the payload, and not
+    /// counted; it stays staged and pending, which the staging sweep redrives.
+    #[error("staging blob store unavailable: {0}")]
+    BlobUnavailable(String),
+    /// The staged bytes are not what the payload's signal says: an attempt that is the payload's own fault.
+    #[error("staged payload cannot be read: {0}")]
+    Unreadable(String),
     /// The analytics store has failed for good: the attempt said nothing about the payload, and only the process
     /// that replaces this one can write it.
     #[error("the analytics store has failed and the server must restart: {0}")]
@@ -123,6 +135,12 @@ pub struct StagingService {
     /// The legal holds a record older than the backend's expiry horizon is kept under; without it, no record is
     /// taken for expired.
     governance: Option<Arc<StorageGovernanceService>>,
+    /// Where this process's staging sweep is in its traversal: the last row it took, and the receipt bound the
+    /// traversal goes up to. Each pass continues after the last; a traversal ends at its bound - rows received
+    /// after it began wait for the next - and the next starts from the oldest. So rows it could not take, a store
+    /// unavailable for them, do not hold the first page while rows behind them wait, and arrivals cannot keep it
+    /// from coming back to them. Process-local, and only an order: another instance's sweep keeps its own.
+    sweep_cursor: std::sync::Mutex<sweep::SweepCursor>,
 }
 
 impl StagingService {
@@ -143,6 +161,7 @@ impl StagingService {
             redrive_cap: redrive_cap.max(1),
             fence: CollectionFence::open(),
             governance: None,
+            sweep_cursor: std::sync::Mutex::new(sweep::SweepCursor::default()),
         }
     }
 
@@ -247,7 +266,7 @@ impl StagingService {
             .database
             .staged_sequence_state(reference.seq)
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))?;
+            .map_err(registry_error)?;
         let lost = reference.seq > state.high_water
             || state
                 .holder
@@ -270,7 +289,7 @@ impl StagingService {
         self.database
             .record_staging_anomaly(&reference.id, reference.seq, self.clock.now())
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))
+            .map_err(registry_error)
     }
 
     /// A staged payload's registration - what settling it reads - without its bytes, or `None` once it is
@@ -279,7 +298,7 @@ impl StagingService {
         self.database
             .get_staged_payload(id)
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))
+            .map_err(registry_error)
     }
 
     pub async fn load(&self, id: &str) -> Result<Option<(StagedPayload, Vec<u8>)>, StagingError> {
@@ -287,7 +306,7 @@ impl StagingService {
             .database
             .get_staged_payload(id)
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))?
+            .map_err(registry_error)?
         else {
             return Ok(None);
         };
@@ -306,10 +325,19 @@ impl StagingService {
     }
 
     pub async fn pending(&self, limit: usize) -> Result<Vec<StagedPayload>, StagingError> {
+        self.pending_after(None, limit).await
+    }
+
+    /// [`Self::pending`] after `after`'s `(created_at, id)`.
+    pub async fn pending_after(
+        &self,
+        after: Option<&StagedPayload>,
+        limit: usize,
+    ) -> Result<Vec<StagedPayload>, StagingError> {
         self.database
-            .pending_staged_payloads(limit)
+            .pending_staged_payloads(after.map(|p| (p.created_at, p.id.as_str())), limit)
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))
+            .map_err(registry_error)
     }
 
     /// Check strict content equality - for a datapoint, stored at a receipt no earlier than this export's. On a
@@ -353,7 +381,7 @@ impl StagingService {
             .database
             .project_accepts_writes(payload.project_id.as_str())
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))?
+            .map_err(registry_error)?
         {
             return Ok(StagingDisposition::DeliberatelyAbsent);
         }
@@ -443,8 +471,7 @@ impl StagingService {
                 StagedRecord::Log { .. } => {}
             }
         }
-        let registry =
-            |error: sideseat_ports::error::DataError| StagingError::Registry(error.to_string());
+        let registry = registry_error;
         let mut winners = Winners::default();
         if !spans.is_empty() {
             let spans: Vec<_> = spans.into_iter().collect();
@@ -571,7 +598,7 @@ impl StagingService {
             &spans,
         )
         .await
-        .map_err(|error| StagingError::Registry(error.to_string()))
+        .map_err(registry_error)
     }
 
     /// Whether the raw authority holds every span of `records`: each in the record its winning row names.
@@ -607,8 +634,60 @@ impl StagingService {
             &spans,
         )
         .await
-        .map_err(|error| StagingError::Registry(error.to_string()))?;
+        .map_err(registry_error)?;
         Ok(spans.iter().all(|span| covered.contains(span)))
+    }
+
+    /// Record a failed load of payload `id`, and answer whether its queue reference may be acknowledged.
+    ///
+    /// A store that could not be reached is no evidence against the payload, and is not counted: counted, a dropped
+    /// connection on a payload's last allowed attempt quarantined it - which takes it out of the staging sweep - and
+    /// acknowledged its reference, so persistence stopped until an operator recovered it, on the first failure at a
+    /// redrive cap of one.
+    ///
+    /// - The blob store unavailable for a payload the registry holds: acknowledged, the payload left staged and
+    ///   pending for the staging sweep. Left unacknowledged, a Redpanda delivery is never redelivered, and its
+    ///   offset would hold back every commit after it.
+    /// - The registry unavailable: not acknowledged. Whether the payload is still registered is not known, and the
+    ///   reference is what records a registration's loss (`settle_missing`); the caller retries the load.
+    /// - A failure that is the payload's own ([`StagingError::is_payload_fault`]) is counted, and the reference
+    ///   acknowledged only once the payload is quarantined.
+    /// - Anything else - a registry statement that failed, a timeout the store does not call transient - says
+    ///   nothing certain about the payload either: kept, and not counted.
+    ///
+    /// `term` is the store lease's term when the load began ([`Self::lease_term`]). A blob-unavailable reference is
+    /// acknowledged only if the lease was held throughout: a restore taken meanwhile may have removed the
+    /// registration the load read, and the reference is what would record that loss.
+    pub async fn note_load_failure(
+        &self,
+        id: &str,
+        error: &StagingError,
+        term: Option<u64>,
+    ) -> Result<bool, StagingError> {
+        match error {
+            StagingError::BlobUnavailable(_) => {
+                let held = term.is_some_and(|term| self.fence.held_through(term));
+                tracing::warn!(
+                    staged_payload_id = id,
+                    %error,
+                    acknowledged = held,
+                    "A staged payload's bytes could not be read; it stays staged for the staging sweep"
+                );
+                Ok(held)
+            }
+            error if error.is_payload_fault() => self.note_failed_attempt(id).await,
+            _ => Ok(false),
+        }
+    }
+
+    /// The store lease's term now, for [`Self::note_load_failure`]; None while it is not held.
+    pub fn lease_term(&self) -> Option<u64> {
+        self.fence.term()
+    }
+
+    /// Whether the store lease taken as `term` has been held ever since ([`Self::lease_term`]).
+    pub fn lease_held_through(&self, term: Option<u64>) -> bool {
+        term.is_some_and(|term| self.fence.held_through(term))
     }
 
     /// Release terminal payloads. Returns the observed disposition.
@@ -644,7 +723,7 @@ impl StagingService {
             .database
             .increment_staged_redrive_attempts(id)
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))?;
+            .map_err(registry_error)?;
         if attempts >= self.redrive_cap {
             // Again before the quarantine: the count may have been read from a store a restore has since
             // taken back.
@@ -654,7 +733,7 @@ impl StagingService {
             self.database
                 .mark_staged_unconfirmed(id)
                 .await
-                .map_err(|error| StagingError::Registry(error.to_string()))?;
+                .map_err(registry_error)?;
             tracing::error!(
                 staged_payload_id = id,
                 attempts,
@@ -704,7 +783,7 @@ impl StagingService {
         self.database
             .delete_staged_payload(&payload.id)
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))?;
+            .map_err(registry_error)?;
         if let Err(error) = self
             .storage
             .delete(&payload.project_id, staged_object(&payload.blob_hash))
@@ -720,134 +799,6 @@ impl StagingService {
             );
         }
         Ok(true)
-    }
-
-    /// Reconcile one page of registry rows. This repairs both queue loss and
-    /// inline requests interrupted after their durable staging write.
-    pub async fn redrive_once(
-        &self,
-        trace_pipeline: &TracePipeline,
-        limit: usize,
-    ) -> Result<usize, StagingError> {
-        // Nothing is redriven while this process's store lease is lost: no attempt then can settle, or count.
-        let Some(pass) = self.fence.enter("staging sweep") else {
-            return Ok(0);
-        };
-        let payloads = self.pending(limit).await?;
-        let count = payloads.len();
-        for payload in payloads {
-            match self.disposition(&payload).await? {
-                StagingDisposition::Confirmed | StagingDisposition::DeliberatelyAbsent => {
-                    // Fenced meanwhile, it stays staged for the next sweep that holds the lease.
-                    self.release_in(Some(&pass), &payload).await?;
-                    continue;
-                }
-                StagingDisposition::Pending => {}
-            }
-
-            let Some((current, bytes)) = self.load(&payload.id).await? else {
-                continue;
-            };
-            let write_ok = match current.signal {
-                StagedSignal::Traces => {
-                    match crate::received::staged_traces(
-                        &bytes,
-                        current.project_id.as_str(),
-                        current.created_at,
-                    ) {
-                        Ok((request, received)) => !matches!(
-                            trace_pipeline.ingest_now(&request, &received).await,
-                            IngestOutcome::Failed
-                        ),
-                        Err(error) => {
-                            tracing::error!(
-                                staged_payload_id = %current.id,
-                                %error,
-                                "Could not decode a staged trace payload during redrive"
-                            );
-                            false
-                        }
-                    }
-                }
-                StagedSignal::Metrics => {
-                    match crate::received::staged_metrics(&bytes, current.project_id.as_str()) {
-                        // Governed as the export was: a hold stamps its rows, which the backend keeps by it.
-                        Ok(request) => match &self.governance {
-                            Some(governance) => crate::metrics::ingest_governed(
-                                &request,
-                                self.analytics.as_ref(),
-                                self.database.as_ref(),
-                                current.created_at,
-                                governance,
-                            )
-                            .await
-                            .is_ok(),
-                            None => crate::metrics::ingest(
-                                &request,
-                                self.analytics.as_ref(),
-                                self.database.as_ref(),
-                                current.created_at,
-                            )
-                            .await
-                            .is_ok(),
-                        },
-                        Err(error) => {
-                            tracing::error!(
-                                staged_payload_id = %current.id,
-                                %error,
-                                "Could not decode a staged metrics payload during redrive"
-                            );
-                            false
-                        }
-                    }
-                }
-                StagedSignal::Logs => {
-                    match crate::received::staged_logs(&bytes, current.project_id.as_str()) {
-                        Ok(request) => match &self.governance {
-                            Some(governance) => crate::logs::ingest_governed(
-                                &request,
-                                self.analytics.as_ref(),
-                                self.database.as_ref(),
-                                Some(trace_pipeline.file_service()),
-                                current.created_at,
-                                governance,
-                            )
-                            .await
-                            .is_ok(),
-                            None => crate::logs::ingest(
-                                &request,
-                                self.analytics.as_ref(),
-                                self.database.as_ref(),
-                                Some(trace_pipeline.file_service()),
-                                current.created_at,
-                            )
-                            .await
-                            .is_ok(),
-                        },
-                        Err(error) => {
-                            tracing::error!(
-                                staged_payload_id = %current.id,
-                                %error,
-                                "Could not decode a staged logs payload during redrive"
-                            );
-                            false
-                        }
-                    }
-                }
-            };
-
-            if write_ok {
-                match self.settle(&current).await {
-                    Ok(StagingDisposition::Pending) => {}
-                    Ok(_) => continue,
-                    // The lease was lost during the sweep: nothing more settles in this pass, nor counts.
-                    Err(StagingError::Fenced) => return Ok(count),
-                    Err(error) => return Err(error),
-                }
-            }
-            let _ = self.note_failed_attempt(&current.id).await?;
-        }
-        Ok(count)
     }
 
     async fn all_confirmed(&self, payload: &StagedPayload) -> Result<bool, StagingError> {
@@ -905,7 +856,7 @@ impl StagingService {
                     .await
             }
         }
-        .map_err(|error| StagingError::Registry(error.to_string()))
+        .map_err(registry_error)
     }
 
     /// Whether a log record is stored; spans and datapoints are read through their winners ([`Self::standing`]).
@@ -934,42 +885,45 @@ impl StagingService {
                 )],
             )
             .await
-            .map_err(|error| StagingError::Registry(error.to_string()))
+            .map_err(registry_error)
     }
 }
 
-/// Periodically repairs queue loss and writes interrupted after staging.
-pub fn start_staging_sweep(
-    staging: Arc<StagingService>,
-    trace_pipeline: Arc<TracePipeline>,
-    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            tokio::select! {
-                biased;
-                changed = shutdown_rx.changed() => {
-                    if changed.is_err() || *shutdown_rx.borrow() {
-                        break;
-                    }
-                }
-                _ = interval.tick() => {
-                    if let Err(error) = staging.redrive_once(trace_pipeline.as_ref(), 100).await {
-                        tracing::error!(%error, "Staged-payload sweep failed");
-                    }
-                }
-            }
-        }
-    })
+/// A registry failure: unavailable if the store said it was transient - nothing about the payload - else a
+/// failure of the operation.
+fn registry_error(error: sideseat_ports::error::DataError) -> StagingError {
+    if error.is_transient() {
+        StagingError::RegistryUnavailable(error.to_string())
+    } else {
+        StagingError::Registry(error.to_string())
+    }
+}
+
+impl StagingError {
+    /// The failure is the payload's own - its bytes gone, unreadable, or refused by the blob store as what they
+    /// are - and so evidence against it, counted toward its quarantine. Nothing else is.
+    pub fn is_payload_fault(&self) -> bool {
+        matches!(
+            self,
+            Self::MissingBlob(_) | Self::Unreadable(_) | Self::Blob(_)
+        )
+    }
 }
 
 fn blob_error(error: FileStorageError) -> StagingError {
-    StagingError::Blob(error.to_string())
+    match error {
+        // The store answered no, or not at all: nothing about the bytes.
+        FileStorageError::Backend(_) | FileStorageError::Io(_) => {
+            StagingError::BlobUnavailable(error.to_string())
+        }
+        _ => StagingError::Blob(error.to_string()),
+    }
 }
 
 mod settlement;
+mod sweep;
+
+pub use sweep::start_staging_sweep;
 
 #[cfg(test)]
 #[path = "staging_tests.rs"]

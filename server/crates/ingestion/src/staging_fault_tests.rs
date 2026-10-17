@@ -42,6 +42,7 @@ struct FaultyStorage {
     inner: FilesystemStorage,
     fail_store: AtomicBool,
     fail_delete: AtomicBool,
+    fail_get: AtomicBool,
 }
 
 fn injected() -> FileStorageError {
@@ -67,6 +68,9 @@ impl FileStorage for FaultyStorage {
         project_id: &ProjectId,
         object: ObjectName<'_>,
     ) -> Result<Vec<u8>, FileStorageError> {
+        if self.fail_get.load(Ordering::SeqCst) {
+            return Err(injected());
+        }
         self.inner.get(project_id, object).await
     }
 
@@ -153,6 +157,7 @@ async fn fixture() -> Fixture {
         inner: FilesystemStorage::new(temp.path().join("staging")),
         fail_store: AtomicBool::new(false),
         fail_delete: AtomicBool::new(false),
+        fail_get: AtomicBool::new(false),
     });
     let user = database
         .create_user("faults@example.test", None)
@@ -330,4 +335,118 @@ async fn a_failed_physical_deletion_leaves_garbage_not_a_dangling_row() {
         super::MissingReference::Finished,
         "and the reference reads as retired, not lost"
     );
+}
+
+/// A blob store that cannot be reached when a payload is loaded is no evidence against the payload: however many
+/// times it fails - past the redrive cap - the attempts are not counted and the payload is not quarantined. Its
+/// queue reference may be acknowledged, because the payload stays staged and pending for the staging sweep.
+/// Counted, the last allowed attempt quarantined it, which takes it out of the sweep, and persistence stopped.
+#[tokio::test]
+async fn an_unreachable_blob_store_does_not_spend_a_payloads_redrives() {
+    let fixture = fixture().await;
+    let staged = stage(&fixture).await.expect("staged");
+    let term = fixture.service.lease_term();
+    fixture.storage.fail_get.store(true, Ordering::SeqCst);
+    for _ in 0..3 {
+        let error = fixture.service.load(&staged.id).await.unwrap_err();
+        assert!(
+            matches!(error, super::StagingError::BlobUnavailable(_)),
+            "{error}"
+        );
+        assert!(
+            fixture
+                .service
+                .note_load_failure(&staged.id, &error, term)
+                .await
+                .expect("noted"),
+            "acknowledged: the sweep has it"
+        );
+    }
+    // Under a lease term that is not the one held now - lost and taken again during the load - the reference is
+    // kept: a restore meanwhile may have removed the registration it read.
+    let error = fixture.service.load(&staged.id).await.unwrap_err();
+    assert!(
+        !fixture
+            .service
+            .note_load_failure(&staged.id, &error, term.map(|term| term + 1))
+            .await
+            .expect("noted"),
+        "not acknowledged across a lease change"
+    );
+    fixture.storage.fail_get.store(false, Ordering::SeqCst);
+    let (payload, _) = fixture
+        .service
+        .load(&staged.id)
+        .await
+        .expect("loads once the store is back")
+        .expect("still staged");
+    assert_eq!((payload.redrive_attempts, payload.unconfirmed), (0, false));
+    assert!(
+        fixture
+            .service
+            .pending(10)
+            .await
+            .expect("pending")
+            .iter()
+            .any(|p| p.id == staged.id),
+        "the staging sweep will redrive it"
+    );
+}
+
+/// A registry that cannot be reached is no evidence either: the load says so, noting it touches nothing, and the
+/// reference is kept for a retry - whether the payload is still registered is not known.
+#[tokio::test]
+async fn an_unreachable_registry_does_not_spend_a_payloads_redrives() {
+    let fixture = fixture().await;
+    let staged = stage(&fixture).await.expect("staged");
+    let term = fixture.service.lease_term();
+    fixture.sqlite.pool().close().await;
+    let error = fixture.service.load(&staged.id).await.unwrap_err();
+    assert!(
+        matches!(error, super::StagingError::RegistryUnavailable(_)),
+        "{error}"
+    );
+    assert!(
+        !fixture
+            .service
+            .note_load_failure(&staged.id, &error, term)
+            .await
+            .expect("noted without the registry"),
+        "kept: whether it is still registered is not known, and its reference is what would record its loss"
+    );
+}
+
+/// A failure that is the payload's own - its bytes gone - is still counted, and quarantines it at the cap.
+#[tokio::test]
+async fn a_payloads_own_failure_still_spends_its_redrives() {
+    let fixture = fixture().await;
+    let staged = stage(&fixture).await.expect("staged");
+    let term = fixture.service.lease_term();
+    let payload = fixture
+        .service
+        .load(&staged.id)
+        .await
+        .expect("loads")
+        .expect("staged")
+        .0;
+    fixture
+        .storage
+        .inner
+        .delete(&payload.project_id, ObjectName::new(&payload.blob_hash, 0))
+        .await
+        .expect("bytes gone");
+    let mut quarantined = false;
+    for _ in 0..2 {
+        let error = fixture.service.load(&staged.id).await.unwrap_err();
+        assert!(
+            matches!(error, super::StagingError::MissingBlob(_)),
+            "{error}"
+        );
+        quarantined = fixture
+            .service
+            .note_load_failure(&staged.id, &error, term)
+            .await
+            .expect("noted");
+    }
+    assert!(quarantined, "the cap of two is reached");
 }

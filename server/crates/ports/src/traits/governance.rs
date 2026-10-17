@@ -323,7 +323,13 @@ pub trait StagedPayloadStore: Send + Sync {
     async fn get_staged_payload(&self, id: &str) -> Result<Option<StagedPayload>, DataError>;
 
     /// Oldest payloads that have not exhausted the redrive cap.
-    async fn pending_staged_payloads(&self, limit: usize) -> Result<Vec<StagedPayload>, DataError>;
+    /// Up to `limit` payloads not quarantined, oldest first by `(created_at, id)`, after `after` when given: how the
+    /// staging sweep pages past rows it could not take this pass.
+    async fn pending_staged_payloads(
+        &self,
+        after: Option<(chrono::DateTime<chrono::Utc>, &str)>,
+        limit: usize,
+    ) -> Result<Vec<StagedPayload>, DataError>;
 
     /// Increment and return the durable attempt count.
     async fn increment_staged_redrive_attempts(&self, id: &str) -> Result<u32, DataError>;

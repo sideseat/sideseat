@@ -150,7 +150,7 @@ async fn confirmed_retries_release_and_cap_exhaustion_holds_bytes() {
     );
     assert!(
         database
-            .pending_staged_payloads(10)
+            .pending_staged_payloads(None, 10)
             .await
             .unwrap()
             .is_empty()

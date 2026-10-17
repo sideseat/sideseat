@@ -91,15 +91,23 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<StagedPayload>, S
     row.map(row_to_payload).transpose()
 }
 
-pub async fn pending(pool: &SqlitePool, limit: usize) -> Result<Vec<StagedPayload>, SqliteError> {
+pub async fn pending(
+    pool: &SqlitePool,
+    after: Option<(chrono::DateTime<chrono::Utc>, &str)>,
+    limit: usize,
+) -> Result<Vec<StagedPayload>, SqliteError> {
+    // Without a cursor, from before every row: `id` is never empty.
+    let (after_at, after_id) = after.map_or((i64::MIN, ""), |(at, id)| (at.timestamp_micros(), id));
     let rows = sqlx::query(
         "SELECT p.id, p.project_id, p.signal, p.blob_hash, p.byte_len, p.created_at, p.redrive_attempts,
                 p.unconfirmed, p.records_json, w.raw_id
          FROM staged_payloads p LEFT JOIN raw_writers w ON w.payload_id = p.id
-         WHERE p.unconfirmed = 0
+         WHERE p.unconfirmed = 0 AND (p.created_at, p.id) > (?, ?)
          ORDER BY p.created_at ASC, p.id ASC
          LIMIT ?",
     )
+    .bind(after_at)
+    .bind(after_id)
     .bind(limit as i64)
     .fetch_all(pool)
     .await?;

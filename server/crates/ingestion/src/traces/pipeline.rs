@@ -706,6 +706,8 @@ mod session_tombstone_tests;
 #[cfg(test)]
 mod settlement_skip_tests;
 #[cfg(test)]
+mod staging_sweep_tests;
+#[cfg(test)]
 mod storable_timestamp_tests;
 #[cfg(test)]
 mod strip_unstorable_tests;
