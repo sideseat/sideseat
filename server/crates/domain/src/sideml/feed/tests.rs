@@ -22,3 +22,12 @@ include!("tests_parts/part_16_tests.rs");
 include!("tests_parts/part_17_tests.rs");
 include!("tests_parts/part_18_tests.rs");
 include!("tests_parts/part_19_tests.rs");
+include!("tests_parts/pairing_tests.rs");
+
+/// The pairing generator, in its own module so the proptest prelude stays out of the example tests' namespace.
+mod pairing_props {
+    use super::*;
+    use proptest::prelude::*;
+
+    include!("tests_parts/pairing_props_tests.rs");
+}

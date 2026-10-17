@@ -1,0 +1,10 @@
+# Each rule the pairing model replaces, restored, and the property TLC breaks with it
+# (`scripts/check/model-mutants.sh`).
+# A copy ranked among every same-shaped copy, as the packed occurrence ranks did: a subset carrier shows a retry twice.
+RankAmongShape = TRUE -> Conservation
+# A reused id without its shape: a copy of one of two executions under one id cannot tell them apart.
+NoShapeCheck = TRUE -> Conservation
+# An ambiguous result given to the oldest candidate: it answers an execution that is not its own.
+FirstCandidate = TRUE -> Matching
+# A re-sent result answering, as quote-based failure suppression let it: a failure without a result counts as answered.
+CopiesConsume = TRUE -> FailureAccounting
