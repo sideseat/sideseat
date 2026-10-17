@@ -144,6 +144,10 @@ with sideseat.session("conversation-abc123", user_id="user-7"):
 
 Without the SDK, set the `session.id` attribute on your spans yourself.
 
+A trace belongs to one session: the one on its root span, the span with no parent. A trace whose stored spans have
+no root with a `session.id` belongs to the session on its earliest span that carries one. A child span naming a
+different session does not move its trace, even if it started before the root.
+
 ### Session Properties
 
 | Property | Description |

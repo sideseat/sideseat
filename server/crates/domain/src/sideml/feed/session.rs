@@ -404,11 +404,16 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     // a definition does not contradict absorbs it: in a hash order the same page listed its tools differently
     // between runs.
     let mut spans_by_conversation: BTreeMap<Conversation, Vec<MessageSpanRow>> = BTreeMap::new();
-    for row in rows {
+    for mut row in rows {
         let key = conversation_of_trace
             .get(&row.trace_id)
             .cloned()
             .unwrap_or_else(|| Conversation::LoneTrace(row.trace_id.clone()));
+        // Every message of a trace carries its trace's session, not the one its own span named: a child naming
+        // another session would otherwise link its messages to a session the trace is not in.
+        if let Conversation::Session(session) = &key {
+            row.session_id = Some(session.clone());
+        }
         spans_by_conversation.entry(key).or_default().push(row);
     }
 

@@ -9,7 +9,7 @@ pub fn list_traces(params: &ListTracesParams, backend: Backend) -> PageQuery {
     }
 }
 
-/// Resolve each requested trace to the session on its earliest winning span.
+/// Resolve each requested trace to its canonical session: its root's, else its earliest winning span's.
 pub fn trace_session_pairs(
     project_id: &str,
     trace_ids: &[String],
@@ -20,8 +20,8 @@ pub fn trace_session_pairs(
         return None;
     }
     let session = match backend {
-        Backend::Duckdb => "arg_min(session_id, (timestamp_start, span_id))",
-        Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
+        Backend::Duckdb => duckdb_canonical_session!(),
+        Backend::Clickhouse => clickhouse_canonical_session!(),
     };
     if backend == Backend::Duckdb {
         let (winner, winner_values) = crate::winners::duckdb_winner_condition(as_of_us);
@@ -70,8 +70,8 @@ pub fn session_ids_for_traces(
     params.push(QueryValue::String(project_id.to_string()));
     params.extend(trace_ids.iter().cloned().map(QueryValue::String));
     let session = match backend {
-        Backend::Duckdb => "arg_min(session_id, (timestamp_start, span_id))",
-        Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
+        Backend::Duckdb => duckdb_canonical_session!(),
+        Backend::Clickhouse => clickhouse_canonical_session!(),
     };
     Some(ParameterizedQuery {
         sql: format!(
@@ -87,7 +87,7 @@ pub fn session_ids_for_traces(
     })
 }
 
-/// Resolve requested sessions to the traces whose earliest winning span names one of them.
+/// Resolve requested sessions to the traces whose canonical session is one of them.
 pub fn trace_ids_for_sessions(
     project_id: &str,
     session_ids: &[String],
@@ -101,8 +101,8 @@ pub fn trace_ids_for_sessions(
     params.push(QueryValue::String(project_id.to_string()));
     params.extend(session_ids.iter().cloned().map(QueryValue::String));
     let session = match backend {
-        Backend::Duckdb => "arg_min(session_id, (timestamp_start, span_id))",
-        Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
+        Backend::Duckdb => duckdb_canonical_session!(),
+        Backend::Clickhouse => clickhouse_canonical_session!(),
     };
     Some(ParameterizedQuery {
         sql: format!(

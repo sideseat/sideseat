@@ -188,9 +188,8 @@ pub async fn get_traces_for_session(
 
 /// Which session each of the given traces belongs to; traces with none are absent.
 ///
-/// Membership is deduplicated at `as_of_us`, or with plain `FINAL` for a current read. The relation uses
-/// `argMin` over `(timestamp_start, span_id)` so grouping agrees with the earliest-span session shown by trace
-/// and session views. Watermarked reads share the residual documented by
+/// Membership is deduplicated at `as_of_us`, or with plain `FINAL` for a current read. The session is the
+/// canonical one - the root's, else the earliest span's - so grouping agrees with the trace and session views. Watermarked reads share the residual documented by
 /// `ch_dedup_spans_as_of_watermark`: they are exact only while the pre-watermark revision remains unmerged.
 pub async fn get_trace_session_pairs(
     client: &Client,

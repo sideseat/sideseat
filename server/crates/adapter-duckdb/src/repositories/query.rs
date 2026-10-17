@@ -459,8 +459,8 @@ pub fn delete_traces(
 ///
 /// `DEDUP_SPANS` for the same reason as [`get_session_ids_for_traces`]: the append-only table keeps both
 /// versions of a span whose session changed, so a raw read reports a trace in two sessions at once.
-/// The session is the one on the trace's **earliest** span, which is exactly what the trace and session
-/// views display (`FIRST(session_id ORDER BY timestamp_start)`). `MIN(session_id)` was deterministic but
+/// The session is the trace's canonical one - its root's, else its earliest span's - which is exactly what
+/// the trace and session views display (`duckdb_canonical_session`). `MIN(session_id)` was deterministic but
 /// picked the lexicographically smallest instead, so a trace that started in `z-session` and had a later
 /// span report `a-session` was displayed under one and *grouped* under the other - splitting a conversation
 /// and replaying its shared history as duplicates. `span_id` breaks a timestamp tie, so the answer cannot

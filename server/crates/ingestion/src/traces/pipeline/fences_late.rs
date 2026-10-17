@@ -86,8 +86,8 @@ impl TracePipeline {
             // Which traces this batch actually witnesses the *beginning* of - it carries a span with no
             // parent.
             //
-            // A span that has a parent is not a trace's earliest span, so a batch of only such spans is no
-            // evidence at all about which session the trace belongs to. That matters for a trace the store
+            // A span that has a parent is not a trace's root, whose session decides, so a batch of only such
+            // spans is no evidence at all about which session the trace belongs to. That matters for a trace the store
             // has never seen, where the batch is the only evidence available: two instances ingesting one
             // trace concurrently, or an exporter whose first flush happens to carry a child, would otherwise
             // let a deleted session B tombstone a trace whose root says live session A - and the tombstone

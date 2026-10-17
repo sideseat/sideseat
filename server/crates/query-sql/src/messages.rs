@@ -141,10 +141,11 @@ fn traces_of_session(
             values.push(QueryValue::String(session_id.to_string()));
             (
                 format!(
-                    "SELECT trace_id FROM (\
-                       SELECT trace_id, \
-                              arg_min(session_id, (timestamp_start, span_id)) \
-                              AS canonical_session \
+                    concat!(
+                        "SELECT trace_id FROM (\
+                       SELECT trace_id, ",
+                        duckdb_canonical_session!(),
+                        " AS canonical_session \
                        FROM (\
                          SELECT * FROM otel_spans \
                          WHERE project_id = ? AND {winner} \
@@ -157,6 +158,8 @@ fn traces_of_session(
                        GROUP BY trace_id\
                      ) canonical \
                      WHERE canonical_session = ?"
+                    ),
+                    winner = winner
                 ),
                 values,
             )
@@ -169,10 +172,11 @@ fn traces_of_session(
             values.push(QueryValue::String(session_id.to_string()));
             (
                 format!(
-                    "SELECT trace_id FROM (\
-                       SELECT trace_id, \
-                              argMin(assumeNotNull(session_id), \
-                                     (timestamp_start, span_id)) AS canonical_session \
+                    concat!(
+                        "SELECT trace_id FROM (\
+                       SELECT trace_id, ",
+                        clickhouse_canonical_session!(),
+                        " AS canonical_session \
                        FROM {source} \
                        WHERE project_id = ? \
                          AND trace_id IN (\
@@ -183,6 +187,8 @@ fn traces_of_session(
                        GROUP BY trace_id\
                      ) canonical \
                      WHERE canonical_session = ?"
+                    ),
+                    source = source
                 ),
                 values,
             )

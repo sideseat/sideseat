@@ -374,8 +374,7 @@ pub(super) fn duckdb_trace_projection() -> String {
     MAX(COALESCE(s.timestamp_end, s.timestamp_start)) AS end_time,
     DATE_DIFF('millisecond', MIN(s.timestamp_start),
               MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
-    FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id)
-        FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
+    {session} AS session_id,
     FIRST(s.user_id ORDER BY s.timestamp_start, s.span_id)
         FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
     FIRST(s.environment ORDER BY s.timestamp_start, s.span_id)
@@ -411,7 +410,8 @@ pub(super) fn duckdb_trace_projection() -> String {
     ) AS output_preview,
     bool_or(s.status_code = 'ERROR') AS has_error"#,
         trace_name =
-            crate::display::trace_display_name("s", crate::display::DisplayNameDialect::DuckDb)
+            crate::display::trace_display_name("s", crate::display::DisplayNameDialect::DuckDb),
+        session = duckdb_canonical_session!("s.")
     )
 }
 
@@ -442,8 +442,7 @@ pub(super) fn clickhouse_trace_projection() -> String {
         max(coalesce(s.timestamp_end, s.timestamp_start)))) AS end_time,
     dateDiff('millisecond', min(s.timestamp_start),
              max(coalesce(s.timestamp_end, s.timestamp_start))) AS duration_ms,
-    argMinIf(s.session_id, (s.timestamp_start, s.span_id),
-             s.session_id IS NOT NULL) AS session_id,
+    {session} AS session_id,
     argMinIf(s.user_id, (s.timestamp_start, s.span_id),
              s.user_id IS NOT NULL) AS user_id,
     argMinIf(s.environment, (s.timestamp_start, s.span_id),
@@ -472,7 +471,8 @@ pub(super) fn clickhouse_trace_projection() -> String {
     ) AS output_preview,
     coalesce(max(s.status_code = 'ERROR'), 0) AS has_error"#,
         trace_name =
-            crate::display::trace_display_name("s", crate::display::DisplayNameDialect::ClickHouse)
+            crate::display::trace_display_name("s", crate::display::DisplayNameDialect::ClickHouse),
+        session = clickhouse_canonical_session!(nullable "s.")
     )
 }
 

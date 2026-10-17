@@ -314,3 +314,38 @@ fn a_bare_prompt_asked_twice_is_shown_twice() {
     .collect();
     assert_eq!(texts, ["Q", "A1", "Q", "A2"]);
 }
+
+/// Every message of a trace carries its trace's session, as the store resolves it: a child that names another
+/// session links its messages to the root's, the session the trace is in.
+#[test]
+fn a_childs_messages_carry_its_traces_session() {
+    let turn = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"role": "user", "content": "a question"}
+    }]);
+    let mut child = make_span_row(
+        "trace1",
+        "child",
+        Some("root"),
+        &turn.to_string(),
+        "[]",
+        "[]",
+    );
+    child.session_id = Some("child-session".to_string());
+    let options = FeedOptions::new().with_session_of_trace(std::collections::HashMap::from([(
+        "trace1".to_string(),
+        "root-session".to_string(),
+    )]));
+    let feed = process_feed(vec![child], &options);
+    assert!(!feed.messages.is_empty());
+    assert!(
+        feed.messages
+            .iter()
+            .all(|block| block.session_id.as_deref() == Some("root-session")),
+        "{:?}",
+        feed.messages
+            .iter()
+            .map(|block| block.session_id.clone())
+            .collect::<Vec<_>>()
+    );
+}

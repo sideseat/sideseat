@@ -263,7 +263,7 @@ function SpanDetailContent({
 
   // The trace, for its session id only.
   //
-  // A span carries the session *it* knew, and a trace belongs to the session on its earliest span - so a
+  // A span carries the session *it* knew, and a trace belongs to its root's session, else its earliest span's - so a
   // child naming another session sent "View in session" to a page that shows nothing, because every read
   // resolves the trace elsewhere. The trace endpoint reports the canonical one.
   // The trace is what knows the session: see `sessionForNavigation`.

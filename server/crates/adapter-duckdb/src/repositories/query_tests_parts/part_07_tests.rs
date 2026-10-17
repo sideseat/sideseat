@@ -205,3 +205,74 @@ async fn a_call_in_a_trace_past_the_first_chunk_is_read() {
         "the call in the last chunk is read, and the chunks' rows are in one order, a tie broken by span"
     );
 }
+
+/// A trace is its root's session, else its earliest span's: a child that started before its parent - on another
+/// host's clock - and names another session no longer moves the trace, and a rootless trace still has a session.
+#[tokio::test]
+async fn a_trace_is_its_roots_session_else_its_earliest_spans() {
+    let (_tmp, service) = create_test_service().await;
+    let at = |trace: &str, span: &str, parent: Option<&str>, session: &str, second: i64| {
+        NormalizedSpan {
+            project_id: Some("p".to_string()),
+            trace_id: trace.to_string(),
+            span_id: span.to_string(),
+            parent_span_id: parent.map(str::to_string),
+            span_name: span.to_string(),
+            session_id: Some(session.to_string()),
+            timestamp_start: Utc.timestamp_opt(1_700_000_000 + second, 0).unwrap(),
+            ..Default::default()
+        }
+    };
+    {
+        let conn = service.conn();
+        insert_batch(
+            &conn,
+            &[
+                at("rooted", "root", None, "root-session", 5),
+                at("rooted", "early-child", Some("root"), "child-session", 0),
+                at("rootless", "late", Some("gone"), "late-session", 9),
+                at("rootless", "early", Some("gone"), "early-session", 1),
+            ],
+        )
+        .expect("spans");
+    }
+    let conn = service.conn();
+    let traces = ["rooted".to_string(), "rootless".to_string()];
+    assert_eq!(
+        get_trace_session_pairs(&conn, "p", &traces, None).expect("pairs"),
+        vec![
+            ("rooted".to_string(), "root-session".to_string()),
+            ("rootless".to_string(), "early-session".to_string()),
+        ]
+    );
+    assert_eq!(
+        get_trace_ids_for_sessions(&conn, "p", &["child-session".to_string()], None)
+            .expect("child"),
+        Vec::<String>::new(),
+        "a child's session does not take a trace whose root names another"
+    );
+    assert_eq!(
+        get_trace_ids_for_sessions(&conn, "p", &["root-session".to_string()], None).expect("root"),
+        vec!["rooted".to_string()]
+    );
+    // What the trace response reports, and what the dashboard counts, follow the same rule.
+    assert_eq!(
+        get_trace(&conn, "p", "rooted")
+            .expect("trace")
+            .and_then(|trace| trace.session_id)
+            .as_deref(),
+        Some("root-session")
+    );
+    let stats = crate::repositories::stats::get_project_stats(
+        &conn,
+        &sideseat_ports::types::StatsParams {
+            project_id: sideseat_ports::types::ProjectId::from("p"),
+            from_timestamp: Utc.timestamp_opt(1_699_990_000, 0).unwrap(),
+            to_timestamp: Utc.timestamp_opt(1_700_010_000, 0).unwrap(),
+            timezone: "UTC".parse().unwrap(),
+        },
+        Utc.timestamp_opt(1_700_010_000, 0).unwrap(),
+    )
+    .expect("stats");
+    assert_eq!(stats.counts.sessions, 2, "root-session and early-session");
+}

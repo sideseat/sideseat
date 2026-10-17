@@ -57,9 +57,9 @@ impl TracePipeline {
     ///
     /// A subscriber filtered by session compares `event.session_id`, so the value has to be the one a
     /// subsequent read will return - and only the store can say what that is. The canonical session is the
-    /// one on the trace's *earliest* span, and an earlier span may have arrived in a previous batch, so
-    /// resolving from the batch alone announced a span under session B while every read placed its trace
-    /// under A. The live stream and the page then disagree about the same trace, which for a debugging tool
+    /// root's, else the one on the trace's earliest span, and the root - or an earlier span - may have arrived in
+    /// a previous batch, so resolving from the batch alone announced a span under session B while every read
+    /// placed its trace under A. The live stream and the page then disagree about the same trace, which for a debugging tool
     /// reads as a message that appears and then cannot be found.
     ///
     /// Run **after** the write, so the store's answer includes this batch's own spans - and the store's answer
@@ -74,11 +74,9 @@ impl TracePipeline {
     /// from one guess. The next read is authoritative either way.
     ///
     /// **Unconditional**, and that costs about 2.7 ms per batch (22.4 -> 25.1 ms on the `langgraph/swarm`
-    /// ingestion benchmark). Skipping it for traces whose parentless span this batch carries was tried and
-    /// reverted: it recovers about half of that and privileges the root span, which is exactly what the
-    /// canonical rule refuses to do - in a distributed trace a child produced on another host can carry an
-    /// earlier start time than its parent, so a batch holding the root still does not know the answer, and the
-    /// case it would get wrong is the misrouting this exists to fix.
+    /// ingestion benchmark). Skipping it for traces whose parentless span this batch carries would recover about
+    /// half of that, and is still wrong: a root without a session leaves the earliest span to decide, and that span
+    /// can be stored already.
     pub(super) async fn stamp_stored_sessions(&self, events: &mut [SseSpanEvent]) {
         let mut by_project: HashMap<String, HashSet<String>> = HashMap::new();
         for event in events.iter() {

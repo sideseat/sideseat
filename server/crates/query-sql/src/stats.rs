@@ -120,10 +120,8 @@ WHERE s.project_id = ?
 fn canonical_session_count(params: &StatsParams, backend: Backend) -> ParameterizedQuery {
     let source = winning_spans(backend);
     let aggregate = match backend {
-        Backend::Duckdb => "arg_min(raw.session_id, (raw.timestamp_start, raw.span_id))",
-        Backend::Clickhouse => {
-            "argMin(assumeNotNull(raw.session_id), (raw.timestamp_start, raw.span_id))"
-        }
+        Backend::Duckdb => duckdb_canonical_session!("raw."),
+        Backend::Clickhouse => clickhouse_canonical_session!("raw."),
     };
     let count = match backend {
         Backend::Duckdb => "COUNT(DISTINCT c.session_id)",

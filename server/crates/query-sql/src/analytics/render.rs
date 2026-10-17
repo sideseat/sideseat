@@ -184,8 +184,11 @@ impl AnalyticsDialect for DuckdbAnalyticsDialect {
     }
 
     fn traces_of_session_relation(&self) -> &'static str {
-        "SELECT trace_id FROM ( \
-           SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+        concat!(
+            "SELECT trace_id FROM ( \
+           SELECT trace_id, ",
+            duckdb_canonical_session!(),
+            " AS canonical_session \
            FROM (SELECT * FROM otel_spans \
                  WHERE project_id = ? \
                  AND trace_id IN (SELECT trace_id FROM otel_spans \
@@ -194,6 +197,7 @@ impl AnalyticsDialect for DuckdbAnalyticsDialect {
            WHERE session_id IS NOT NULL AND session_id != '' \
            GROUP BY trace_id \
          ) WHERE canonical_session = ?"
+        )
     }
 
     fn traces_of_session_values(&self, project_id: &str, session_id: &str) -> Vec<QueryValue> {
@@ -206,11 +210,14 @@ impl AnalyticsDialect for DuckdbAnalyticsDialect {
     }
 
     fn canonical_trace_sessions_relation(&self) -> &'static str {
-        "SELECT project_id, trace_id, \
-           arg_min(session_id, (timestamp_start, span_id)) AS session_id \
+        concat!(
+            "SELECT project_id, trace_id, ",
+            duckdb_canonical_session!(),
+            " AS session_id \
          FROM (SELECT * FROM otel_spans WHERE superseded_at IS NULL) \
          WHERE session_id IS NOT NULL AND session_id != '' \
          GROUP BY project_id, trace_id"
+        )
     }
 
     fn canonical_session_column(&self) -> &'static str {
@@ -323,9 +330,11 @@ impl AnalyticsDialect for ClickhouseAnalyticsDialect {
     }
 
     fn traces_of_session_relation(&self) -> &'static str {
-        "SELECT trace_id FROM ( \
-           SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) \
-                  AS canonical_session \
+        concat!(
+            "SELECT trace_id FROM ( \
+           SELECT trace_id, ",
+            clickhouse_canonical_session!(),
+            " AS canonical_session \
            FROM otel_spans FINAL \
            WHERE project_id = ? \
            AND trace_id IN (SELECT trace_id FROM otel_spans \
@@ -333,6 +342,7 @@ impl AnalyticsDialect for ClickhouseAnalyticsDialect {
            AND session_id IS NOT NULL AND session_id != '' \
            GROUP BY trace_id \
          ) WHERE canonical_session = ?"
+        )
     }
 
     fn traces_of_session_values(&self, project_id: &str, session_id: &str) -> Vec<QueryValue> {
@@ -345,11 +355,14 @@ impl AnalyticsDialect for ClickhouseAnalyticsDialect {
     }
 
     fn canonical_trace_sessions_relation(&self) -> &'static str {
-        "SELECT project_id, trace_id, \
-           argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS canonical_session \
+        concat!(
+            "SELECT project_id, trace_id, ",
+            clickhouse_canonical_session!(),
+            " AS canonical_session \
          FROM otel_spans FINAL \
          WHERE session_id IS NOT NULL AND session_id != '' \
          GROUP BY project_id, trace_id"
+        )
     }
 
     fn canonical_session_column(&self) -> &'static str {

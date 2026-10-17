@@ -585,3 +585,97 @@ async fn tied_frameworks_come_back_by_name_on_both_backends() {
         assert_eq!(listed, sorted[..listed.len()].to_vec());
     }
 }
+
+/// A trace is its root's session, else its earliest span's, on both backends and through every read that resolves
+/// membership: a child that started before its parent and names another session does not move the trace, and a
+/// rootless trace takes its earliest span's.
+#[tokio::test]
+async fn a_trace_is_its_roots_session_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_root_session").await;
+    let span = |trace: &str, span_id: &str, parent: Option<&str>, session: &str, second: i64| {
+        NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: trace.to_string(),
+            span_id: span_id.to_string(),
+            parent_span_id: parent.map(str::to_string),
+            span_name: span_id.to_string(),
+            session_id: Some(session.to_string()),
+            timestamp_start: ts(second),
+            ingested_at: Some(ts(100)),
+            ..Default::default()
+        }
+    };
+    let project = ProjectId::from(PROJECT);
+    let traces = ["rooted".to_string(), "rootless".to_string()];
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(vec![
+            span("rooted", "root", None, "root-session", 5),
+            span("rooted", "early-child", Some("root"), "child-session", 0),
+            span("rootless", "late", Some("gone"), "late-session", 9),
+            span("rootless", "early", Some("gone"), "early-session", 1),
+        ])
+        .await
+        .expect("spans");
+        assert_eq!(
+            repo.get_trace_session_pairs(&project, &traces, None)
+                .await
+                .expect("pairs"),
+            vec![
+                ("rooted".to_string(), "root-session".to_string()),
+                ("rootless".to_string(), "early-session".to_string()),
+            ]
+        );
+        assert_eq!(
+            repo.get_trace_ids_for_sessions(&project, &["child-session".to_string()], None)
+                .await
+                .expect("child"),
+            Vec::<String>::new(),
+            "a child's session does not take a trace whose root names another"
+        );
+        let mut sessions = repo
+            .get_session_ids_for_traces(&project, &traces, None)
+            .await
+            .expect("sessions");
+        sessions.sort();
+        assert_eq!(sessions, vec!["early-session", "root-session"]);
+        assert_eq!(
+            repo.get_session(&project, "root-session")
+                .await
+                .expect("root session")
+                .map(|session| session.trace_count),
+            Some(1)
+        );
+        assert!(
+            repo.get_session(&project, "child-session")
+                .await
+                .expect("child session")
+                .is_none(),
+            "no trace belongs to the session only an early child names"
+        );
+        // What the trace response reports, and what the dashboard counts, follow the same rule.
+        assert_eq!(
+            repo.get_trace(&project, "rooted")
+                .await
+                .expect("trace")
+                .and_then(|trace| trace.session_id)
+                .as_deref(),
+            Some("root-session")
+        );
+        let stats = repo
+            .get_project_stats(&sideseat_ports::types::StatsParams {
+                project_id: project.clone(),
+                from_timestamp: ts(-3600),
+                to_timestamp: ts(3600),
+                timezone: "UTC".parse().unwrap(),
+            })
+            .await
+            .expect("stats");
+        assert_eq!(stats.counts.sessions, 2, "root-session and early-session");
+    }
+}

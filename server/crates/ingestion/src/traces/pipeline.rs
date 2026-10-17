@@ -564,10 +564,11 @@ fn traces_of_sessions(
         .collect()
 }
 
-/// The session each `(project, trace)` in this batch belongs to: the one on its **earliest** span.
+/// The session each `(project, trace)` in this batch belongs to: its **root's**, else its earliest span's.
 ///
-/// The same rule the reads use - `arg_min(session_id, (timestamp_start, span_id))` - so ingestion and
-/// retrieval cannot disagree about which session a trace is in. Taking whichever span happened to come first
+/// The same rule the reads use - the root's session (a span with no parent), else `arg_min(session_id,
+/// (timestamp_start, span_id))` - so ingestion and retrieval cannot disagree about which session a trace is in
+/// (`docs/engineering/write-protocol.md`, section 6). Taking whichever span happened to come first
 /// in the batch made that a function of iteration order; taking *any* span that named a deleted session was
 /// worse still, and it is what let a redelivery of a trace canonically in session A be tombstoned and
 /// dropped in full because one of its child spans named a deleted session B.
@@ -581,8 +582,9 @@ fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, Str
     type TraceKey = (String, String);
     /// `(project, trace, span)` - one delivery survives per span, as storage keeps one row per span.
     type SpanKey = (String, String, String);
-    /// `(timestamp_start, span_id)` - the same total order the reads use.
-    type EarliestBy = (chrono::DateTime<chrono::Utc>, String);
+    /// `(not a root, timestamp_start, span_id)` - the same total order the reads use: a root first, then the
+    /// earliest.
+    type EarliestBy = (bool, chrono::DateTime<chrono::Utc>, String);
 
     // Two passes, mirroring what the store actually does.
     //
@@ -592,12 +594,12 @@ fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, Str
     // session still counted with its earlier session, so a trace whose session had been removed was fenced
     // against the deleted one.
     //
-    // Then the session on the earliest surviving span that has one, which is `arg_min(session_id, …)` after
-    // `WHERE session_id IS NOT NULL`. A sessionless span is not a candidate - folding it into the first pass
+    // Then the session on the surviving root that has one, else on the earliest surviving span that has one -
+    // the reads' rule after `WHERE session_id IS NOT NULL`. A sessionless span is not a candidate - folding it into the first pass
     // as a competing value made the *earliest span* depend on spans that say nothing about membership.
-    let mut latest: HashMap<SpanKey, (usize, Option<String>, chrono::DateTime<chrono::Utc>)> =
-        HashMap::new();
-    for (position, span) in spans.iter().enumerate() {
+    type Delivery = (Option<String>, bool, chrono::DateTime<chrono::Utc>);
+    let mut latest: HashMap<SpanKey, Delivery> = HashMap::new();
+    for span in spans {
         let project = span
             .project_id
             .as_deref()
@@ -608,22 +610,23 @@ fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, Str
             .as_deref()
             .filter(|v| !v.is_empty())
             .map(str::to_string);
+        let root = span.parent_span_id.as_deref().unwrap_or("").is_empty();
         latest.insert(
             (project, span.trace_id.clone(), span.span_id.clone()),
-            (position, session, span.timestamp_start),
+            (session, root, span.timestamp_start),
         );
     }
 
     let mut best: HashMap<TraceKey, (EarliestBy, String)> = HashMap::new();
     #[expect(
         clippy::iter_over_hash_type,
-        reason = "the earliest by start and span id, a total order, whatever order they are met in"
+        reason = "a root, then the earliest by start and span id: a total order, whatever order they are met in"
     )]
-    for ((project, trace, span_id), (_, session, timestamp_start)) in latest {
+    for ((project, trace, span_id), (session, root, timestamp_start)) in latest {
         let Some(session_id) = session else {
             continue;
         };
-        let key = (timestamp_start, span_id);
+        let key = (!root, timestamp_start, span_id);
         best.entry((project, trace))
             .and_modify(|current| {
                 if key < current.0 {

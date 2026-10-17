@@ -552,3 +552,32 @@ fn a_session_id_in_another_project_is_a_different_session() {
         "a deletion in one project must not reach another project's session of the same name"
     );
 }
+
+/// The batch's own resolution follows the reads: the root's session, else the earliest span's. A child that started
+/// before its parent and names another session does not decide the trace.
+#[test]
+fn a_root_decides_its_trace_s_session_over_an_earlier_child() {
+    let mut early_child = at("p", "t1", "child", Some("session-b"), 0);
+    early_child.parent_span_id = Some("root".to_string());
+    let spans = vec![at("p", "t1", "root", Some("session-a"), 5), early_child];
+    assert_eq!(
+        canonical_session_of_traces(&spans)
+            .get(&("p".to_string(), "t1".to_string()))
+            .map(String::as_str),
+        Some("session-a")
+    );
+
+    let mut rootless: Vec<NormalizedSpan> = vec![
+        at("p", "t2", "late", Some("session-late"), 9),
+        at("p", "t2", "early", Some("session-early"), 1),
+    ];
+    for span in &mut rootless {
+        span.parent_span_id = Some("gone".to_string());
+    }
+    assert_eq!(
+        canonical_session_of_traces(&rootless)
+            .get(&("p".to_string(), "t2".to_string()))
+            .map(String::as_str),
+        Some("session-early")
+    );
+}
