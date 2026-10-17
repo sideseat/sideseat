@@ -488,6 +488,31 @@ pub fn get_trace_session_pairs(
     Ok(pairs)
 }
 
+/// The current membership of each of the given traces that has a stored row, ordered by trace id.
+pub fn get_trace_memberships(
+    conn: &Connection,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<sideseat_ports::types::TraceMembership>, DuckdbError> {
+    let Some(query) = analytics::trace_memberships(project_id, trace_ids, "", Backend::Duckdb)
+    else {
+        return Ok(vec![]);
+    };
+    let values = duckdb_values(query.params());
+    let mut stmt = conn.prepare(query.sql())?;
+    let mut rows = stmt.query(values.as_slice())?;
+    let mut memberships = Vec::new();
+    while let Some(row) = rows.next()? {
+        memberships.push(sideseat_ports::types::TraceMembership {
+            trace_id: row.get(0)?,
+            session_id: row.get(1)?,
+            rooted: row.get(2)?,
+            first_received_us: row.get(3)?,
+        });
+    }
+    Ok(memberships)
+}
+
 pub fn get_session_ids_for_traces(
     conn: &Connection,
     project_id: &str,

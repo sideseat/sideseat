@@ -155,6 +155,7 @@ async fn age_retention_and_its_hold_answer_alike() {
     let config = sideseat_core::config::RetentionConfig {
         max_age_minutes: Some(60),
         max_spans: None,
+        ..Default::default()
     };
 
     let (_duck_temp, duckdb) = duckdb_backend().await;

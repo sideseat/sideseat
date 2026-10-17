@@ -1,0 +1,8 @@
+# Each guard the configuration's header calls necessary, and the invariant TLC breaks without it
+# (`scripts/check/model-mutants.sh`).
+RootFirst = FALSE -> LiveRootKept
+DecidingRoot = FALSE -> LiveRootKept
+Gate = FALSE -> LiveRootKept
+CutoffFirst = FALSE -> LiveRootKept
+FenceOnRoot = FALSE -> LiveRootKept
+PostWriteRooted = FALSE -> LiveRootKept

@@ -173,6 +173,10 @@ pub const DUCKDB_QUERY_TIMEOUT_SECS: u64 = 30;
 /// Environment variable for OTEL retention max age in minutes
 pub const ENV_OTEL_RETENTION_MAX_AGE_MINUTES: &str = "SIDESEAT_OTEL_RETENTION_MAX_AGE_MINUTES";
 
+/// How long a rootless trace of a deleted session waits for its root: seven days, the queue's default retention -
+/// the longest the system itself can hold back an accepted export that may carry the root.
+pub const DEFAULT_SESSION_DELETION_GRACE_MINUTES: u64 = 7 * 24 * 60;
+
 /// Environment variable for OTEL retention max spans
 pub const ENV_OTEL_RETENTION_MAX_SPANS: &str = "SIDESEAT_OTEL_RETENTION_MAX_SPANS";
 

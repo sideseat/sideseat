@@ -14,10 +14,11 @@ use super::constants::{
     DEFAULT_OTEL_STAGING_REDRIVE_CAP, DEFAULT_PORT, DEFAULT_RATE_LIMIT_API_RPM,
     DEFAULT_RATE_LIMIT_AUTH_RPM, DEFAULT_RATE_LIMIT_FILES_RPM, DEFAULT_RATE_LIMIT_INGESTION_RPM,
     DEFAULT_REDPANDA_BROKERS, DEFAULT_REDPANDA_PARTITIONS, DEFAULT_REDPANDA_REPLICATION_FACTOR,
-    DEFAULT_REDPANDA_RETENTION_MS, DEFAULT_REDPANDA_RETENTION_WARNING_MS, ENV_SECRETS_AWS_PREFIX,
-    ENV_SECRETS_AWS_REGION, ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR,
-    ENV_SECRETS_VAULT_MOUNT, ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN,
-    FILES_DEFAULT_QUOTA_BYTES, FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
+    DEFAULT_REDPANDA_RETENTION_MS, DEFAULT_REDPANDA_RETENTION_WARNING_MS,
+    DEFAULT_SESSION_DELETION_GRACE_MINUTES, ENV_SECRETS_AWS_PREFIX, ENV_SECRETS_AWS_REGION,
+    ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR, ENV_SECRETS_VAULT_MOUNT,
+    ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN, FILES_DEFAULT_QUOTA_BYTES,
+    FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
     POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS, POSTGRES_DEFAULT_MAX_CONNECTIONS,
     POSTGRES_DEFAULT_MAX_LIFETIME_SECS, POSTGRES_DEFAULT_MIN_CONNECTIONS,
     POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS, PRICING_SYNC_INTERVAL_SECS,
@@ -93,10 +94,24 @@ pub struct OtelConfig {
 }
 
 /// Retention configuration
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RetentionConfig {
     pub max_age_minutes: Option<u64>,
     pub max_spans: Option<u64>,
+    /// How long a trace with no stored root, whose spans name a deleted session, waits for its root before it is
+    /// deleted with the session: the root's session decides a trace's, and a root may arrive after its children.
+    pub session_deletion_grace_minutes: u64,
+}
+
+impl Default for RetentionConfig {
+    fn default() -> Self {
+        Self {
+            max_age_minutes: None,
+            max_spans: None,
+            session_deletion_grace_minutes:
+                crate::constants::DEFAULT_SESSION_DELETION_GRACE_MINUTES,
+        }
+    }
 }
 
 /// Pricing configuration (final/runtime)

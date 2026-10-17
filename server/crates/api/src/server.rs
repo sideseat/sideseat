@@ -189,6 +189,9 @@ impl ApiServer {
             app.clock.clone(),
             app.storage_governance.clone(),
             app.shutdown_rx.clone(),
+            std::time::Duration::from_secs(
+                app.config.otel.retention.session_deletion_grace_minutes * 60,
+            ),
         )
         .layer(axum::middleware::from_fn_with_state(
             AuthState {

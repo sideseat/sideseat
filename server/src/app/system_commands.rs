@@ -67,8 +67,15 @@ pub(super) async fn run_restore_repair(mut app: CoreApp, report_path: Option<&Pa
     // trace the backup lost the association of may name the same one.
     let ownership_rebuilt_before_journal =
         rebuild_restored_ownership(&app.database_port, &app.analytics_port, &app.files).await?;
-    let journal =
-        replay_deletion_journal(&app.database_port, &app.analytics_port, &app.files).await?;
+    let journal = replay_deletion_journal(
+        &app.database_port,
+        &app.analytics_port,
+        &app.files,
+        std::time::Duration::from_secs(
+            app.config.otel.retention.session_deletion_grace_minutes * 60,
+        ),
+    )
+    .await?;
 
     app.analytics
         .run_retention_to_completion(

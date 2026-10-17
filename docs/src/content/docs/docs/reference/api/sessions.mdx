@@ -77,6 +77,14 @@ Request body:
 { "session_ids": ["session-123", "session-456"] }
 ```
 
+Deleting a session deletes the traces that belong to it: those whose root span names it, and those with no root
+span that names a session whose earliest span names it. A trace whose root has not arrived yet is held, because
+its root decides its session: if the root arrives naming another session, the trace is kept whole, including its
+spans that named the deleted one. A rootless trace still waiting when
+[`retention.session_deletion_grace_minutes`](/docs/reference/config/) has passed since its first span arrived
+(7 days by default) is deleted - by a check that backs off to once a day, so up to a day later - and a root
+arriving after that is dropped with it. Until then its spans stay readable.
+
 ## Get Filter Options
 
 ```

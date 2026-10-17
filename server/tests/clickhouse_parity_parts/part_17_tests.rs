@@ -679,3 +679,215 @@ async fn a_trace_is_its_roots_session_on_both_backends() {
         assert_eq!(stats.counts.sessions, 2, "root-session and early-session");
     }
 }
+
+/// A trace's stored membership - canonical session, root stored, first receipt - reads alike on both backends.
+#[tokio::test]
+async fn trace_memberships_read_alike_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_trace_memberships").await;
+    let span =
+        |trace: &str, span_id: &str, parent: Option<&str>, session: Option<&str>, received: i64| {
+            NormalizedSpan {
+                project_id: Some(PROJECT.to_string()),
+                trace_id: trace.to_string(),
+                span_id: span_id.to_string(),
+                parent_span_id: parent.map(str::to_string),
+                span_name: span_id.to_string(),
+                session_id: session.map(str::to_string),
+                timestamp_start: ts(0),
+                ingested_at: Some(ts(received)),
+                ..Default::default()
+            }
+        };
+    let project = ProjectId::from(PROJECT);
+    let traces = [
+        "rooted".to_string(),
+        "rootless".to_string(),
+        "sessionless".to_string(),
+        "absent".to_string(),
+    ];
+    let mut answers = Vec::new();
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(vec![
+            span("rooted", "root", None, Some("s"), 200),
+            span("rooted", "child", Some("root"), Some("s"), 100),
+            span("rootless", "child", Some("gone"), Some("d"), 300),
+            span("sessionless", "root", None, None, 400),
+        ])
+        .await
+        .expect("spans");
+        let memberships = repo
+            .get_trace_memberships(&project, &traces)
+            .await
+            .expect("memberships");
+        assert_eq!(
+            memberships
+                .iter()
+                .map(|m| (m.trace_id.as_str(), m.session_id.as_deref(), m.rooted))
+                .collect::<Vec<_>>(),
+            vec![
+                ("rooted", Some("s"), true),
+                ("rootless", Some("d"), false),
+                ("sessionless", None, false),
+            ]
+        );
+        answers.push(memberships);
+    }
+    assert_eq!(
+        answers[0], answers[1],
+        "first receipts differ between backends"
+    );
+}
+
+/// Two revisions of a root received at the same instant, naming different sessions, in two inserts: before a merge
+/// settles which stands, ClickHouse may read either, so its membership read - which deletions decide on - reports no session and no
+/// deciding root, and nothing deletes the trace. DuckDB keeps one winner by insertion order, as its storage does.
+#[tokio::test]
+async fn tied_root_revisions_decide_nothing_on_clickhouse() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let database = "sideseat_parity_tied_root_revisions";
+    let ch = clickhouse_backend(&url, database).await;
+    // Two inserts - one insert collapses tied rows as it writes - with merges stopped, so the pair stays unsettled.
+    raw_client(&url, database)
+        .query("SYSTEM STOP MERGES otel_spans")
+        .execute()
+        .await
+        .expect("stop merges");
+    let root = |session: &str| NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "tied".to_string(),
+        span_id: "root".to_string(),
+        span_name: "root".to_string(),
+        session_id: Some(session.to_string()),
+        timestamp_start: ts(0),
+        ingested_at: Some(ts(100)),
+        ..Default::default()
+    };
+    ch.insert_spans(vec![root("session-d")])
+        .await
+        .expect("first");
+    ch.insert_spans(vec![root("session-l")])
+        .await
+        .expect("second");
+    let memberships = ch
+        .get_trace_memberships(&ProjectId::from(PROJECT), &["tied".to_string()])
+        .await
+        .expect("memberships");
+    assert_eq!(memberships.len(), 1);
+    assert_eq!(
+        (memberships[0].session_id.as_deref(), memberships[0].rooted),
+        (None, false)
+    );
+}
+
+/// A root corrected - received later - to name no session, both revisions unmerged: its latest revision stands, so
+/// the root decides nothing and the trace is held for the grace. `argMax` skips NULLs, which brought the cleared
+/// session back.
+#[tokio::test]
+async fn a_root_corrected_to_no_session_decides_nothing_on_clickhouse() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let database = "sideseat_parity_root_cleared";
+    let ch = clickhouse_backend(&url, database).await;
+    // Separate inserts - one insert collapses a span's revisions as it writes - with merges stopped.
+    raw_client(&url, database)
+        .query("SYSTEM STOP MERGES otel_spans")
+        .execute()
+        .await
+        .expect("stop merges");
+    let span = |span_id: &str, parent: Option<&str>, session: Option<&str>, received: i64| {
+        NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "cleared".to_string(),
+            span_id: span_id.to_string(),
+            parent_span_id: parent.map(str::to_string),
+            span_name: span_id.to_string(),
+            session_id: session.map(str::to_string),
+            timestamp_start: ts(0),
+            ingested_at: Some(ts(received)),
+            ..Default::default()
+        }
+    };
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(vec![
+            span("root", None, Some("session-d"), 100),
+            span("child", Some("root"), Some("session-d"), 150),
+        ])
+        .await
+        .expect("first");
+        repo.insert_spans(vec![span("root", None, None, 200)])
+            .await
+            .expect("the correction");
+        let memberships = repo
+            .get_trace_memberships(&ProjectId::from(PROJECT), &["cleared".to_string()])
+            .await
+            .expect("memberships");
+        assert_eq!(
+            memberships
+                .iter()
+                .map(|m| (m.session_id.as_deref(), m.rooted))
+                .collect::<Vec<_>>(),
+            vec![(Some("session-d"), false)],
+            "the child names the session; the corrected root decides nothing"
+        );
+    }
+}
+
+/// Revisions of one span tied on receipt and differing only in start time can still move the trace - the earliest
+/// span decides a rootless trace - so they too leave it undecided on ClickHouse until a merge settles them.
+#[tokio::test]
+async fn start_time_ties_leave_a_rootless_trace_undecided_on_clickhouse() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let database = "sideseat_parity_start_ties";
+    let ch = clickhouse_backend(&url, database).await;
+    raw_client(&url, database)
+        .query("SYSTEM STOP MERGES otel_spans")
+        .execute()
+        .await
+        .expect("stop merges");
+    let span = |span_id: &str, session: &str, start: i64| NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "ties".to_string(),
+        span_id: span_id.to_string(),
+        parent_span_id: Some("gone".to_string()),
+        span_name: span_id.to_string(),
+        session_id: Some(session.to_string()),
+        timestamp_start: ts(start),
+        ingested_at: Some(ts(100)),
+        ..Default::default()
+    };
+    ch.insert_spans(vec![span("a", "session-d", 0), span("b", "session-l", 5)])
+        .await
+        .expect("first");
+    ch.insert_spans(vec![span("a", "session-d", 10)])
+        .await
+        .expect("the tied revision");
+    let memberships = ch
+        .get_trace_memberships(&ProjectId::from(PROJECT), &["ties".to_string()])
+        .await
+        .expect("memberships");
+    assert_eq!(
+        memberships
+            .iter()
+            .map(|m| (m.session_id.as_deref(), m.rooted))
+            .collect::<Vec<_>>(),
+        vec![(None, false)]
+    );
+}

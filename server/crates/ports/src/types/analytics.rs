@@ -21,6 +21,21 @@ pub struct PressureSpanCandidate {
     pub logical_bytes: u64,
 }
 
+/// What the store holds about one trace's session: its canonical session, whether its root is stored, and when its
+/// earliest stored row was received. A trace whose root is stored has a final session; one without may still be
+/// moved by its root, so deleting it with a session waits (`retention.session_deletion_grace_minutes`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraceMembership {
+    pub trace_id: String,
+    /// Its root's session, else its earliest span's; None when no stored span names one.
+    pub session_id: Option<String>,
+    /// A span with no parent naming a session is stored, so the session is final. A root without a session leaves the
+    /// earliest span to decide, which a later-arriving span can still change.
+    pub rooted: bool,
+    /// When the earliest of its stored rows was received, in microseconds since the epoch.
+    pub first_received_us: i64,
+}
+
 /// Result row for trace queries
 #[derive(Debug)]
 pub struct TraceRow {

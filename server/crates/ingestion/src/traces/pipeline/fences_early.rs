@@ -202,15 +202,21 @@ impl TracePipeline {
             let typed_project = ProjectId::from(project.as_str());
             trace_ids.sort_unstable();
             trace_ids.dedup();
+            // The replica-complete read a deletion decides on: a root committed on a replica this instance's reads lag
+            // behind would otherwise be missed, and the trace taken from a live session.
             match self
                 .analytics
                 .as_ref()
-                .get_trace_session_pairs(&typed_project, &trace_ids, None)
+                .get_trace_memberships(&typed_project, &trace_ids)
                 .await
             {
-                Ok(pairs) => {
-                    for (trace, session) in pairs {
-                        session_of.insert((project.clone(), trace), session);
+                Ok(memberships) => {
+                    for m in memberships {
+                        // A trace this batch began whose stored root is not yet decisive - another root, earlier,
+                        // naming nothing - is the sweep's, under the grace.
+                        if let (true, Some(session)) = (m.rooted, m.session_id) {
+                            session_of.insert((project.clone(), m.trace_id), session);
+                        }
                     }
                 }
                 Err(e) => {
@@ -531,20 +537,31 @@ impl TracePipeline {
     }
 }
 
-/// The traces whose beginning - a span with no parent - `spans` carry: the only ones a batch has evidence of the
-/// session of ([`TracePipeline::tombstone_traces_of_deleted_sessions`]).
+/// The traces whose deciding root - a span with no parent, naming a session - `spans` carry: the only ones a batch
+/// has evidence of the session of ([`TracePipeline::tombstone_traces_of_deleted_sessions`]). Each span by its latest
+/// delivery, as storage keeps one: a root corrected later in the batch to name no session decides nothing.
 pub(super) fn traces_begun(spans: &[NormalizedSpan]) -> HashSet<(String, String)> {
-    spans
-        .iter()
-        .filter(|s| s.parent_span_id.as_deref().unwrap_or("").is_empty())
-        .map(|s| {
+    let mut latest: HashMap<(&str, &str, &str), &NormalizedSpan> = HashMap::new();
+    for span in spans {
+        latest.insert(
             (
-                s.project_id
-                    .as_deref()
-                    .unwrap_or(DEFAULT_PROJECT_ID)
-                    .to_string(),
-                s.trace_id.clone(),
-            )
-        })
+                span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                span.trace_id.as_str(),
+                span.span_id.as_str(),
+            ),
+            span,
+        );
+    }
+    latest
+        .into_iter()
+        .filter(|(_, span)| is_deciding_root(span))
+        .map(|((project, trace, _), _)| (project.to_string(), trace.to_string()))
         .collect()
+}
+
+/// A root that decides its trace's session: a span with no parent that names one. A root naming none leaves the
+/// earliest span that does to decide, which a later-arriving span can still change.
+pub(super) fn is_deciding_root(span: &NormalizedSpan) -> bool {
+    span.parent_span_id.as_deref().unwrap_or("").is_empty()
+        && span.session_id.as_deref().is_some_and(|s| !s.is_empty())
 }

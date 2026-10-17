@@ -299,6 +299,7 @@ mod tests {
                 &RetentionConfig {
                     max_age_minutes: Some(5),
                     max_spans: None,
+                    ..Default::default()
                 },
                 1024 * 1024,
                 files,

@@ -225,6 +225,7 @@ pub struct GrpcFileConfig {
 pub struct RetentionFileConfig {
     pub max_age_minutes: Option<u64>,
     pub max_spans: Option<u64>,
+    pub session_deletion_grace_minutes: Option<u64>,
 }
 
 /// OTEL auth configuration (nested under otel)
@@ -549,6 +550,14 @@ impl FileConfig {
                 if retention.max_spans.is_some() {
                     tracing::trace!(max_spans = ?retention.max_spans, "Merging otel.retention.max_spans");
                     current_retention.max_spans = retention.max_spans;
+                }
+                if retention.session_deletion_grace_minutes.is_some() {
+                    tracing::trace!(
+                        session_deletion_grace_minutes = ?retention.session_deletion_grace_minutes,
+                        "Merging otel.retention.session_deletion_grace_minutes"
+                    );
+                    current_retention.session_deletion_grace_minutes =
+                        retention.session_deletion_grace_minutes;
                 }
             }
 

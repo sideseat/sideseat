@@ -119,6 +119,7 @@ async fn a_sweep_defers_a_trace_a_writer_is_pending_on_alike() {
     let config = sideseat_core::config::RetentionConfig {
         max_age_minutes: None,
         max_spans: Some(0),
+        ..Default::default()
     };
 
     let (_duck_temp, duckdb) = duckdb_backend().await;

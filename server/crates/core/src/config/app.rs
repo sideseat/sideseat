@@ -93,6 +93,9 @@ impl AppConfig {
                 .otel_retention_max_spans
                 .or(file_retention.max_spans)
                 .or(Some(DEFAULT_OTEL_RETENTION_MAX_SPANS)),
+            session_deletion_grace_minutes: file_retention
+                .session_deletion_grace_minutes
+                .unwrap_or(DEFAULT_SESSION_DELETION_GRACE_MINUTES),
         };
 
         // otel.auth.required: CLI/env overrides file config, default false

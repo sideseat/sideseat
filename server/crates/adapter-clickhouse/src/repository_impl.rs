@@ -622,6 +622,23 @@ impl EntityQuery for ClickhouseRepository {
         )
     }
 
+    async fn get_trace_memberships(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<sideseat_ports::types::TraceMembership>, DataError> {
+        // Every replica: a deletion decides on this, and must see a root committed on any of them.
+        let spans = self.0.every_replica_spans();
+        tenant_query!(
+            self,
+            project_id,
+            query::get_trace_memberships,
+            &spans,
+            project_id,
+            trace_ids
+        )
+    }
+
     async fn get_trace_session_pairs(
         &self,
         project_id: &ProjectId,

@@ -68,10 +68,15 @@ pub struct AssociationRepairReport {
 /// The cursor advances by the highest sequence *examined*, not by entries returned. A newer build may have
 /// written a journal vocabulary this build does not understand; adapters omit those rows but still advance
 /// the examined cursor, so known entries behind them remain reachable.
+///
+/// A session entry takes only the traces its deletion may take now, as the request did
+/// ([`crate::cleanup::deletable_session_traces`]): a rootless trace still waiting for its root is the session
+/// sweep's, which the restored session tombstone keeps it owed to.
 pub async fn replay_deletion_journal(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
     files: &FileService,
+    session_grace: std::time::Duration,
 ) -> Result<JournalReplayReport, RestoreRepairError> {
     let mut report = JournalReplayReport::default();
     loop {
@@ -82,7 +87,15 @@ pub async fn replay_deletion_journal(
             break;
         }
         for (_, record) in entries {
-            apply_deletion(&record, database, analytics, files, &mut report).await?;
+            apply_deletion(
+                &record,
+                database,
+                analytics,
+                files,
+                session_grace,
+                &mut report,
+            )
+            .await?;
             report.entries_applied += 1;
         }
         report.highest_sequence_examined = examined;
@@ -95,6 +108,7 @@ async fn apply_deletion(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
     files: &FileService,
+    session_grace: std::time::Duration,
     report: &mut JournalReplayReport,
 ) -> Result<(), RestoreRepairError> {
     match record.scope {
@@ -106,9 +120,18 @@ async fn apply_deletion(
         }
         DeletionScope::Session => {
             let sessions = [record.target_id.clone()];
-            let traces = analytics
-                .delete_sessions(&record.project_id, &sessions)
+            let resolved = analytics
+                .get_trace_ids_for_sessions(&record.project_id, &sessions, None)
                 .await?;
+            let traces = crate::cleanup::deletable_session_traces(
+                analytics.as_ref(),
+                &record.project_id,
+                &sessions,
+                &resolved,
+                session_grace,
+            )
+            .await?;
+            analytics.delete_traces(&record.project_id, &traces).await?;
             files.cleanup_traces(&record.project_id, &traces).await?;
             report.sessions_applied += 1;
         }

@@ -73,12 +73,11 @@ impl TracePipeline {
         // alone - so it was tombstoned and the sweep then deleted its stored A content. Data loss caused by
         // a partial export, which is the ordinary shape of a streaming exporter.
         //
-        // So the store decides when it knows the trace: its canonical session is resolved from every span it
-        // holds. The batch's answer is used only for a trace the store has never seen, which is the case the
-        // fence exists for. The residual - a batch carrying a span *earlier* than anything stored, naming a
-        // deleted session - is left to the deletion sweep, which re-resolves sessions rather than working
-        // from the deletion's snapshot. Erring toward keeping data and letting the sweep reclaim it is the
-        // right direction; the reverse destroys rows no read can recover.
+        // So the store decides when it holds the trace's root, whose session is the trace's; the batch decides
+        // when it carries the root itself. Otherwise nothing yet says which session the trace is in, and it is
+        // left to the session sweep, which waits for the root or `retention.session_deletion_grace_minutes`.
+        // Erring toward keeping data and letting the sweep reclaim it is the right direction; the reverse
+        // destroys rows no read can recover.
         let mut deleted_traces = traces_of_sessions(spans, &deleted);
         if !deleted_traces.is_empty() {
             let batch_sessions = canonical_session_of_traces(spans);
@@ -92,19 +91,8 @@ impl TracePipeline {
             // trace concurrently, or an exporter whose first flush happens to carry a child, would otherwise
             // let a deleted session B tombstone a trace whose root says live session A - and the tombstone
             // is what makes that permanent.
-            let batch_has_root: HashSet<(String, String)> = spans
-                .iter()
-                .filter(|s| s.parent_span_id.as_deref().unwrap_or("").is_empty())
-                .map(|s| {
-                    (
-                        s.project_id
-                            .as_deref()
-                            .unwrap_or(DEFAULT_PROJECT_ID)
-                            .to_string(),
-                        s.trace_id.clone(),
-                    )
-                })
-                .collect();
+            let batch_has_root: HashSet<(String, String)> =
+                super::fences_early::traces_begun(spans);
             let mut by_project: HashMap<String, Vec<String>> = HashMap::new();
             #[expect(
                 clippy::iter_over_hash_type,
@@ -125,41 +113,41 @@ impl TracePipeline {
                 match self
                     .analytics
                     .as_ref()
-                    .get_trace_session_pairs(&typed_project, &trace_ids, None)
+                    .get_trace_memberships(&typed_project, &trace_ids)
                     .await
                 {
-                    Ok(pairs) => {
-                        let known: HashSet<String> = pairs.iter().map(|(t, _)| t.clone()).collect();
-                        // A trace the store does not know, and whose root this batch has not seen either.
-                        // Nothing here is evidence about its session, so it is not fenced; the deletion
-                        // sweep re-resolves sessions and reclaims it if it does belong to a deleted one.
-                        // Keeping data that might need reclaiming beats deleting data that did not.
+                    Ok(memberships) => {
+                        let stored: HashMap<&str, &sideseat_ports::types::TraceMembership> =
+                            memberships
+                                .iter()
+                                .map(|m| (m.trace_id.as_str(), m))
+                                .collect();
                         for trace in &trace_ids {
                             let key = (project.clone(), trace.clone());
-                            if !known.contains(trace) && !batch_has_root.contains(&key) {
+                            let fence = match stored.get(trace.as_str()) {
+                                // The store holds the trace's root, naming its session: fence only if that is a
+                                // deleted one - never on the strength of the batch's partial view.
+                                Some(m) if m.rooted => {
+                                    m.session_id.as_ref().is_some_and(|session| {
+                                        deleted.contains(&(project.clone(), session.clone()))
+                                    })
+                                }
+                                // Stored, with no deciding root. The batch's root may be a stale redelivery that a
+                                // stored correction supersedes, so it does not decide here: the write goes ahead and
+                                // the post-write check reads the winning revision. Without a root the trace is the
+                                // session sweep's, which takes it once its root says so or
+                                // `retention.session_deletion_grace_minutes` passes without one.
+                                Some(_) => false,
+                                // Not stored at all: the batch's own root decides.
+                                None => batch_has_root.contains(&key),
+                            };
+                            if !fence {
                                 tracing::debug!(
                                     project_id = %project,
                                     trace_id = %trace,
-                                    "Not fencing a trace the store does not know and whose root this batch \
-                                     does not carry; the sweep will resolve it"
-                                );
-                                deleted_traces.remove(&key);
-                            }
-                        }
-                        for (trace, stored_session) in pairs {
-                            let key = (project.clone(), trace);
-                            // The store knows this trace. Keep it unless the session *it* reports is one of
-                            // the deleted ones - never on the strength of the batch's partial view.
-                            if !deleted.contains(&(project.clone(), stored_session.clone())) {
-                                let batch_said =
-                                    batch_sessions.get(&key).cloned().unwrap_or_default();
-                                tracing::debug!(
-                                    project_id = %project,
-                                    trace_id = %key.1,
-                                    stored_session = %stored_session,
-                                    batch_session = %batch_said,
-                                    "Keeping a trace the batch attributed to a deleted session; the store \
-                                     resolves it to a live one"
+                                    batch_session = %batch_sessions.get(&key).cloned().unwrap_or_default(),
+                                    "Not fencing a trace the batch attributed to a deleted session: its stored \
+                                     root names a live one, or no root decides it yet"
                                 );
                                 deleted_traces.remove(&key);
                             }

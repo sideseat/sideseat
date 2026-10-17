@@ -35,6 +35,8 @@ pub enum QueryOperation {
     GetLogFilterOptions,
     /// Resolve each selected trace to its canonical session.
     GetTraceSessionPairs,
+    /// Read each selected trace's membership: canonical session, root stored, first receipt.
+    GetTraceMemberships,
     /// Resolve selected traces to their distinct canonical sessions.
     GetSessionIdsForTraces,
     /// Resolve selected sessions to the traces canonically owned by them.
@@ -109,6 +111,7 @@ impl QueryOperation {
             Self::GetLog => "get_log",
             Self::GetLogFilterOptions => "get_log_filter_options",
             Self::GetTraceSessionPairs => "get_trace_session_pairs",
+            Self::GetTraceMemberships => "get_trace_memberships",
             Self::GetSessionIdsForTraces => "get_session_ids_for_traces",
             Self::GetTraceIdsForSessions => "get_trace_ids_for_sessions",
             Self::GetSpanCountsBulk => "get_span_counts_bulk",
@@ -189,6 +192,7 @@ impl QueryOperation {
             | Self::ListSpans
             | Self::ListTraces
             | Self::GetTraceSessionPairs
+            | Self::GetTraceMemberships
             | Self::GetSessionIdsForTraces
             | Self::GetTraceIdsForSessions
             | Self::GetSpanCountsBulk
@@ -251,6 +255,7 @@ pub const MIGRATED_OPERATIONS: &[QueryOperation] = &[
     QueryOperation::GetLog,
     QueryOperation::GetLogFilterOptions,
     QueryOperation::GetTraceSessionPairs,
+    QueryOperation::GetTraceMemberships,
     QueryOperation::GetSessionIdsForTraces,
     QueryOperation::GetTraceIdsForSessions,
     QueryOperation::GetSpanCountsBulk,

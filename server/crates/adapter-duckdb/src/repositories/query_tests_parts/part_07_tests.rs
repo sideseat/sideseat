@@ -276,3 +276,60 @@ async fn a_trace_is_its_roots_session_else_its_earliest_spans() {
     .expect("stats");
     assert_eq!(stats.counts.sessions, 2, "root-session and early-session");
 }
+
+/// A trace's membership as stored: its canonical session, whether a root naming a session is stored - a root naming
+/// none decides nothing - and its first receipt.
+#[tokio::test]
+async fn a_traces_membership_says_whether_its_root_is_stored() {
+    let (_tmp, service) = create_test_service().await;
+    let at =
+        |trace: &str, span: &str, parent: Option<&str>, session: Option<&str>, received: i64| {
+            NormalizedSpan {
+                project_id: Some("p".to_string()),
+                trace_id: trace.to_string(),
+                span_id: span.to_string(),
+                parent_span_id: parent.map(str::to_string),
+                span_name: span.to_string(),
+                session_id: session.map(str::to_string),
+                timestamp_start: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+                ingested_at: Some(Utc.timestamp_opt(received, 0).unwrap()),
+                ..Default::default()
+            }
+        };
+    {
+        let conn = service.conn();
+        insert_batch(
+            &conn,
+            &[
+                at("rooted", "root", None, Some("s"), 1_700_000_200),
+                at("rooted", "child", Some("root"), Some("s"), 1_700_000_100),
+                at("rootless", "child", Some("gone"), Some("d"), 1_700_000_300),
+                at("sessionless", "root", None, None, 1_700_000_400),
+            ],
+        )
+        .expect("spans");
+    }
+    let conn = service.conn();
+    let traces = [
+        "rooted".to_string(),
+        "rootless".to_string(),
+        "sessionless".to_string(),
+        "absent".to_string(),
+    ];
+    let membership = |trace: &str, session: Option<&str>, rooted: bool, received: i64| {
+        sideseat_ports::types::TraceMembership {
+            trace_id: trace.to_string(),
+            session_id: session.map(str::to_string),
+            rooted,
+            first_received_us: received * 1_000_000,
+        }
+    };
+    assert_eq!(
+        get_trace_memberships(&conn, "p", &traces).expect("memberships"),
+        vec![
+            membership("rooted", Some("s"), true, 1_700_000_100),
+            membership("rootless", Some("d"), false, 1_700_000_300),
+            membership("sessionless", None, false, 1_700_000_400),
+        ]
+    );
+}

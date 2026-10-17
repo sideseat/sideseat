@@ -87,6 +87,76 @@ pub fn session_ids_for_traces(
     })
 }
 
+/// Each requested trace's current membership: its canonical session (NULL when none), whether a root naming a
+/// session is stored - which makes that session final - and when its earliest stored row was received.
+///
+/// Deletions decide on it. DuckDB reads its winning rows. ClickHouse reads `spans` - every replica of every shard
+/// (`ClickhouseService::every_replica_spans`) - so a root committed on any replica is seen, takes each span's latest
+/// revision, and answers conservatively where the latest revisions of a span tie on receipt and disagree on its
+/// session, parent or start: before a merge settles which one stands, either may be read, so such a trace reports no
+/// session and no deciding root, and no deletion takes it. The first receipt is the earliest of its spans' latest
+/// revisions, as on DuckDB, so it does not depend on whether a merge has run.
+pub fn trace_memberships(
+    project_id: &str,
+    trace_ids: &[String],
+    spans: &str,
+    backend: Backend,
+) -> Option<ParameterizedQuery> {
+    if trace_ids.is_empty() {
+        return None;
+    }
+    let ids = placeholders(trace_ids.len());
+    let mut params = vec![QueryValue::String(project_id.to_string())];
+    params.extend(trace_ids.iter().cloned().map(QueryValue::String));
+    let sql = match backend {
+        Backend::Duckdb => {
+            let (source, mut source_params) = membership_source(None, backend);
+            source_params.append(&mut params);
+            params = source_params;
+            format!(
+                "SELECT trace_id, {session} AS session_id, \
+                   bool_or(coalesce(parent_span_id, '') = '' AND coalesce(session_id, '') != '') AS rooted, \
+                   EPOCH_US(min(ingested_at)) AS first_received_us \
+                 FROM {source} \
+                 WHERE project_id = ? AND trace_id IN ({ids}) \
+                 GROUP BY trace_id ORDER BY trace_id",
+                session = duckdb_canonical_session!(),
+            )
+        }
+        // Aliases distinct at every level: ClickHouse substitutes an alias into the expressions of its level, so
+        // an aggregate named like a column would nest inside another. A span's latest revision is taken whole, as
+        // one tuple: `argMax` skips a NULL argument, so a field a later revision cleared would come back.
+        Backend::Clickhouse => format!(
+            "SELECT trace_id AS m_trace, \
+               if(countIf(variants > 1) > 0, NULL, {session}) AS m_session, \
+               toBool(countIf(variants > 1) = 0 \
+                 AND countIf(parent_span_id = '' AND session_id != '') > 0) AS m_rooted, \
+               toInt64(toUnixTimestamp64Micro(min(first_at))) AS m_first \
+             FROM ( \
+               SELECT t2_trace AS trace_id, t2_span AS span_id, \
+                 tupleElement(t2_rev, 1) AS session_id, tupleElement(t2_rev, 2) AS parent_span_id, \
+                 tupleElement(t2_rev, 3) AS timestamp_start, t2_variants AS variants, t2_first AS first_at \
+               FROM ( \
+                 SELECT t1_trace AS t2_trace, t1_span AS t2_span, \
+                   argMax(t1_rev, t1_at) AS t2_rev, argMax(t1_variants, t1_at) AS t2_variants, \
+                   max(t1_at) AS t2_first \
+                 FROM ( \
+                   SELECT trace_id AS t1_trace, span_id AS t1_span, ingested_at AS t1_at, \
+                     uniqExact(tuple(ifNull(session_id, ''), ifNull(parent_span_id, ''), timestamp_start)) AS t1_variants, \
+                     any(tuple(ifNull(session_id, ''), ifNull(parent_span_id, ''), timestamp_start)) AS t1_rev \
+                   FROM {spans} \
+                   WHERE project_id = ? AND trace_id IN ({ids}) \
+                   GROUP BY trace_id, span_id, ingested_at \
+                 ) GROUP BY t1_trace, t1_span \
+               ) \
+             ) GROUP BY trace_id ORDER BY m_trace \
+             SETTINGS skip_unavailable_shards = 0",
+            session = clickhouse_canonical_session!(nullable ""),
+        ),
+    };
+    Some(ParameterizedQuery { sql, params })
+}
+
 /// Resolve requested sessions to the traces whose canonical session is one of them.
 pub fn trace_ids_for_sessions(
     project_id: &str,

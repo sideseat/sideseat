@@ -293,15 +293,27 @@ pub async fn delete_sessions(
         let analytics_repo = state.analytics.as_ref();
         let repo = state.database.as_ref();
 
-    // The session's traces, read before the delete - needed for both the file cleanup and the tombstones.
-    //
-    // Unconditionally now, not only when file storage is on: the tombstones are what stop a queued or
-    // in-flight batch from recreating the session after this route has answered 204, and that is true
-    // whether or not any of its spans carried a file.
-        let trace_ids = analytics_repo
+        // The session's traces, read before the delete - needed for both the file cleanup and the tombstones.
+        //
+        // Unconditionally now, not only when file storage is on: the tombstones are what stop a queued or
+        // in-flight batch from recreating the session after this route has answered 204, and that is true
+        // whether or not any of its spans carried a file.
+        let resolved = analytics_repo
             .get_trace_ids_for_sessions(&auth.project_id, &body.session_ids, None)
             .await
             .map_err(ApiError::from_data)?;
+        // Only the traces the deletion may take now: one whose root names the session, or a rootless one past the
+        // grace. A rootless trace still waiting for its root is held - the session tombstone below keeps it owed,
+        // and the session sweep takes it once its root names the session or the grace passes.
+        let trace_ids = sideseat_domain::cleanup::deletable_session_traces(
+            analytics_repo,
+            &auth.project_id,
+            &body.session_ids,
+            &resolved,
+            state.session_deletion_grace,
+        )
+        .await
+        .map_err(ApiError::from_data)?;
         let session_bytes = body.session_ids.iter().fold(0u64, |total, session_id| {
             total.saturating_add(DeletionRecord::logical_bytes_for(
                 auth.project_id.as_str(),
@@ -322,90 +334,37 @@ pub async fn delete_sessions(
         });
         reserve_deletion_journal(&state, &auth.project_id, journal_bytes).await?;
 
-    // Tombstone the *sessions* and the traces, before deleting either. Both, because they fence different
-    // things:
-    //
-    // - The trace tombstone catches a batch already in flight for a trace this deletion is about to
-    //   remove, whose files were written before its analytics row.
-    // - The session tombstone catches a trace of the same session that arrives *after* the resolution
-    //   above. It was never in `trace_ids`, so no trace tombstone covers it - and it would recreate the
-    //   session the caller was just told was deleted. The session id is the durable fact; the trace ids
-    //   are one instant's view of it.
-    //
-    // Fatal rather than logged: without the tombstones the deletion is not safe to perform.
-    // Both tombstones and both journal scopes in **one transaction** - see the trace route for why an ordering
-    // cannot substitute for atomicity here.
-    //
-    // Both scopes, because they answer different questions on a restore. The session entry is the durable fact: a
-    // replay re-resolves it against restored data and removes whatever it names *then*, which is what catches a
-    // trace that joined after this request's resolution. The trace entries are what remains when the session is no
-    // longer resolvable at all - the analytics rows that named it may have come from a snapshot predating them.
+        // Tombstone the *sessions* and the traces, before deleting either. Both, because they fence different
+        // things:
+        //
+        // - The trace tombstone catches a batch already in flight for a trace this deletion is about to
+        //   remove, whose files were written before its analytics row.
+        // - The session tombstone catches a trace of the same session that arrives *after* the resolution
+        //   above. It was never in `trace_ids`, so no trace tombstone covers it - and it would recreate the
+        //   session the caller was just told was deleted. The session id is the durable fact; the trace ids
+        //   are one instant's view of it.
+        //
+        // Fatal rather than logged: without the tombstones the deletion is not safe to perform.
+        // Both tombstones and both journal scopes in **one transaction** - see the trace route for why an ordering
+        // cannot substitute for atomicity here.
+        //
+        // Both scopes, because they answer different questions on a restore. The session entry is the durable fact: a
+        // replay re-resolves it against restored data and removes whatever it names *then*, which is what catches a
+        // trace that joined after this request's resolution. The trace entries are what remains when the session is no
+        // longer resolvable at all - the analytics rows that named it may have come from a snapshot predating them.
         repo.record_deleted_sessions_journalled(&auth.project_id, &body.session_ids, &trace_ids)
             .await
             .map_err(ApiError::from_data)?;
 
-    // Delete from analytics, and take the set it *actually* removed.
-    //
-    // It re-resolves the sessions, so it deletes any trace that joined since the resolution above - which is
-    // right (the caller is told 204) and is why the returned set, not `trace_ids`, is what the rest of this
-    // route works from. Tombstoning and cleaning only the earlier snapshot left such a trace with its rows
-    // gone, its file associations held forever, and no tombstone: the trace sweep walks tombstones and had
-    // none for it, while the session sweep resolves sessions through analytics rows that no longer existed.
-    // A later child-only redelivery then carried no session id, passed both fences, and resurrected it.
-        let deleted_trace_ids = analytics_repo
-            .delete_sessions(&auth.project_id, &body.session_ids)
+        // Delete exactly the traces tombstoned above. A trace that joined the session since the resolution, or one
+        // held for its root, keeps its rows and is the session sweep's: the session tombstone keeps it owed, and the
+        // sweep re-resolves the session. Deleting by session here instead - every trace resolving to it now - removed
+        // rows of traces no tombstone covered, and a held trace whose live root was still to arrive.
+        analytics_repo
+            .delete_traces(&auth.project_id, &trace_ids)
             .await
             .map_err(ApiError::from_data)?;
-
-    // The traces the delete found beyond this route's own snapshot. Best effort: the spans are gone either
-    // way, and failing here would only reproduce the state it found - but without it those traces are
-    // invisible to both sweeps, so it is reported at error level rather than debug.
-        let extra: Vec<String> = deleted_trace_ids
-            .iter()
-            .filter(|t| !trace_ids.contains(t))
-            .cloned()
-            .collect();
-        if !extra.is_empty() {
-        // Atomic here too, and still best effort - the spans are gone either way and failing the request would
-        // only reproduce the state it found.
-        //
-        // **This is the one window the design cannot close**, and it is stated rather than implied: these traces
-        // are *discovered from the delete's own return value*, so nothing can record them beforehand. If this
-        // write fails, a restore predating the deletion can bring them back, and the session entry above covers
-        // them only while the session is still resolvable from the restored analytics rows. Reported at error
-        // level because that is the operator's signal to take a fresh backup rather than rely on the last one.
-            let extra_bytes = extra.iter().fold(0u64, |total, trace_id| {
-                total.saturating_add(DeletionRecord::logical_bytes_for(
-                    auth.project_id.as_str(),
-                    DeletionCause::Requested,
-                    DeletionScope::Trace,
-                    trace_id,
-                    None,
-                ))
-            });
-            let recorded = match reserve_deletion_journal(
-                &state,
-                &auth.project_id,
-                extra_bytes,
-            )
-            .await
-            {
-                Ok(()) => repo
-                    .record_deleted_traces_journalled(&auth.project_id, &extra)
-                    .await
-                    .map_err(ApiError::from_data),
-                Err(error) => Err(error),
-            };
-            if let Err(e) = recorded {
-                tracing::error!(
-                    error = ?e,
-                    project_id = %auth.project_id,
-                    traces = extra.len(),
-                    "Could not tombstone or journal traces that joined the session after it was resolved; they are \
-                     deleted, but no sweep can reclaim their files and a restore from before now may bring them back"
-                );
-            }
-        }
+        let deleted_trace_ids = trace_ids.clone();
 
         // Cleanup files associated with deleted traces - the set that was deleted, not the set resolved earlier.
         if !deleted_trace_ids.is_empty()

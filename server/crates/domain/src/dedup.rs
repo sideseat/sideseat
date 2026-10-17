@@ -375,6 +375,16 @@ impl EntityQuery for DedupAnalyticsRepository {
             .await
     }
 
+    async fn get_trace_memberships(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<sideseat_ports::types::TraceMembership>, DataError> {
+        self.inner
+            .get_trace_memberships(project_id, trace_ids)
+            .await
+    }
+
     async fn get_trace_session_pairs(
         &self,
         project_id: &ProjectId,

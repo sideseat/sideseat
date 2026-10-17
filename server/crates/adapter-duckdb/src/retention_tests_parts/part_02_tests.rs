@@ -201,6 +201,7 @@ async fn active_hold_survives_project_age_retention_for_every_signal() {
     let config = RetentionConfig {
         max_age_minutes: Some(1),
         max_spans: None,
+        ..Default::default()
     };
     let result = super::run_retention_for_project(&conn, &config, "held", &no_intent, test_now())
         .expect("project retention");
@@ -250,6 +251,7 @@ async fn active_hold_survives_count_retention_while_unheld_rows_are_reclaimed() 
     let config = RetentionConfig {
         max_age_minutes: None,
         max_spans: Some(1),
+        ..Default::default()
     };
     super::run_retention_for_project(&conn, &config, "held", &no_intent, test_now())
         .expect("count retention");
@@ -337,6 +339,7 @@ async fn test_run_retention_cleans_both_spans_and_metrics() {
     let config = RetentionConfig {
         max_age_minutes: Some(1),
         max_spans: None,
+        ..Default::default()
     };
     let result = run_retention(&conn, &config, &no_intent).expect("Should run retention");
     assert!(result.deleted_count > 0);

@@ -115,6 +115,7 @@ fn test_file_config_merge() {
             retention: Some(RetentionFileConfig {
                 max_age_minutes: Some(60),
                 max_spans: None,
+                session_deletion_grace_minutes: None,
             }),
             auth: None,
             staging_redrive_cap: None,
@@ -150,6 +151,7 @@ fn test_file_config_merge() {
             retention: Some(RetentionFileConfig {
                 max_age_minutes: None,
                 max_spans: Some(1_000_000),
+                session_deletion_grace_minutes: Some(30),
             }),
             auth: None,
             staging_redrive_cap: None,

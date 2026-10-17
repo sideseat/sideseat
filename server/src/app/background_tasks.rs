@@ -65,6 +65,9 @@ impl CoreApp {
                 Arc::clone(&self.database_port),
                 Arc::clone(&self.analytics_port),
                 Arc::clone(&self.files),
+                std::time::Duration::from_secs(
+                    self.config.otel.retention.session_deletion_grace_minutes * 60,
+                ),
                 self.shutdown.subscribe(),
             ))
             .await;

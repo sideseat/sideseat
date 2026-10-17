@@ -114,9 +114,14 @@ async fn journal_replay_removes_a_trace_resurrected_by_the_analytics_restore() {
         .await
         .expect("newer transactional backup");
 
-    let report = replay_deletion_journal(&stores.database, &stores.analytics, &stores.files)
-        .await
-        .expect("replay");
+    let report = replay_deletion_journal(
+        &stores.database,
+        &stores.analytics,
+        &stores.files,
+        std::time::Duration::ZERO,
+    )
+    .await
+    .expect("replay");
 
     assert_eq!(report.entries_applied, 1);
     assert_eq!(report.traces_applied, 1);
@@ -588,9 +593,14 @@ async fn ownership_rebuilt_before_the_journal_keeps_a_file_a_live_trace_names() 
                 .await
                 .expect("rebuild");
         }
-        replay_deletion_journal(&stores.database, &stores.analytics, &stores.files)
-            .await
-            .expect("replay");
+        replay_deletion_journal(
+            &stores.database,
+            &stores.analytics,
+            &stores.files,
+            std::time::Duration::ZERO,
+        )
+        .await
+        .expect("replay");
 
         let kept = stored(&stores, &project, &shared).await;
         assert_eq!(

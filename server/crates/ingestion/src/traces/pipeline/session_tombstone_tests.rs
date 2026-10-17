@@ -239,3 +239,255 @@ fn a_trace_is_begun_by_a_span_without_a_parent() {
         ])
     );
 }
+
+/// As [`span`], received at `received` seconds since the epoch.
+fn received(mut span: NormalizedSpan, received: i64) -> NormalizedSpan {
+    span.ingested_at = Some(chrono::DateTime::from_timestamp(received, 0).unwrap());
+    span
+}
+
+/// One pass of the session sweep with `grace`. A session just deleted is due at once; one checked is not again for a
+/// while, so each test sweeps once.
+async fn sweep(store: &super::pipeline_tests::TempPipeline, grace: std::time::Duration) {
+    sideseat_domain::cleanup::advance_pending_deletions(
+        &store.database,
+        &store.analytics,
+        &store.pipeline.file_service,
+        0,
+        grace,
+    )
+    .await
+    .unwrap();
+}
+
+async fn tombstoned(store: &super::pipeline_tests::TempPipeline, trace: &str) -> bool {
+    !store
+        .database
+        .deleted_traces_among(&ProjectId::from("p"), &[trace.to_string()])
+        .await
+        .unwrap()
+        .is_empty()
+}
+
+const WEEK: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+
+/// The session sweep holds a rootless trace of a deleted session for its root, until the grace passes; one whose
+/// root is stored and names the session goes at once.
+#[tokio::test]
+async fn the_session_sweep_holds_a_rootless_trace_for_its_root() {
+    let store = temp_pipeline(false).await;
+    let project = ProjectId::from("p");
+    store
+        .database
+        .record_deleted_sessions(&project, &["session-d".to_string()])
+        .await
+        .unwrap();
+    let now = chrono::Utc::now().timestamp();
+    store
+        .analytics
+        .insert_spans(vec![
+            received(span("waiting", "child", Some("root"), "session-d", 5), now),
+            received(span("rooted", "root", None, "session-d", 0), now),
+        ])
+        .await
+        .unwrap();
+
+    sweep(&store, WEEK).await;
+    assert!(
+        tombstoned(&store, "rooted").await,
+        "its root decides: it goes now"
+    );
+    assert!(!tombstoned(&store, "waiting").await, "held for its root");
+    assert!(
+        store
+            .analytics
+            .get_span(&project, "waiting", "child")
+            .await
+            .unwrap()
+            .is_some(),
+        "readable while it waits"
+    );
+}
+
+/// Once the grace has passed, a rootless trace of a deleted session goes; one whose root arrived in time naming a
+/// live session is that session's, and stays whole.
+#[tokio::test]
+async fn after_the_grace_a_rootless_trace_goes_and_a_rooted_one_follows_its_root() {
+    let store = temp_pipeline(false).await;
+    let project = ProjectId::from("p");
+    store
+        .database
+        .record_deleted_sessions(&project, &["session-d".to_string()])
+        .await
+        .unwrap();
+    let week_ago = chrono::Utc::now().timestamp() - 8 * 24 * 60 * 60;
+    store
+        .analytics
+        .insert_spans(vec![
+            received(
+                span("waiting", "child", Some("root"), "session-d", 5),
+                week_ago,
+            ),
+            received(
+                span("moved", "child", Some("root"), "session-d", 5),
+                week_ago,
+            ),
+            received(span("moved", "root", None, "session-l", 0), week_ago),
+        ])
+        .await
+        .unwrap();
+
+    sweep(&store, WEEK).await;
+    assert!(
+        tombstoned(&store, "waiting").await,
+        "the grace has passed with no root"
+    );
+    assert!(
+        !tombstoned(&store, "moved").await,
+        "its root named a live session"
+    );
+    assert!(
+        store
+            .analytics
+            .get_span(&project, "moved", "child")
+            .await
+            .unwrap()
+            .is_some(),
+        "kept whole, the child that named the deleted session included"
+    );
+}
+
+/// The pre-write fence takes a trace only on its root: a child naming a deleted session, for a trace the store
+/// holds no root of, is written and held for the sweep; for a trace whose stored root names the deleted session it
+/// is fenced.
+#[tokio::test]
+async fn the_fence_takes_a_trace_on_its_root_only() {
+    let store = temp_pipeline(false).await;
+    let project = ProjectId::from("p");
+    store
+        .database
+        .record_deleted_sessions(&project, &["session-d".to_string()])
+        .await
+        .unwrap();
+    store
+        .analytics
+        .insert_spans(vec![
+            span("rootless", "first", Some("root"), "session-d", 5),
+            span("rooted", "root", None, "session-d", 0),
+        ])
+        .await
+        .unwrap();
+
+    let mut batch = vec![
+        span("rootless", "second", Some("root"), "session-d", 6),
+        span("rooted", "child", Some("root"), "session-d", 6),
+    ];
+    store
+        .pipeline
+        .drop_spans_for_deleted_sessions(&mut batch)
+        .await
+        .unwrap();
+    assert_eq!(
+        batch
+            .iter()
+            .map(|s| s.trace_id.as_str())
+            .collect::<Vec<_>>(),
+        ["rootless"],
+        "only the trace whose stored root names the deleted session is fenced"
+    );
+    assert!(tombstoned(&store, "rooted").await);
+    assert!(!tombstoned(&store, "rootless").await);
+}
+
+/// A root naming no session decides nothing: the trace is held for the grace as a rootless one is, since a span
+/// that names a live session can still arrive and decide it.
+#[tokio::test]
+async fn a_root_naming_no_session_does_not_decide_its_trace() {
+    let store = temp_pipeline(false).await;
+    let project = ProjectId::from("p");
+    store
+        .database
+        .record_deleted_sessions(&project, &["session-d".to_string()])
+        .await
+        .unwrap();
+    let now = chrono::Utc::now().timestamp();
+    let mut sessionless_root = received(span("t", "root", None, "unused", 0), now);
+    sessionless_root.session_id = None;
+    store
+        .analytics
+        .insert_spans(vec![
+            sessionless_root,
+            received(span("t", "child", Some("root"), "session-d", 5), now),
+        ])
+        .await
+        .unwrap();
+
+    sweep(&store, WEEK).await;
+    assert!(
+        !tombstoned(&store, "t").await,
+        "held: nothing decides it yet"
+    );
+}
+
+/// A root corrected later in the same batch to name no session decides nothing: the trace is not fenced.
+#[tokio::test]
+async fn a_root_corrected_to_no_session_in_its_batch_decides_nothing() {
+    let store = temp_pipeline(false).await;
+    let project = ProjectId::from("p");
+    store
+        .database
+        .record_deleted_sessions(&project, &["session-d".to_string()])
+        .await
+        .unwrap();
+    let mut corrected = span("t", "root", None, "unused", 0);
+    corrected.session_id = None;
+    let mut batch = vec![
+        span("t", "root", None, "session-d", 0),
+        corrected,
+        span("t", "child", Some("root"), "session-d", 5),
+    ];
+    store
+        .pipeline
+        .drop_spans_for_deleted_sessions(&mut batch)
+        .await
+        .unwrap();
+    assert_eq!(batch.len(), 3, "held for its root, not fenced");
+    assert!(!tombstoned(&store, "t").await);
+}
+
+/// A stale redelivery of a root a stored correction superseded does not decide the trace: the fence lets it through
+/// for the post-write check, which reads the winning revision.
+#[tokio::test]
+async fn a_stale_root_redelivery_does_not_decide_a_corrected_trace() {
+    let store = temp_pipeline(false).await;
+    let project = ProjectId::from("p");
+    let mut cleared = received(span("t", "root", None, "unused", 0), 200);
+    cleared.session_id = None;
+    store
+        .analytics
+        .insert_spans(vec![
+            received(span("t", "root", None, "session-d", 0), 100),
+            received(span("t", "child", Some("root"), "session-l", 5), 150),
+        ])
+        .await
+        .unwrap();
+    store.analytics.insert_spans(vec![cleared]).await.unwrap();
+    store
+        .database
+        .record_deleted_sessions(&project, &["session-d".to_string()])
+        .await
+        .unwrap();
+
+    let mut batch = vec![received(span("t", "root", None, "session-d", 0), 100)];
+    store
+        .pipeline
+        .drop_spans_for_deleted_sessions(&mut batch)
+        .await
+        .unwrap();
+    assert_eq!(
+        batch.len(),
+        1,
+        "not fenced on a root the store has superseded"
+    );
+    assert!(!tombstoned(&store, "t").await);
+}

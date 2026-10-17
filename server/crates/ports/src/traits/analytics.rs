@@ -412,6 +412,15 @@ pub trait EntityQuery: Send + Sync {
         as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError>;
 
+    /// The current membership of each of the given traces that has a stored row ([`crate::types::TraceMembership`]),
+    /// ordered by trace id. A deletion decides on it, so it sees every row an acknowledged insert committed whatever
+    /// the replication lag; an unreachable replica fails it.
+    async fn get_trace_memberships(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<crate::types::TraceMembership>, DataError>;
+
     /// Get distinct values with counts for session filter options
     async fn get_session_filter_options(
         &self,

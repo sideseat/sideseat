@@ -103,6 +103,7 @@ async fn a_collected_record_s_leftover_rows_read_and_expire_alike() {
     let config = sideseat_core::config::RetentionConfig {
         max_age_minutes: Some(24 * 60),
         max_spans: None,
+        ..Default::default()
     };
 
     let (_duck_temp, duckdb) = duckdb_backend().await;

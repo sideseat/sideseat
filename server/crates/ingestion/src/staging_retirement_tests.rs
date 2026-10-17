@@ -362,6 +362,7 @@ async fn a_payload_registered_after_the_project_went_is_collected() {
         &fixture.analytics,
         &fixture.files,
         0,
+        std::time::Duration::ZERO,
     )
     .await
     .expect("sweep the residual");
@@ -428,6 +429,7 @@ async fn a_residual_sweep_that_cannot_remove_a_row_keeps_its_blob() {
         &fixture.analytics,
         &fixture.files,
         0,
+        std::time::Duration::ZERO,
     )
     .await
     .expect("sweep the residual");

@@ -557,8 +557,10 @@ widens them. The review is the first Codex round on the D1 model.
    tombstones a child-only T, and L's root arriving later is dropped as a deleted trace's.
    - The per-batch form of this defect is fixed in edbf81b9: the post-write session check now takes only the
      traces a batch began. That fix hands child-only traces to the sweep, so this item is what remains.
-   - To be modelled with D1: the session-membership read and the tombstone must be ordered against writers'
-     acknowledgement. The working rule for the semantics (a trace is its root's session; a rootless trace's
+   - Closed by the grace gate (section 6.5), modelled in `SessionMembership.tla`: a rootless trace is taken only
+     once the gate has passed, which makes any root landing between the sweep's read and its tombstone a late one.
+   - Still open: a root *revision* moving a decided trace to a live session between the read and the tombstone
+     (section 6.5). To be closed with D1's per-trace coordination. The working rule for the semantics (a trace is its root's session; a rootless trace's
      deleted-session children are held until a root arrives or an age gate passes) is section 6, decided
      2026-10-17.
 10. **HIGH: exact-redelivery skipping makes answers depend on execution order.** `drop_exact_redeliveries`
@@ -661,8 +663,8 @@ names a live session L and has not arrived yet, or is arriving concurrently.
 
 | Situation | Before the gate | After the gate |
 |---|---|---|
-| Children name D, no root ever arrives | Stored and readable, owed cleanup recorded | Tombstoned, deleted, journalled |
-| Children name D, root arrives naming L (live) | Kept; owed cleanup discharged without deletion | Root dropped as a deleted trace's (the gate already took the trace) |
+| Children name D, no root ever arrives | Stored and readable, held | Tombstoned, deleted, journalled |
+| Children name D, root arrives naming L (live) | Kept whole: the trace is L's | Root dropped as a deleted trace's (the gate already took the trace) |
 | Children name D, root arrives naming D | Tombstoned and deleted at once | Already deleted; root dropped |
 | Root stored naming D, then children | Fenced by the pre-write check, as today | Same |
 
@@ -711,35 +713,53 @@ Decided: (i), "root's session, else earliest". Only the root is the trace's own 
 concern - a child on another host starting before its parent - no longer moves the session, because the root
 decides whatever its start time; it still orders the trace's spans.
 
-### 6.5 Mechanism, sketched
+### 6.5 Mechanism, as built
 
-- **Owed record.** In the transactional store, `owed_session_cleanups(project_id, trace_id, session_id,
-  first_seen_at)`, written by the post-write check and the sweep when a rootless trace resolves to a deleted
-  session. Instead of a tombstone. Idempotent on the key; `first_seen_at` is the earliest sighting.
-- **Discharge on root.** A batch that begins a trace (writes its root) and finds an owed record decides by the
-  root's session, in the post-write check that edbf81b9 already restricts to begun traces. If the session is
-  deleted, it tombstones (journalled, as today). If live, it deletes the owed record.
-- **Gate.** The session sweep tombstones owed traces whose `first_seen_at` is older than the gate, journalled as
-  today, then deletes their rows.
-- **The race this must close.** The gate's "no root yet" read and the tombstone must be ordered against a writer
-  that writes the root and acknowledges. Proposed serialization point: the tombstone transaction re-checks the owed
-  record under the trace lock that the arbiter already takes on PostgreSQL, and the SQLite writer lock. A root
-  writer then marks the owed record discharged in its post-write check, under the same lock, before it
-  acknowledges. Either:
-  - the root's discharge commits first, and the sweep's re-check sees it and does not tombstone; or
-  - the tombstone commits first, and the root writer's post-write trace re-check sees the tombstone and
-    compensates. Its export is then answered as data for a deleted trace, which is the accepted after-gate row
-    above.
-  This is what the model must establish. It is the same shape as the trace-tombstone confirm fence, applied to
-  sessions.
+The design first sketched an owed-cleanup table and a lock-ordered discharge. Neither is needed; what is built:
 
-### 6.6 For the model (with D1)
+- **Membership read.** `AnalyticsRepository::get_trace_memberships` returns, per trace, its canonical session,
+  whether a deciding root - a span with no parent that names a session - is stored, and the receipt time of its
+  earliest stored row. Every destructive decision reads it: on ClickHouse it reads every replica, keeping each
+  span's latest revision, with `skip_unavailable_shards = 0`, so a root committed on any replica is seen and an
+  unreachable one fails the read. A root naming no session decides nothing. Parity-tested.
+- **Pre-write fence.** It takes a trace only on a root: a root the batch carries, or one the store holds, naming a
+  deleted session. A child for a trace with no stored root is written, and left to the sweep.
+- **Post-write check.** It considers only the traces the batch began with a deciding root (edbf81b9), and takes
+  one only once the membership read finds a deciding root stored naming a deleted session.
+- **Session sweep, deletion request, restore replay.** All three take a deleted session's traces through one
+  rule (`deletable_session_traces`): now those whose root is stored, and a rootless one only once
+  `retention.session_deletion_grace_minutes` (default 7 days) has passed since its first stored row was
+  received - measured against a cutoff taken before the membership read. The request deletes exactly the traces
+  it tombstones, leaving held ones and later joiners to the sweep. A sweep that finds only held traces counts as
+  quiet, so its check backs off - to once a day at most -
+  and a held trace goes up to a day after its gate.
+- **Why no lock is needed.** The gate is a function of time, and the sweep's read precedes its tombstone. A read
+  that finds the trace rootless and past the gate means any root stored after that read is stored after the gate:
+  the late root the decision accepts. A root stored before the read is seen by it and decides the session, so the
+  sweep leaves the trace. This assumes a read sees every insert committed before it (read-your-writes across
+  instances). A rooted trace's session cannot change, short of a second root.
 
-- **State:** spans by trace (root or child, session), deleted sessions, owed records, tombstones, acknowledgements.
-- **Actions:** write child, write root, delete session, post-write check, sweep with gate, compensation, acknowledge.
-- **Invariants:**
-  - `NoLiveLoss`: no acknowledged span of a trace whose membership is live is deleted.
-  - `DeletedGone`: after the gate, no span of a trace whose membership is deleted is readable.
-  - `RootDecides`: once a root is stored, membership is the root's session.
-- **Mutants:** no lock on the discharge; sweep without the re-check; gate on `last_seen` instead of
-  `first_seen_at`; tombstone the rootless trace at once (today's behaviour). Each must break an invariant.
+Residuals: a root *received* before the gate but *stored* after the sweep's read is dropped (the window is the
+write latency, or the queue delay in queued mode, which the 7-day default matches); a trace with two roots naming
+different sessions is decided by the earliest root; and the first receipt is read from current revisions, so a
+span corrected again and again keeps moving the gate later - deletion is delayed, never early.
+
+Open, and not closed by the gate: **a root revision racing a deletion.** A trace whose root names the deleted
+session is decided, and taken at once. A later revision of that root naming a live session, written and
+acknowledged between the deleter's read and its tombstone, is then deleted with the trace. Main has the same race
+with no gate at all. The model holds span values fixed, so it does not cover revisions. Closing it needs the
+membership read and the tombstone ordered against root revisions through a durable per-trace point - the trace
+locks D1's protocol introduces - and is modelled with D1.
+
+### 6.6 The model
+
+`server/specs/SessionMembership.tla` (with D1's models): one trace; two children naming a deleted session, a
+later-starting root naming a live one and a root naming none, written by four instances concurrently with a
+deleter's cutoff, read, decision and tombstone - the session sweep, the deletion request and a restore's replay
+decide alike (`deletable_session_traces`); a clock and the gate. `LiveRootKept` - a live root is lost only if it
+was stored after the gate - and `NoLossUnderLiveRoot` hold: 185,174 distinct states. Each guard is necessary, each
+shown by its mutant breaking `LiveRootKept`: `RootFirst` (the earliest span decides instead), `DecidingRoot` (a root
+naming no session taken as deciding), `Gate`, `CutoffFirst` (the deadline compared with the time a chunked read
+returned rather than a cutoff taken before it), `FenceOnRoot` (the fence trusts the store for a rootless trace) and
+`PostWriteRooted` (the post-write check trusts whatever the store answers). The model assumes a read sees every
+committed insert, which the replica-complete membership read provides on ClickHouse.

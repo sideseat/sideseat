@@ -127,6 +127,7 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `grpc.port` | number | OTLP gRPC port |
 | `retention.max_age_minutes` | number | Retention max age in minutes (null = no limit) |
 | `retention.max_spans` | number | Retention max spans (null = no limit) |
+| `retention.session_deletion_grace_minutes` | number | How long a trace with no stored root span, whose spans name a deleted session, waits for its root before it is deleted with the session (default 10080, 7 days); see [Deleting sessions](/docs/reference/api/sessions/#delete-sessions) |
 | `auth.required` | boolean | Require auth for OTLP ingestion |
 | `max_inflight_bytes` | number | OTLP body bytes the server reads, decodes and stores at once, across HTTP and gRPC (default 16 MiB). An export over it is answered `503` with `Retry-After` (gRPC `UNAVAILABLE`) before its body is read; one larger than the whole budget is accepted only while nothing else is in flight |
 

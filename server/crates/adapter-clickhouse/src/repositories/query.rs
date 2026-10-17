@@ -225,6 +225,50 @@ pub async fn get_trace_session_pairs(
     Ok(pairs)
 }
 
+/// The current membership of each of the given traces that has a stored row, ordered by trace id.
+pub async fn get_trace_memberships(
+    client: &Client,
+    spans: &str,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<sideseat_ports::types::TraceMembership>, ClickhouseError> {
+    #[derive(Row, Deserialize)]
+    struct MembershipRow {
+        m_trace: String,
+        m_session: Option<String>,
+        m_rooted: bool,
+        m_first: i64,
+    }
+
+    // Chunked as the session pairs are, and for the same reason.
+    let traces: Vec<String> =
+        sideseat_query_sql::keyed::distinct_keys(trace_ids.iter().map(String::as_str))
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+    let mut memberships = Vec::new();
+    for chunk in sideseat_query_sql::keyed::bounded_chunks(&traces, KEYED_CHUNK) {
+        let Some(statement) =
+            analytics::trace_memberships(project_id, chunk, spans, Backend::Clickhouse)
+        else {
+            continue;
+        };
+        let query = bind_analytics_values(client.query(statement.sql()), statement.params());
+        let rows: Vec<MembershipRow> = query.fetch_all().await?;
+        memberships.extend(
+            rows.into_iter()
+                .map(|r| sideseat_ports::types::TraceMembership {
+                    trace_id: r.m_trace,
+                    session_id: r.m_session,
+                    rooted: r.m_rooted,
+                    first_received_us: r.m_first,
+                }),
+        );
+    }
+    memberships.sort_by(|a, b| a.trace_id.cmp(&b.trace_id));
+    Ok(memberships)
+}
+
 /// Get trace IDs for given session IDs
 /// The distinct sessions the given traces belong to.
 pub async fn get_session_ids_for_traces(

@@ -749,6 +749,23 @@ impl EntityQuery for DuckdbRepository {
         .map_err(Into::into)
     }
 
+    async fn get_trace_memberships(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<sideseat_ports::types::TraceMembership>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(&self.0, move || {
+            let conn = db.conn();
+            query::get_trace_memberships(&conn, &pid, &tids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn get_session_ids_for_traces(
         &self,
         project_id: &ProjectId,

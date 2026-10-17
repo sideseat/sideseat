@@ -114,6 +114,7 @@ async fn a_span_s_search_terms_go_with_its_row_on_both_backends() {
     let config = sideseat_core::config::RetentionConfig {
         max_age_minutes: Some(24 * 60),
         max_spans: None,
+        ..Default::default()
     };
     let duck_side = tempfile::TempDir::new().expect("temp dir");
     let duck_tx = retention_transactional(&duck_side).await;

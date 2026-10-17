@@ -409,6 +409,40 @@ pub async fn finish_project_deletion(
     Ok(())
 }
 
+/// Of deleted sessions' traces, the ones their deletion may take now - the request's and the sweep's alike.
+///
+/// A trace is its root's session, so one whose root is stored and names a deleted session is decided and goes. One
+/// with no root stored may yet be moved by its root, which can arrive after its children: it waits until
+/// `session_grace` has passed since its earliest stored row was received. The cutoff is taken before the read, and
+/// the read precedes the tombstone, so a read that finds a trace rootless and past the cutoff means any root
+/// stored after it is stored after the grace - which is when a late root is dropped with its trace. A trace no
+/// longer resolving to one of the sessions - its root arrived and named another - is left alone.
+pub async fn deletable_session_traces(
+    analytics: &AnalyticsStore,
+    project_id: &ProjectId,
+    session_ids: &[String],
+    trace_ids: &[String],
+    session_grace: std::time::Duration,
+) -> Result<Vec<String>, DataError> {
+    let grace_us = i64::try_from(session_grace.as_micros()).unwrap_or(i64::MAX);
+    let cutoff_us = chrono::Utc::now()
+        .timestamp_micros()
+        .saturating_sub(grace_us);
+    let memberships = analytics
+        .get_trace_memberships(project_id, trace_ids)
+        .await?;
+    Ok(memberships
+        .into_iter()
+        .filter(|m| {
+            m.session_id
+                .as_ref()
+                .is_some_and(|session| session_ids.contains(session))
+        })
+        .filter(|m| m.rooted || m.first_received_us <= cutoff_us)
+        .map(|m| m.trace_id)
+        .collect())
+}
+
 /// Advance every tombstoned project and organization: delete what has appeared, remove what is finished.
 ///
 /// Called on a timer and at startup, and it is not only a recovery path. A tombstone is *meant* to be
@@ -425,6 +459,7 @@ pub async fn advance_pending_deletions(
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
     stale_after_secs: i64,
+    session_grace: std::time::Duration,
 ) -> Result<usize, CleanupError> {
     let repo = database.as_ref();
     let mut advanced = 0;
@@ -474,14 +509,28 @@ pub async fn advance_pending_deletions(
                 let project_id = ProjectId::from(project_id);
                 // Every trace of the session, resolved *now* rather than from the deletion's snapshot -
                 // that snapshot is exactly what a late trace escapes.
-                let trace_ids = analytics
+                let trace_ids = match analytics
                     .as_ref()
                     .get_trace_ids_for_sessions(
                         &project_id,
                         std::slice::from_ref(&session_id),
                         None,
                     )
-                    .await;
+                    .await
+                {
+                    Ok(ids) if ids.is_empty() => Ok(ids),
+                    Ok(ids) => {
+                        deletable_session_traces(
+                            analytics.as_ref(),
+                            &project_id,
+                            std::slice::from_ref(&session_id),
+                            &ids,
+                            session_grace,
+                        )
+                        .await
+                    }
+                    Err(e) => Err(e),
+                };
                 let was_quiet = match trace_ids {
                     Ok(ids) if ids.is_empty() => true,
                     Ok(ids) => {
@@ -765,6 +814,7 @@ pub fn start_claim_recovery_task(
     database: Arc<TransactionalStore>,
     analytics: Arc<AnalyticsStore>,
     file_service: Arc<FileService>,
+    session_grace: std::time::Duration,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -794,6 +844,7 @@ pub fn start_claim_recovery_task(
                         &analytics,
                         &file_service,
                         PROJECT_DELETION_CLAIM_STALE_SECS,
+                        session_grace,
                     )
                     .await
                     {

@@ -47,6 +47,8 @@ pub struct OtelApiState {
     /// build never serves an answer the previous pipeline produced.
     pub reconstruction: sideseat_domain::sideml::feed::cache::ReconstructionCache,
     pub shutdown_rx: watch::Receiver<bool>,
+    /// How long a rootless trace of a deleted session waits for its root (`retention.session_deletion_grace_minutes`).
+    pub session_deletion_grace: std::time::Duration,
 }
 
 /// Build OTEL API routes
@@ -60,6 +62,7 @@ pub fn routes(
     clock: Arc<dyn Clock>,
     storage_governance: Arc<StorageGovernanceService>,
     shutdown_rx: watch::Receiver<bool>,
+    session_deletion_grace: std::time::Duration,
 ) -> Router<()> {
     let state = OtelApiState {
         analytics,
@@ -71,6 +74,7 @@ pub fn routes(
         storage_governance,
         reconstruction: sideseat_domain::sideml::feed::cache::ReconstructionCache::new(),
         shutdown_rx,
+        session_deletion_grace,
     };
 
     Router::new()
