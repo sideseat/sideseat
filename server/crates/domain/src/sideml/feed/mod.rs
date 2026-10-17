@@ -244,6 +244,8 @@ pub(crate) mod status {
 pub(crate) const GENAI_OUTPUT_EVENTS: &[&str] = &[
     "gen_ai.choice",
     "gen_ai.content.completion",
+    // The deprecated completion event's member, which its reading reports under that name.
+    "gen_ai.completion",
     "gen_ai.output.messages",
 ];
 
@@ -255,6 +257,8 @@ pub(crate) const GENAI_INPUT_EVENTS: &[&str] = &[
     "gen_ai.system.message",
     "gen_ai.tool.message",
     "gen_ai.content.prompt",
+    // The deprecated prompt event's member, which its reading reports under that name.
+    "gen_ai.prompt",
     // The bundled form, paired with gen_ai.output.messages above.
     "gen_ai.input.messages",
 ];

@@ -1,0 +1,411 @@
+{
+  "label": "_synthetic/deprecated_genai_completions",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 5,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat claude-haiku/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2+2?",
+          "content_digest": "149da225c62bf6fe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "2+2 is 4.",
+          "content_digest": "8b5ceb2cf119963f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/chat claude-haiku/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 3+3?",
+          "content_digest": "2828f313076cb2e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "3+3 is 6.",
+          "content_digest": "aad01636fb784848",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/chat claude-haiku/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 4+4?",
+          "content_digest": "1b33a792f3ee3fdd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "4+4 is 8.",
+          "content_digest": "a780f9ff7bbc6701",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-4/chat claude-haiku/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 5+5?",
+          "content_digest": "dbdc0f62ff7e9add",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "5+5 is 10.",
+          "content_digest": "2bc75243c574b643",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-5/chat claude-haiku/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather?",
+          "content_digest": "d5fba28db71b04a9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"get_weather\",\"input\":{}}",
+          "content_digest": "ab28876a256e80ee",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny",
+          "content_digest": "9e58605cc3009fc7",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2+2?",
+          "content_digest": "149da225c62bf6fe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "2+2 is 4.",
+          "content_digest": "8b5ceb2cf119963f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 3+3?",
+          "content_digest": "2828f313076cb2e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "3+3 is 6.",
+          "content_digest": "aad01636fb784848",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 4+4?",
+          "content_digest": "1b33a792f3ee3fdd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "4+4 is 8.",
+          "content_digest": "a780f9ff7bbc6701",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 5+5?",
+          "content_digest": "dbdc0f62ff7e9add",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "5+5 is 10.",
+          "content_digest": "2bc75243c574b643",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather?",
+          "content_digest": "d5fba28db71b04a9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"get_weather\",\"input\":{}}",
+          "content_digest": "ab28876a256e80ee",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny",
+          "content_digest": "9e58605cc3009fc7",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 11,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Sunny",
+        "content_digest": "9e58605cc3009fc7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"get_weather\",\"input\":{}}",
+        "content_digest": "ab28876a256e80ee",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather?",
+        "content_digest": "d5fba28db71b04a9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "5+5 is 10.",
+        "content_digest": "2bc75243c574b643",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 5+5?",
+        "content_digest": "dbdc0f62ff7e9add",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "4+4 is 8.",
+        "content_digest": "a780f9ff7bbc6701",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 4+4?",
+        "content_digest": "1b33a792f3ee3fdd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "3+3 is 6.",
+        "content_digest": "aad01636fb784848",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 3+3?",
+        "content_digest": "2828f313076cb2e6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 2+2?",
+        "content_digest": "149da225c62bf6fe",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "2+2 is 4.",
+        "content_digest": "8b5ceb2cf119963f",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

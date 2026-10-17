@@ -643,13 +643,14 @@ pub(super) fn compile_rule(
     }
     if read.indexed_family.is_none()
         && (read.overlay.is_some()
+            || read.entry_defaults.is_some()
             || !read.numeric_members.is_empty()
             || read.entry_value.is_some()
             || read.entry_value_parse.is_some())
     {
         return Err(inexpressible(
-            "`overlay`, `numeric_members` and `entry_value` describe an indexed family's entries and \
-                 are read only for one",
+            "`overlay`, `entry_defaults`, `numeric_members` and `entry_value` describe an indexed family's \
+                 entries and are read only for one",
         ));
     }
     // A canonical tool definition is a tool definition. Emitted on the message axis it would be a message

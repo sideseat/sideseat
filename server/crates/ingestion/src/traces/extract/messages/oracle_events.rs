@@ -26,7 +26,17 @@ pub(crate) fn try_gen_ai_indexed(
     }
 
     for idx in completion_indices {
-        if let Some(msg) = extract_indexed_message(attrs, "gen_ai.completion", idx, timestamp) {
+        if let Some(mut msg) = extract_indexed_message(attrs, "gen_ai.completion", idx, timestamp) {
+            // The one stated difference from the retired table: a completion that states no role and carries no
+            // result's call id is the assistant's (`semconv.indexed_completion`'s `entry_defaults`), where the table left it to be derived
+            // as the user's.
+            if let Some(object) = msg.content.as_object_mut()
+                && !object.contains_key("tool_call_id")
+            {
+                object
+                    .entry("role")
+                    .or_insert_with(|| serde_json::Value::from("assistant"));
+            }
             messages.push(msg);
         }
     }

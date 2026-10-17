@@ -277,9 +277,18 @@
     },
     {
       "id": "semconv.indexed_completion",
-      "doc": "The response in the same encoding.",
+      "doc": "The response in the same encoding. An entry that states no role is the response's: the family is the completion, so it defaults to the assistant rather than being read as nobody's - which the role derivation would make the user's.",
       "read": {
-        "indexed_family": "gen_ai.completion"
+        "indexed_family": "gen_ai.completion",
+        "entry_defaults": {
+          "doc": "A completion's role is the assistant's unless it says otherwise - except one carrying a result's call id, which is a tool's result, and on a tool's span, where the completion is the tool's.",
+          "members": {
+            "role": "assistant"
+          },
+          "unless": [
+            "tool_call_id"
+          ]
+        }
       },
       "emit": "message",
       "priority": 110,

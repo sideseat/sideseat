@@ -148,7 +148,24 @@ fn raw_where_asks_what_the_emptiness_flags_asked() {
             );
         }
     }
-    // Every shipped `raw_where` is one of the two.
+    // Every shipped `raw_where` is one of the two, or the one shape test written since: the deprecated prompt
+    // event's member, which holds a conversation (a JSON list or object) or a bare prompt, read apart because only
+    // the first replays across traces.
+    let structure = serde_json::json!({"any": [{"starts_with": "["}, {"starts_with": "{"}]});
+    let bare = serde_json::json!({"all": [{"lacks_prefix": "["}, {"lacks_prefix": "{"}]});
+    for (text, structured) in [("[{}]", true), ("{}", true), ("Q", false)] {
+        let holds = |condition: &serde_json::Value| {
+            let condition: ValueCondition =
+                serde_json::from_value(condition.clone()).expect("parses");
+            crate::rules::message_rules::predicates_hold(&serde_json::json!(text), &condition)
+        };
+        assert_eq!(holds(&structure), structured, "{text:?}");
+        assert_eq!(
+            holds(&bare),
+            !structured,
+            "{text:?}: the two shapes partition the text"
+        );
+    }
     for (path, bytes) in crate::rules::schema::embedded_sources() {
         let asset: serde_json::Value = serde_json::from_slice(&bytes).expect("decodes");
         fn walk(value: &serde_json::Value, path: &str) {
@@ -157,7 +174,11 @@ fn raw_where_asks_what_the_emptiness_flags_asked() {
                     if let Some(raw) = members.get("raw_where") {
                         assert!(
                             *raw == serde_json::json!({"non_empty": true})
-                                || *raw == serde_json::json!({"non_blank": true}),
+                                || *raw == serde_json::json!({"non_blank": true})
+                                || *raw
+                                    == serde_json::json!({"any": [{"starts_with": "["}, {"starts_with": "{"}]})
+                                || *raw
+                                    == serde_json::json!({"all": [{"lacks_prefix": "["}, {"lacks_prefix": "{"}]}),
                             "{path}: a `raw_where` the migration did not write: {raw}"
                         );
                     }

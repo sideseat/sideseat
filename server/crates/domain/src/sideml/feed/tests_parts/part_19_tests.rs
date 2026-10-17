@@ -141,3 +141,176 @@ fn a_declared_function_result_keeps_its_call_id_and_undeclared_json_stays_data()
         .collect();
     assert_eq!(results, [Some("B".to_string())]);
 }
+
+// ----------------------------------------------------------------------------
+// Test: the deprecated content events' members read as the request and the response they are
+// ----------------------------------------------------------------------------
+
+fn member_event(
+    name: &str,
+    at: chrono::DateTime<Utc>,
+    content: serde_json::Value,
+) -> serde_json::Value {
+    json!({"source": {"event": {"name": name, "time": at.to_rfc3339()}}, "content": content})
+}
+
+/// A child generation's response read from a deprecated completion event's member is its output: an agent parent
+/// that re-lists the question does not make the answer history, finish reason or none.
+#[test]
+fn a_completion_member_is_its_generation_s_output() {
+    let start = fixed_time();
+    let parent = make_span_row_full(
+        "trace1",
+        "agent",
+        None,
+        &json!([member_event(
+            "gen_ai.user.message",
+            start,
+            json!({"role": "user", "content": "What is 3+3?"})
+        )])
+        .to_string(),
+        start,
+        Some(start + chrono::Duration::seconds(3)),
+        Some("agent"),
+    );
+    let child = make_span_row_with_timestamps(
+        "trace1",
+        "call",
+        Some("agent"),
+        &json!([
+            member_event(
+                "gen_ai.prompt",
+                start,
+                json!({"role": "user", "content": "What is 3+3?"})
+            ),
+            member_event(
+                "gen_ai.completion",
+                start + chrono::Duration::seconds(1),
+                json!({"role": "assistant", "content": "3+3 is 6."})
+            ),
+        ])
+        .to_string(),
+        start,
+        Some(start + chrono::Duration::seconds(2)),
+    );
+    let texts: Vec<String> = process_trace_spans(vec![parent, child], &FeedOptions::new())
+        .messages
+        .iter()
+        .map(|b| {
+            format!(
+                "{}:{}",
+                b.role.as_str(),
+                serde_json::to_string(&b.content).unwrap_or_default()
+            )
+        })
+        .collect();
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.starts_with("assistant:") && t.contains("3+3 is 6.")),
+        "the answer was lost: {texts:?}"
+    );
+}
+
+/// A deprecated prompt event's member re-lists the whole conversation at request time: in a session, a later trace's
+/// copy of an earlier trace's turns is recognised by its place in the replayed prefix and not shown twice.
+#[test]
+fn a_prompt_member_replays_an_earlier_trace_once() {
+    let first = fixed_time();
+    let second = first + chrono::Duration::seconds(60);
+    let turn = |trace: &str, at: chrono::DateTime<Utc>, prompt: serde_json::Value, answer: &str| {
+        let mut row = make_span_row_with_timestamps(
+            trace,
+            &format!("{trace}-call"),
+            None,
+            &json!([
+                member_event("gen_ai.prompt", at, prompt),
+                member_event(
+                    "gen_ai.completion",
+                    at + chrono::Duration::seconds(1),
+                    json!({"role": "assistant", "content": answer})
+                ),
+            ])
+            .to_string(),
+            at,
+            Some(at + chrono::Duration::seconds(2)),
+        );
+        row.session_id = Some("session".to_string());
+        row
+    };
+    let rows = vec![
+        turn(
+            "trace1",
+            first,
+            json!([{"role": "user", "content": "Q1"}]),
+            "A1",
+        ),
+        turn(
+            "trace2",
+            second,
+            json!([
+                {"role": "user", "content": "Q1"},
+                {"role": "assistant", "content": "A1"},
+                {"role": "user", "content": "Q2"}
+            ]),
+            "A2",
+        ),
+    ];
+    let texts: Vec<String> = process_spans(rows, &FeedOptions::new())
+        .messages
+        .iter()
+        .filter_map(|b| match &b.content {
+            crate::sideml::types::ContentBlock::Text { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        texts,
+        ["Q1", "A1", "Q2", "A2"],
+        "the session shows each turn once, in order"
+    );
+}
+
+/// A bare prompt is one question, reported under the deprecated event's own name, never a replayed conversation: the
+/// same question asked in two traces of a session is shown twice.
+#[test]
+fn a_bare_prompt_asked_twice_is_shown_twice() {
+    let first = fixed_time();
+    let second = first + chrono::Duration::seconds(60);
+    let turn = |trace: &str, at: chrono::DateTime<Utc>, answer: &str| {
+        let mut row = make_span_row_with_timestamps(
+            trace,
+            &format!("{trace}-call"),
+            None,
+            &json!([
+                member_event(
+                    "gen_ai.content.prompt",
+                    at,
+                    json!({"role": "user", "content": "Q"})
+                ),
+                member_event(
+                    "gen_ai.completion",
+                    at + chrono::Duration::seconds(1),
+                    json!({"role": "assistant", "content": answer})
+                ),
+            ])
+            .to_string(),
+            at,
+            Some(at + chrono::Duration::seconds(2)),
+        );
+        row.session_id = Some("session".to_string());
+        row
+    };
+    let texts: Vec<String> = process_spans(
+        vec![turn("trace1", first, "A1"), turn("trace2", second, "A2")],
+        &FeedOptions::new(),
+    )
+    .messages
+    .iter()
+    .filter_map(|b| match &b.content {
+        crate::sideml::types::ContentBlock::Text { text, .. } => Some(text.clone()),
+        _ => None,
+    })
+    .collect();
+    assert_eq!(texts, ["Q", "A1", "Q", "A2"]);
+}

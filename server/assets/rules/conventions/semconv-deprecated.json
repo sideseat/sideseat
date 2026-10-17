@@ -1,0 +1,142 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "semconv-deprecated",
+  "doc": "The deprecated OpenTelemetry GenAI spellings of a request and a response: the `gen_ai.content.prompt` and `gen_ai.content.completion` events holding them under their `gen_ai.prompt` and `gen_ai.completion` members. A published convention, kept apart from the current one so each file stays one convention's statement.",
+  "carriers": [
+    {
+      "id": "semconv.event.content_completion_member",
+      "doc": "The response a deprecated `gen_ai.content.completion` event holds under its `gen_ai.completion` attribute (`semconv.content_completion_event`): the same emission as the event, read from its member.",
+      "match": {
+        "event": "gen_ai.completion"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.event.content_prompt_member",
+      "doc": "The request a deprecated `gen_ai.content.prompt` event holds under its `gen_ai.prompt` attribute (`semconv.content_prompt_event`): what the span was sent, the whole conversation at request time, so every turn shares the event's time and an earlier trace's turn is recognised by its place in the replayed prefix.",
+      "match": {
+        "event": "gen_ai.prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_replays_across_traces": true
+      }
+    }
+  ],
+  "event_roles": [
+    {
+      "id": "semconv.event_role.content_completion_member",
+      "name": "gen_ai.completion",
+      "direction": "output",
+      "doc": "What a deprecated `gen_ai.content.completion` event holds under its `gen_ai.completion` member (`semconv.content_completion_event`): the span's response, as the event is. The roles are each message's own."
+    },
+    {
+      "id": "semconv.event_role.content_prompt_member",
+      "name": "gen_ai.prompt",
+      "direction": "input",
+      "doc": "What a deprecated `gen_ai.content.prompt` event holds under its `gen_ai.prompt` member (`semconv.content_prompt_event`): the span's request. The roles are each message's own."
+    }
+  ],
+  "messages": [
+    {
+      "id": "semconv.content_prompt_event",
+      "doc": "The deprecated convention's request event, `gen_ai.content.prompt`, holds the request under its `gen_ai.prompt` attribute as a JSON list of messages - the whole conversation at request time, which is why its carrier replays across traces. Each message keeps the role it states. Chosen by what the text parses to, so JSON after whitespace is still a conversation; a bare prompt is `semconv.content_prompt_text_event`'s.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.content.prompt"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.prompt"
+      },
+      "parse": "json_structure_or_string",
+      "alternatives": [
+        {
+          "id": "conversation",
+          "where": {
+            "not": {
+              "kind": "string"
+            }
+          }
+        }
+      ],
+      "emit": "message",
+      "priority": 35
+    },
+    {
+      "id": "semconv.content_prompt_text_event",
+      "doc": "The same member holding a bare prompt rather than a conversation: one user turn, reported under the event's own name, which is no replay of an earlier trace - a question asked twice is asked twice.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.content.prompt"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.prompt"
+      },
+      "parse": "json_structure_or_string",
+      "alternatives": [
+        {
+          "id": "question",
+          "where": {
+            "kind": "string"
+          },
+          "wrap": {
+            "role": "user"
+          }
+        }
+      ],
+      "emit": "message",
+      "priority": 37,
+      "tag_as": "gen_ai.content.prompt"
+    },
+    {
+      "id": "semconv.content_completion_event",
+      "doc": "The deprecated convention's response event, `gen_ai.content.completion`, holds the response under its `gen_ai.completion` attribute as the convention writes it: a JSON list of messages, one message stating its role, or a bare completion, kept as the text it is and the assistant's. A shape the convention does not write - an object stating no role - is not read here, so the event stays as it was rather than losing members to a guessed envelope.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.content.completion"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "gen_ai.completion"
+      },
+      "parse": "json_structure_or_string",
+      "alternatives": [
+        {
+          "id": "messages",
+          "where": {
+            "kind": "array"
+          }
+        },
+        {
+          "id": "message",
+          "where": {
+            "path": "$.role",
+            "exists": true
+          }
+        },
+        {
+          "id": "text",
+          "where": {
+            "kind": "string"
+          },
+          "wrap": {
+            "role": "assistant"
+          }
+        }
+      ],
+      "emit": "message",
+      "priority": 36
+    }
+  ]
+}

@@ -296,3 +296,147 @@ fn a_tool_message_s_stated_call_id_is_not_overwritten_by_the_span_s() {
         );
     }
 }
+
+/// An indexed completion that states no role is the response's: the family's `entry_defaults` make it the
+/// assistant's, and a role the entry does state stands.
+#[test]
+fn a_role_less_indexed_completion_is_the_assistant_s() {
+    let attrs = make_attrs(&[
+        ("gen_ai.completion.0.content", "2+2 is 4."),
+        ("gen_ai.completion.1.content", "A tool's word."),
+        ("gen_ai.completion.1.role", "tool"),
+    ]);
+    let mut messages = Vec::new();
+    extract_messages_from_attrs(
+        &mut messages,
+        &mut Vec::new(),
+        &attrs,
+        "chat",
+        Utc::now(),
+        ExtractionMode::PerCarrier,
+        false,
+    );
+    let roles: Vec<Option<&str>> = messages
+        .iter()
+        .map(|m| m.content.get("role").and_then(|r| r.as_str()))
+        .collect();
+    assert_eq!(roles, [Some("assistant"), Some("tool")]);
+
+    // A role-less entry carrying a result's call id is a tool's result, and on a tool's span an entry is the tool's:
+    // neither takes the default, so the evidence that makes them results still decides.
+    let result = make_attrs(&[
+        ("gen_ai.completion.0.content", "Sunny"),
+        ("gen_ai.completion.0.tool_call_id", "c1"),
+    ]);
+    let roles_of = |attrs: &HashMap<String, String>, is_tool_span: bool| {
+        let mut messages = Vec::new();
+        extract_messages_from_attrs(
+            &mut messages,
+            &mut Vec::new(),
+            attrs,
+            "chat",
+            Utc::now(),
+            ExtractionMode::PerCarrier,
+            is_tool_span,
+        );
+        messages
+            .iter()
+            .map(|m| m.content.get("role").cloned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(roles_of(&result, false), [None]);
+    let tool_span = make_attrs(&[("gen_ai.completion.0.content", "Sunny")]);
+    assert_eq!(roles_of(&tool_span, true), [None]);
+}
+
+/// The deprecated convention's events hold their request and response under `gen_ai.prompt` and `gen_ai.completion`,
+/// as a JSON list of messages or a bare text: each is read from its member, a list as the messages it holds and a
+/// bare text as the event's own turn.
+#[test]
+fn the_deprecated_content_events_are_read_from_their_members() {
+    let event = |name: &str, member: &str, value: &str| Event {
+        name: name.to_string(),
+        time_unix_nano: 1_704_067_200_000_000_000,
+        attributes: vec![make_kv(member, value)],
+        dropped_attributes_count: 0,
+    };
+    let read = |name: &str, member: &str, value: &str| {
+        extract_message_from_event(&event(name, member, value), "", &HashMap::new(), false)
+            .into_iter()
+            .map(|m| m.content)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        read(
+            "gen_ai.content.completion",
+            "gen_ai.completion",
+            r#"[{"role": "assistant", "content": "3+3 is 6."}]"#
+        ),
+        [json!([{"role": "assistant", "content": "3+3 is 6."}])]
+    );
+    assert_eq!(
+        read("gen_ai.content.completion", "gen_ai.completion", "Six."),
+        [json!({"role": "assistant", "content": "Six."})]
+    );
+    assert_eq!(
+        read(
+            "gen_ai.content.prompt",
+            "gen_ai.prompt",
+            r#"[{"role": "system", "content": "Be brief."}, {"role": "user", "content": "What is 3+3?"}]"#
+        ),
+        [
+            json!([{"role": "system", "content": "Be brief."}, {"role": "user", "content": "What is 3+3?"}])
+        ]
+    );
+    assert_eq!(
+        read("gen_ai.content.prompt", "gen_ai.prompt", "What is 3+3?"),
+        [json!({"role": "user", "content": "What is 3+3?"})]
+    );
+    // A conversation is reported under the member's name, whose carrier replays across traces; a bare prompt under
+    // the event's own, which does not.
+    let source_of = |value: &str| {
+        extract_message_from_event(
+            &event("gen_ai.content.prompt", "gen_ai.prompt", value),
+            "",
+            &HashMap::new(),
+            false,
+        )
+        .into_iter()
+        .map(|m| match m.source {
+            MessageSource::Event { name, .. } => name,
+            MessageSource::Attribute { key, .. } => key,
+        })
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        source_of(r#"[{"role": "user", "content": "Q"}]"#),
+        ["gen_ai.prompt"]
+    );
+    assert_eq!(source_of("Q"), ["gen_ai.content.prompt"]);
+    // Chosen by what the text parses to, not by its first character: JSON after whitespace is still a conversation.
+    assert_eq!(
+        source_of(" \n\t[{\"role\": \"user\", \"content\": \"Q\"}]"),
+        ["gen_ai.prompt"]
+    );
+    // An object stating no role is no shape the convention writes: not read as a guessed envelope, whatever it holds.
+    for shape in [
+        r#"{"content": "Six."}"#,
+        r#"{"content": "Sunny", "tool_call_id": "c1"}"#,
+        r#"{"content": "", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]}"#,
+    ] {
+        assert!(
+            read("gen_ai.content.completion", "gen_ai.completion", shape)
+                .iter()
+                .all(|content| content.get("gen_ai.completion").is_some()),
+            "{shape} was read as a message"
+        );
+    }
+    // A bare text is kept as the text it is, never read as the JSON scalar it happens to spell.
+    for text in ["null", "4.20", "true"] {
+        assert_eq!(
+            read("gen_ai.content.completion", "gen_ai.completion", text),
+            [json!({"role": "assistant", "content": text})],
+            "{text:?}"
+        );
+    }
+}

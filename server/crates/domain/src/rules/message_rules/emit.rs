@@ -136,7 +136,7 @@ pub(super) fn emit_rule<'p>(
         return out;
     }
     if let Some(family) = rule.read.indexed_family.as_deref() {
-        let entries = indexed_entries(
+        let mut entries = indexed_entries(
             ctx.span_attrs,
             family,
             &rule.read,
@@ -144,6 +144,25 @@ pub(super) fn emit_rule<'p>(
         )
         .into_iter()
         .collect::<Vec<_>>();
+        // What the family's name says of every entry, where the entry, its overlay and its other members said nothing.
+        if let Some(defaults) = &rule.read.entry_defaults
+            && !ctx.is_tool_span
+        {
+            for entry in &mut entries {
+                if let Some(object) = entry.value.as_object_mut()
+                    && !defaults
+                        .unless
+                        .iter()
+                        .any(|member| object.contains_key(member))
+                {
+                    for (member, literal) in &defaults.members {
+                        object
+                            .entry(member.clone())
+                            .or_insert_with(|| literal.clone());
+                    }
+                }
+            }
+        }
         // A result set is one observation. Its entries are the array, and the envelope says what the array
         // is - so the whole family is tagged once rather than one carrier per document. The same ceiling as
         // every other reading of one carrier holds here too: an aggregate is one emission, but its entries

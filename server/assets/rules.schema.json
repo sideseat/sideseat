@@ -1441,6 +1441,17 @@
           ],
           "default": null
         },
+        "entry_defaults": {
+          "description": "Literal members each indexed entry takes where it states none of its own (`EntryDefaults`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryDefaults"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "numeric_members": {
           "description": "Entry members to read as a number where the text is one.\n\nOTel attributes are strings, so a relevance score arrives as `\"0.9\"` - and a score is a number.\nNamed rather than sniffed, because a version, an id or a postcode is text that happens to parse.",
           "type": "array",
@@ -1590,6 +1601,37 @@
           ],
           "additionalProperties": false
         }
+      ]
+    },
+    "EntryDefaults": {
+      "description": "Literal members each indexed entry takes where it states none of its own: a family whose name says what its entries\nare - the response's completions - leaves the role unstated, and an entry with no role is not the user's turn. A\nmember the entry states, or its overlay supplies, keeps its own value; an entry holding any member `unless` names\ncarries other evidence of what it is - a result's call id - and takes none; and on a tool's execution span, where an\nentry is the tool's, none applies.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "members": {
+          "description": "The members and their literal values.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "unless": {
+          "description": "Members whose presence leaves the entry as it is.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "members"
       ]
     },
     "ParseMode": {

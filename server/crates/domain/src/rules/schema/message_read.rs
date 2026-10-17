@@ -266,6 +266,9 @@ pub struct ReadSpec {
     /// payload it came from.
     #[serde(default)]
     pub entry_member: Option<String>,
+    /// Literal members each indexed entry takes where it states none of its own (`EntryDefaults`).
+    #[serde(default)]
+    pub entry_defaults: Option<EntryDefaults>,
     /// Entry members to read as a number where the text is one.
     ///
     /// OTel attributes are strings, so a relevance score arrives as `"0.9"` - and a score is a number.
@@ -669,4 +672,23 @@ pub enum ParseMode {
     /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
     /// non-string or an accidental number into a number.
     Text,
+}
+
+/// Literal members each indexed entry takes where it states none of its own: a family whose name says what its entries
+/// are - the response's completions - leaves the role unstated, and an entry with no role is not the user's turn. A
+/// member the entry states, or its overlay supplies, keeps its own value; an entry holding any member `unless` names
+/// carries other evidence of what it is - a result's call id - and takes none; and on a tool's execution span, where an
+/// entry is the tool's, none applies.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct EntryDefaults {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The members and their literal values.
+    pub members: std::collections::BTreeMap<String, serde_json::Value>,
+    /// Members whose presence leaves the entry as it is.
+    #[serde(default)]
+    pub unless: Vec<String>,
 }

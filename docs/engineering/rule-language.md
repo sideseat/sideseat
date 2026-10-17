@@ -1209,6 +1209,7 @@ than a field to un-refuse.
 | `family` | string | A dotted attribute *family* read as one object: every key under the prefix (which ends in `.`), named by what follows it - `code.function.parameters.city.value = "Paris"` is `{"city.value": "Paris"}` - with each value read as the JSON it spells or as its text. |
 | `rendering` | [`Expr_ValuePredicate`](#expr_valuepredicate) or null | A predicate applied to each fully assembled indexed entry. |
 | `entry_member` | string | A sub-level of each indexed entry whose members are read at the top of the object. |
+| `entry_defaults` | [`EntryDefaults`](#entrydefaults) or null | Literal members each indexed entry takes where it states none of its own (`EntryDefaults`). |
 | `numeric_members` | list of string | Entry members to read as a number where the text is one. |
 | `entry_value` | string | Read one *value* out of each indexed entry, rather than the entry's assembled members. |
 | `entry_value_parse` | [`ParseMode`](#parsemode) or null | How the projected value is read. `json` **drops** an entry whose payload does not parse, which is what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a malformed schema would be emitted as the string it is, reported as a tool definition. |
@@ -1227,6 +1228,20 @@ than a field to un-refuse.
 - object with `all` (list of [`Expr_ValuePredicate`](#expr_valuepredicate), required), `doc` (string)
 - object with `any` (list of [`Expr_ValuePredicate`](#expr_valuepredicate), required), `doc` (string)
 - object with `not` ([`Expr_ValuePredicate`](#expr_valuepredicate), required), `doc` (string)
+
+### `EntryDefaults`
+
+Literal members each indexed entry takes where it states none of its own: a family whose name says what its entries
+are - the response's completions - leaves the role unstated, and an entry with no role is not the user's turn. A
+member the entry states, or its overlay supplies, keeps its own value; an entry holding any member `unless` names
+carries other evidence of what it is - a result's call id - and takes none; and on a tool's execution span, where an
+entry is the tool's, none applies.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `members` (required) | object | The members and their literal values. |
+| `unless` | list of string | Members whose presence leaves the entry as it is. |
 
 ### `ParseMode`
 
