@@ -21,6 +21,18 @@ impl ProjectId {
         Self(value.into())
     }
 
+    /// Whether `id` has a project id's form: 1 to 64 characters, each alphanumeric, `-` or `_`. Every API that
+    /// takes a project id refuses anything else, and a store that writes the id into a statement as a literal
+    /// refuses it too, so no quote, backslash or control character ever reaches one.
+    #[must_use]
+    pub fn is_well_formed(id: &str) -> bool {
+        !id.is_empty()
+            && id.len() <= 64
+            && id
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    }
+
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0

@@ -31,13 +31,9 @@ pub struct ProjectPath {
 /// Maximum length for IDs (trace_id, span_id, session_id, etc.)
 pub const MAX_ID_LENGTH: usize = 256;
 
-/// Validate project_id: 1-64 chars, alphanumeric + dash/underscore
+/// Validate project_id: 1-64 chars, alphanumeric + dash/underscore (`ProjectId::is_well_formed`).
 pub fn is_valid_project_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    ProjectId::is_well_formed(id)
 }
 
 /// Validate generic ID length (trace_id, span_id, session_id, etc.)

@@ -20,6 +20,7 @@ mod error;
 pub mod migrations;
 mod repositories;
 mod repository_impl;
+pub mod tenant;
 pub use error::PostgresError;
 pub use repository_impl::PostgresRepository;
 pub mod schema;
@@ -310,18 +311,14 @@ impl PostgresService {
 
     /// Start an ordinary application transaction scoped to exactly one project.
     ///
-    /// `set_config(..., true)` makes the tenant selector transaction-local, so pooled
-    /// connections cannot leak scope between requests.
+    /// `set_config(..., true)` makes the tenant selector transaction-local, so pooled connections cannot leak scope
+    /// between requests; it is set by the statement that begins the transaction, in one round trip
+    /// ([`tenant::TenantTransaction`]).
     pub async fn tenant_transaction(
         &self,
         project_id: &ProjectId,
-    ) -> Result<sqlx::Transaction<'_, sqlx::Postgres>, PostgresError> {
-        let mut transaction = self.runtime_pool.begin().await?;
-        sqlx::query("SELECT set_config('sideseat.project_id', $1, true)")
-            .bind(project_id.as_str())
-            .execute(&mut *transaction)
-            .await?;
-        Ok(transaction)
+    ) -> Result<tenant::TenantTransaction, PostgresError> {
+        tenant::TenantTransaction::begin(&self.runtime_pool, project_id).await
     }
 
     /// Start a privileged transaction for an explicitly cross-project maintenance operation.
