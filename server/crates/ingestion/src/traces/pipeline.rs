@@ -699,6 +699,8 @@ mod raw_rewrite_stale_tests;
 #[cfg(test)]
 mod receipt_precedence_tests;
 #[cfg(test)]
+mod session_tombstone_tests;
+#[cfg(test)]
 mod settlement_skip_tests;
 #[cfg(test)]
 mod storable_timestamp_tests;

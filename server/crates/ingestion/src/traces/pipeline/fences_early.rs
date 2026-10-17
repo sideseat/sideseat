@@ -154,10 +154,18 @@ impl TracePipeline {
     /// next line and reconciles their files in the sweep. Doing it this way rather than duplicating the
     /// deletion logic means there is one place that knows how a trace is taken away.
     ///
+    /// Only a trace this batch `begun` - wrote a parentless span of - is taken, as the pre-write fence fences only
+    /// such a trace or one the store already knew. A child is no evidence of its trace's session, and right after
+    /// the write the store's answer for a trace it knew nothing else of is that child's. Tombstoning on it lost
+    /// acknowledged data: another instance writes the trace's earlier root under a live session, passes its checks
+    /// and answers 200, and this tombstone - decided from the read before that root landed - then has the sweep
+    /// delete it. A child-only trace of a deleted session is left to the session sweep, which re-resolves it.
+    ///
     /// Returns the trace ids it tombstoned, so the caller can compensate them in the same pass.
     pub(super) async fn tombstone_traces_of_deleted_sessions(
         &self,
         written: &[(String, String, String)],
+        begun: &HashSet<(String, String)>,
     ) -> HashSet<(String, String)> {
         let mut affected: HashSet<(String, String)> = HashSet::new();
         if written.is_empty() {
@@ -179,6 +187,9 @@ impl TracePipeline {
         // root was committing while this batch was checked.
         let mut traces_by_project: HashMap<String, Vec<String>> = HashMap::new();
         for (project, trace, _) in written {
+            if !begun.contains(&(project.clone(), trace.clone())) {
+                continue;
+            }
             traces_by_project
                 .entry(project.clone())
                 .or_default()
@@ -520,4 +531,22 @@ impl TracePipeline {
     pub(super) async fn release_created_associations(&self, created: &[(String, String, String)]) {
         crate::media::release_created_associations(&self.file_service, created).await;
     }
+}
+
+/// The traces whose beginning - a span with no parent - `spans` carry: the only ones a batch has evidence of the
+/// session of ([`TracePipeline::tombstone_traces_of_deleted_sessions`]).
+pub(super) fn traces_begun(spans: &[NormalizedSpan]) -> HashSet<(String, String)> {
+    spans
+        .iter()
+        .filter(|s| s.parent_span_id.as_deref().unwrap_or("").is_empty())
+        .map(|s| {
+            (
+                s.project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                s.trace_id.clone(),
+            )
+        })
+        .collect()
 }

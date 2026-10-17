@@ -660,6 +660,7 @@ impl TracePipeline {
                 )
             })
             .collect();
+        let begun = super::fences_early::traces_begun(&all_db_spans);
         let SpanWrite {
             committed,
             in_doubt,
@@ -722,7 +723,8 @@ impl TracePipeline {
             // means the association is at zero pending and non-durable, so it goes; confirm then sees only
             // the survivors, which `collect_spans_written_for_deleted_traces` has pruned from the set.
             // Sessions first: tombstoning their traces is what makes the trace compensation see them.
-            self.tombstone_traces_of_deleted_sessions(&written).await;
+            self.tombstone_traces_of_deleted_sessions(&written, &begun)
+                .await;
             let compensated = self
                 .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                 .await;
