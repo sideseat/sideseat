@@ -172,7 +172,13 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         .flat_map(|reason| proven(reason))
         .collect();
     // A call whose request span is proven silent (`call_span_records_no_output`) has no span to find.
-    let silent = proven("call_span_records_no_output");
+    let silent: BTreeSet<&str> = [
+        "call_span_records_no_output",
+        "call_span_overwritten_by_tool",
+    ]
+    .iter()
+    .flat_map(|reason| proven(reason))
+    .collect();
     let off_span = proven("output_not_exported");
     for call in truth.calls.iter().filter(|c| {
         c.succeeded()

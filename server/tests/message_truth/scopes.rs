@@ -106,6 +106,15 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
             .map(|f| (f, homes))
     }));
     for ((trace, span), (facts, calls)) in carried {
+        // A span tied to a call of its own holds a silent call's part as the request it was sent. Its view still
+        // owes the part - once, as it shows it - but the rest of the view is that call's own scope's: this scope
+        // reads only the blocks that show one of the parts, so the span's own answer and request are not taken for
+        // something these parts fail to explain.
+        let owned = context
+            .matching
+            .span_of
+            .values()
+            .any(|&g| recon.generations[g].trace == trace && recon.generations[g].span == span);
         let Some((view_index, view)) = recon.views.iter().enumerate().find(|(_, v)| {
             v.kind == ViewKind::Span && v.key == span && (v.trace.is_empty() || v.trace == trace)
         }) else {
@@ -123,6 +132,12 @@ pub(super) fn scopes<'a>(context: &'a Context<'a>) -> Vec<Scope<'a>> {
                 .blocks
                 .iter()
                 .enumerate()
+                .filter(|(_, b)| {
+                    !owned
+                        || facts.iter().any(|f| {
+                            super::predicates::shows(f, b, None) != super::predicates::Shows::No
+                        })
+                })
                 .map(|(i, b)| (view_index, i, b))
                 .collect(),
             facts,

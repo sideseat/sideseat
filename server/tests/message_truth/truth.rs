@@ -560,6 +560,10 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // A model call whose request span is exported but records none of its output and nothing identifying
         // it, so no span can be tied to the call; its parts are asserted where the conversation shows them.
         "call_span_records_no_output" => effects(GapSubject::Call, false, false, true),
+        // A call whose own span the tool it led to wrote over - the tool's execution stated on it, its request and
+        // response emptied - so no span can be tied to the call; its parts are asserted where the conversation
+        // shows them, as for a silent request span.
+        "call_span_overwritten_by_tool" => effects(GapSubject::Call, false, false, true),
         // The relative order of a response's parallel tool calls, where no payload holds two of them: only
         // that order is withdrawn; their presence and their place against the rest stay asserted.
         "call_order_not_exported" => effects(GapSubject::Call, false, false, true),

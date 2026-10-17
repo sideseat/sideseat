@@ -159,7 +159,12 @@ its own client dropped before sending (`states_unsent` in the suite's truth tabl
 lines): the call's request view is held to the recorded request with that text appended to its last user
 message, which also accounts for the one block showing it in the call's trace, and the gap is proven per
 capture - the call's span states the text byte for byte and its recorded request holds it nowhere
-(`absence::unsent`). `metadata_not_exported` covers a call's model, response
+(`absence::unsent`). `call_span_overwritten_by_tool` is a call that only calls tools whose own span the tool it
+led to wrote over (the tool traced on the current span, the call's step): proven per capture on exactly one span
+named as the producer's model-call steps are, stating the conventions' `execute_tool` with the call's tool name and
+arguments, its own request and response emptied, and no model output or identity of the call in any carrier
+(`absence::overwritten`); like a silent request span, the call is then tied to no span and its parts are asserted
+where the conversation shows them. `metadata_not_exported` covers a call's model, response
 model, response id, finish or usage count that the producer states wrongly while the right value is in no
 payload (a finish counts as stated only under a member naming a finish; a usage count is refused by any
 payload holding the wire's count as a number, and the gap is itself a violation, `gap.unused`, where the span

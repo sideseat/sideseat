@@ -50,7 +50,7 @@ pub(in super::super) struct Carrier {
 }
 
 /// Everything a fixture's captured payloads carry, carrier by carrier.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(in super::super) struct Haystack {
     pub carriers: Vec<Carrier>,
     /// Locations whose content still looked encoded at `MAX_DEPTH`.

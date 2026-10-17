@@ -75,6 +75,8 @@ class Framework:
     #: records the whole run on one agent span and no model-call span (``call_span_not_exported``);
     #: ``tool_round_run_spans`` - the own span of a call that answers a tool round, where the producer
     #: records a whole run of calls on one model-call span, the run's first call's (``call_folded_into_run_span``);
+    #: ``tool_overwritten_call_spans`` - the own span of a call that only calls tools, which the tool it led to
+    #: wrote its execution attributes over (``call_span_overwritten_by_tool``);
     #: ``tool_round_traces`` - the trace context of such a call, which the producer starts a new trace for
     #: (``trace_not_propagated``); ``run_call_spans`` - the place of every model call in the agent run that
     #: made it, where the producer opens the run's span without making it current, so its calls are the run's

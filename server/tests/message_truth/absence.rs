@@ -22,7 +22,9 @@ mod call_span;
 mod carrying;
 pub(super) mod haystack;
 mod metadata;
+mod overwritten;
 mod pieces;
+mod probe;
 mod reasoning;
 mod request_input;
 mod request_span;
@@ -464,7 +466,9 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                 "call_folded_into_run_span" => Claim::FoldedCall(subject),
                 "trace_not_propagated" => Claim::Untraced(subject),
                 "call_not_nested_under_its_run" => Claim::Unnested(subject),
-                "call_span_records_no_output" => Claim::RequestSpan(subject),
+                "call_span_records_no_output" | "call_span_overwritten_by_tool" => {
+                    Claim::RequestSpan(subject)
+                }
                 "call_order_not_exported" => Claim::CallOrder(subject),
                 "input_not_exported" => Claim::Input(subject),
                 // A gap stating no text is a malformed declaration: claimed as an empty text, which the proof refuses,
@@ -875,8 +879,13 @@ fn every_absence_gap_is_proven() {
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
                     Claim::RequestSpan(call) => match &matched {
-                        Some((recon, _)) => request_span::prove_request_span_silent(
-                            &checked, call, recon, &haystack,
+                        Some((recon, matching)) => overwritten::prove_spanless(
+                            &gap.reason,
+                            &checked,
+                            call,
+                            recon,
+                            matching,
+                            &haystack,
                         ),
                         None => Proof::Unprovable("the capture was not reconstructed".to_string()),
                     },
@@ -959,40 +968,4 @@ fn framework_limitations_are_documented() {
     panic!(
         "{LIMITATIONS_DOC}'s framework limitations are stale; rewrite them with UPDATE_LIMITATIONS=1"
     );
-}
-
-/// Prints the proof for facts of one truth over each of its fixtures, for deciding whether a gap could
-/// be declared: `ABSENCE_PROBE=spring-ai/tool_use:fact-007,fact-008 cargo test --locked -p
-/// sideseat-server --test message_goldens -- --ignored --nocapture absence_probe` (no fact list probes
-/// every fact).
-#[test]
-#[ignore]
-fn absence_probe() {
-    let Ok(probe) = std::env::var("ABSENCE_PROBE") else {
-        eprintln!("set ABSENCE_PROBE=<producer>/<scenario>[:fact-001,fact-002]");
-        return;
-    };
-    let (key, ids) = probe.split_once(':').unwrap_or((probe.as_str(), ""));
-    let truths = truth::load_all();
-    let truth = truths.get(key).unwrap_or_else(|| panic!("no truth {key}"));
-    let fixtures: BTreeMap<String, Vec<PathBuf>> = crate::discover_fixtures().into_iter().collect();
-    let wanted: BTreeSet<&str> = ids.split(',').filter(|s| !s.is_empty()).collect();
-    for fixture in &truth.fixtures {
-        let Some(paths) = fixtures.get(fixture) else {
-            continue;
-        };
-        let haystack = Haystack::of_fixture(paths);
-        for fact in truth
-            .facts
-            .iter()
-            .filter(|f| wanted.is_empty() || wanted.contains(f.id.as_str()))
-        {
-            eprintln!(
-                "{fixture} {} {}: {:?}",
-                fact.id,
-                fact.kind,
-                prove(fact, &haystack)
-            );
-        }
-    }
 }

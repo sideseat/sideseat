@@ -48,6 +48,7 @@ UNEXPORTED = frozenset(
         "structured_tool_results",
         "tool_round_call_spans",
         "tool_round_run_spans",
+        "tool_overwritten_call_spans",
         "tool_round_traces",
         "run_call_spans",
         "media",
@@ -283,6 +284,20 @@ def apply(builder: Builder, framework: Framework) -> None:
         # shows both calls' output, and that no other span does.
         for record in _tool_round_answers(builder.calls, facts):
             gap("response", "call_folded_into_run_span", detail, record["id"])
+    if detail := declared("tool_overwritten_call_spans"):
+        # A call whose asserted output is only tool calls, whose own span the tool it led to wrote its attributes
+        # over: the rubric proves per capture that the call's span states the tool's execution and emptied request
+        # and response, and no model output in any carrier. An output already withdrawn - reasoning no payload
+        # holds - is owed nowhere, so it does not count.
+        for record in builder.calls:
+            outputs = [
+                facts[output]
+                for output in record["outputs"]
+                if facts[output]["require"] is not None
+            ]
+            # One tool call: the tool's tracer records one tool's execution on the step.
+            if len(outputs) == 1 and outputs[0]["kind"] == "tool_call":
+                gap("response", "call_span_overwritten_by_tool", detail, record["id"])
     if detail := declared("tool_round_traces"):
         # The rubric proves per capture that the call's span has no parent and sits in another trace than
         # the previous call's.

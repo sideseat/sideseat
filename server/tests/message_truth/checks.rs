@@ -160,7 +160,12 @@ impl<'a> Context<'a> {
         let silent: BTreeSet<&str> = truth
             .gaps
             .iter()
-            .filter(|g| g.reason == "call_span_records_no_output" && g.holds_for(&recon.fixture))
+            .filter(|g| {
+                matches!(
+                    g.reason.as_str(),
+                    "call_span_records_no_output" | "call_span_overwritten_by_tool"
+                ) && g.holds_for(&recon.fixture)
+            })
             .filter_map(|g| g.subject.as_deref())
             .collect();
         let off_span_any = truth.facts.iter().any(|f| context.owed_off_span(f));

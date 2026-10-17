@@ -8,6 +8,13 @@
       "withheld_reasoning": {
         "reason": "reasoning the model signed and withheld the text of: ADK for Java's telemetry exports no reasoning part for it, and no payload holds one",
         "scenarios": ["structured_output", "tool_use"]
+      },
+      "tool_overwritten_call_spans": {
+        "reason": "the span of a call that only calls tools: ADK for Java 0.9.0 traces the tool on the current span, the call's own `call_llm` step, setting `gen_ai.operation.name` to `execute_tool`, the tool's name, description and arguments, and its request and response to `{}` (google-adk 0.9.0, com.google.adk.telemetry.Tracing: traceToolCall writes through traceWithSpan on Span.current(), and setToolExecutionAttributes sets execute_tool and the two empty objects); 1.3.0 traces the tool on a span of its own",
+        "scenarios": ["tool_use"],
+        "modes": {
+          "tool_use": ["native@0.9.0"]
+        }
       }
     }
   }
