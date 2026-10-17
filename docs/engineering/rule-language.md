@@ -923,7 +923,7 @@ the other two are declared where the carrier is written at another moment than t
 
 - `"own"`: The carrier's own time: an event's, or for an attribute its span's start.
 - `"span_start"`: The start of the span the observation names: a record written at the end of its span that describes what began it, such as a tool call rebuilt from the record of its result. Every observation is dated so.
-- `"span_end"`: The end of the span the observation names: what the span returned, which exists once it returns. Only the carrier's sole observation on its span, counted by place; a carrier holding several is re-listing turns that keep their own times.
+- `"span_end"`: The end of the span the observation names: what the span returned, which exists once it returns. Only the carrier's sole observation on its span, counted by place, and only one on the span's output side that is no user's or system turn; a carrier holding several is re-listing turns that keep their own times.
 
 ### `FramesRequests`
 

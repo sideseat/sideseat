@@ -39,11 +39,6 @@ const UNUSED: &[(&str, &str)] = &[
          dates are ever written",
     ),
     (
-        "CarrierDate=span_end",
-        "dates the sole observation of a carrier holding what its span returned: no shipped carrier's return is \
-         ordered against what its span's children did",
-    ),
-    (
         "TerminalContent=aggregate",
         "half of the closed set of what a stream's terminal reading holds: a producer whose final reading is \
          always the whole response declares it; the one shipped stream's terminal depends on its model adapter, \

@@ -76,3 +76,55 @@ def test_a_returned_structured_result_is_the_call_s_arguments_as_compact_json() 
         derive.assemble("p", "structured_output", [twice], options=options)
     with pytest.raises(ValueError, match="states no text and no place"):
         Framework.of({"framework_authored": [{**entry, "text": "x"}]})
+
+
+def test_a_record_answer_is_the_model_s_json_as_the_java_record_prints_it() -> None:
+    entry = {
+        "renders_answer_as_record": {
+            "name": "TripPlan",
+            "components": ["city", "days", "budget_eur"],
+        },
+        "source": "Main.java:1",
+        "scenarios": ["structured_output"],
+        "reaches_model": False,
+    }
+    options = derive.Options(framework=Framework.of({"framework_authored": [entry]}))
+
+    def rendered(answer: str) -> str:
+        builder = derive.assemble(
+            "p",
+            "structured_output",
+            [model_call(wire.text_part(answer))],
+            options=options,
+        )
+        (fact,) = [f for f in builder.facts if f["evidence"] == "framework"]
+        assert fact["kept_from_model"] is True
+        assert builder.conversations[0]["sequence"][-1] == fact["id"]
+        return fact["value"]["text"]
+
+    # In the record's component order, whatever the JSON's; a string as itself, a list as Java prints one.
+    assert (
+        rendered(
+            '{"budget_eur": 350, "days": ["Day 1: Café", "Day 2"], "city": "Wien"}'
+        )
+        == "TripPlan[city=Wien, days=[Day 1: Café, Day 2], budget_eur=350]"
+    )
+    assert rendered('{"city": "Wien", "days": [], "budget_eur": true}') == (
+        "TripPlan[city=Wien, days=[], budget_eur=true]"
+    )
+    # A value Java would print some other way refuses the declaration rather than guessing.
+    with pytest.raises(ValueError, match="no record printing"):
+        rendered('{"city": "Wien", "days": [], "budget_eur": 350.5}')
+    with pytest.raises(ValueError, match="no record printing"):
+        rendered('{"city": {"name": "Wien"}, "days": [], "budget_eur": 1}')
+    # An answer without exactly the record's components is no answer of that record.
+    with pytest.raises(ValueError, match="no JSON answer with the components"):
+        rendered('{"city": "Wien", "days": []}')
+    with pytest.raises(ValueError, match="names its record and its components"):
+        Framework.of(
+            {
+                "framework_authored": [
+                    {**entry, "renders_answer_as_record": {"name": "TripPlan"}}
+                ]
+            }
+        )

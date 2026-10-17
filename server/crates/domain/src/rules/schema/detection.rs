@@ -771,8 +771,8 @@ pub enum CarrierDate {
     /// began it, such as a tool call rebuilt from the record of its result. Every observation is dated so.
     SpanStart,
     /// The end of the span the observation names: what the span returned, which exists once it returns. Only the
-    /// carrier's sole observation on its span, counted by place; a carrier holding several is re-listing turns that
-    /// keep their own times.
+    /// carrier's sole observation on its span, counted by place, and only one on the span's output side that is no
+    /// user's or system turn; a carrier holding several is re-listing turns that keep their own times.
     SpanEnd,
 }
 

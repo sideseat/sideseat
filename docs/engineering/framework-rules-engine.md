@@ -294,8 +294,9 @@ at another moment than the one it describes declares `dated_by` (`server/crates/
 - `span_start` dates every observation at its span's start. A tool call rebuilt from the record of its result
   happened when the span that ran it started, not when the result came back.
 - `span_end` dates what the span returned at its end, and only where the carrier holds that one observation on
-  its span, counted by place so a re-delivered span is dated as the first delivery was. A carrier holding several
-  observations is re-listing a conversation, and its turns keep their own times.
+  its span, counted by place so a re-delivered span is dated as the first delivery was, and only an observation on
+  the span's output side that is no user's or system turn: a carrier's one observation can be a re-listed prompt.
+  A carrier holding several observations is re-listing a conversation, and its turns keep their own times.
 
 A date moves the block's timestamp and nothing else. Whether a block completes its span (`uses_span_end`) is a
 question about its shape, and dedup reads it too.

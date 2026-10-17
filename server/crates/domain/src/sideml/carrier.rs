@@ -386,7 +386,11 @@ fn legacy_declared_semantics_without_direction(
     Some(match attribute {
         // The generic IO pair, and the framework-state attributes that behave like it. LangChain's
         // `output.value` re-lists its own tool calls, which is the case that forced this distinction.
-        Some("output.value") => CarrierSemantics::ACCUMULATED_STATE,
+        // What the span returned, which is dated when it returns (`sideml::feed::dating`).
+        Some("output.value") => CarrierSemantics {
+            dated_by: crate::rules::schema::CarrierDate::SpanEnd,
+            ..CarrierSemantics::ACCUMULATED_STATE
+        },
         // The same shape on the receiving side: state handed *to* the span. Same reading of position
         // and history, opposite direction - which is why direction is its own fact.
         Some("input.value") | Some("message") | Some("messages") => CarrierSemantics {
@@ -500,8 +504,12 @@ mod tests {
         let unqualified = semantics_for(None, Some("output.value"));
         assert_eq!(
             unqualified,
-            CarrierSemantics::ACCUMULATED_STATE,
-            "ordinary output.value remains framework state; only a proven tool span narrows it"
+            CarrierSemantics {
+                dated_by: crate::rules::schema::CarrierDate::SpanEnd,
+                ..CarrierSemantics::ACCUMULATED_STATE
+            },
+            "ordinary output.value remains framework state, dated by what its span returned; only a proven \
+             tool span narrows it"
         );
     }
 

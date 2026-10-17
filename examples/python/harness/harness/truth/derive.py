@@ -685,6 +685,10 @@ def assemble(
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
     for entry in framework.authored(scenario):
+        if "renders_answer_as_record" in entry:
+            text, after = _answer_as_record(builder, entry["renders_answer_as_record"])
+            _framework_text(builder, text, after, entry.get("reaches_model", True))
+            continue
         if "returns_arguments_of" in entry:
             text, after = _returned_arguments(builder, entry["returns_arguments_of"])
             _framework_text(
@@ -731,6 +735,46 @@ def _returned_arguments(builder: Builder, tool: str) -> tuple[str, int]:
         calls[0]["value"]["arguments"], separators=(",", ":"), ensure_ascii=False
     )
     return text, made + 1
+
+
+def _answer_as_record(builder: Builder, record: dict[str, Any]) -> tuple[str, int]:
+    """The model's JSON answer as an application's Java record prints it, and the ordinal of the call that gave it.
+
+    ``java.lang.Record#toString`` writes ``Name[component=value, ...]`` in the record's component order, each value
+    as ``String.valueOf`` prints it: a string as itself, a list as ``[a, b]``, an integer or a boolean as Java writes
+    it. A value Java would print some other way - a fraction, an object, a missing component - refuses the
+    declaration rather than guessing; the rubric proves the text byte for byte against the capture.
+    """
+
+    def printed(value: Any) -> str:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, str):
+            return value
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, list):
+            return "[" + ", ".join(printed(v) for v in value) + "]"
+        raise ValueError(f"{value!r} has no record printing the truth can state")
+
+    succeeded = [c for c in builder.calls if c["outcome"] == "success"]
+    for ordinal in range(len(succeeded), 0, -1):
+        call = succeeded[ordinal - 1]
+        for output in call["outputs"]:
+            fact = next(f for f in builder.facts if f["id"] == output)
+            if fact["kind"] != "text":
+                continue
+            try:
+                answer = json.loads(fact["value"]["text"])
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(answer, dict) or set(answer) != set(record["components"]):
+                continue
+            fields = ", ".join(
+                f"{c}={printed(answer[c])}" for c in record["components"]
+            )
+            return f"{record['name']}[{fields}]", ordinal
+    raise ValueError(f"no JSON answer with the components of {record['name']}")
 
 
 def _framework_text(

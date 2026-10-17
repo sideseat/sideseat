@@ -9,7 +9,10 @@
 //! - `span_end`: the carrier holds what the span returned, which exists only once it returns. Only the carrier's
 //!   sole observation on its span is dated so, after history marking: a carrier holding several is re-listing a
 //!   conversation, whose turns keep their own times. Places are counted, not copies, so a re-delivered span -
-//!   which repeats its observations at the same places - is dated as the first delivery was.
+//!   which repeats its observations at the same places - is dated as the first delivery was. And only what the
+//!   span returned: an observation on the span's output side that is not a user's or system turn. A carrier's
+//!   one observation can be a re-listed prompt - a reading declaring it input, or a user's turn in an output
+//!   snapshot - which happened before the span, and dated by the span's end it would follow its own answer.
 //!
 //! A span's time is trusted only where it is one: a start the producer omitted arrives as the epoch, and a start
 //! after the record's own time, or an end before it, is no moment the observation could have happened at - in
@@ -76,6 +79,15 @@ fn carrier_of(block: &BlockEntry) -> CarrierKey {
     )
 }
 
+/// What a span can have returned: an observation on its output side that is no user's or system turn.
+fn returned(block: &BlockEntry) -> bool {
+    block.is_output_source()
+        && !matches!(
+            block.role,
+            crate::sideml::types::ChatRole::User | crate::sideml::types::ChatRole::System
+        )
+}
+
 fn at_span_end(
     blocks: &mut [BlockEntry],
     span_timestamps: &HashMap<String, SpanTimestamps>,
@@ -90,6 +102,7 @@ fn at_span_end(
     }
     for block in blocks.iter_mut() {
         if date(block) == CarrierDate::SpanEnd
+            && returned(block)
             && places
                 .get(&carrier_of(block))
                 .is_some_and(|held| held.len() == 1)

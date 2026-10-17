@@ -5,12 +5,13 @@
   "carriers": [
     {
       "id": "generic-io.output_value",
-      "doc": "Accumulated framework state that happens to contain messages - an agent's scratchpad, a chain's running result. Ordered, re-lists itself, and says nothing about multiplicity: the same tool call appears at two positions while describing one call. Still the span's output, which is why direction cannot be derived from being an emission.",
+      "doc": "Accumulated framework state that happens to contain messages - an agent's scratchpad, a chain's running result. Ordered, re-lists itself, and says nothing about multiplicity: the same tool call appears at two positions while describing one call. Still the span's output, which is why direction cannot be derived from being an emission. Dated by its span's end where it holds one observation: that is what the span returned, which exists once it returns - an agent span returns its answer after the model call it ran, and dated by the span's start the answer would precede the question. A re-listing keeps its turns' own times.",
       "match": {
         "attribute": "output.value"
       },
       "facts": {
-        "preset": "accumulated_state"
+        "preset": "accumulated_state",
+        "dated_by": "span_end"
       }
     },
     {

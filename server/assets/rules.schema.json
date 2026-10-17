@@ -449,7 +449,7 @@
           "const": "span_start"
         },
         {
-          "description": "The end of the span the observation names: what the span returned, which exists once it returns. Only the\ncarrier's sole observation on its span, counted by place; a carrier holding several is re-listing turns that\nkeep their own times.",
+          "description": "The end of the span the observation names: what the span returned, which exists once it returns. Only the\ncarrier's sole observation on its span, counted by place, and only one on the span's output side that is no\nuser's or system turn; a carrier holding several is re-listing turns that keep their own times.",
           "type": "string",
           "const": "span_end"
         }

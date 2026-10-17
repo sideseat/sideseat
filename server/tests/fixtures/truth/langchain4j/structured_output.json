@@ -50,7 +50,8 @@
    "sequence": [
     "fact-001",
     "fact-002",
-    "fact-003"
+    "fact-003",
+    "fact-004"
    ],
    "final_answers": [
     "fact-003"
@@ -114,6 +115,27 @@
     "match": "json"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "framework",
+   "value": {
+    "text": "TripPlan[city=Vienna, days=[Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and Viennese coffee house culture., Day 2: Tour Schönbrunn Palace and its gardens in the morning. Afterward, browse the Naschmarkt for lunch, stroll through the Belvedere to see Klimt's The Kiss, and finish with an evening at the Prater or a concert.], budget_eur=350]"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "kept_from_model": true
   }
  ],
  "edges": [

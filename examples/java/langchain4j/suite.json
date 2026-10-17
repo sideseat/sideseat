@@ -15,6 +15,23 @@
           "structured_output"
         ]
       }
-    }
+    },
+    "framework_authored": [
+      {
+        "renders_answer_as_record": {
+          "name": "TripPlan",
+          "components": [
+            "city",
+            "days",
+            "budget_eur"
+          ]
+        },
+        "source": "the AI service returns the model's JSON answer parsed into the application's record `TripPlan(String city, List<String> days, int budget_eur)` (examples/java/langchain4j/src/main/java/ai/sideseat/examples/langchain4j/Main.java:76), and openinference-instrumentation-langchain4j 0.1.9 records it as the AiService.chat span's output.value with `result().get().toString()` (LangChain4jServiceCompletedListener), which for a record is java.lang.Record#toString",
+        "scenarios": [
+          "structured_output"
+        ],
+        "reaches_model": false
+      }
+    ]
   }
 }
