@@ -13,7 +13,7 @@ use futures::stream::StreamExt;
 use sideseat_core::constants::{FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION};
 use sideseat_core::utils::file_uri::is_valid_file_hash;
 use sideseat_domain::files::FileService;
-use sideseat_ports::blobs::ObjectName;
+use sideseat_ports::blobs::{ExpectedContent, ObjectName};
 use sideseat_ports::types::ProjectId;
 
 use crate::traces::extract::files::ExtractedFile;
@@ -72,6 +72,8 @@ struct PendingFinalization {
     project_id: ProjectId,
     hash: String,
     temp_path: std::path::PathBuf,
+    /// What the temporary file was written to hold, which finalisation checks it still does.
+    expected: ExpectedContent,
     /// The row's incarnation the bytes are stored under, once the file is associated (`ObjectName`).
     incarnation: i64,
 }
@@ -101,8 +103,13 @@ async fn finalize_pending_files(
                     &pf.project_id,
                     ObjectName::new(&pf.hash, pf.incarnation),
                     &pf.temp_path,
+                    pf.expected,
                 )
                 .await;
+            if result.is_err() {
+                // The temporary name is this write's alone, so nothing else would ever remove it.
+                tokio::fs::remove_file(&pf.temp_path).await.ok();
+            }
             (pf, result)
         }
     }))
@@ -342,8 +349,24 @@ async fn write_and_record_files(
                     },
                 };
 
-                let temp_path = temp_dir.join(format!("{}_{}", file.project_id, file.hash));
+                // One temporary file per write, never shared: two executions writing the same media at once - two
+                // requests, a batch and a redrive - each truncated and rewrote the other's file under one name, and the
+                // finalisation that won could store a partial copy under the content's name for good.
+                //
+                // The name also carries what the file must hold, so the startup recovery of a write a crash
+                // interrupted can check it as finalisation does (`sideseat_domain::files::cleanup::temp_file_name`).
+                let expected = ExpectedContent {
+                    len: decoded.len() as u64,
+                    digest: *blake3::hash(&decoded).as_bytes(),
+                };
+                let temp_path = temp_dir.join(sideseat_domain::files::cleanup::temp_file_name(
+                    &file.project_id,
+                    &file.hash,
+                    expected,
+                    &uuid::Uuid::new_v4().simple().to_string(),
+                ));
                 if let Err(e) = tokio::fs::write(&temp_path, &decoded).await {
+                    tokio::fs::remove_file(&temp_path).await.ok();
                     failures += 1;
                     tracing::warn!(
                         error = %e,
@@ -360,6 +383,7 @@ async fn write_and_record_files(
                     project_id: file.project_id.clone().into(),
                     hash: file.hash.clone(),
                     temp_path,
+                    expected,
                     incarnation: 0,
                 });
             }

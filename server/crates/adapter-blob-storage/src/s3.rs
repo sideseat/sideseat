@@ -14,7 +14,13 @@ use aws_sdk_s3::operation::head_object::HeadObjectError;
 use aws_sdk_s3::primitives::ByteStream;
 
 use sideseat_ports::blobs::FileStorageError;
-use sideseat_ports::blobs::{FileStorage, ObjectName, ObjectVisitor, StoredObject};
+use sideseat_ports::blobs::{
+    ExpectedContent, FileStorage, ObjectName, ObjectVisitor, StoredObject,
+};
+
+/// The user metadata an object is uploaded with: the BLAKE3 digest of its bytes, in hex, which a later finalize
+/// of the same name compares instead of downloading the object.
+const DIGEST_METADATA_KEY: &str = "blake3";
 use sideseat_ports::types::ProjectId;
 
 /// Format an SDK error with HTTP status and error code for diagnostics.
@@ -442,14 +448,29 @@ impl FileStorage for S3Storage {
         project_id: &ProjectId,
         object: ObjectName<'_>,
         temp_path: &Path,
+        expected: ExpectedContent,
     ) -> Result<(), FileStorageError> {
         let hash = object.hash;
         Self::validate_hash(hash)?;
 
         let key = self.object_key(project_id, object);
 
-        // Check if object already exists (content-addressed deduplication).
-        // On any HeadObject error, proceed to upload — PutObject is idempotent.
+        // The upload sends the whole file, so it is read - and checked against what was written - first: bytes a
+        // racing write truncated or overwrote are refused here, never uploaded under the name.
+        // Removed only when it is shown not to be its content: on a failure to read or upload it the temporary file
+        // stays, for a retry or a recovery that can still store it.
+        let data = tokio::fs::read(temp_path)
+            .await
+            .map_err(FileStorageError::Io)?;
+        if let Err(error) = crate::verify::check(hash, &data, expected) {
+            tokio::fs::remove_file(temp_path).await.ok();
+            return Err(error);
+        }
+        let digest = expected.digest_hex();
+
+        // Content-addressed: an object already there is kept only if it has the content's length and the digest its
+        // upload recorded is this content's. Reading it back would download every object a batch shares with an
+        // earlier one, so the recorded digest stands for the bytes. One that fails is replaced.
         match self
             .client
             .head_object()
@@ -458,15 +479,34 @@ impl FileStorage for S3Storage {
             .send()
             .await
         {
-            Ok(_) => {
-                // File already exists, just remove temp
-                tokio::fs::remove_file(temp_path).await.ok();
-                tracing::trace!(
+            Ok(head) => {
+                let length_matches = head
+                    .content_length()
+                    .is_some_and(|length| u64::try_from(length).ok() == Some(expected.len));
+                let stored_digest = head
+                    .metadata()
+                    .and_then(|metadata| metadata.get(DIGEST_METADATA_KEY));
+                // An object without a recorded digest - uploaded by an earlier release, possibly from a temporary file
+                // a racing write had damaged - cannot be told from its content without downloading it, and is
+                // replaced: once, after which it carries the digest.
+                let digest_matches = stored_digest.is_some_and(|stored| *stored == digest);
+                if length_matches && digest_matches {
+                    tokio::fs::remove_file(temp_path).await.ok();
+                    tracing::trace!(
+                        project_id = %project_id,
+                        hash,
+                        "File already exists in S3, removed temp (content-addressed)"
+                    );
+                    return Ok(());
+                }
+                tracing::error!(
                     project_id = %project_id,
                     hash,
-                    "File already exists in S3, removed temp (content-addressed)"
+                    stored_length = ?head.content_length(),
+                    expected_length = expected.len,
+                    stored_digest = ?stored_digest,
+                    "A stored object is not its content; replacing it with verified bytes"
                 );
-                return Ok(());
             }
             Err(err) => {
                 if is_real_head_error(&err) {
@@ -480,22 +520,20 @@ impl FileStorage for S3Storage {
             }
         }
 
-        // Read temp file and upload to S3
-        let data = tokio::fs::read(temp_path)
-            .await
-            .map_err(FileStorageError::Io)?;
-
-        self.client
+        let uploaded = self
+            .client
             .put_object()
             .bucket(&self.bucket)
             .key(&key)
+            .metadata(DIGEST_METADATA_KEY, &digest)
             .body(ByteStream::from(data))
             .send()
             .await
             .map_err(|e| {
                 let detail = format_sdk_error(&e);
                 FileStorageError::Backend(format!("S3 put_object error: {detail}"))
-            })?;
+            });
+        uploaded?;
 
         // Remove temp file
         tokio::fs::remove_file(temp_path).await.ok();
@@ -620,5 +658,121 @@ mod tests {
             "g1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
         );
         assert!(matches!(result, Err(FileStorageError::Backend(_))));
+    }
+
+    /// Against a live S3-compatible store when `SIDESEAT_TEST_S3_ENDPOINT` and `SIDESEAT_TEST_S3_BUCKET` are set
+    /// (credentials from the environment): a temporary file that is not its content is refused and nothing is
+    /// uploaded; an upload records the content's digest; and an object stored truncated, or under another digest,
+    /// is replaced by the verified bytes rather than trusted on its name.
+    #[tokio::test]
+    async fn finalisation_stores_only_verified_content() {
+        let (Ok(endpoint), Ok(bucket)) = (
+            std::env::var("SIDESEAT_TEST_S3_ENDPOINT"),
+            std::env::var("SIDESEAT_TEST_S3_BUCKET"),
+        ) else {
+            eprintln!(
+                "s3 finalisation: skipped - set SIDESEAT_TEST_S3_ENDPOINT and SIDESEAT_TEST_S3_BUCKET"
+            );
+            return;
+        };
+        let storage = S3Storage::new(
+            bucket.clone(),
+            format!("test-{}", uuid::Uuid::new_v4().simple()),
+            Some("us-east-1".to_string()),
+            Some(endpoint),
+        )
+        .await
+        .unwrap();
+        let project = ProjectId::from("project1");
+        let hash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+        let name = ObjectName::new(hash, 1);
+        let content = b"the media as decoded".to_vec();
+        let expected = ExpectedContent {
+            len: content.len() as u64,
+            digest: *blake3::hash(&content).as_bytes(),
+        };
+        let dir =
+            std::env::temp_dir().join(format!("s3-finalise-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let temp = dir.join("upload.tmp");
+
+        std::fs::write(&temp, &content[..8]).unwrap();
+        let error = storage
+            .finalize_temp(&project, name, &temp, expected)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, FileStorageError::Corrupt { .. }), "{error}");
+        assert!(!temp.exists());
+        assert!(
+            !storage.exists(&project, name).await.unwrap(),
+            "nothing uploaded"
+        );
+
+        // Stored truncated by some earlier writer: replaced.
+        storage.store(&project, name, &content[..8]).await.unwrap();
+        std::fs::write(&temp, &content).unwrap();
+        storage
+            .finalize_temp(&project, name, &temp, expected)
+            .await
+            .unwrap();
+        assert_eq!(storage.get(&project, name).await.unwrap(), content);
+        let head = storage
+            .client
+            .head_object()
+            .bucket(&bucket)
+            .key(storage.object_key(&project, name))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            head.metadata()
+                .and_then(|m| m.get(DIGEST_METADATA_KEY))
+                .map(String::as_str),
+            Some(expected.digest_hex().as_str()),
+            "the upload records the content's digest"
+        );
+
+        // The right length under another digest: replaced too.
+        let mut other = content.clone();
+        other[0] ^= 1;
+        storage
+            .client
+            .put_object()
+            .bucket(&bucket)
+            .key(storage.object_key(&project, name))
+            .metadata(DIGEST_METADATA_KEY, hex_of(&other))
+            .body(ByteStream::from(other))
+            .send()
+            .await
+            .unwrap();
+        std::fs::write(&temp, &content).unwrap();
+        storage
+            .finalize_temp(&project, name, &temp, expected)
+            .await
+            .unwrap();
+        assert_eq!(storage.get(&project, name).await.unwrap(), content);
+        storage.delete(&project, name).await.unwrap();
+
+        // An upload that fails - here a bucket that does not exist - keeps the verified temporary file for a retry.
+        let missing = S3Storage::new(
+            format!("missing-{}", uuid::Uuid::new_v4().simple()),
+            "test".to_string(),
+            Some("us-east-1".to_string()),
+            std::env::var("SIDESEAT_TEST_S3_ENDPOINT").ok(),
+        )
+        .await
+        .unwrap();
+        std::fs::write(&temp, &content).unwrap();
+        let error = missing
+            .finalize_temp(&project, name, &temp, expected)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, FileStorageError::Backend(_)), "{error}");
+        assert!(temp.exists(), "a failed upload keeps its temporary file");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn hex_of(bytes: &[u8]) -> String {
+        blake3::hash(bytes).to_hex().to_string()
     }
 }

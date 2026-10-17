@@ -28,7 +28,9 @@ use async_trait::async_trait;
 use tokio::fs;
 
 use sideseat_ports::blobs::FileStorageError;
-use sideseat_ports::blobs::{FileStorage, ObjectName, ObjectVisitor, StoredObject};
+use sideseat_ports::blobs::{
+    ExpectedContent, FileStorage, ObjectName, ObjectVisitor, StoredObject,
+};
 use sideseat_ports::types::ProjectId;
 
 /// Directories remembered as durable, at most: past it the set starts again, which costs a sync per directory
@@ -372,9 +374,18 @@ impl FileStorage for FilesystemStorage {
         project_id: &ProjectId,
         object: ObjectName<'_>,
         temp_path: &Path,
+        expected: ExpectedContent,
     ) -> Result<(), FileStorageError> {
         Self::validate_hash(object.hash)?;
         let hash = object.hash;
+        // Removed only when it is shown not to be its content: a failure to read it leaves it, for a retry or a
+        // recovery that can still store it.
+        if let Err(error) = crate::verify::check_file(hash, temp_path, expected).await {
+            if matches!(error, FileStorageError::Corrupt { .. }) {
+                fs::remove_file(temp_path).await.ok();
+            }
+            return Err(error);
+        }
 
         let dest_path = self.file_path(project_id, object);
 
@@ -386,8 +397,27 @@ impl FileStorage for FilesystemStorage {
             self.forget_path(&dest_path);
         }
         self.ensure_parent_dirs(&dest_path).await?;
-        // Content-addressed: an object already there is this content; made durable as `store` makes it.
-        if fs::try_exists(&dest_path).await.unwrap_or(false) {
+        // Content-addressed: an object already there is kept, made durable as `store` makes it, only if it is this
+        // content - its bytes hashed, not its name trusted. An object a racing write stored truncated, or with a gap
+        // at the full length, is replaced by these verified bytes. Hashing a stored object is a read, mostly from the
+        // page cache; publishing the temporary file instead would cost a sync for every object a batch shares with
+        // an earlier one.
+        let present = match fs::try_exists(&dest_path).await {
+            Ok(true) => match crate::verify::check_file(hash, &dest_path, expected).await {
+                Ok(()) => true,
+                Err(error) => {
+                    tracing::error!(
+                        project_id = %project_id,
+                        hash,
+                        %error,
+                        "A stored object is not its content; replacing it with verified bytes"
+                    );
+                    false
+                }
+            },
+            _ => false,
+        };
+        if present {
             fs::remove_file(temp_path).await.ok();
             if let Some(parent) = dest_path.parent() {
                 sync_dir(parent).await?;
@@ -418,7 +448,11 @@ impl FileStorage for FilesystemStorage {
             Err(_) => {
                 // Cross-filesystem: copy to a unique staging file in dest dir, sync it, then atomic rename.
                 let staging = Self::temp_sibling(&dest_path);
-                fs::copy(temp_path, &staging).await?;
+                if let Err(error) = fs::copy(temp_path, &staging).await {
+                    // A partial copy lies beside the objects, where no sweep of the temporary directory finds it.
+                    fs::remove_file(&staging).await.ok();
+                    return Err(error.into());
+                }
                 if let Err(error) = sync_file(&staging).await {
                     fs::remove_file(&staging).await.ok();
                     return Err(error);

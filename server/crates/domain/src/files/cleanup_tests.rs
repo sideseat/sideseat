@@ -166,6 +166,14 @@ async fn test_cleanup_orphan_temp_no_metadata() {
     assert!(!file_path.exists());
 }
 
+/// What `bytes` are, as the writer of a temporary file holding them expects.
+fn expected(bytes: &[u8]) -> ExpectedContent {
+    ExpectedContent {
+        len: bytes.len() as u64,
+        digest: *blake3::hash(bytes).as_bytes(),
+    }
+}
+
 #[tokio::test]
 async fn test_cleanup_temp_with_metadata_finalize() {
     let (temp_dir, database, storage) = setup_test().await;
@@ -173,7 +181,7 @@ async fn test_cleanup_temp_with_metadata_finalize() {
     fs::create_dir_all(&temp_path).await.unwrap();
 
     let hash = test_hash();
-    let filename = format!("project1_{}", hash);
+    let filename = temp_file_name("project1", &hash, expected(b"test content"), "n1");
     let file_path = temp_path.join(&filename);
     fs::write(&file_path, b"test content").await.unwrap();
 
@@ -211,7 +219,7 @@ async fn test_cleanup_temp_already_in_storage() {
     fs::create_dir_all(&temp_path).await.unwrap();
 
     let hash = test_hash();
-    let filename = format!("project1_{}", hash);
+    let filename = temp_file_name("project1", &hash, expected(b"test content"), "n1");
     let file_path = temp_path.join(&filename);
     fs::write(&file_path, b"test content").await.unwrap();
 
@@ -235,8 +243,117 @@ async fn test_cleanup_temp_already_in_storage() {
         .await
         .unwrap();
 
-    assert_eq!(stats.already_exists, 1);
+    // Kept, being this content; the temporary file goes.
+    assert_eq!(stats.finalized, 1);
     assert!(!file_path.exists());
+    assert_eq!(
+        storage
+            .get(&ProjectId::from("project1"), at(&hash))
+            .await
+            .unwrap(),
+        b"test content"
+    );
+}
+
+/// A temporary file a crash left is stored only if it holds what its writer wrote: one cut short is deleted, and
+/// nothing reaches the store under the name.
+#[tokio::test]
+async fn a_recovered_temp_file_that_is_not_its_content_is_deleted() {
+    let (temp_dir, database, storage) = setup_test().await;
+    let temp_path = temp_dir.path().join("temp");
+    fs::create_dir_all(&temp_path).await.unwrap();
+    let hash = test_hash();
+    let file_path = temp_path.join(temp_file_name(
+        "project1",
+        &hash,
+        expected(b"test content"),
+        "n1",
+    ));
+    fs::write(&file_path, b"test con").await.unwrap();
+    database
+        .as_ref()
+        .upsert_file(
+            &ProjectId::from("project1"),
+            &hash,
+            Some("text/plain"),
+            12,
+            "sha256",
+        )
+        .await
+        .unwrap();
+
+    let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
+        .await
+        .unwrap();
+
+    assert_eq!(stats.invalid_deleted, 1);
+    assert_eq!(stats.finalized, 0);
+    assert!(!file_path.exists());
+    assert!(
+        !storage
+            .exists(&ProjectId::from("project1"), at(&hash))
+            .await
+            .unwrap()
+    );
+}
+
+/// A temporary file named as an earlier release named them carries no expected content, so recovery cannot check
+/// it: it is deleted, not stored. Its media was finalised before any row named it, so its export is written again.
+#[tokio::test]
+async fn a_recovered_temp_file_that_cannot_be_checked_is_not_stored() {
+    let (temp_dir, database, storage) = setup_test().await;
+    let temp_path = temp_dir.path().join("temp");
+    fs::create_dir_all(&temp_path).await.unwrap();
+    let hash = test_hash();
+    let file_path = temp_path.join(format!("project1_{hash}"));
+    fs::write(&file_path, b"test content").await.unwrap();
+    database
+        .as_ref()
+        .upsert_file(
+            &ProjectId::from("project1"),
+            &hash,
+            Some("text/plain"),
+            12,
+            "sha256",
+        )
+        .await
+        .unwrap();
+
+    let stats = cleanup_orphan_temp_files(&temp_path, &storage, &database)
+        .await
+        .unwrap();
+
+    assert_eq!(stats.invalid_deleted, 1);
+    assert!(!file_path.exists());
+    assert!(
+        !storage
+            .exists(&ProjectId::from("project1"), at(&hash))
+            .await
+            .unwrap()
+    );
+}
+
+#[test]
+fn a_temp_file_name_reads_back_as_what_it_was_made_from() {
+    let hash = test_hash();
+    let content = expected(b"test content");
+    let name = temp_file_name("project1", &hash, content, "0123abcd");
+    assert_eq!(
+        parse_temp_file_name(&name),
+        Some(("project1".to_string(), hash.clone(), Some(content)))
+    );
+    assert_eq!(
+        parse_temp_file_name(&format!("project1_{hash}")),
+        Some(("project1".to_string(), hash.clone(), None))
+    );
+    assert_eq!(
+        parse_temp_file_name(&format!("project1_{hash}.12.zz.n")),
+        None
+    );
+    assert_ne!(
+        temp_file_name("project1", &hash, content, "a"),
+        temp_file_name("project1", &hash, content, "b")
+    );
 }
 
 #[tokio::test]
@@ -595,8 +712,11 @@ async fn an_abandoned_delete_keeps_its_claim() {
             project_id: &ProjectId,
             object: ObjectName<'_>,
             temp_path: &Path,
+            expected: sideseat_ports::blobs::ExpectedContent,
         ) -> Result<(), FileStorageError> {
-            self.0.finalize_temp(project_id, object, temp_path).await
+            self.0
+                .finalize_temp(project_id, object, temp_path, expected)
+                .await
         }
     }
 
@@ -712,9 +832,10 @@ async fn bytes_stored_between_the_byte_and_row_deletes_are_collected() {
             project_id: &ProjectId,
             object: ObjectName<'_>,
             temp_path: &Path,
+            expected: sideseat_ports::blobs::ExpectedContent,
         ) -> Result<(), FileStorageError> {
             self.inner
-                .finalize_temp(project_id, object, temp_path)
+                .finalize_temp(project_id, object, temp_path, expected)
                 .await
         }
     }
@@ -744,3 +865,6 @@ async fn bytes_stored_between_the_byte_and_row_deletes_are_collected() {
         "bytes stored between the deletes were left with no row"
     );
 }
+
+#[path = "cleanup_recovery_tests.rs"]
+mod recovery;

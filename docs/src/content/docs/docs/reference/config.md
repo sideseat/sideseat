@@ -149,6 +149,16 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `s3.region` | string | S3 region |
 | `s3.endpoint` | string | Custom S3 endpoint |
 
+A file is stored under the hash of its content, and only once its bytes are checked against what was decoded:
+their length and BLAKE3 digest. A file already stored under the name is kept only if it is that content. On a
+filesystem its bytes are hashed; on S3 the digest recorded at upload is compared, in object metadata under
+`blake3`. One that is not that content is replaced.
+
+Releases before this check could store a file truncated, when two exports carrying the same media in one project
+were written at once. Such a file is repaired, with no action, the next time the same media arrives. An object on
+S3 with no `blake3` metadata was uploaded by an earlier release, and is replaced the next time its content
+arrives.
+
 ### Rate Limiting
 
 | Field | Type | Description |

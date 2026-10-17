@@ -33,6 +33,29 @@ pub enum FileStorageError {
     /// a deletion claim - stays in place.
     #[error("Abandoned at the store lease's deadline; whether it was applied is unknown")]
     Abandoned,
+
+    /// Refused: the bytes to be stored are not the content they were written as - a temporary file truncated or
+    /// overwritten after its writer wrote it.
+    #[error("Refused to store {hash}: {detail}")]
+    Corrupt { hash: String, detail: String },
+}
+
+/// What a temporary file must hold to be stored: the length and BLAKE3 digest of the bytes its writer wrote.
+///
+/// An object's name is the hash of the content as it arrived (base64 text, which decodes the same from several
+/// spellings), so stored bytes cannot be checked against their name. They are checked against this instead,
+/// computed from the decoded bytes when the temporary file was written: a file another execution truncated or
+/// overwrote in between is refused, never stored under the name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExpectedContent {
+    pub len: u64,
+    pub digest: [u8; 32],
+}
+
+impl ExpectedContent {
+    pub fn digest_hex(&self) -> String {
+        hex::encode(self.digest)
+    }
 }
 
 /// File content with metadata
@@ -176,11 +199,17 @@ pub trait FileStorage: Send + Sync {
 
     /// Move a temporary file into place as `object`: a rename on a local filesystem, an upload and a delete of
     /// the temporary file on S3.
+    ///
+    /// The file is stored only if it holds `expected`, and is removed either way; otherwise
+    /// [`FileStorageError::Corrupt`]. An object already stored under the name is kept only if it matches as far as
+    /// the backend can tell without reading it back - its length, and on S3 the digest recorded when it was
+    /// uploaded - and is replaced by the verified file otherwise.
     async fn finalize_temp(
         &self,
         project_id: &ProjectId,
         object: ObjectName<'_>,
         temp_path: &std::path::Path,
+        expected: ExpectedContent,
     ) -> Result<(), FileStorageError>;
 }
 

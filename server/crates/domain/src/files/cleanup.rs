@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use super::error::FileServiceError;
 use sideseat_core::utils::collection_fence::CollectionFence;
-use sideseat_ports::blobs::{FileStorage, FileStorageError, ObjectName};
+use sideseat_ports::blobs::{ExpectedContent, FileStorage, FileStorageError, ObjectName};
 use sideseat_ports::traits::TransactionalRepository;
 use sideseat_ports::types::ProjectId;
 
@@ -143,8 +143,8 @@ pub async fn cleanup_orphan_temp_files(
             None => continue,
         };
 
-        let (project_id, hash) = match parse_temp_filename(filename) {
-            Some((p, h)) => (p, h),
+        let (project_id, hash, expected) = match parse_temp_file_name(filename) {
+            Some(parsed) => parsed,
             None => {
                 tracing::warn!(filename, "Invalid temp filename format, deleting");
                 if let Err(e) = tokio::fs::remove_file(&path).await {
@@ -157,49 +157,91 @@ pub async fn cleanup_orphan_temp_files(
         let project_id = ProjectId::from(project_id);
 
         // Check if database has metadata for this file: its row names the incarnation the bytes belong under.
+        // A lookup that fails says nothing about the row: the file stays, for a pass that can read it. Only a row
+        // shown absent makes it an orphan.
         let repo = database.as_ref();
-        let incarnation = repo
-            .get_file(&project_id, &hash)
-            .await
-            .ok()
-            .flatten()
-            .map(|row| row.id);
+        let incarnation = match repo.get_file(&project_id, &hash).await {
+            Ok(row) => row.map(|row| row.id),
+            Err(error) => {
+                tracing::warn!(%error, project_id = %project_id, hash, "Could not read a temp file's row; keeping it");
+                stats.finalize_failed += 1;
+                continue;
+            }
+        };
 
         if let Some(incarnation) = incarnation {
             let object = ObjectName::new(&hash, incarnation);
-            // Scenario A: Complete the interrupted write
-            let permanent_exists = storage.exists(&project_id, object).await.unwrap_or(false);
-
-            if !permanent_exists {
-                // Read temp and write to permanent storage
-                match tokio::fs::read(&path).await {
-                    Ok(data) => {
-                        if let Err(e) = storage.store(&project_id, object, &data).await {
-                            tracing::warn!(
-                                error = %e,
-                                project_id = %project_id,
-                                hash,
-                                "Failed to finalize temp file to permanent storage"
-                            );
-                            stats.finalize_failed += 1;
-                            continue; // Keep temp file for retry
-                        }
-                        stats.finalized += 1;
-                        tracing::debug!(
-                            project_id = %project_id,
-                            hash,
-                            "Finalized orphan temp file to permanent storage"
-                        );
+            // Scenario A: complete the interrupted write - only with the content the file must hold, checked as
+            // finalisation checks it: a crash can interrupt the write itself, and a file a racing write damaged must
+            // not reach the store. One named without it (an earlier release's) cannot be checked, and goes: its
+            // media was finalised before any row named it, so the export it came from was never answered as stored
+            // and is written again.
+            let Some(expected) = expected else {
+                stats.invalid_deleted += 1;
+                tracing::warn!(
+                    filename,
+                    "Temp file without its expected content; deleting it unverified"
+                );
+                if let Err(e) = tokio::fs::remove_file(&path).await {
+                    tracing::warn!(error = %e, path = %path.display(), "Failed to delete temp file");
+                }
+                continue;
+            };
+            // Finalised from a copy, so the file itself - possibly the last copy of these bytes - survives a
+            // finalisation that fails after it took its source (a rename, then a failed sync), for the next pass.
+            // A copy of its own: two processes recovering one directory must not share - and truncate - a copy.
+            let copy = path.with_extension(format!(
+                "{}.recovering-{}",
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or_default(),
+                uuid::Uuid::new_v4().simple()
+            ));
+            if let Err(error) = tokio::fs::copy(&path, &copy).await {
+                tokio::fs::remove_file(&copy).await.ok();
+                tracing::warn!(%error, path = %path.display(), "Could not copy a temp file to recover it; keeping it");
+                stats.finalize_failed += 1;
+                continue;
+            }
+            let finalized = storage
+                .finalize_temp(&project_id, object, &copy, expected)
+                .await;
+            tokio::fs::remove_file(&copy).await.ok();
+            match finalized {
+                Ok(()) => {
+                    if let Err(e) = tokio::fs::remove_file(&path).await {
+                        tracing::warn!(error = %e, path = %path.display(), "Failed to delete temp file");
                     }
-                    Err(e) => {
-                        tracing::warn!(error = %e, path = %path.display(), "Failed to read temp file for finalization");
+                    stats.finalized += 1;
+                    tracing::debug!(
+                        project_id = %project_id,
+                        hash,
+                        "Finalized orphan temp file to permanent storage"
+                    );
+                }
+                Err(FileStorageError::Corrupt { detail, .. }) => {
+                    // The copy was not the content. Whether the file itself is decides its fate: one that is not can
+                    // never be stored and goes; one that is - its copy damaged meanwhile - stays for the next pass.
+                    if holds(&path, expected).await == Some(false) {
+                        tokio::fs::remove_file(&path).await.ok();
+                        stats.invalid_deleted += 1;
+                        tracing::warn!(project_id = %project_id, hash, detail, "Deleted a temp file that is not its content");
+                    } else {
                         stats.finalize_failed += 1;
-                        continue;
+                        tracing::warn!(project_id = %project_id, hash, detail, "A recovery copy was damaged; keeping the temp file");
                     }
                 }
-            } else {
-                stats.already_exists += 1;
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        project_id = %project_id,
+                        hash,
+                        "Failed to finalize temp file to permanent storage"
+                    );
+                    stats.finalize_failed += 1;
+                }
             }
+            continue;
         } else {
             // Scenario B: Orphaned temp file (no database record)
             stats.orphaned_deleted += 1;
@@ -220,7 +262,6 @@ pub async fn cleanup_orphan_temp_files(
         tracing::debug!(
             finalized = stats.finalized,
             orphaned_deleted = stats.orphaned_deleted,
-            already_exists = stats.already_exists,
             invalid_deleted = stats.invalid_deleted,
             finalize_failed = stats.finalize_failed,
             "Temp file cleanup complete"
@@ -521,6 +562,54 @@ pub async fn cleanup_zero_ref_files_governed(
     Ok(deleted)
 }
 
+/// Whether the file at `path` holds `expected`: its length and BLAKE3 digest. None if it cannot be read.
+async fn holds(path: &Path, expected: ExpectedContent) -> Option<bool> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || -> std::io::Result<bool> {
+        let mut file = std::fs::File::open(&path)?;
+        let mut hasher = blake3::Hasher::new();
+        let len = std::io::copy(&mut file, &mut hasher)?;
+        Ok(len == expected.len && *hasher.finalize().as_bytes() == expected.digest)
+    })
+    .await
+    .ok()?
+    .ok()
+}
+
+/// The name of a write's temporary file: `{project_id}_{hash}.{length}.{digest}.{nonce}`, the digest the BLAKE3 hex
+/// of the bytes the file must hold, the nonce unique to the write. Unique, so two writes of one content never share
+/// a file; carrying the expected content, so a recovery after a crash checks the file before storing it.
+pub fn temp_file_name(
+    project_id: &str,
+    hash: &str,
+    expected: ExpectedContent,
+    nonce: &str,
+) -> String {
+    format!(
+        "{project_id}_{hash}.{}.{}.{nonce}",
+        expected.len,
+        expected.digest_hex()
+    )
+}
+
+/// What a temporary file name says: its project, its hash, and - for a name [`temp_file_name`] made - the content
+/// it must hold. A bare `{project_id}_{hash}`, as an earlier release named them, has no expected content.
+fn parse_temp_file_name(filename: &str) -> Option<(String, String, Option<ExpectedContent>)> {
+    let mut parts = filename.rsplitn(4, '.');
+    let (nonce, digest, len, base) = (parts.next()?, parts.next(), parts.next(), parts.next());
+    let (Some(digest), Some(len), Some(base)) = (digest, len, base) else {
+        let (project_id, hash) = parse_temp_filename(filename)?;
+        return Some((project_id, hash, None));
+    };
+    if nonce.is_empty() || !nonce.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let len = len.parse::<u64>().ok()?;
+    let digest: [u8; 32] = hex::decode(digest).ok()?.try_into().ok()?;
+    let (project_id, hash) = parse_temp_filename(base)?;
+    Some((project_id, hash, Some(ExpectedContent { len, digest })))
+}
+
 /// Parse temp filename in format: {project_id}_{hash}
 fn parse_temp_filename(filename: &str) -> Option<(String, String)> {
     // Hash is 64 hex chars, so look for underscore at len - 65
@@ -558,13 +647,11 @@ fn parse_temp_filename(filename: &str) -> Option<(String, String)> {
 /// Statistics from cleanup operations
 #[derive(Debug, Default)]
 pub struct CleanupStats {
-    /// Files successfully finalized to permanent storage
+    /// Files finalized to permanent storage, or found stored already as this content
     pub finalized: u64,
     /// Orphan temp files deleted (no SQLite record)
     pub orphaned_deleted: u64,
-    /// Temp files where permanent copy already exists
-    pub already_exists: u64,
-    /// Invalid temp files deleted (wrong format)
+    /// Temp files deleted unstored: a name of the wrong format, no expected content to check, or not its content
     pub invalid_deleted: u64,
     /// Files that failed to finalize
     pub finalize_failed: u64,
@@ -573,7 +660,7 @@ pub struct CleanupStats {
 impl CleanupStats {
     /// Total files processed
     pub fn total_processed(&self) -> u64 {
-        self.finalized + self.orphaned_deleted + self.already_exists + self.invalid_deleted
+        self.finalized + self.orphaned_deleted + self.invalid_deleted
     }
 }
 

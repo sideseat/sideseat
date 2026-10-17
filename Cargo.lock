@@ -5306,6 +5306,7 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-s3",
+ "blake3",
  "sideseat-ports",
  "sideseat-workspace-hack",
  "tempfile",

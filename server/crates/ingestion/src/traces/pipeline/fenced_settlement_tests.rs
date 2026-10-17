@@ -103,10 +103,11 @@ impl FileStorage for LeaseDroppingStorage {
         project_id: &ProjectId,
         object: ObjectName<'_>,
         temp_path: &std::path::Path,
+        expected: sideseat_ports::blobs::ExpectedContent,
     ) -> Result<(), FileStorageError> {
         let result = self
             .inner
-            .finalize_temp(project_id, object, temp_path)
+            .finalize_temp(project_id, object, temp_path, expected)
             .await;
         if self.armed.swap(false, Ordering::SeqCst) {
             self.held.send_replace(None);

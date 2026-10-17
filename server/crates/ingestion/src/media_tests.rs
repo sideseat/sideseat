@@ -92,8 +92,11 @@ impl FileStorage for AfterFirstCheck {
         project: &ProjectId,
         object: ObjectName<'_>,
         temp_path: &std::path::Path,
+        expected: sideseat_ports::blobs::ExpectedContent,
     ) -> Result<(), FileStorageError> {
-        self.inner.finalize_temp(project, object, temp_path).await
+        self.inner
+            .finalize_temp(project, object, temp_path, expected)
+            .await
     }
 }
 
@@ -280,6 +283,10 @@ async fn bytes_finalized_under_a_collected_row_are_retired() {
             project_id: project.clone(),
             hash: hash.clone(),
             temp_path,
+            expected: ExpectedContent {
+                len: 4,
+                digest: *blake3::hash(b"png!").as_bytes(),
+            },
             incarnation,
         });
     }
@@ -319,4 +326,75 @@ async fn bytes_finalized_under_a_collected_row_are_retired() {
             .await
             .unwrap()
     );
+}
+
+/// Two executions writing the same media at once - two requests, a batch beside a redrive or a claim - each get a
+/// temporary file of their own, holding all of what they decoded. They shared one, named by project and hash, so
+/// one truncated and rewrote the file under the other, whose finalisation could store a partial copy under the
+/// content's name for good.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_writes_of_the_same_media_never_share_a_temporary_file() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let clock: Arc<dyn Clock> = Arc::new(TestClock);
+    let database: Arc<dyn TransactionalRepository + Send + Sync> =
+        Arc::new(SqliteRepository(Arc::new(
+            SqliteService::init(&AppStorage::init_for_test(temp.path().to_path_buf()), clock)
+                .await
+                .unwrap(),
+        )));
+    let temp_dir = temp.path().join("files_temp");
+    tokio::fs::create_dir_all(&temp_dir).await.unwrap();
+    let files = FileService::new(
+        sideseat_core::config::FilesConfig {
+            enabled: true,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
+            quota_bytes: 64 * 1024 * 1024,
+            filesystem_path: None,
+            s3: None,
+        },
+        temp_dir,
+        Arc::new(FilesystemStorage::new(temp.path().join("files"))),
+        Arc::clone(&database),
+        Arc::new(
+            CacheService::new(&sideseat_core::config::CacheConfig {
+                backend: sideseat_core::config::CacheBackendType::Memory,
+                max_entries: 100,
+                eviction_policy: sideseat_core::config::EvictionPolicy::TinyLfu,
+                redis_url: None,
+            })
+            .await
+            .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    let decoded: Vec<u8> = (0..1_000_000u32).map(|i| (i % 251) as u8).collect();
+    let data = BASE64_STANDARD.encode(&decoded).into_bytes();
+    let write = |trace: &str| PendingFileWrite {
+        project_id: "default".to_string(),
+        trace_id: trace.to_string(),
+        hash: "d".repeat(64),
+        media_type: Some("image/png".to_string()),
+        size: decoded.len(),
+        data: data.clone(),
+        hash_algo: FILE_HASH_ALGORITHM.to_string(),
+    };
+    let (first, second) = (vec![write("trace-a")], vec![write("trace-b")]);
+    let ((a, _, _), (b, _, _)) = tokio::join!(
+        write_and_record_files(&first, &files),
+        write_and_record_files(&second, &files),
+    );
+    let (a, b) = (&a[0], &b[0]);
+    assert_ne!(
+        a.temp_path, b.temp_path,
+        "the two writes shared a temporary file"
+    );
+    for pending in [a, b] {
+        assert_eq!(
+            tokio::fs::read(&pending.temp_path).await.unwrap(),
+            decoded,
+            "a temporary file holds all of what its writer decoded"
+        );
+        assert_eq!(pending.expected.len, decoded.len() as u64);
+    }
 }

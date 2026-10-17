@@ -113,9 +113,10 @@ impl FileStorage for FaultyStorage {
         project_id: &ProjectId,
         object: ObjectName<'_>,
         temp_path: &std::path::Path,
+        expected: sideseat_ports::blobs::ExpectedContent,
     ) -> Result<(), FileStorageError> {
         self.inner
-            .finalize_temp(project_id, object, temp_path)
+            .finalize_temp(project_id, object, temp_path, expected)
             .await
     }
 }

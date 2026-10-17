@@ -6,6 +6,7 @@
 
 mod filesystem;
 mod s3;
+mod verify;
 
 pub use filesystem::FilesystemStorage;
 pub use s3::S3Storage;

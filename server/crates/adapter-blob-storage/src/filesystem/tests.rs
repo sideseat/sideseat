@@ -1,6 +1,14 @@
 use super::*;
-use sideseat_ports::blobs::ObjectName;
+use sideseat_ports::blobs::{ExpectedContent, ObjectName};
 use tempfile::TempDir;
+
+/// What `bytes` are, as a writer that wrote them would expect them.
+fn expected(bytes: &[u8]) -> ExpectedContent {
+    ExpectedContent {
+        len: bytes.len() as u64,
+        digest: *blake3::hash(bytes).as_bytes(),
+    }
+}
 
 fn test_hash() -> &'static str {
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
@@ -334,6 +342,7 @@ async fn test_finalize_temp() {
             &ProjectId::from("project1"),
             ObjectName::new(test_hash(), 1),
             &temp_file,
+            expected(b"temp content"),
         )
         .await
         .unwrap();
@@ -563,7 +572,12 @@ async fn a_temp_finalised_into_a_shard_another_store_emptied_is_published() {
     let temp = dir.path().join("upload.tmp");
     std::fs::write(&temp, b"second").unwrap();
     storage
-        .finalize_temp(&project, ObjectName::new(test_hash(), 2), &temp)
+        .finalize_temp(
+            &project,
+            ObjectName::new(test_hash(), 2),
+            &temp,
+            expected(b"second"),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -627,4 +641,98 @@ async fn the_highest_incarnation_is_found_through_every_project_and_a_linked_one
         9,
         "a temporary sibling is no object"
     );
+}
+
+/// A temporary file that is not what its writer wrote - truncated by a racing write of the same media - is refused
+/// and removed, and nothing is stored under the name.
+#[tokio::test]
+async fn a_temporary_file_that_is_not_its_content_is_refused() {
+    let dir = TempDir::new().unwrap();
+    let storage = FilesystemStorage::new(dir.path().to_path_buf());
+    let project = ProjectId::from("project1");
+    let temp = dir.path().join("upload.tmp");
+    std::fs::write(&temp, b"truncat").unwrap();
+    let error = storage
+        .finalize_temp(
+            &project,
+            ObjectName::new(test_hash(), 1),
+            &temp,
+            expected(b"truncated media"),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, FileStorageError::Corrupt { .. }), "{error}");
+    assert!(!temp.exists(), "the refused temporary file is removed");
+    assert!(
+        !storage
+            .exists(&project, ObjectName::new(test_hash(), 1))
+            .await
+            .unwrap()
+    );
+
+    // Same length, other bytes: refused by the digest.
+    std::fs::write(&temp, b"truncated mediA").unwrap();
+    let error = storage
+        .finalize_temp(
+            &project,
+            ObjectName::new(test_hash(), 1),
+            &temp,
+            expected(b"truncated media"),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, FileStorageError::Corrupt { .. }), "{error}");
+    assert!(
+        !storage
+            .exists(&project, ObjectName::new(test_hash(), 1))
+            .await
+            .unwrap()
+    );
+}
+
+/// An object stored truncated - by an earlier finalisation of a racing write - is not trusted on its name: the next
+/// finalisation of the content replaces it with the verified bytes.
+#[tokio::test]
+async fn a_stored_object_of_the_wrong_length_is_replaced() {
+    let dir = TempDir::new().unwrap();
+    let storage = FilesystemStorage::new(dir.path().to_path_buf());
+    let project = ProjectId::from("project1");
+    let name = ObjectName::new(test_hash(), 1);
+    storage.store(&project, name, b"trunc").await.unwrap();
+    let temp = dir.path().join("upload.tmp");
+    std::fs::write(&temp, b"truncated media").unwrap();
+    storage
+        .finalize_temp(&project, name, &temp, expected(b"truncated media"))
+        .await
+        .unwrap();
+    assert_eq!(
+        storage.get(&project, name).await.unwrap(),
+        b"truncated media"
+    );
+    assert!(!temp.exists());
+}
+
+/// An object of the right length that is not the content - a racing write left a gap at the full length - is not
+/// trusted on its length either: it is hashed, and replaced.
+#[tokio::test]
+async fn a_stored_object_of_the_right_length_but_other_bytes_is_replaced() {
+    let dir = TempDir::new().unwrap();
+    let storage = FilesystemStorage::new(dir.path().to_path_buf());
+    let project = ProjectId::from("project1");
+    let name = ObjectName::new(test_hash(), 1);
+    storage
+        .store(&project, name, b"truncat\0\0\0\0\0\0\0\0")
+        .await
+        .unwrap();
+    let temp = dir.path().join("upload.tmp");
+    std::fs::write(&temp, b"truncated media").unwrap();
+    storage
+        .finalize_temp(&project, name, &temp, expected(b"truncated media"))
+        .await
+        .unwrap();
+    assert_eq!(
+        storage.get(&project, name).await.unwrap(),
+        b"truncated media"
+    );
+    assert!(!temp.exists());
 }
