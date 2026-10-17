@@ -747,7 +747,7 @@ and a restore repair looks a second time `RESTORE_SETTLE` (20 s) after its first
 enforces it. A delete the step had already sent can be cancelled when the fence closes and still be applied by the
 store afterwards (`CollectionFence::bounded`), after the repair has begun - removing what the restore brought back.
 Restores are rare operator actions, which is why this is recorded rather than redesigned inside a lease fix. The fix
-belongs to the write-protocol design (`docs/engineering/write-protocol.md`, to come) as one of its requirements:
+belongs to the write-protocol design (`docs/engineering/write-protocol.md`) as one of its requirements:
 collector deletes decided under a fence epoch that the restore revokes, and applied only by the store's own
 condition on that epoch, never by elapsed time. It touches `server/specs/MediaIncarnation.tla`'s `CollectorsStopped`.
 
