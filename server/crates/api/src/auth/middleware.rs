@@ -74,6 +74,16 @@ impl AuthError {
         }
     }
 
+    /// The store a credential is checked against failed: retry later, nothing is known about the credential.
+    pub fn unavailable() -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            error: "service_unavailable",
+            code: "AUTH_UNAVAILABLE",
+            message: "Authentication is temporarily unavailable".to_string(),
+        }
+    }
+
     pub fn origin_not_allowed() -> Self {
         Self {
             status: StatusCode::UNAUTHORIZED,
@@ -91,7 +101,15 @@ impl IntoResponse for AuthError {
             "code": self.code,
             "message": self.message,
         });
-        (self.status, Json(body)).into_response()
+        let mut response = (self.status, Json(body)).into_response();
+        // An unavailable check is retried: say when.
+        if self.status == StatusCode::SERVICE_UNAVAILABLE {
+            response.headers_mut().insert(
+                header::RETRY_AFTER,
+                axum::http::HeaderValue::from_static("1"),
+            );
+        }
+        response
     }
 }
 
@@ -140,6 +158,7 @@ pub async fn require_auth(
         .await
         .map_err(|e| match e {
             ApiKeyAuthError::InsufficientScope => AuthError::insufficient_scope(),
+            ApiKeyAuthError::Unavailable => AuthError::unavailable(),
             _ => AuthError::invalid_api_key(),
         })?;
 
@@ -229,4 +248,24 @@ pub async fn require_auth(
     request.extensions_mut().insert(auth_ctx);
 
     Ok(next.run(request).await)
+}
+
+#[cfg(test)]
+mod unavailable_tests {
+    use super::*;
+
+    /// A credential check the store could not answer is a 503 that says when to retry.
+    #[test]
+    fn an_unavailable_check_says_when_to_retry() {
+        let response = AuthError::unavailable().into_response();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "1");
+        assert!(
+            AuthError::invalid_api_key()
+                .into_response()
+                .headers()
+                .get(header::RETRY_AFTER)
+                .is_none()
+        );
+    }
 }

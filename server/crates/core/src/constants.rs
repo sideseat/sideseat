@@ -674,6 +674,11 @@ pub const DEFAULT_RATE_LIMIT_FILES_RPM: u32 = 100;
 /// Limits brute force attacks by blocking IPs with excessive failed auth attempts
 pub const DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM: u32 = 60;
 
+/// Key checks a client may have answered "authentication unavailable" per minute before further checks are answered
+/// so without asking the store: a failing store is not also flooded by retries and fresh random keys. Not a
+/// credential failure - nothing is known about the keys - so it never blocks a client once the store recovers.
+pub const DEFAULT_RATE_LIMIT_AUTH_UNAVAILABLE_RPM: u32 = 600;
+
 /// Rate limit window in seconds (fixed 1-minute window)
 pub const DEFAULT_RATE_LIMIT_WINDOW_SECS: u64 = 60;
 

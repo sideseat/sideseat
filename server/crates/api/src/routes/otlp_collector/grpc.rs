@@ -144,6 +144,16 @@ impl GrpcIngestAuth {
                 ));
             }
         }
+        // A client whose checks the store has failed too often lately is answered "unavailable" without a lookup.
+        let unavailable = sideseat_domain::rate_limit::RateLimitBucket::auth_unavailable(
+            "grpc",
+            sideseat_core::constants::DEFAULT_RATE_LIMIT_AUTH_UNAVAILABLE_RPM,
+        );
+        if let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
+            && limiter.is_blocked(&unavailable, ip).await
+        {
+            return Err(crate::auth::ApiKeyAuthError::Unavailable.grpc_status());
+        }
 
         let header = request
             .metadata()
@@ -166,10 +176,7 @@ impl GrpcIngestAuth {
 
         // Counted on failure only, exactly as the HTTP middleware does.
         if let Err(ref e) = result
-            && matches!(
-                e,
-                crate::auth::ApiKeyAuthError::InvalidKey | crate::auth::ApiKeyAuthError::Expired
-            )
+            && e.counts_as_failed_attempt()
             && let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
         {
             let bucket = sideseat_domain::rate_limit::RateLimitBucket::grpc_auth_failures(
@@ -177,10 +184,15 @@ impl GrpcIngestAuth {
             );
             let _ = limiter.check(&bucket, ip).await;
         }
+        if let Err(crate::auth::ApiKeyAuthError::Unavailable) = result
+            && let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
+        {
+            let _ = limiter.check(&unavailable, ip).await;
+        }
 
         result.map(|_| ()).map_err(|e| {
             tracing::debug!(project_id, error = %e, "Refused a gRPC OTLP export");
-            Status::unauthenticated("invalid or unauthorized API key")
+            e.grpc_status()
         })
     }
 }

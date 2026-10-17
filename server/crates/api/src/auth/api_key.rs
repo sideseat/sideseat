@@ -14,7 +14,10 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
-use sideseat_core::constants::{API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM};
+use sideseat_core::constants::{
+    API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+    DEFAULT_RATE_LIMIT_AUTH_UNAVAILABLE_RPM,
+};
 use sideseat_core::utils::api_key::{extract_key_from_header, hash_api_key, is_valid_api_key};
 use sideseat_domain::rate_limit::{RateLimitBucket, RateLimiter};
 use sideseat_ports::clock::Clock;
@@ -35,6 +38,61 @@ pub enum ApiKeyAuthError {
     InsufficientScope,
     /// Too many failed auth attempts
     RateLimited,
+    /// The store the key is checked against failed: nothing is known about the key, so the request is neither
+    /// accepted nor refused - it is answered 503 (gRPC `Unavailable`), which clients retry, and is not counted as
+    /// a failed attempt.
+    Unavailable,
+}
+
+impl ApiKeyAuthError {
+    /// Whether this refusal counts towards the per-client failed-attempt limit: only a key the store answered for
+    /// and found wanting. Both transports count with this, so they cannot disagree.
+    pub fn counts_as_failed_attempt(&self) -> bool {
+        matches!(self, Self::InvalidKey | Self::Expired)
+    }
+
+    /// The gRPC status of this refusal.
+    pub fn grpc_status(&self) -> tonic::Status {
+        match self {
+            Self::Unavailable => {
+                tonic::Status::unavailable("authentication is temporarily unavailable")
+            }
+            Self::RateLimited => {
+                tonic::Status::resource_exhausted("too many failed authentication attempts")
+            }
+            Self::InsufficientScope => {
+                tonic::Status::permission_denied("API key lacks required permission")
+            }
+            _ => tonic::Status::unauthenticated("invalid or unauthorized API key"),
+        }
+    }
+}
+
+/// A lookup's answer, boxed: the check runs inside handlers that must be `Send` for every lifetime.
+type Lookup<'a, T> = std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<T, sideseat_ports::error::DataError>> + Send + 'a>,
+>;
+
+/// The two lookups an API key check makes. The transactional store answers them; a test answers them with a failure.
+pub(crate) trait KeyLookups: Sync {
+    fn api_key_by_hash<'a>(&'a self, key_hash: &'a str) -> Lookup<'a, Option<ApiKeyValidation>>;
+    fn project<'a>(
+        &'a self,
+        project_id: &'a str,
+    ) -> Lookup<'a, Option<sideseat_ports::types::ProjectRow>>;
+}
+
+impl KeyLookups for crate::dependencies::TransactionalStore {
+    fn api_key_by_hash<'a>(&'a self, key_hash: &'a str) -> Lookup<'a, Option<ApiKeyValidation>> {
+        self.get_api_key_by_hash(key_hash)
+    }
+
+    fn project<'a>(
+        &'a self,
+        project_id: &'a str,
+    ) -> Lookup<'a, Option<sideseat_ports::types::ProjectRow>> {
+        self.get_project(project_id)
+    }
 }
 
 impl fmt::Display for ApiKeyAuthError {
@@ -46,6 +104,7 @@ impl fmt::Display for ApiKeyAuthError {
             Self::Expired => write!(f, "API key has expired"),
             Self::InsufficientScope => write!(f, "API key lacks required permission"),
             Self::RateLimited => write!(f, "Too many failed auth attempts"),
+            Self::Unavailable => write!(f, "Authentication temporarily unavailable"),
         }
     }
 }
@@ -71,6 +130,20 @@ impl IntoResponse for ApiKeyAuthError {
                 });
                 (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response()
             }
+            // The store failed: nothing is known about the key, and the client should retry.
+            ApiKeyAuthError::Unavailable => {
+                let body = json!({
+                    "error": "service_unavailable",
+                    "code": "AUTH_UNAVAILABLE",
+                    "message": "Authentication is temporarily unavailable",
+                });
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::RETRY_AFTER, "1")],
+                    Json(body),
+                )
+                    .into_response()
+            }
             // All other errors return 401 (don't leak info about key validity)
             _ => {
                 let body = json!({
@@ -94,17 +167,37 @@ pub async fn validate_api_key_for_project(
     required_scope: ApiKeyScope,
     clock: &dyn Clock,
 ) -> Result<ApiKeyValidation, ApiKeyAuthError> {
-    let (validation, key_hash) =
-        validate_api_key_core(database.as_ref(), api_key_secret, auth_header).await?;
+    let (validation, key_hash) = authorize_for_project(
+        database.as_ref(),
+        api_key_secret,
+        auth_header,
+        project_id,
+        required_scope,
+        clock,
+    )
+    .await?;
+    touch_if_needed(database, &validation, key_hash, clock.now().timestamp());
+    Ok(validation)
+}
+
+/// The key, checked against the store, for `project_id`: the project's organisation must be the key's.
+async fn authorize_for_project<S: KeyLookups + ?Sized>(
+    store: &S,
+    api_key_secret: &[u8],
+    auth_header: &str,
+    project_id: &str,
+    required_scope: ApiKeyScope,
+    clock: &dyn Clock,
+) -> Result<(ApiKeyValidation, String), ApiKeyAuthError> {
+    let (validation, key_hash) = validate_api_key_core(store, api_key_secret, auth_header).await?;
 
     // Verify project belongs to the key's org
-    let project = database
-        .as_ref()
-        .get_project(project_id)
+    let project = store
+        .project(project_id)
         .await
         .map_err(|e| {
             tracing::error!(project_id = %project_id, error = %e, "Database error during project lookup");
-            ApiKeyAuthError::InvalidKey
+            ApiKeyAuthError::Unavailable
         })?
         .ok_or(ApiKeyAuthError::InvalidKey)?;
 
@@ -113,10 +206,8 @@ pub async fn validate_api_key_for_project(
         return Err(ApiKeyAuthError::InvalidKey);
     }
 
-    let now = clock.now().timestamp();
-    check_expiry_and_scope(&validation, required_scope, now)?;
-    touch_if_needed(database, &validation, key_hash, now);
-    Ok(validation)
+    check_expiry_and_scope(&validation, required_scope, clock.now().timestamp())?;
+    Ok((validation, key_hash))
 }
 
 /// Validate API key for general endpoints (no org/project validation).
@@ -137,8 +228,8 @@ pub async fn validate_api_key_general(
 }
 
 /// Core validation: parse header, hash, lookup (caching handled by repository)
-async fn validate_api_key_core(
-    database: &crate::dependencies::TransactionalStore,
+async fn validate_api_key_core<S: KeyLookups + ?Sized>(
+    database: &S,
     api_key_secret: &[u8],
     auth_header: &str,
 ) -> Result<(ApiKeyValidation, String), ApiKeyAuthError> {
@@ -152,9 +243,12 @@ async fn validate_api_key_core(
 
     // Repository handles caching (positive + negative)
     let validation = database
-        .get_api_key_by_hash(&key_hash)
+        .api_key_by_hash(&key_hash)
         .await
-        .map_err(|_| ApiKeyAuthError::InvalidKey)?
+        .map_err(|e| {
+            tracing::error!(error = %e, "Database error during API key lookup");
+            ApiKeyAuthError::Unavailable
+        })?
         .ok_or(ApiKeyAuthError::InvalidKey)?;
     Ok((validation, key_hash))
 }
@@ -244,6 +338,15 @@ pub async fn otel_auth_middleware(
         }
     }
 
+    // A client whose checks the store has failed too often lately is answered "unavailable" without a lookup.
+    let unavailable =
+        RateLimitBucket::auth_unavailable("http", DEFAULT_RATE_LIMIT_AUTH_UNAVAILABLE_RPM);
+    if let (Some(limiter), Some(ip)) = (&state.rate_limiter, &client_ip)
+        && limiter.is_blocked(&unavailable, ip).await
+    {
+        return Err(ApiKeyAuthError::Unavailable);
+    }
+
     let auth_header = request
         .headers()
         .get(header::AUTHORIZATION)
@@ -272,12 +375,17 @@ pub async fn otel_auth_middleware(
 
     // Track auth failures for rate limiting (increment counter on failure only)
     if let Err(ref e) = result
-        && matches!(e, ApiKeyAuthError::InvalidKey | ApiKeyAuthError::Expired)
+        && e.counts_as_failed_attempt()
         && let (Some(limiter), Some(ip)) = (&state.rate_limiter, &client_ip)
     {
         let bucket = RateLimitBucket::auth_failures(DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM);
         let _ = limiter.check(&bucket, ip).await;
         tracing::debug!(ip = %ip, "OTEL auth failure tracked");
+    }
+    if let Err(ApiKeyAuthError::Unavailable) = result
+        && let (Some(limiter), Some(ip)) = (&state.rate_limiter, &client_ip)
+    {
+        let _ = limiter.check(&unavailable, ip).await;
     }
 
     result?;
@@ -474,5 +582,166 @@ mod tests {
             get_client_ip(&request, addr, &trusted(&["192.168.1.1"])),
             Some("10.0.0.1".to_string()),
         );
+    }
+
+    /// The clock at `NOW`.
+    #[derive(Debug)]
+    struct AtNow;
+
+    impl Clock for AtNow {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            chrono::DateTime::from_timestamp(NOW, 0).expect("a time")
+        }
+    }
+
+    /// A store that answers each lookup as told.
+    struct Lookups {
+        key: Result<Option<ApiKeyValidation>, ()>,
+        project: Result<Option<sideseat_ports::types::ProjectRow>, ()>,
+    }
+
+    impl KeyLookups for Lookups {
+        fn api_key_by_hash<'a>(&'a self, _: &'a str) -> Lookup<'a, Option<ApiKeyValidation>> {
+            let answer = self
+                .key
+                .clone()
+                .map_err(|()| sideseat_ports::error::DataError::pool_exhausted("postgres"));
+            Box::pin(async move { answer })
+        }
+
+        fn project<'a>(
+            &'a self,
+            _: &'a str,
+        ) -> Lookup<'a, Option<sideseat_ports::types::ProjectRow>> {
+            let answer = self
+                .project
+                .clone()
+                .map_err(|()| sideseat_ports::error::DataError::pool_exhausted("postgres"));
+            Box::pin(async move { answer })
+        }
+    }
+
+    fn project_of(org: &str) -> sideseat_ports::types::ProjectRow {
+        sideseat_ports::types::ProjectRow {
+            id: "p".to_string(),
+            organization_id: org.to_string(),
+            name: "p".to_string(),
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    async fn authorize(lookups: &Lookups) -> Result<(ApiKeyValidation, String), ApiKeyAuthError> {
+        let header = format!(
+            "Bearer {}",
+            sideseat_core::utils::api_key::generate_api_key()
+        );
+        authorize_for_project(
+            lookups,
+            b"secret",
+            &header,
+            "p",
+            ApiKeyScope::Ingest,
+            &AtNow,
+        )
+        .await
+    }
+
+    /// A store that fails while a key is checked says nothing about the key: the export is answered 503 over HTTP
+    /// and `Unavailable` over gRPC - both of which exporters retry - and is not counted as a failed attempt, so a
+    /// store outage cannot lock a client out. Before, it was a 401 the exporter dropped, charged to the client.
+    #[tokio::test]
+    async fn a_store_failure_while_checking_a_key_is_unavailable_not_unauthorized() {
+        let good = Ok(Some(make_validation(ApiKeyScope::Full, None)));
+        for lookups in [
+            Lookups {
+                key: Err(()),
+                project: Ok(Some(project_of("test-org"))),
+            },
+            Lookups {
+                key: good.clone(),
+                project: Err(()),
+            },
+        ] {
+            let refused = authorize(&lookups).await.expect_err("refused");
+            assert!(
+                matches!(refused, ApiKeyAuthError::Unavailable),
+                "{refused:?}"
+            );
+            assert!(!refused.counts_as_failed_attempt());
+            assert_eq!(refused.grpc_status().code(), tonic::Code::Unavailable);
+            let response = refused.into_response();
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+            assert!(response.headers().contains_key(header::RETRY_AFTER));
+        }
+        // A key the store answered for and found wanting is still a 401, and counted.
+        for lookups in [
+            Lookups {
+                key: Ok(None),
+                project: Ok(Some(project_of("test-org"))),
+            },
+            Lookups {
+                key: good.clone(),
+                project: Ok(Some(project_of("another-org"))),
+            },
+        ] {
+            let refused = authorize(&lookups).await.expect_err("refused");
+            assert!(
+                matches!(refused, ApiKeyAuthError::InvalidKey),
+                "{refused:?}"
+            );
+            assert!(refused.counts_as_failed_attempt());
+            assert_eq!(refused.grpc_status().code(), tonic::Code::Unauthenticated);
+            assert_eq!(refused.into_response().status(), StatusCode::UNAUTHORIZED);
+        }
+        let lookups = Lookups {
+            key: good,
+            project: Ok(Some(project_of("test-org"))),
+        };
+        assert!(authorize(&lookups).await.is_ok());
+    }
+
+    /// Both transports decide what a refusal costs and how it is answered with the same two functions, so a store
+    /// failure is a retry on HTTP and gRPC alike.
+    #[test]
+    fn both_transports_answer_a_refusal_alike() {
+        let http = include_str!("api_key.rs");
+        let http = http
+            .split_once("mod tests {")
+            .map_or(http, |(code, _)| code);
+        let grpc = include_str!("../routes/otlp_collector/grpc.rs");
+        let grpc = grpc
+            .split_once("mod grpc_auth_tests {")
+            .map_or(grpc, |(code, _)| code);
+        assert!(http.contains("e.counts_as_failed_attempt()"));
+        assert!(grpc.contains("e.counts_as_failed_attempt()"));
+        assert!(grpc.contains("e.grpc_status()"));
+        // Both bound what a failing store is asked: past the limit, a check is answered without a lookup.
+        for (source, transport) in [(http, "\"http\""), (grpc, "\"grpc\"")] {
+            let bucket = source
+                .find("auth_unavailable(")
+                .expect("the unavailable bucket");
+            assert!(
+                source[bucket..]
+                    .trim_start_matches("auth_unavailable(")
+                    .trim_start()
+                    .starts_with(transport)
+            );
+            let blocked = source
+                .find("is_blocked(&unavailable")
+                .expect("checked before the lookup");
+            let lookup = source
+                .rfind("validate_api_key_for_project(")
+                .expect("the lookup");
+            assert!(
+                blocked < lookup,
+                "{transport}: the bound is checked after the lookup"
+            );
+            assert!(
+                source.contains("limiter.check(&unavailable"),
+                "{transport}: unavailable checks are not counted"
+            );
+        }
+        assert!(!grpc.contains("Status::unauthenticated(\"invalid or unauthorized API key\")"));
     }
 }

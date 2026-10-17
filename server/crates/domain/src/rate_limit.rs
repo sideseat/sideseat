@@ -101,6 +101,21 @@ impl RateLimitBucket {
         }
     }
 
+    /// Key checks answered "authentication unavailable" - the store failed - per client, on `transport` ("http" or
+    /// "grpc"): past the limit, a check is answered so without a lookup, which bounds what a failing store is asked.
+    pub fn auth_unavailable(transport: &'static str, rpm: u32) -> Self {
+        Self {
+            name: if transport == "grpc" {
+                "grpc_auth_unavailable"
+            } else {
+                "auth_unavailable"
+            },
+            requests_per_window: rpm,
+            window_secs: DEFAULT_RATE_LIMIT_WINDOW_SECS,
+            burst: rpm / 10,
+        }
+    }
+
     pub fn auth_failures(rpm: u32) -> Self {
         Self {
             name: "auth_fail",
