@@ -113,8 +113,9 @@ fn a_returned_result_is_owed_as_its_span_wrote_it() {
     );
 }
 
-/// A framework's reply is held only where the span states it as its own output: the bytes beside the output in a
-/// diagnostic member, in an input event, or under an attribute no convention reads as output hold nothing.
+/// A framework's reply is held only where the span states it as its own output, as the readers read it: the bytes
+/// beside the output in a diagnostic member, in an input event, or under an attribute no carrier holds as output hold
+/// nothing.
 #[test]
 fn only_an_output_carrier_holds_a_reply() {
     use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
@@ -256,7 +257,10 @@ fn only_an_output_carrier_holds_a_reply() {
                     ),
                     span(
                         6,
-                        vec![string("gen_ai.completion.0.content", deprecated)],
+                        vec![
+                            string("gen_ai.completion.0.role", "assistant"),
+                            string("gen_ai.completion.0.content", deprecated),
+                        ],
                         Vec::new(),
                     ),
                     span(
@@ -264,7 +268,7 @@ fn only_an_output_carrier_holds_a_reply() {
                         Vec::new(),
                         vec![Event {
                             name: "gen_ai.content.completion".into(),
-                            attributes: vec![string("gen_ai.completion", deprecated)],
+                            attributes: vec![string("content", deprecated)],
                             ..Default::default()
                         }],
                     ),
@@ -363,6 +367,6 @@ fn only_an_output_carrier_holds_a_reply() {
     assert_eq!(held(output), [at(1, 1)], "the choice's message holds it");
     assert!(
         held(echoed).is_empty(),
-        "a diagnostic member, in a choice or in an output list, a tool's message, an indexed completion of a tool's role, a content beside a part's text, a text beside a message's content, an object under a part's text or content, a list under a part's text, a part the reasoning wrapper claims, a call written as a tool_call message, a message beside a choice's content, a reasoning part, a tool execution's choice, an input event and an input attribute hold nothing"
+        "what the readers do not show as an assistant's output - a diagnostic member, a tool's message, an indexed completion of a tool's role, a reasoning part, a tool execution's choice, an input event and an input attribute among them - holds nothing"
     );
 }
