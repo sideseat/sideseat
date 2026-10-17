@@ -734,7 +734,7 @@ pub enum ParametersEncoding {
     ArgumentMap,
 }
 
-/// The **eleven** carrier facts, named by preset with optional per-field overrides.
+/// The **twelve** carrier facts, named by preset with optional per-field overrides.
 ///
 /// A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,
 /// `carrier_holds_span_output`, and the name does not survive compilation. So each vector has one spelling: an
@@ -756,6 +756,24 @@ pub enum CarrierPreset {
     Snapshot,
     /// Framework state that restates earlier observations.
     AccumulatedState,
+}
+
+/// Which time dates what a carrier holds (`sideml::feed::dating`). Every preset dates by the carrier's own time;
+/// the other two are declared where the carrier is written at another moment than the one it describes.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum CarrierDate {
+    /// The carrier's own time: an event's, or for an attribute its span's start.
+    #[default]
+    Own,
+    /// The start of the span the observation names: a record written at the end of its span that describes what
+    /// began it, such as a tool call rebuilt from the record of its result. Every observation is dated so.
+    SpanStart,
+    /// The end of the span the observation names: what the span returned, which exists once it returns. Only the
+    /// carrier's sole observation on its span, counted by place; a carrier holding several is re-listing turns that
+    /// keep their own times.
+    SpanEnd,
 }
 
 /// A preset plus overrides rather than ten booleans spelled out per clause: the presets are the
@@ -792,6 +810,9 @@ pub struct Facts {
     pub carrier_replays_across_traces: Option<bool>,
     #[serde(default)]
     pub carrier_holds_request_delta: Option<bool>,
+    /// Which time dates what the carrier holds; its own unless declared.
+    #[serde(default)]
+    pub dated_by: Option<CarrierDate>,
 }
 
 /// Every rule asset, keyed by path so compilation order is deterministic.

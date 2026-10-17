@@ -12,7 +12,7 @@
 # gets its own state directory under SPEC_DIR/states, a watchdog kills TLC when that directory passes
 # MODEL_CHECK_MAX_MB or the run passes MODEL_CHECK_MAX_SECONDS, and the directory is removed whatever the
 # outcome. The defaults are well above what the committed models need (the largest writes a few hundred
-# megabytes; OrderGraph is the slowest at about ten minutes, almost all of it enumerating initial states) and
+# megabytes; OrderGraph is the slowest at about fifteen minutes, almost all of it enumerating initial states) and
 # well below what hurts. MODEL_CHECK_HEAP caps the heap when set.
 set -euo pipefail
 

@@ -133,6 +133,7 @@
 pub mod cache;
 mod classify;
 mod correlate;
+mod dating;
 mod dedup;
 mod history;
 // The order resolver of the reconstruction redesign. Production runs `Constraints::PRODUCTION`; the

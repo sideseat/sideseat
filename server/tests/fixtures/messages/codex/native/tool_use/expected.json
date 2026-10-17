@@ -7597,10 +7597,10 @@
     "message_count": 6,
     "role_sequence": [
       "assistant",
-      "assistant",
       "tool",
       "assistant",
       "tool",
+      "assistant",
       "user"
     ],
     "tool_names": [],
@@ -7616,6 +7616,14 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Chunk ID: 4a9c43 Wall time: 0.0000 seconds Process exited with code 0 Original token count: 6 Output: 32 forecast.json",
+        "content_digest": "4785a8d107ec9c42",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_f3dec6e3f0fc570f9edd1b02d182219d\",\"name\":\"exec_command\",\"input\":{\"cmd\":\"wc -l forecast.json\",\"max_output_tokens\":1000}}",
@@ -7624,28 +7632,20 @@
         "observation_type": "tool"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "Chunk ID: 4a9c43 Wall time: 0.0000 seconds Process exited with code 0 Original token count: 6 Output: 32 forecast.json",
-        "content_digest": "4785a8d107ec9c42",
+        "content": "Chunk ID: d72219 Wall time: 0.9762 seconds Process exited with code 0 Original token count: 118 Output: { \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\"…[397 chars]",
+        "content_digest": "679dec60485da4b2",
         "observation_type": "tool"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_4be58adbdf725ff6b34e4daeb315ce41\",\"name\":\"exec_command\",\"input\":{\"cmd\":\"cat forecast.json\",\"max_output_tokens\":4000}}",
         "content_digest": "063534dc26b079d4",
         "tool_name": "exec_command",
-        "observation_type": "tool"
-      },
-      {
-        "index": 4,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "Chunk ID: d72219 Wall time: 0.9762 seconds Process exited with code 0 Original token count: 118 Output: { \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\"…[397 chars]",
-        "content_digest": "679dec60485da4b2",
         "observation_type": "tool"
       },
       {

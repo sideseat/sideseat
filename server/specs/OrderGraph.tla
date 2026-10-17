@@ -26,20 +26,28 @@
 (* The spec checks each lineage independently, so it proves the properties  *)
 (* below hold for *every* survivor selection. It does NOT prove that two    *)
 (* equivalent selections yield the same order - that needs two lineages     *)
-(* compared in one state, which squares the space, and `Rank` is fixed here *)
+(* compared in one state, which squares the space, and the dates are fixed  *)
+(* by the input here *)
 (* besides. Copy-survival independence is therefore tested in Rust, over    *)
 (* real payloads, by `ordering_constraints_do_not_change_a_session_s_messages`  *)
 (* and the promoted-constraint tests, not claimed here.                     *)
 (*                                                                          *)
-(* Also outside the model: the promotion dial, time priority, the           *)
-(* history gating that differs between carrier and dataflow edges, and the  *)
-(* session transcript. Each is named in `Constraints::PRODUCTION`.          *)
+(* Time priority is modelled as far as dating goes (`sideml::feed::dating`): *)
+(* the pre-resolver order is each survivor's earliest date, an observation  *)
+(* is dated by its own time - its position - and a carrier declaring        *)
+(* `span_end` dates its sole observation, counted by place, at its span's   *)
+(* end. `span_start` dating is not modelled.                                *)
+(*                                                                          *)
+(* Also outside the model: the promotion dial, the history gating that      *)
+(* differs between carrier and dataflow edges, and the session transcript.  *)
+(* Each is named in `Constraints::PRODUCTION`.                              *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 (* The model's atoms. Everything structural is derived below, because a .cfg    *)
 (* file cannot express a record, and the carrier profiles are records.          *)
 CONSTANTS ob1, ob2, ob3,        \* observations
+          SoleOnly,          \* `span_end` dates only a carrier's sole observation
           sv1, sv2,             \* survivors
           none,              \* sentinel: an observation that survived nothing
           spA, spB,          \* spans
@@ -49,9 +57,11 @@ Obs == {ob1, ob2, ob3}
 Surv == {sv1, sv2}
 NoSurv == none
 
-\* The pre-resolver order: what the previous scalar sort produced, and the
-\* deterministic tie-break here.
-Rank == (sv1 :> 0) @@ (sv2 :> 1)
+\* The deterministic tie-break between survivors born at the same time.
+Id == (sv1 :> 0) @@ (sv2 :> 1)
+
+\* A span's end, after every observation's own time (positions 0..2).
+SpanEnd == 3
 
 (* The carrier shapes, named for what they are in the corpus:                   *)
 (*   choice  - gen_ai.choice / ai.response: an emission the span produced       *)
@@ -72,13 +82,13 @@ Rank == (sv1 :> 0) @@ (sv2 :> 1)
 (* lineage - is the part that is not obvious by inspection.                         *)
 Profiles ==
     { [span |-> spA, payload |-> p1, kind |-> "emission",
-       ordered |-> TRUE, output |-> TRUE, gen |-> TRUE],
+       ordered |-> TRUE, output |-> TRUE, gen |-> TRUE, dated |-> "own"],
       [span |-> spA, payload |-> p2, kind |-> "snapshot",
-       ordered |-> TRUE, output |-> FALSE, gen |-> TRUE],
+       ordered |-> TRUE, output |-> FALSE, gen |-> TRUE, dated |-> "own"],
       [span |-> spB, payload |-> p1, kind |-> "emission",
-       ordered |-> TRUE, output |-> TRUE, gen |-> TRUE],
+       ordered |-> TRUE, output |-> TRUE, gen |-> TRUE, dated |-> "own"],
       [span |-> spB, payload |-> p3, kind |-> "state",
-       ordered |-> TRUE, output |-> TRUE, gen |-> FALSE] }
+       ordered |-> TRUE, output |-> TRUE, gen |-> FALSE, dated |-> "end"] }
 
 (* Positions are bounded to three values, which is all the ordering rules read:      *)
 (* before, after, and same.                                                          *)
@@ -116,6 +126,32 @@ IsEmission(o) == Carrier(o).kind = "emission" /\ Carrier(o).output
 Ordered(o) == Carrier(o).ordered
 Projected(o) == lineage[o] # NoSurv
 Landed == { o \in Obs : Projected(o) }
+
+----------------------------------------------------------------------------
+(* Dating. An observation's own time is its position. A carrier declaring    *)
+(* `span_end` holds what its span returned: its sole observation - one place  *)
+(* in the payload, however many copies a re-delivery made, and counted over  *)
+(* every observation, since dating precedes dedup - happened at the span's   *)
+(* end. A payload holding several places is re-listing turns, which happened *)
+(* at their own times. That is the claim the declaration makes; the model     *)
+(* states it as `TrueTime` and checks that the dates follow it.               *)
+
+SoleReturn(o) == /\ Carrier(o).dated = "end"
+                 /\ \A x \in Obs : PayloadOf(x) = PayloadOf(o) => posn[x] = posn[o]
+
+TrueTime(o) == IF SoleReturn(o) THEN SpanEnd ELSE posn[o]
+Date(o) == IF Carrier(o).dated = "end" /\ (SoleReturn(o) \/ ~SoleOnly)
+           THEN SpanEnd ELSE posn[o]
+
+\* A survivor is born at its earliest copy, by date and by truth. As functions, so
+\* that one evaluation serves a whole resolution: TLA+ does not memoise.
+Earliest(s, F(_)) == LET times == { F(o) : o \in { x \in Landed : lineage[x] = s } }
+                     IN CHOOSE t \in times : \A u \in times : t <= u
+BornOf == [s \in Surv |-> Earliest(s, Date)]
+TrueBorn(s) == Earliest(s, TrueTime)
+
+\* The pre-resolver order: earliest date first, the id breaking a tie.
+RankLeq(b, x, y) == b[x] < b[y] \/ (b[x] = b[y] /\ Id[x] <= Id[y])
 
 ----------------------------------------------------------------------------
 (* Units: emission contraction as a quotient over survivors.                *)
@@ -162,7 +198,8 @@ WellFormedUnits ==
     \* ... and nothing else does: a unit's members are exactly one co-emission component.
     /\ \A a, b \in Surv : unit[a] = unit[b] => b \in Component(a)
     \* The representative is the component's lowest rank, which makes the choice unique.
-    /\ \A s \in Surv : \A t \in Surv : (unit[t] = unit[s]) => Rank[unit[s]] <= Rank[t]
+    /\ LET b == BornOf IN
+       \A s \in Surv : \A t \in Surv : (unit[t] = unit[s]) => RankLeq(b, unit[s], t)
 
 Units == { UnitOf(s) : s \in Surv }
 MembersOf(u) == { s \in Surv : UnitOf(s) = u }
@@ -210,20 +247,20 @@ Edge(u1, u2) ==
 ----------------------------------------------------------------------------
 (* Resolution: deterministic Kahn over units, with a total cycle fallback.  *)
 
-MinRank(S) == CHOOSE x \in S : \A y \in S : Rank[x] <= Rank[y]
+MinRank(b, S) == CHOOSE x \in S : \A y \in S : RankLeq(b, x, y)
 
-RECURSIVE Kahn(_, _)
-Kahn(remaining, acc) ==
+RECURSIVE Kahn(_, _, _)
+Kahn(remaining, acc, b) ==
     IF remaining = {} THEN acc
     ELSE LET ready == { u \in remaining : \A v \in remaining : ~Edge(v, u) }
              \* No ready unit means the evidence contradicts itself. Release the
              \* lowest legacy index so the result is still a total order: the
              \* alternative is no answer at all, and a diagnosed arbitrary
              \* choice beats diverging.
-             pick == IF ready # {} THEN MinRank(ready) ELSE MinRank(remaining)
-         IN Kahn(remaining \ {pick}, Append(acc, pick))
+             pick == IF ready # {} THEN MinRank(b, ready) ELSE MinRank(b, remaining)
+         IN Kahn(remaining \ {pick}, Append(acc, pick), b)
 
-UnitOrder == Kahn(Units, <<>>)
+UnitOrder == Kahn(Units, <<>>, BornOf)
 
 \* Members of one unit in legacy order. (The implementation can also use the
 \* emission's own adjacency here; legacy order is the neutral choice and is what
@@ -235,7 +272,7 @@ Flatten(i, acc) ==
              RECURSIVE Emit(_, _)
              Emit(left, out) ==
                  IF left = {} THEN out
-                 ELSE LET m == MinRank(left) IN Emit(left \ {m}, Append(out, m))
+                 ELSE LET m == MinRank(BornOf, left) IN Emit(left \ {m}, Append(out, m))
          IN Flatten(i + 1, Emit(members, acc))
 
 Order == Flatten(1, <<>>)
@@ -316,6 +353,19 @@ AcyclicImpliesCausality == Acyclic => Causality
 AcyclicImpliesCarrier == Acyclic => CarrierSubsequence
 AcyclicImpliesDataflow == Acyclic => Dataflow
 
+\* P6. Time decides what no edge does: two survivors in distinct units with no
+\*     edge between them are ordered by when they truly happened. Holds only
+\*     because a re-listing's turns keep their own times; dating every
+\*     observation of a `span_end` carrier at the end (`SoleOnly = FALSE`)
+\*     moves a re-listed turn after one that followed it.
+TimeOrdersTheUnrelated ==
+    \A a, b \in Surv :
+        \* Cheapest conjunct first: TLC evaluates them in order, and `Edge` is not cheap.
+        ( /\ TrueBorn(a) < TrueBorn(b)
+          /\ UnitOf(a) # UnitOf(b)
+          /\ ~Edge(UnitOf(a), UnitOf(b)) /\ ~Edge(UnitOf(b), UnitOf(a)) )
+        => Before(a, b)
+
 Correct ==
     /\ Permutation
     /\ Cohesion
@@ -323,6 +373,7 @@ Correct ==
     /\ Acyclic => Causality
     /\ Acyclic => CarrierSubsequence
     /\ Acyclic => Dataflow
+    /\ TimeOrdersTheUnrelated
 
 ----------------------------------------------------------------------------
 (* Two survivors, and the scope that costs is stated in the module header: at this  *)

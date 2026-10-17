@@ -15,12 +15,13 @@
     },
     {
       "id": "codex.tool_call.carrier",
-      "doc": "The call, rebuilt from the record of its result. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "doc": "The call, rebuilt from the record of its result. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission. Dated by its span's start: the record is written when the tool returns, on the span that ran the call (`dispatch_tool_call_with_state`), which opened when the call was made - dated by the record, a call sorts after its own result.",
       "match": {
         "event": "codex.tool_result.call"
       },
       "facts": {
-        "preset": "snapshot"
+        "preset": "snapshot",
+        "dated_by": "span_start"
       }
     },
     {

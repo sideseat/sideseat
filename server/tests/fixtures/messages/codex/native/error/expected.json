@@ -6486,8 +6486,8 @@
     "message_count": 4,
     "role_sequence": [
       "assistant",
-      "assistant",
       "tool",
+      "assistant",
       "user"
     ],
     "tool_names": [],
@@ -6503,19 +6503,19 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Chunk ID: b96886 Wall time: 6.1176 seconds Process exited with code 1 Original token count: 15 Output: cat: bookings/london-oslo.txt: No such file or directory",
+        "content_digest": "a8e329bdea837b39",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_ba8319f52a995384aa08c093b55fc7b9\",\"name\":\"exec_command\",\"input\":{\"cmd\":\"cat bookings/london-oslo.txt\",\"max_output_tokens\":2000}}",
         "content_digest": "6c56c4e1c3d26916",
         "tool_name": "exec_command",
-        "observation_type": "tool"
-      },
-      {
-        "index": 2,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "Chunk ID: b96886 Wall time: 6.1176 seconds Process exited with code 1 Original token count: 15 Output: cat: bookings/london-oslo.txt: No such file or directory",
-        "content_digest": "a8e329bdea837b39",
         "observation_type": "tool"
       },
       {

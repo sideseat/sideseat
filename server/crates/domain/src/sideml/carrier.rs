@@ -106,6 +106,8 @@ pub struct CarrierSemantics {
     /// what the request appends, the request's frame is its own, and its output is what the next request
     /// inherits. A delta is what the model was given, so it is on the input side by definition.
     pub carrier_holds_request_delta: bool,
+    /// Which time dates what the carrier holds (`CarrierDate`).
+    pub dated_by: crate::rules::schema::CarrierDate,
 }
 
 impl CarrierSemantics {
@@ -122,6 +124,7 @@ impl CarrierSemantics {
         may_restate_prior_observations: false,
         carrier_holds_span_output: true,
         carrier_is_detached_request_frame: false,
+        dated_by: crate::rules::schema::CarrierDate::Own,
     };
 
     /// A conversation as one span saw it: ordered, may repeat earlier turns, and a repeat inside it
@@ -138,6 +141,7 @@ impl CarrierSemantics {
         may_restate_prior_observations: true,
         carrier_holds_span_output: false,
         carrier_is_detached_request_frame: false,
+        dated_by: crate::rules::schema::CarrierDate::Own,
     };
 
     /// Framework state that happens to contain messages - LangChain's `output.value`, an agent's
@@ -157,6 +161,7 @@ impl CarrierSemantics {
         may_restate_prior_observations: true,
         carrier_holds_span_output: true,
         carrier_is_detached_request_frame: false,
+        dated_by: crate::rules::schema::CarrierDate::Own,
     };
 }
 

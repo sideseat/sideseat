@@ -274,7 +274,8 @@ A carrier declaration answers independent questions instead of assigning one bro
 - whether it holds the span output;
 - whether it is a detached request frame;
 - whether it holds an expandable message array;
-- which named ordering family it belongs to.
+- which named ordering family it belongs to;
+- which time dates what it holds (`dated_by`).
 
 The booleans are deliberately independent. Conversation snapshots, accumulated state, detached requests,
 and single emissions overlap in several properties and differ in others. Compilation rejects combinations
@@ -284,6 +285,32 @@ Semantics are resolved from the carrier and available span context. They are not
 to embedded rules apply to stored observations during reconstruction without re-ingestion. Message
 extraction itself occurs during ingestion; newly recognisable messages require re-ingestion because their
 raw message rows do not yet exist.
+
+### Dating an observation
+
+A block is dated by its carrier's own time: an event's, or for an attribute its span's start. A carrier written
+at another moment than the one it describes declares `dated_by` (`server/crates/domain/src/sideml/feed/dating.rs`):
+
+- `span_start` dates every observation at its span's start. A tool call rebuilt from the record of its result
+  happened when the span that ran it started, not when the result came back.
+- `span_end` dates what the span returned at its end, and only where the carrier holds that one observation on
+  its span, counted by place so a re-delivered span is dated as the first delivery was. A carrier holding several
+  observations is re-listing a conversation, and its turns keep their own times.
+
+A date moves the block's timestamp and nothing else. Whether a block completes its span (`uses_span_end`) is a
+question about its shape, and dedup reads it too.
+
+The alternatives were measured over the whole corpus and refused; do not retry them without new evidence:
+
+| Variant | Measured |
+| --- | --- |
+| `output.value` dated at span end through `uses_span_end` | +72 rubric violations: a chain's restatement of an answer became the surviving copy (langchain attribution), and smolagents' re-listed turns moved |
+| The same, only on OpenInference agent spans | about +150 violations, smolagents |
+| Timestamp only, every observation of `output.value` | +34 violations: smolagents' agent output re-lists turns that must keep their own times |
+| Timestamp only, every observation not marked history | about +50 violations, smolagents again: some re-listed turns are their only witness and are not history |
+| A carrier clause qualified by span name | refused by the compiler: the stored span name is the display name, not the one the producer sent |
+| A per-reading `dated_by`, as `direction` is declared | not taken: the declaration would be persisted on every message the generic fallback reads, a storage cost for a fact the carrier can state |
+| **Sole observation, by place, timestamp only** | the shipped rule |
 
 ## Ordering and precedence
 

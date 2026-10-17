@@ -703,6 +703,9 @@ fn classify_blocks_with_history(
     span_timestamps: &HashMap<String, SpanTimestamps>,
     preserve_span_context: bool,
 ) {
+    // Step 0: a carrier written when its span ends but describing what began it is dated at the span's start.
+    super::dating::date_at_span_start(blocks, span_timestamps);
+
     // Step 1: Classify timestamp strategy for each block
     let mut output_count = 0;
     for block in blocks.iter_mut() {
@@ -947,6 +950,9 @@ fn classify_blocks_with_history(
         total_history = stats.total_history(),
         "history detection complete"
     );
+
+    // Step 3: what a span returned is dated when it returned (`dating`).
+    super::dating::date_returns_at_span_end(blocks, span_timestamps);
 }
 
 /// Extract tool_use_id from a content block if applicable.

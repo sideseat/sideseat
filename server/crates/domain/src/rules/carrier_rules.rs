@@ -218,6 +218,9 @@ fn resolve_facts(
     if let Some(v) = facts.carrier_holds_request_delta {
         semantics.carrier_holds_request_delta = v;
     }
+    if let Some(v) = facts.dated_by {
+        semantics.dated_by = v;
+    }
     if let Some(detail) = incoherent(&semantics, ordering_family) {
         return Err(CompileError::IncoherentFacts {
             clause: clause_id.to_string(),
