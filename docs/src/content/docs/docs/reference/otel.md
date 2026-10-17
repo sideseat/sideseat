@@ -127,6 +127,18 @@ export it has started. A gRPC export is one message; a request that carries a se
 Raise the budget on a host with memory to spare and many concurrent exporters; lower it to keep a small host
 inside its memory.
 
+### When an export is answered
+
+A success means the export is durable. Logs and metrics are stored before they are answered, and so are traces
+without a durable queue. With one (Redis or Redpanda), a trace export is answered once the queue has accepted it,
+and a consumer stores it after.
+
+A server that loses its store lease while an export is being stored answers `503 Service Unavailable` (gRPC
+`UNAVAILABLE`), even when the export's rows were written. The lease is what keeps a write and a restore apart: a
+write made without it may have lost media to a restore meanwhile, and no read can tell. The exporter's retry
+stores the export again, under a lease, as an exact redelivery. A queued trace export in the same situation stays
+queued, for a consumer that holds the lease.
+
 ## Sending Traces
 
 ### Python with OpenTelemetry SDK
