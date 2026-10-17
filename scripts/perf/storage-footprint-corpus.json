@@ -18,6 +18,7 @@
 "server/tests/fixtures/messages/_synthetic/answer_on_span_event_and_log/req-001.json": "9b7659a4da9800b7730f15a2d0a36b389419b7939efff577a65ba86232ac2904",
 "server/tests/fixtures/messages/_synthetic/carrier_collision_agent_and_generation/req-001.json": "567356cd2d73ac5e4238b830bcf761579e99e9717eb425de006001e90405be7e",
 "server/tests/fixtures/messages/_synthetic/cross_span_tie/req-001.json": "becd06701bf01fef89e592f2e27abc4a77f89b26e16bf5c3c88731846e364856",
+"server/tests/fixtures/messages/_synthetic/deprecated_genai_completions/req-001.json": "11aeb06427cc37a473e9da083e64a3ef9c4475d90d8cd8d65fa41e9eff8bf5ad",
 "server/tests/fixtures/messages/_synthetic/dialect_question_generic_answer/req-001.json": "49cfecdcf2b2dd3f9f89a64be3e7d611e0a4f9f3bd169b082fcdf9c088954608",
 "server/tests/fixtures/messages/_synthetic/event_question_attribute_answer/req-001.json": "7f3e08197bc8a796ca8ccd27ae85af8f8edcbbe14e20a02cce5291d2fa737a1d",
 "server/tests/fixtures/messages/_synthetic/genai_semconv_messages/req-001.json": "703bbd17155d0bced5114f12f52baf907d8b41a7667ac3d8999fe460b064f20d",
