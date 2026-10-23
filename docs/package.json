@@ -10,14 +10,14 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.3.1",
-    "@astrojs/starlight": "^0.42.0",
+    "@astrojs/markdown-remark": "^7.3.3",
+    "@astrojs/starlight": "^0.42.6",
     "@fontsource/ibm-plex-mono": "^5.1.1",
     "@fontsource/inter": "^5.1.1",
     "@fontsource/space-grotesk": "^5.1.1",
-    "astro": "^7.3.2",
-    "playwright": "^1.58.0",
+    "astro": "^7.4.1",
+    "playwright": "^1.64.1",
     "rehype-mermaid": "^3.0.0",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.5"
   }
 }
